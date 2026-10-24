@@ -1,7 +1,7 @@
 ---
 description: Commits, ramas, pull y push del repositorio de este proyecto en GitHub.
 mode: subagent
-model: opencode/deepseek-v4.1-flash-free
+model: mideepseek/deepseek-flash
 color: "#0fc00c"
 ---
 

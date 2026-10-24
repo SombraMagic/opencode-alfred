@@ -6,13 +6,13 @@ permission:
   edit: deny
   shell:
     "*": ask
-    "git status*": allow
-    "git diff*": allow
-    "git log*": allow
-    "npm run typecheck*": allow
-    "npm run compile*": allow
-    "git commit*": deny
-    "git push*": deny
+    git status*: allow
+    git diff*: allow
+    git log*: allow
+    npm run typecheck*: allow
+    npm run compile*: allow
+    git commit*: deny
+    git push*: deny
 ---
 
 Eres el revisor de este repositorio: la extensión de VS Code `opencode-agents-editor`.
