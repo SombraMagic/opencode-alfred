@@ -62,7 +62,11 @@ import {
   claudeContext,
   claudeExplorer,
   claudeInstructionsFile,
+  claudeLiveSessions,
+  claudeModePresses,
   claudeModels,
+  claudePermissionMode,
+  claudeSessionMode,
   setClaudeAutoAccept,
   setClaudeItem,
   setClaudeModel,
@@ -225,11 +229,31 @@ export function activate(context: vscode.ExtensionContext): void {
     sessionTerminals.set(key, terminal);
   }
 
-  /** Terminal viva con el nombre del agente: también las abiertas a mano o antes de recargar. */
-  function runningTerminal(id: SessionAgent): vscode.Terminal | undefined {
+  /** Terminal viva con alguno de esos nombres: también las abiertas a mano o antes de recargar. */
+  function runningTerminal(...ids: string[]): vscode.Terminal | undefined {
+    const names = ids.map((id) => id.toLowerCase());
     return vscode.window.terminals.find(
-      (t) => t.exitStatus === undefined && t.name.toLowerCase() === id
+      (t) => t.exitStatus === undefined && names.includes(t.name.toLowerCase())
     );
+  }
+
+  /**
+   * Último modo que dejamos en la terminal de Claude. Vale solo mientras el transcript
+   * siga en la misma posición: en cuanto el CLI anota otro turno, manda el transcript.
+   */
+  let claudeModeMemo:
+    | { sessionId: string; mode: string; offset: number | undefined }
+    | undefined;
+
+  /**
+   * Terminal de la sesión viva de Claude. Claude pone a la terminal el `name` de su sesión,
+   * así que el nombre "claude" se pierde: hay que probar también esos títulos.
+   */
+  function claudeTerminal(
+    live = claudeLiveSessions(projectRoot())
+  ): vscode.Terminal | undefined {
+    const titles = live.map((session) => session.name).filter((name): name is string => !!name);
+    return runningTerminal("claude", ...titles);
   }
 
   // shortcut: la detección es al activar; instalar un CLI después exige recargar la ventana.
@@ -337,7 +361,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (sessionAgent !== "opencode") {
       // En Claude y Codex `/compact` es un comando del TUI y no hay API local: se escribe en su terminal.
       const label = sessionAgent === "claude" ? "Claude" : "Codex";
-      const terminal = runningTerminal(sessionAgent);
+      const terminal = sessionAgent === "claude" ? claudeTerminal() : runningTerminal(sessionAgent);
       if (!terminal) {
         void vscode.window.showWarningMessage(
           `No hay ninguna terminal de ${label} abierta que compactar.`
@@ -895,7 +919,30 @@ export function activate(context: vscode.ExtensionContext): void {
         // Lo resuelve el switch común, que escribe en la config del proveedor activo.
         return false;
 
-      case "setAutoAccept":
+      case "setAutoAccept": {
+        const root = projectRoot();
+        const live = claudeLiveSessions(root);
+        const terminal = claudeTerminal(live);
+        const session =
+          live.find((s) => s.name && s.name.toLowerCase() === terminal?.name.toLowerCase()) ??
+          live[0];
+        // Con un diálogo abierto, Shift+Tab cicla sus opciones en vez del modo: no se toca.
+        if (terminal && session?.status === "waiting") {
+          void vscode.window.setStatusBarMessage(
+            "Claude tiene un diálogo abierto: respóndelo y vuelve a alternar los permisos.",
+            5000
+          );
+          return true;
+        }
+        // El modo vivo se lee del transcript; si aún no hay evento, del ajuste guardado.
+        // El memo cubre lo que el transcript tarda un turno en reflejar.
+        const liveMode = session ? claudeSessionMode(root, session.sessionId) : undefined;
+        const previous =
+          session &&
+          claudeModeMemo?.sessionId === session.sessionId &&
+          claudeModeMemo.offset === liveMode?.offset
+            ? claudeModeMemo.mode
+            : liveMode?.mode ?? claudePermissionMode();
         try {
           await setClaudeAutoAccept(action.on);
         } catch (err) {
@@ -905,16 +952,70 @@ export function activate(context: vscode.ExtensionContext): void {
           return true;
         }
         refresh();
+        // Claude no expone el modo por API: se pulsa Shift+Tab en su terminal, el mismo
+        // ciclo del CLI (`auto → default → acceptEdits → plan → auto`).
+        if (terminal && session) {
+          const target = action.on ? "auto" : "default";
+          const presses = previous ? claudeModePresses(previous, target) : undefined;
+          if (presses !== undefined) {
+            for (let i = 0; i < presses; i++) {
+              terminal.sendText("\x1b[Z", false);
+              await new Promise((resolve) => setTimeout(resolve, 120));
+            }
+            claudeModeMemo = {
+              sessionId: session.sessionId,
+              mode: target,
+              offset: liveMode?.offset,
+            };
+            void vscode.window.setStatusBarMessage(
+              presses === 0
+                ? `Claude ya estaba en modo ${action.on ? "automático" : "manual"}.`
+                : `Claude: permisos en modo ${action.on ? "automático" : "manual"}.`,
+              4000
+            );
+          } else {
+            // Sin saber el modo vivo no se cicla a ciegas: queda para la próxima sesión.
+            void vscode.window.setStatusBarMessage(
+              "Claude aplicará el modo al abrir una sesión nueva.",
+              4000
+            );
+          }
+        }
         return true;
+      }
 
       case "editInstructions": {
-        if (action.scope === "project" && !projectRoot()) {
-          void vscode.window.showWarningMessage(
-            "Abre una carpeta de proyecto para editar su CLAUDE.md."
-          );
+        if (action.scope === "project") {
+          const root = projectRoot();
+          if (!root) {
+            void vscode.window.showWarningMessage(
+              "Abre una carpeta de proyecto para editar su CLAUDE.md."
+            );
+            return true;
+          }
+          // Dos ficheros: AGENTS.md son las reglas del repo y CLAUDE.md las del
+          // orquestador; Claude carga este último y este importa el primero.
+          const agents = path.join(root, "AGENTS.md");
+          const claude = path.join(root, "CLAUDE.md");
+          if (!existsSync(claude)) {
+            try {
+              await fs.mkdir(path.dirname(claude), { recursive: true });
+              await writeAtomic(claude, "");
+            } catch (err) {
+              void vscode.window.showErrorMessage(
+                `No se pudo crear ${path.basename(claude)}: ${err instanceof Error ? err.message : String(err)}`
+              );
+              return true;
+            }
+          }
+          // AGENTS.md es del repo: si falta no se inventa.
+          if (existsSync(agents)) {
+            await openFile(agents);
+          }
+          await openFile(claude);
           return true;
         }
-        // El editor de AGENTS.md es de opencode: aquí se abre el fichero tal cual.
+        // Global: solo el CLAUDE.md del usuario.
         const file = claudeInstructionsFile(action.scope, projectRoot());
         if (!existsSync(file)) {
           try {
@@ -1086,13 +1187,15 @@ export function activate(context: vscode.ExtensionContext): void {
       case "openLastSession": {
         await closeStarterTabs();
         await pruneEmptyGroups();
+        const root = projectRoot();
         // Si la terminal de ese agente ya vive, es en la que el usuario trabaja: se enfoca.
-        const live = runningTerminal(sessionAgent);
-        if (live) {
-          live.show();
+        // Claude renombra la suya con el título de la sesión, así que se buscan ambos.
+        const live = sessionAgent === "claude" ? claudeLiveSessions(root) : [];
+        const terminal = sessionAgent === "claude" ? claudeTerminal(live) : runningTerminal(sessionAgent);
+        if (terminal) {
+          terminal.show();
           return;
         }
-        const root = projectRoot();
         if (sessionAgent === "opencode") {
           const snapshot = lastRaw ?? (await statsService.collect());
           const last = pickSession(snapshot);
@@ -1104,12 +1207,19 @@ export function activate(context: vscode.ExtensionContext): void {
           }
           return;
         }
-        // Continuar la última conversación del agente. Sin historial, el CLI avisa y se cierra.
+        if (sessionAgent === "claude") {
+          // `--continue` abre la conversación más reciente del directorio; solo el id de la
+          // sesión viva garantiza abrir exactamente la que el usuario tiene delante.
+          const id = live[0]?.sessionId;
+          openTerminal("claude", "claude", root, id ? `claude --resume ${id}` : "claude --continue");
+          return;
+        }
+        const codexId = codexContext(root).sessionId;
         openTerminal(
-          sessionAgent,
-          sessionAgent,
+          "codex",
+          "codex",
           root,
-          sessionAgent === "claude" ? "claude --continue" : "codex resume --last"
+          codexId ? `codex resume ${codexId}` : "codex resume --last"
         );
         return;
       }

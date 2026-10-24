@@ -119,7 +119,18 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   globales (`~/.claude.json` guarda credenciales: solo lectura) y Codex tampoco sus
   skills: esas filas van con `toggleable: false`. Modelos y Contexto de Claude/Codex no
   cambian la sesión viva: escriben su `model` en la config y miden sus ficheros de
-  sesión.
+  sesión. En Claude el modelo efectivo es `ANTHROPIC_MODEL` (entorno o `env` de
+  settings.json) y tapa a `settings.model`; el catálogo sale de ahí, del `modelPicker` y
+  de las sesiones, y al cambiar de modelo se escribe también `env.ANTHROPIC_MODEL` si
+  estaba puesta. Auto-aceptar escribe `permissions.defaultMode: "auto"` y, al apagarlo,
+  `"default"` (manual): desde 2.1.283 el CLI arranca en `auto` por su cuenta, así que
+  borrar la clave no lo apagaría. `acceptEdits` solo acepta ediciones y no es el modo
+  automático. En settings el valor es `default`; `manual` es el alias del flag. El modo
+  se fija al arrancar y no hay API para cambiarlo: al alternarlo se inyecta Shift+Tab
+  (`\x1b[Z`) en la terminal viva, que es el ciclo del propio CLI
+  (`auto → default → acceptEdits → plan → auto`). Con un diálogo abierto
+  (`status: "waiting"` en el registro de sesiones) no se inyecta: ahí Shift+Tab cicla
+  las opciones del diálogo, no el modo.
 - opencode migró su esquema: builds actuales usan `session_v2` + `session_message`
   (mensajes en JSON en `data`, `type` = `assistant`/`user`/`idle`/...; las tool calls van
   dentro del `content[]` del assistant, `state.status` = `running`/`pending`/`completed`/

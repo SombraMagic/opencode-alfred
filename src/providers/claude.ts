@@ -1,9 +1,20 @@
-import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from "fs";
+import {
+  closeSync,
+  existsSync,
+  fstatSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  statSync,
+  type Dirent,
+} from "fs";
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import { applyEdits, FormattingOptions, modify, parse as parseJsonc, ParseError } from "jsonc-parser";
 import { parseAgentFile } from "../agents/parser";
+import { isSamePath } from "../agents/paths";
 import { writeAtomic } from "../agents/store";
 import type { ExplorerAgent, ExplorerCatalogItem } from "../panels/explorerPanel";
 import type { ModelEntry } from "../panels/modelsPanel";
@@ -242,9 +253,15 @@ function readPlugins(settings: JsonObject | undefined): ExplorerCatalogItem[] {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** `permissions.defaultMode` de settings.json, sin interpretar. */
+export function claudePermissionMode(): string | undefined {
+  const mode = asObject(readJson(settingsFile())?.permissions)?.defaultMode;
+  return typeof mode === "string" ? mode : undefined;
+}
+
 export function claudeExplorer(projectRoot: string | undefined): ClaudeExplorer {
   const settings = readJson(settingsFile());
-  const defaultMode = asObject(settings?.permissions)?.defaultMode;
+  const defaultMode = claudePermissionMode();
   return {
     agents: {
       project: projectRoot ? readAgents(projectAgentsDir(projectRoot), "project") : [],
@@ -257,7 +274,9 @@ export function claudeExplorer(projectRoot: string | undefined): ClaudeExplorer 
       ...(projectRoot ? readSkills(projectSkillsDir(projectRoot), "project") : []),
     ],
     plugins: readPlugins(settings),
-    autoAccept: defaultMode === "acceptEdits" || defaultMode === "bypassPermissions",
+    // `auto` es el modo automático del CLI; `bypassPermissions`, aceptar sin ningún filtro.
+    // `acceptEdits` solo acepta ediciones: no es "aceptar todo".
+    autoAccept: defaultMode === "auto" || defaultMode === "bypassPermissions",
   };
 }
 
@@ -265,12 +284,47 @@ export function claudeExplorer(projectRoot: string | undefined): ClaudeExplorer 
 
 export interface ClaudeModels {
   models: ModelEntry[];
-  /** `settings.model` como `claude/<modelo>`; vacío si no hay ninguno configurado. */
+  /** Modelo efectivo de las sesiones nuevas como `claude/<modelo>`; vacío si no hay. */
   currentModel: string;
 }
 
-/** `deepseek-flash[1m]` y `deepseek-flash` son el mismo modelo: el sufijo no cuenta. */
+/** Sufijo de ventana (`[1m]`): no forma parte del nombre, pero decide el límite. */
 const MODEL_SUFFIX = /\[[^\]]*\]$/;
+
+/** Variables con las que Claude Code elige modelo, de más a menos prioridad. */
+const MODEL_ENV_VARS = [
+  "ANTHROPIC_MODEL",
+  "ANTHROPIC_DEFAULT_MODEL",
+  "ANTHROPIC_DEFAULT_FABLE_MODEL",
+  "ANTHROPIC_DEFAULT_OPUS_MODEL",
+  "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+  "ANTHROPIC_CUSTOM_MODEL_OPTION",
+  "CLAUDE_CODE_SUBAGENT_MODEL",
+] as const;
+
+/** Variable de modelo: manda el `env` de settings.json y, si falta, el entorno. */
+function envModel(settings: JsonObject | undefined, name: string): string {
+  const fromFile = asObject(settings?.env)?.[name];
+  if (typeof fromFile === "string" && fromFile.trim()) {
+    return fromFile.trim();
+  }
+  const fromProcess = process.env[name];
+  return typeof fromProcess === "string" ? fromProcess.trim() : "";
+}
+
+/** Modelo con el que arrancan las sesiones nuevas: `ANTHROPIC_MODEL` tapa a `settings.model`. */
+function effectiveModel(settings: JsonObject | undefined): string {
+  const fromEnv = envModel(settings, "ANTHROPIC_MODEL");
+  if (fromEnv) {
+    return fromEnv;
+  }
+  const configured = settings?.model;
+  if (typeof configured === "string" && configured.trim()) {
+    return configured.trim();
+  }
+  return envModel(settings, "ANTHROPIC_DEFAULT_MODEL");
+}
 
 /** Carpeta de sesiones del proyecto: la ruta con todo lo no alfanumérico en `-`. */
 function projectSessionsDir(root: string): string | undefined {
@@ -312,25 +366,37 @@ function recentSessionFiles(dir: string): string[] {
 }
 
 /**
- * Claude no publica catálogo local: los modelos salen de los que ya usaron las
- * sesiones de este proyecto. Sin carpeta ni sesiones queda solo el configurado.
+ * Claude no publica catálogo local: los modelos salen del configurado, de sus
+ * variables de entorno, del `modelPicker` de settings y de los que ya usaron las
+ * sesiones de este proyecto. Sin nada de eso queda una lista vacía.
  */
 export function claudeModels(projectRoot: string | undefined): ClaudeModels {
-  const configured = readJson(settingsFile())?.model;
-  const current = typeof configured === "string" ? configured.trim() : "";
+  const settings = readJson(settingsFile());
+  const current = effectiveModel(settings);
   const seen = new Set<string>();
   const models: ModelEntry[] = [];
-  const add = (name: string): void => {
-    const key = name.replace(MODEL_SUFFIX, "");
-    if (seen.has(key)) {
+  const add = (value: unknown): void => {
+    if (typeof value !== "string") {
       return;
     }
-    seen.add(key);
+    const name = value.trim();
+    // `[1m]` es una variante de ventana, no el mismo modelo: cada forma va aparte.
+    if (!name || name === "<synthetic>" || seen.has(name.toLowerCase())) {
+      return;
+    }
+    seen.add(name.toLowerCase());
     models.push({ id: `claude/${name}`, provider: "claude", model: name, name, free: false });
   };
-  // El configurado va primero: al deduplicar se queda con su forma exacta.
-  if (current) {
-    add(current);
+  // El efectivo va primero: es el que usan las sesiones nuevas.
+  add(current);
+  const picker = asObject(settings?.modelPicker)?.options;
+  if (Array.isArray(picker)) {
+    for (const row of picker) {
+      add(asObject(row)?.model);
+    }
+  }
+  for (const key of MODEL_ENV_VARS) {
+    add(envModel(settings, key));
   }
   const dir = projectRoot ? projectSessionsDir(projectRoot) : undefined;
   for (const file of dir ? recentSessionFiles(dir) : []) {
@@ -352,14 +418,7 @@ export function claudeModels(projectRoot: string | undefined): ClaudeModels {
       } catch {
         continue; // Línea a medio escribir de una sesión viva.
       }
-      if (typeof model !== "string") {
-        continue;
-      }
-      const name = model.trim();
-      if (!name || name === "<synthetic>") {
-        continue;
-      }
-      add(name);
+      add(model);
     }
   }
   return { models, currentModel: current ? `claude/${current}` : "" };
@@ -404,11 +463,10 @@ function sessionTitle(content: unknown): string | undefined {
  */
 function contextLimit(model: string): number {
   // shortcut: ventana por convenio del sufijo; no hay catálogo local de Claude.
-  const configured = readJson(settingsFile())?.model;
-  const name =
-    typeof configured === "string" && configured.trim().replace(MODEL_SUFFIX, "") === model
-      ? configured.trim()
-      : model;
+  const configured = effectiveModel(readJson(settingsFile()));
+  const name = configured.replace(MODEL_SUFFIX, "").toLowerCase() === model.toLowerCase()
+    ? configured
+    : model;
   return MODEL_SUFFIX.test(name) ? 1_000_000 : 200_000;
 }
 
@@ -518,6 +576,152 @@ export function claudeContext(projectRoot: string | undefined): ContextWindowInf
   return info;
 }
 
+/* ------------------------------ sesiones vivas ----------------------------- */
+
+export interface ClaudeLiveSession {
+  pid: number;
+  sessionId: string;
+  cwd: string;
+  kind?: string;
+  name?: string;
+  status?: string;
+  startedAt?: number;
+}
+
+/** `kill(pid, 0)` no mata: solo pregunta. `EPERM` significa que existe, pero es de otro usuario. */
+function pidAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/**
+ * Sesiones de Claude vivas (proceso existente) para este proyecto, la más reciente primero.
+ * Sin carpeta abierta no hay proyecto con el que casar: lista vacía.
+ */
+export function claudeLiveSessions(projectRoot: string | undefined): ClaudeLiveSession[] {
+  if (!projectRoot) {
+    return [];
+  }
+  const dir = path.join(claudeHome(), "sessions");
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: ClaudeLiveSession[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".json")) {
+      continue;
+    }
+    let item: JsonObject | undefined;
+    try {
+      item = asObject(JSON.parse(readFileSync(path.join(dir, entry.name), "utf8")));
+    } catch {
+      continue; // Fichero a medio escribir o de otra versión.
+    }
+    const pid = item?.pid;
+    const sessionId = item?.sessionId;
+    const cwd = item?.cwd;
+    if (typeof pid !== "number" || typeof sessionId !== "string" || typeof cwd !== "string") {
+      continue;
+    }
+    if (!pidAlive(pid) || !isSamePath(cwd, projectRoot)) {
+      continue;
+    }
+    out.push({
+      pid,
+      sessionId,
+      cwd,
+      kind: typeof item?.kind === "string" ? item.kind : undefined,
+      name: typeof item?.name === "string" ? item.name : undefined,
+      status: typeof item?.status === "string" ? item.status : undefined,
+      startedAt: typeof item?.startedAt === "number" ? item.startedAt : undefined,
+    });
+  }
+  // Una sesión en segundo plano no tiene terminal: si hay interactivas, mandan ellas.
+  const interactive = out.filter((session) => session.kind !== "bg");
+  return (interactive.length > 0 ? interactive : out).sort(
+    (a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0)
+  );
+}
+
+export interface ClaudeSessionMode {
+  mode: string;
+  /** Posición absoluta del evento en el transcript: cambia cuando el CLI anota otro turno. */
+  offset: number;
+}
+
+/**
+ * Último modo de permisos anotado en el transcript de la sesión. El CLI escribe un
+ * evento `permission-mode` al empezar cada turno; con su posición se distingue un
+ * evento nuevo de uno ya leído. Se busca hacia atrás por si el último turno fue enorme.
+ */
+export function claudeSessionMode(
+  projectRoot: string | undefined,
+  sessionId: string
+): ClaudeSessionMode | undefined {
+  const dir = projectRoot ? projectSessionsDir(projectRoot) : undefined;
+  if (!dir) {
+    return undefined;
+  }
+  const chunk = 1024 * 1024;
+  try {
+    const fd = openSync(path.join(dir, `${sessionId}.jsonl`), "r");
+    try {
+      const size = fstatSync(fd).size;
+      // Se busca el byte literal: así el offset no se mezcla con índices de caracteres.
+      const needle = Buffer.from('"type":"permission-mode","permissionMode":"');
+      // 8 MiB de tope: el evento de un turno normal queda mucho más cerca.
+      for (let end = size; end > 0 && size - end <= 8 * chunk; end = Math.max(0, end - chunk)) {
+        const start = Math.max(0, end - chunk);
+        // Solape corto con el bloque siguiente por si el evento cae en el corte.
+        const readEnd = Math.min(size, end + 512);
+        const buffer = Buffer.alloc(readEnd - start);
+        readSync(fd, buffer, 0, buffer.length, start);
+        const at = buffer.lastIndexOf(needle);
+        if (at >= 0) {
+          const from = at + needle.length;
+          const quote = buffer.indexOf(0x22, from);
+          if (quote > from) {
+            return {
+              mode: buffer.subarray(from, quote).toString("utf8"),
+              offset: start + at,
+            };
+          }
+        }
+        if (start === 0) {
+          break;
+        }
+      }
+      return undefined;
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Pulsaciones de Shift+Tab para pasar de un modo a otro. El CLI cicla
+ * `auto → default → acceptEdits → plan → auto` (los modos opcionales van tras plan).
+ */
+export function claudeModePresses(from: string | undefined, to: string): number | undefined {
+  const cycle = ["auto", "default", "acceptEdits", "plan"];
+  const source = from === "manual" ? "default" : from;
+  const a = source ? cycle.indexOf(source) : -1;
+  const b = cycle.indexOf(to);
+  return a < 0 || b < 0 ? undefined : (b - a + cycle.length) % cycle.length;
+}
+
 /* -------------------------------- escritura ------------------------------- */
 
 async function modifyJsonFile(
@@ -578,8 +782,10 @@ export async function setClaudeItem(
 }
 
 export async function setClaudeAutoAccept(on: boolean): Promise<void> {
-  // Al desactivar se borra la clave: el CLI vuelve a su modo por defecto, no a "default".
-  await modifyJsonFile(settingsFile(), ["permissions", "defaultMode"], on ? "acceptEdits" : undefined);
+  // `auto` aprueba sin preguntar y respeta las reglas deny; `acceptEdits` solo acepta
+  // ediciones. Al desactivar se escribe `default` (manual): desde 2.1.283 el CLI arranca
+  // en `auto` por su cuenta, así que borrar la clave no apagaría nada.
+  await modifyJsonFile(settingsFile(), ["permissions", "defaultMode"], on ? "auto" : "default");
 }
 
 /** Escribe `model` en settings.json: Claude lo lee al arrancar cada sesión. */
@@ -588,9 +794,15 @@ export async function setClaudeModel(id: string): Promise<void> {
   if (!id.startsWith(prefix)) {
     throw new Error("Ese modelo no es de Claude.");
   }
-  const model = id.slice(prefix.length);
-  if (!model.trim()) {
+  const model = id.slice(prefix.length).trim();
+  if (!model) {
     throw new Error("Falta el nombre del modelo.");
   }
-  await modifyJsonFile(settingsFile(), ["model"], model);
+  const file = settingsFile();
+  await modifyJsonFile(file, ["model"], model);
+  // `ANTHROPIC_MODEL` tapa a `model`: si está puesta, se escribe también en `env`
+  // (gana al entorno del sistema) para que la elección llegue a las sesiones nuevas.
+  if (envModel(readJson(file), "ANTHROPIC_MODEL")) {
+    await modifyJsonFile(file, ["env", "ANTHROPIC_MODEL"], model);
+  }
 }

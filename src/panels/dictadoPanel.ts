@@ -472,7 +472,16 @@ export class VozDictado {
     const terminal = vscode.window.activeTerminal;
     if (terminal) {
       terminal.show(true);
-      terminal.sendText(text, true);
+      // Los TUI (Claude, opencode) toman el bloque como pegado y no lo envían: el
+      // Enter va en una escritura aparte, cuando el texto ya está en su cuadro.
+      terminal.sendText(text, false);
+      setTimeout(() => {
+        try {
+          terminal.sendText("\r", false);
+        } catch {
+          // La terminal se cerró entre el texto y el Enter.
+        }
+      }, 100);
       this.state("idle", `Enviado a ${terminal.name}.`);
       return;
     }
