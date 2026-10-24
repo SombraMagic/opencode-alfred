@@ -50,7 +50,7 @@ export function claudeHome(): string {
 }
 
 /** Estado global de la app. Con CLAUDE_CONFIG_DIR, Claude mueve también `.claude.json` ahí. */
-function globalStateFile(): string {
+export function globalStateFile(): string {
   const dir = process.env.CLAUDE_CONFIG_DIR?.trim();
   return dir ? path.join(path.normalize(dir), ".claude.json") : path.join(os.homedir(), ".claude.json");
 }
@@ -245,8 +245,9 @@ function readMcp(projectRoot: string | undefined): ExplorerCatalogItem[] {
       enabled: !disabled.has(name),
       detail: mcpDetail(entry),
       filePath: globalFile,
-      // Los MCP globales viven en ~/.claude.json, que también guarda credenciales: solo se leen.
-      toggleable: false,
+      // No hay interruptor en settings: se pide `/mcp disable|enable` a la sesión y el
+      // CLI lo persiste por proyecto. ~/.claude.json no se escribe a mano (guarda la cuenta).
+      toggleable: true,
     });
   }
   if (!projectRoot) {
@@ -267,7 +268,8 @@ function readMcp(projectRoot: string | undefined): ExplorerCatalogItem[] {
       enabled: !disabled.has(name),
       detail: mcpDetail(entry),
       filePath: globalFile,
-      toggleable: false,
+      // Igual que los de usuario: se alternan desde la sesión, no escribiendo el fichero.
+      toggleable: true,
     });
   }
   // Compartidos: `<raíz>/.mcp.json`, aprobados desde settings.local.json (sí se escribe).

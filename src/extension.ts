@@ -68,6 +68,7 @@ import {
   claudeModels,
   claudePermissionMode,
   claudeSessionMode,
+  globalStateFile,
   setClaudeAutoAccept,
   setClaudeItem,
   setClaudeModel,
@@ -898,6 +899,36 @@ export function activate(context: vscode.ExtensionContext): void {
         if (!item) {
           void vscode.window.showWarningMessage(
             `No encuentro ese ${isMcp ? "servidor MCP" : "plugin"} en la configuración de Claude.`
+          );
+          return true;
+        }
+        if (isMcp && item.filePath && isSamePath(item.filePath, globalStateFile())) {
+          // Usuarios y locales no tienen interruptor en settings: se le pide a la sesión
+          // viva (`/mcp disable|enable`), que lo guarda por proyecto. ~/.claude.json no
+          // se escribe a mano (guarda la cuenta).
+          const live = claudeLiveSessions(projectRoot());
+          const terminal = claudeTerminal(live);
+          if (!terminal) {
+            void vscode.window.showWarningMessage(
+              "Abre una sesión de Claude de este proyecto para activar o desactivar sus MCP."
+            );
+            return true;
+          }
+          const session =
+            live.find((s) => s.name && s.name.toLowerCase() === terminal.name.toLowerCase()) ??
+            live[0];
+          // Con un diálogo abierto, el texto y el Enter caerían en él: no se inyecta.
+          if (session?.status === "waiting") {
+            void vscode.window.setStatusBarMessage(
+              "Claude tiene un diálogo abierto: respóndelo y vuelve a alternar el MCP.",
+              5000
+            );
+            return true;
+          }
+          terminal.sendText(`/mcp ${item.enabled ? "disable" : "enable"} ${item.name}`);
+          void vscode.window.setStatusBarMessage(
+            `Claude: ${item.enabled ? "desactivación" : "activación"} de "${item.name}" pedida a la sesión.`,
+            4000
           );
           return true;
         }

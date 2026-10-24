@@ -109,9 +109,11 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (`[agents.*]`, `[mcp_servers.*]`, skills de solo lectura, `[plugins.*]`,
   `approval_policy`, `AGENTS.md`) y `toml.ts` (editor TOML quirúrgico: conserva comentarios
   y CRLF, no es un parser completo).
-- Lo que no se puede escribir: Claude no deja apagar skills ni MCP globales (viven en
-  `~/.claude.json`, que guarda credenciales: solo lectura), y Codex tampoco sus skills.
-  Esas filas van con `toggleable: false`.
+- Lo que no se puede escribir: Claude no deja apagar skills (van con `toggleable: false`)
+  y Codex tampoco las suyas. Los MCP de usuario/local de Claude no se tocan en
+  `~/.claude.json` (solo lectura): se piden con `/mcp disable|enable <servidor>` a la
+  sesión viva y el CLI los persiste por proyecto; con diálogo abierto no se inyecta, y sin
+  terminal se avisa. Decisión del usuario (2026-10-24): esta vía, no escribir el fichero.
 - Modelos: opencode mantiene `GET /api/model` y cambia la sesión viva por API. Claude no
   tiene catálogo local: se listan los modelos vistos en los 5 `.jsonl` más recientes del
   proyecto más `settings.model`; Codex usa `~/.codex/models_cache.json`. En los dos,

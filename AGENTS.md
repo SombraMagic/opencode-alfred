@@ -115,14 +115,17 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   elegido vive en `opencodeAgents.sessionAgent`; `runningTerminal` casa por nombre exacto
   de terminal, así que adopta también la abierta a mano. Es el **proveedor activo**:
   Explorador, Modelos y Contexto salen de `src/providers/claude.ts`, `codex.ts` y
-  `toml.ts` (TOML quirúrgico, no parser completo). Claude no deja apagar skills ni MCP
-  globales (`~/.claude.json` guarda credenciales: solo lectura) y Codex tampoco sus
-  skills: esas filas van con `toggleable: false`. Los MCP de Claude se leen de tres
+  `toml.ts` (TOML quirúrgico, no parser completo). Claude no deja apagar skills (van con
+  `toggleable: false`) y Codex tampoco las suyas. Los MCP de Claude se leen de tres
   sitios: usuario (`~/.claude.json` raíz `mcpServers`), locales del proyecto
   (`projects[<ruta>].mcpServers`) y compartidos (`<raíz>/.mcp.json`); la lista
   `projects[<ruta>].disabledMcpServers` marca los desactivados en ese proyecto. Las
   claves de `projects` pueden repetir la carpeta cambiando la caja de la unidad: se casan
-  con `isSamePath` y sus datos se unen. Modelos y Contexto de Claude/Codex no
+  con `isSamePath` y sus datos se unen. El interruptor de las filas de usuario y locales
+  no escribe `~/.claude.json`: inyecta `/mcp disable|enable <servidor>` en la terminal viva
+  (`claudeTerminal()`, con el mismo guard de diálogo abierto que los permisos) y el CLI lo
+  persiste por proyecto; sin terminal se avisa. Los `.mcp.json` siguen por
+  `disabledMcpjsonServers` en `.claude/settings.local.json`. Modelos y Contexto de Claude/Codex no
   cambian la sesión viva: escriben su `model` en la config y miden sus ficheros de
   sesión. En Claude el modelo efectivo es `ANTHROPIC_MODEL` (entorno o `env` de
   settings.json) y tapa a `settings.model`; el catálogo sale de ahí, del `modelPicker` y
