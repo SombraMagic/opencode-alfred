@@ -1,0 +1,15 @@
+.vscode/**
+.vscode-test/**
+src/**
+esbuild.js
+tsconfig.json
+.gitignore
+idea.md
+**/*.map
+**/*.ts
+dist/**
+!dist/**/*.js
+.opencode/**
+AGENTS.md
+MEMORY.md
+pront.md

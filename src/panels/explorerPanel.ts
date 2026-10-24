@@ -1,0 +1,259 @@
+import * as vscode from "vscode";
+
+export type ExplorerScope = "project" | "global";
+
+export interface ExplorerAgent {
+  name: string;
+  mode: "primary" | "subagent" | "builtin";
+  scope: ExplorerScope | "builtin";
+  description?: string;
+  model?: string;
+  color?: string;
+  disabled?: boolean;
+  shadowed?: boolean;
+  overriddenBy?: string[];
+  filePath?: string;
+  working: boolean;
+  streaming: boolean;
+  tokens: number;
+  workMs: number;
+  cost: number;
+}
+
+export interface ExplorerCatalogItem {
+  name: string;
+  scope: ExplorerScope;
+  enabled: boolean;
+  detail?: string;
+  filePath?: string;
+}
+
+export interface ExplorerData {
+  hasProject: boolean;
+  agents: { project: ExplorerAgent[]; global: ExplorerAgent[]; builtin: ExplorerAgent[] };
+  mcp: ExplorerCatalogItem[];
+  skills: ExplorerCatalogItem[];
+  plugins: ExplorerCatalogItem[];
+  totals: { tokens: number; workMs: number; cost: number; working: number };
+  autoAccept: boolean;
+}
+
+export type ExplorerAction =
+  | { type: "editInstructions"; scope: ExplorerScope }
+  | { type: "openLastSession" }
+  | { type: "createAgent"; mode: "primary" | "subagent" }
+  | { type: "editAgent"; name: string; scope: ExplorerScope | "builtin" }
+  | { type: "openAgentFile"; name: string; scope: ExplorerScope | "builtin" }
+  | { type: "toggleMcp"; name: string; scope: ExplorerScope }
+  | { type: "toggleSkill"; name: string; scope: ExplorerScope }
+  | { type: "togglePlugin"; name: string; scope: ExplorerScope }
+  | { type: "addPlugin" }
+  | { type: "setAutoAccept"; on: boolean };
+
+/** Acciones que el webview tiene permitido pedir. */
+const ACTION_TYPES = new Set<string>([
+  "editInstructions",
+  "openLastSession",
+  "createAgent",
+  "editAgent",
+  "openAgentFile",
+  "toggleMcp",
+  "toggleSkill",
+  "togglePlugin",
+  "addPlugin",
+  "setAutoAccept",
+]);
+
+export class ExplorerPanel implements vscode.WebviewViewProvider {
+  public static readonly viewType = "opencodeAgents.view";
+
+  private view?: vscode.WebviewView;
+  private last?: ExplorerData;
+  private ready = false;
+
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly handlers: {
+      onAction(action: ExplorerAction): void | Promise<void>;
+      onReady(): void;
+    }
+  ) {}
+
+  resolveWebviewView(view: vscode.WebviewView): void {
+    this.view = view;
+    this.ready = false;
+    view.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "media")],
+    };
+    view.webview.html = this.getHtml(view.webview);
+
+    view.webview.onDidReceiveMessage((message: { type?: string; action?: ExplorerAction }) => {
+      if (message?.type === "ready") {
+        this.ready = true;
+        if (this.last) {
+          this.post(this.last);
+        }
+        this.handlers.onReady();
+        return;
+      }
+      if (message?.type !== "action") {
+        return;
+      }
+      const action = message.action;
+      if (!action || typeof action.type !== "string" || !ACTION_TYPES.has(action.type)) {
+        return;
+      }
+      void this.handlers.onAction(action);
+    });
+
+    view.onDidDispose(() => {
+      if (this.view === view) {
+        this.view = undefined;
+        this.ready = false;
+      }
+    });
+  }
+
+  update(data: ExplorerData): void {
+    this.last = data;
+    if (this.view && this.ready) {
+      this.post(data);
+    }
+  }
+
+  private post(data: ExplorerData): void {
+    void this.view?.webview.postMessage({ type: "data", payload: data });
+  }
+
+  private getHtml(webview: vscode.Webview): string {
+    const nonce = getNonce();
+    const tokensUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
+    );
+    const styleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "explorer.css")
+    );
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "explorer.js")
+    );
+    const csp = [
+      `default-src 'none'`,
+      `img-src ${webview.cspSource} data:`,
+      `style-src ${webview.cspSource} 'unsafe-inline'`,
+      `script-src 'nonce-${nonce}'`,
+      `font-src ${webview.cspSource}`,
+    ].join("; ");
+
+    // Un solo cerebro para los dos botones: ahorra HTML duplicado.
+    const brain = `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6.3 2.3a2 2 0 0 0-2 1.9 2 2 0 0 0-1.1 3.6 2 2 0 0 0 1.4 3.4 2 2 0 0 0 3.3 1.4V3.2a1.7 1.7 0 0 0-1.6-.9Z"/><path d="M9.7 2.3a2 2 0 0 1 2 1.9 2 2 0 0 1 1.1 3.6 2 2 0 0 1-1.4 3.4 2 2 0 0 1-3.3 1.4V3.2a1.7 1.7 0 0 1 1.6-.9Z"/><path d="M4.7 5.4h1.5M4.3 9.1h1.7M11.3 5.4H9.8M11.7 9.1H10"/></svg>`;
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="${csp}" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="${tokensUri}" rel="stylesheet" />
+<link href="${styleUri}" rel="stylesheet" />
+<title>ALFRED // CONTROL</title>
+</head>
+<body>
+<div class="hud">
+  <div class="hud-header">
+    <span class="hud-dot"></span>
+    <span class="hud-title">ALFRED // CONTROL</span>
+    <span class="hud-status" id="status">EN LÍNEA</span>
+  </div>
+
+  <div class="actions">
+    <button id="btn-global" class="brain-btn" type="button" title="Editar el AGENTS.md global">${brain}<span>GLOBAL</span></button>
+    <button id="btn-local" class="brain-btn" type="button" title="Editar el AGENTS.md del proyecto" disabled>${brain}<span>LOCAL</span></button>
+    <button id="btn-session" class="ghost-btn session-btn" type="button" title="Enfocar la sesión de opencode abierta o reanudar la última; cierra la bienvenida y los editores vacíos">▶ SESIÓN</button>
+  </div>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="label">AGENTES</span>
+      <span class="count" id="agents-total"></span>
+    </div>
+    <div id="agents"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="label">MCP</span>
+      <span class="count" id="mcp-total"></span>
+    </div>
+    <div class="cols">
+      <div class="col">
+        <div class="col-head">GLOBAL</div>
+        <div id="mcp-global" class="list"></div>
+      </div>
+      <div class="col">
+        <div class="col-head">PROYECTO</div>
+        <div id="mcp-project" class="list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="label">SKILLS</span>
+      <span class="count" id="skills-total"></span>
+    </div>
+    <details class="fold">
+      <summary>GLOBAL <span class="count" id="skills-global-count">0</span></summary>
+      <div id="skills-global" class="list"></div>
+    </details>
+    <details class="fold">
+      <summary>LOCAL <span class="count" id="skills-project-count">0</span></summary>
+      <div id="skills-project" class="list"></div>
+    </details>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="label">PLUGINS</span>
+      <button id="btn-add-plugin" class="ghost-btn add-plugin" type="button">+ PLUGIN</button>
+    </div>
+    <div class="cols">
+      <div class="col">
+        <div class="col-head">GLOBAL</div>
+        <div id="plugins-global" class="list"></div>
+      </div>
+      <div class="col">
+        <div class="col-head">PROYECTO</div>
+        <div id="plugins-project" class="list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="label">PERMISOS</span>
+      <span class="chip" id="perm-state">PREGUNTA</span>
+    </div>
+    <button id="btn-auto-accept" class="switch perm-switch" type="button" aria-pressed="false">
+      <span class="switch-track"><span class="switch-thumb"></span></span>
+      <span class="perm-label">ACEPTAR TODO SIN PREGUNTAR</span>
+    </button>
+    <p class="perm-help">Las reglas «deny» siguen bloqueando. Se aplica al momento.</p>
+  </section>
+</div>
+<script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+  }
+}
+
+function getNonce(): string {
+  let text = "";
+  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
+}

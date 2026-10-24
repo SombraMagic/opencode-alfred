@@ -1,0 +1,435 @@
+/* ALFRED // CONTROL — explorador. La base (color, tipografía, HUD) vive en tokens.css. */
+
+.hud {
+  padding: 0 10px 18px;
+}
+
+/* ── Fila de acciones: AGENTS.md y sesión ──────────────── */
+/* Los tres en una fila, con fondo teñido: sobre el negro del HUD se perdían. */
+.actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.brain-btn {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 7px 4px;
+  background: color-mix(in srgb, var(--neon) 14%, transparent);
+  border: 1px solid var(--neon-dim);
+  color: var(--neon);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.brain-btn:hover,
+.brain-btn:focus-visible {
+  background: color-mix(in srgb, var(--neon) 26%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+  outline: none;
+}
+
+.brain-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.brain-btn svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+/* Barra muy estrecha: el texto se recorta dentro del botón en vez de pisar al vecino. */
+.brain-btn span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-btn {
+  flex: none;
+  padding: 7px 8px;
+  background: color-mix(in srgb, var(--neon) 24%, transparent);
+  border-color: var(--neon-dim);
+  color: var(--text);
+  font-size: 10px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.session-btn:hover,
+.session-btn:focus-visible {
+  background: color-mix(in srgb, var(--neon) 38%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+}
+
+/* ── Secciones ─────────────────────────────────────────── */
+.section {
+  margin-bottom: 16px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.count {
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.add-plugin {
+  padding: 2px 6px;
+  font-size: 8.5px;
+}
+
+/* ── Agentes ───────────────────────────────────────────── */
+.group {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 8px 0 2px;
+}
+
+.group-name {
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  color: var(--text-dim);
+}
+
+.agent {
+  display: flex;
+  align-items: stretch;
+  border-left: 2px solid transparent;
+}
+
+.agent:hover {
+  background: var(--line-soft);
+  border-left-color: var(--line);
+}
+
+.agent.working {
+  border-left-color: var(--amber);
+}
+
+.agent.disabled .agent-name {
+  color: var(--text-dim);
+}
+
+.agent-open {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 6px 4px;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-open:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: -1px;
+}
+
+/* Figura geométrica por modo; el color del frontmatter manda si llega. */
+.agent-icon {
+  --agent-color: var(--amber);
+  flex: none;
+  width: 9px;
+  height: 9px;
+  background: var(--agent-color);
+}
+
+.agent-icon.mode-primary {
+  transform: rotate(45deg);
+}
+
+.agent-icon.mode-subagent {
+  --agent-color: var(--green);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.agent-icon.mode-builtin {
+  --agent-color: var(--violet);
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+
+.agent.disabled .agent-icon {
+  background: transparent;
+  border: 1px dashed var(--text-dim);
+}
+
+.agent-id {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.agent-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-name .chip {
+  flex: none;
+}
+
+.agent-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex: none;
+}
+
+.stat {
+  font-size: 8.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* En vuelo: barras + etiqueta. Streaming acelera el pulso. */
+.flight {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8px;
+  letter-spacing: 1.2px;
+  color: var(--amber);
+  white-space: nowrap;
+}
+
+.bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 8px;
+}
+
+.bars i {
+  width: 2px;
+  height: 100%;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: flight-bars 1.1s ease-in-out infinite;
+}
+
+.bars i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.bars i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+.agent.streaming .bars i {
+  animation-duration: 0.45s;
+}
+
+@keyframes flight-bars {
+  0%, 100% {
+    transform: scaleY(0.35);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.mini {
+  align-self: center;
+  flex: none;
+  padding: 2px 4px;
+  margin: 0 2px;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 8.5px;
+  cursor: pointer;
+}
+
+.mini:hover,
+.mini:focus-visible {
+  color: var(--neon);
+  border-color: var(--line);
+  outline: none;
+}
+
+/* ── Catálogo en dos columnas ──────────────────────────── */
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.col {
+  min-width: 0;
+}
+
+.col-head {
+  padding-bottom: 2px;
+  margin-bottom: 3px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 8.5px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.entry-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.entry-name {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry.off .entry-name {
+  color: var(--text-dim);
+}
+
+.entry .switch {
+  flex: none;
+}
+
+.entry .switch:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
+}
+
+/* ── Listas plegables de skills ────────────────────────── */
+.fold {
+  border: 1px solid var(--line-soft);
+  padding: 7px 8px;
+}
+
+.fold + .fold {
+  margin-top: 6px;
+}
+
+.fold[open] > .list {
+  margin-top: 7px;
+}
+
+.fold summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold summary::before {
+  content: "▸";
+  margin-right: 4px;
+}
+
+.fold[open] summary::before {
+  content: "▾";
+}
+
+.fold summary .count {
+  margin-left: auto;
+}
+
+/* ── Permisos ──────────────────────────────────────────── */
+.perm-switch {
+  max-width: 100%;
+  padding: 4px 0;
+}
+
+.perm-switch .perm-label {
+  font-size: 10.5px;
+  line-height: 1.4;
+  letter-spacing: 1.2px;
+  color: var(--text);
+  text-align: left;
+}
+
+.perm-switch:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.perm-help {
+  margin: 2px 0 0;
+  font-size: 9.5px;
+  color: var(--text-dim);
+}
+
+/* ── Estados vacíos y errores ──────────────────────────── */
+.empty {
+  padding: 3px 4px 4px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.banner {
+  padding: 5px 7px;
+  margin-bottom: 10px;
+  border: 1px solid var(--magenta);
+  color: var(--magenta);
+  font-size: 9px;
+}

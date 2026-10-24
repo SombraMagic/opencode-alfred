@@ -1,0 +1,298 @@
+/* VOZ — interfaz futurista (HUD sci-fi).
+   Paleta, fondo, scanlines y primitivas viven en tokens.css: se enlaza antes. */
+
+.hud {
+  display: flex;
+  flex-direction: column;
+  /* Alto exacto de la vista: con solo min-height el contenedor crece con el
+     contenido, el pie se va debajo y nada se comprime. */
+  height: 100vh;
+  padding: 0 10px 18px;
+}
+
+/* Solo el stage cede alto cuando la vista es corta: el resto, intacto. */
+.hud-header,
+.readout,
+.fold,
+.dock { flex: none; }
+
+/* ── Zona central: esfera + agentes ───────────────────── */
+/* Es lo que crece y lo que se comprime cuando la vista es corta: el pie
+   (.dock) no se mueve. */
+.stage {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── Ecualizador esférico ─────────────────────────────── */
+/* El alto se limita por el ancho (min con 32vh): así el cuadro sigue siendo
+   cuadrado y sphere.js, que dibuja con clientWidth, no deforma la esfera. */
+#sphere {
+  display: block;
+  flex: none;
+  width: 100%;
+  max-width: min(320px, 32vh);
+  margin: 4px auto 10px;
+  aspect-ratio: 1;
+}
+
+/* ── Agentes en vuelo ─────────────────────────────────── */
+/* Lista vertical entre la esfera y la lectura; ocupa el alto libre del stage
+   y hace scroll propia cuando hay más agentes de los que caben. */
+#agents {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 4px;
+  overflow-y: auto;
+  margin: 0 0 12px;
+}
+
+#agents:empty {
+  display: none;
+  margin: 0;
+}
+
+.agent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(90deg, var(--bg-soft), transparent 70%);
+  animation: agent-in 0.16s ease-out both;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+/* Salida: se apaga antes de que panel.js quite el nodo. */
+.agent.leaving {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+@keyframes agent-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
+.agent-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 9.5px;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Con algo en vuelo el nombre se enciende; el píxel solo marca el ritmo. */
+.agent.streaming .agent-name {
+  color: var(--neon);
+}
+
+.agent-meter {
+  flex: none;
+  display: block;
+  width: 96px;
+  height: 28px;
+  image-rendering: pixelated;
+}
+
+/* ── Lectura ──────────────────────────────────────────── */
+.readout {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 6px 2px;
+  margin-bottom: 14px;
+}
+
+.readout span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#readout-time { color: var(--neon); }
+
+/* ── Ajustes plegables ────────────────────────────────── */
+/* Cerrado al cargar: los controles del motor dejan su sitio a los agentes. */
+.fold {
+  border: 1px solid var(--line-soft);
+  margin-bottom: 14px;
+}
+
+.fold summary {
+  padding: 7px 8px;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold summary::before {
+  content: "▸";
+  margin-right: 5px;
+}
+
+.fold[open] summary::before {
+  content: "▾";
+}
+
+.fold[open] summary {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.fold[open] {
+  padding-bottom: 12px;
+}
+
+.fold[open] > .field {
+  margin: 12px 8px 0;
+}
+
+/* ── Pie: texto, botón y MCP ──────────────────────────── */
+/* margin-top: auto lo deja abajo aunque sobre espacio; no se comprime. */
+.dock {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin-top: auto;
+  padding-top: 11px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* ── Controles ────────────────────────────────────────── */
+.controls { display: flex; flex-direction: column; gap: 11px; }
+
+.field { display: flex; flex-direction: column; gap: 4px; }
+
+.field-label {
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+}
+
+.field-label i {
+  font-style: normal;
+  color: var(--neon);
+}
+
+select,
+textarea,
+input[type="range"] {
+  width: 100%;
+  background: var(--bg-soft);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 6px 7px;
+  outline: none;
+}
+
+select:focus,
+textarea:focus {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.25);
+}
+
+textarea { resize: vertical; min-height: 66px; line-height: 1.5; }
+
+input[type="range"] {
+  padding: 0;
+  height: 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(90deg, var(--neon) 0%, var(--neon) 50%, var(--line) 50%);
+  border-radius: 0;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -4.5px;
+  background: var(--neon);
+  box-shadow: 0 0 8px var(--neon);
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--line);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: var(--neon);
+  border: none;
+  box-shadow: 0 0 8px var(--neon);
+  border-radius: 0;
+}
+
+/* ── Botón principal ──────────────────────────────────── */
+.speak-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 11px;
+  background: linear-gradient(180deg, rgba(0, 229, 255, 0.16), rgba(0, 229, 255, 0.05));
+  border: 1px solid var(--neon);
+  color: var(--neon);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 2.5px;
+  cursor: pointer;
+  text-shadow: 0 0 8px var(--neon-dim);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.speak-btn:hover {
+  background: rgba(0, 229, 255, 0.25);
+  box-shadow: 0 0 18px rgba(0, 229, 255, 0.35);
+}
+
+.speak-btn:disabled { opacity: 0.45; cursor: progress; }
+
+.speak-glyph { font-size: 10px; }
+
+/* ── Fila MCP ─────────────────────────────────────────── */
+.mcp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mcp-hint { font-size: 9px; color: var(--text-dim); flex: 1; min-width: 90px; }
+
+/* ── Ajustes por tema ─────────────────────────────────── */
+/* Los colores vienen de tokens.css; aquí solo el degradado del botón. */
+body.vscode-light .speak-btn {
+  background: linear-gradient(180deg, rgba(0, 122, 153, 0.14), transparent);
+}

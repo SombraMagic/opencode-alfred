@@ -1,0 +1,357 @@
+/* VOZ — panel de dictado (tres columnas) */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+.dict {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr) 210px;
+  gap: 12px;
+  padding: 10px 12px 12px;
+  height: 100%;
+  min-height: 190px;
+}
+
+/* Columnas */
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(0, 229, 255, 0.04), transparent 60%);
+  overflow: auto;
+}
+
+.col-title {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--neon);
+  opacity: 0.85;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 5px;
+  margin-bottom: 2px;
+}
+
+/* Configuración */
+.config {
+  gap: 6px;
+}
+
+.config select,
+.config input[type="text"],
+.config input[type="password"] {
+  background: var(--bg-soft);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 5px 6px;
+  width: 100%;
+  outline: none;
+}
+
+.config input:focus,
+.config select:focus {
+  border-color: var(--neon);
+}
+
+.hint {
+  font-size: 9px;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+
+.config .ghost-btn {
+  align-self: flex-start;
+}
+
+/* Dos campos en la misma fila: menos alto sin apretar el texto. */
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.row2 .ghost-btn {
+  align-self: stretch;
+  width: 100%;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* Campo con su botón al lado (clave de la nube). */
+.inline {
+  display: flex;
+  gap: 6px;
+}
+
+.inline input {
+  flex: 1;
+  min-width: 0;
+}
+
+.inline .ghost-btn {
+  flex: none;
+  padding: 5px 7px;
+  letter-spacing: 0.8px;
+}
+
+/* Botón pequeño dentro de la etiqueta (preparar Whisper). */
+.mini {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 1px 5px;
+  cursor: pointer;
+}
+
+.mini:hover {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+/* Bloc de notas */
+.note {
+  gap: 6px;
+  padding-bottom: 8px;
+}
+
+#nota {
+  flex: 1;
+  min-height: 90px;
+  width: 100%;
+  resize: none;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 9px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.55;
+  outline: none;
+}
+
+#nota:focus {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.2) inset;
+}
+
+.note-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+/* Controles */
+.controls {
+  align-items: stretch;
+  text-align: center;
+}
+
+.mic-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0 2px;
+}
+
+.mic {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, rgba(0, 229, 255, 0.16), transparent 70%);
+  border: 1px solid var(--neon);
+  color: var(--neon);
+  cursor: pointer;
+  font-size: 26px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  transition: transform 0.12s, box-shadow 0.2s, border-color 0.2s, color 0.2s;
+  touch-action: none;
+  user-select: none;
+}
+
+.mic:hover {
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.3);
+}
+
+.mic:active,
+.mic.listening {
+  color: var(--magenta);
+  border-color: var(--magenta);
+  box-shadow: 0 0 26px rgba(255, 45, 149, 0.55);
+  transform: scale(1.04);
+}
+
+.mic svg {
+  color: inherit;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+/* Aro que late mientras se escucha */
+.mic-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  pointer-events: none;
+}
+
+.mic.listening .mic-ring {
+  border-color: var(--magenta);
+  animation: sonar 1.1s ease-out infinite;
+}
+
+@keyframes sonar {
+  0% { transform: scale(0.92); opacity: 0.9; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+/* Vúmetro */
+.level {
+  width: 100%;
+  height: 4px;
+  background: rgba(0, 229, 255, 0.1);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.level i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--neon), var(--magenta));
+  transition: width 0.1s linear;
+}
+
+.state {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  padding: 4px 6px;
+}
+
+.state.listening { color: var(--magenta); border-color: var(--magenta); }
+.state.working { color: var(--amber); border-color: var(--amber); }
+.state.error { color: var(--magenta); border-color: var(--magenta); }
+
+.state-hint {
+  font-size: 9px;
+  color: var(--text-dim);
+  min-height: 12px;
+}
+
+/* Manos libres: un clic escucha, otro para */
+.hands-free {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+
+.hf-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.3;
+}
+
+.hands-free.on {
+  color: var(--magenta);
+  border-color: var(--magenta);
+  box-shadow: 0 0 14px rgba(255, 45, 149, 0.4);
+}
+
+.hands-free.on .hf-dot {
+  opacity: 1;
+  animation: hf-beat 1.6s ease-in-out infinite;
+}
+
+@keyframes hf-beat {
+  50% { opacity: 0.2; }
+}
+
+/* Filtro de ruido: mismo patrón, encendido en cian */
+.noise {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+
+.noise.on {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+.noise.on .hf-dot {
+  opacity: 1;
+}
+
+.noise:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+input[type="range"]:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.config input[type="range"] {
+  height: 16px;
+}
+
+.controls .speak-btn {
+  padding: 9px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  margin-top: auto;
+}
+
+/* Panel estrecho: una sola columna (el bloc primero) */
+@media (max-width: 720px) {
+  body { overflow: auto; }
+  .dict {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .col { overflow: visible; }
+  #nota { min-height: 120px; }
+  .note { order: -1; }
+}
+
+/* Tema claro */
+body.vscode-light .col {
+  background: #fff;
+}
+
+body.vscode-light #nota {
+  background: #fbfdff;
+}
