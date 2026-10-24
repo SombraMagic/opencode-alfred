@@ -138,8 +138,42 @@ export function activate(context: vscode.ExtensionContext): void {
           sessionTerminals.delete(key);
         }
       }
+    }),
+    // El selector sigue a la pestaña activa: si el usuario se va a la de opencode, el panel
+    // deja de mostrar Claude. Sin `show()` aquí: el evento rebotaría.
+    vscode.window.onDidChangeActiveTerminal((terminal) => {
+      const agent = terminal ? agentOfTerminal(terminal) : undefined;
+      if (!agent || agent === sessionAgent || !availableAgents.includes(agent)) {
+        return;
+      }
+      sessionAgent = agent;
+      void context.globalState.update(SESSION_AGENT_KEY, agent);
+      refresh();
     })
   );
+
+  /** Agente al que pertenece una terminal: por el mapa (incluida la `__new__` de opencode) o por nombre. */
+  function agentOfTerminal(terminal: vscode.Terminal): SessionAgent | undefined {
+    for (const [key, known] of sessionTerminals) {
+      if (known === terminal) {
+        return key === "__new__" ? "opencode" : (key as SessionAgent);
+      }
+    }
+    const name = terminal.name.toLowerCase();
+    if (name === "opencode") {
+      return "opencode";
+    }
+    if (name === "codex") {
+      return "codex";
+    }
+    if (
+      name === "claude" ||
+      claudeLiveSessions(projectRoot()).some((s) => s.name?.toLowerCase() === name)
+    ) {
+      return "claude";
+    }
+    return undefined;
+  }
 
   /** Cierra la bienvenida y los editores sin título vacíos que quedan al arrancar. */
   async function closeStarterTabs(): Promise<void> {
@@ -210,19 +244,34 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
-  /** Abre (o enfoca) la terminal de un agente. Una por agente: nunca duplica la que ya vive. */
+  /**
+   * Abre (o enfoca) la terminal de un agente. Una por agente, pestaña del grupo activo:
+   * se cambia con la pestaña de arriba, sin abrir un grupo al lado.
+   */
   function openTerminal(key: string, name: string, cwd: string | undefined, command: string): void {
-    const existing = sessionTerminals.get(key);
-    if (existing && existing.exitStatus === undefined) {
-      existing.show();
+    let known: vscode.Terminal | undefined = sessionTerminals.get(key);
+    try {
+      if (known && known.exitStatus === undefined) {
+        known.show();
+        return;
+      }
+    } catch {
+      // Terminal destruida sin pasar por `onDidCloseTerminal`: la entrada del mapa está muerta.
+      known = undefined;
+    }
+    if (known) {
+      // Proceso terminado pero la pestaña sigue: se cierra para no dejar una muerta al lado.
+      known.dispose();
+    }
+    sessionTerminals.delete(key);
+    // Terminal viva de antes (abierta a mano o antes de recargar el host): se adopta.
+    const live = name === "claude" ? claudeTerminal() : runningTerminal(name);
+    if (live) {
+      sessionTerminals.set(key, live);
+      live.show();
       return;
     }
-    // Pestaña en el área de editor; se puede arrastrar al panel o a otro grupo.
-    // Si el área quedó vacía, 'Beside' crearía un grupo de más: se abre en el activo.
-    const empty = vscode.window.tabGroups.all.every((g) => g.tabs.length === 0);
-    const location = {
-      viewColumn: empty ? vscode.ViewColumn.Active : vscode.ViewColumn.Beside,
-    };
+    const location = { viewColumn: vscode.ViewColumn.Active };
     const terminal = vscode.window.createTerminal(
       cwd ? { name, cwd, location } : { name, location }
     );

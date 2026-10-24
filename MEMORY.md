@@ -129,6 +129,12 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `@AGENTS.md` al final para cargar las reglas del repo). Por eso **no** hay
   `.claude/agents/orquestador.md`: se retiró a propósito. Con CLAUDE seleccionado, LOCAL
   abre `AGENTS.md` y `CLAUDE.md`; GLOBAL sigue abriendo `~/.claude/CLAUDE.md`.
+- Las terminales de agente se abren como **pestaña del grupo activo** (`ViewColumn.Active`),
+  nunca con `Beside`: se cambia con la pestaña de arriba. `openTerminal` tolera una entrada
+  del mapa ya destruida (leer `exitStatus` de una terminal dispose lanza y el clic no hacía
+  nada), cierra la pestaña muerta antes de crear y adopta una terminal viva del mismo
+  agente. `onDidChangeActiveTerminal` cambia `sessionAgent` y repinta todo: el selector
+  sigue a la pestaña, también al cerrar (VS Code activa otra).
 - En Claude el Explorador pinta una única fila INTEGRADOS `CLAUDE` (la sesión principal):
   no hay integrados reales y la lista salía vacía. Se marca EN VUELO con el mismo registro
   de sesiones y su clic abre el fichero de instrucciones (`CLAUDE.md`, o `AGENTS.md` si no
