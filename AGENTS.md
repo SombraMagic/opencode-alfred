@@ -128,9 +128,16 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   `disabledMcpjsonServers` en `.claude/settings.local.json`. Modelos y Contexto de Claude/Codex no
   cambian la sesión viva: escriben su `model` en la config y miden sus ficheros de
   sesión. En Claude el modelo efectivo es `ANTHROPIC_MODEL` (entorno o `env` de
-  settings.json) y tapa a `settings.model`; el catálogo sale de ahí, del `modelPicker` y
-  de las sesiones, y al cambiar de modelo se escribe también `env.ANTHROPIC_MODEL` si
-  estaba puesta. Auto-aceptar escribe `permissions.defaultMode: "auto"` y, al apagarlo,
+  settings.json) y tapa a `settings.model`; al cambiar de modelo se escribe también
+  `env.ANTHROPIC_MODEL` si estaba puesta (el `env` del fichero gana al del sistema).
+  El panel de Modelos de Claude tiene tres grupos: alias oficiales (`fable`, `opus`,
+  `sonnet`, `haiku`, `opusplan`, con el mapeo `ANTHROPIC_DEFAULT_*_MODEL` como pista), los
+  modelos que publica `GET <base>/v1/models` o `GET <origin>/models` del endpoint
+  configurado (caché de 5 min, timeout 4 s, solo https, sin guardar ni loguear el token) y
+  los vistos en las sesiones. Los chips PRINCIPAL/SUBAGENTES cambian a qué modelo se
+  aplica el clic; `CLAUDE_CODE_SUBAGENT_MODEL` se escribe en `env` y «SIN FIJAR» borra lo
+  del fichero (el entorno del sistema puede seguir mandando: la nota lo dice).
+  Auto-aceptar escribe `permissions.defaultMode: "auto"` y, al apagarlo,
   `"default"` (manual): desde 2.1.283 el CLI arranca en `auto` por su cuenta, así que
   borrar la clave no lo apagaría. `acceptEdits` solo acepta ediciones y no es el modo
   automático. En settings el valor es `default`; `manual` es el alias del flag. El modo

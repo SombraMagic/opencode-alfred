@@ -9,6 +9,13 @@ export interface ModelEntry {
   name: string;
   /** Todas las tarifas a cero: el modelo no cuesta nada. */
   free: boolean;
+  /** Texto corto a la derecha de la fila (mapeo de un alias, «visto»...). */
+  hint?: string;
+}
+
+export interface ModelGroup {
+  name: string;
+  models: ModelEntry[];
 }
 
 export interface ModelsData {
@@ -17,12 +24,36 @@ export interface ModelsData {
   currentModel: string;
   /** Últimos elegidos, el más reciente primero. */
   recentModels: string[];
+  /** Cabecera del panel, p. ej. «CLAUDE · api.deepseek.com». */
+  title?: string;
+  /** Una línea con la procedencia del modelo actual. */
+  note?: string;
+  /** Si viene, el panel pinta estos grupos en vez de RECIENTES/TODOS. */
+  groups?: ModelGroup[];
+  /** Hay algo fijado en settings.json que se puede borrar. */
+  clearable?: boolean;
+  /** Modelo de subagentes; si no viene, el panel no muestra el selector. */
+  subagent?: {
+    model: string;
+    /** `settings`, `entorno` o `principal` (hereda). */
+    source: string;
+    clearable: boolean;
+  };
 }
 
-export type ModelsAction = { type: "setModel"; id: string };
+export type ModelsAction =
+  | { type: "setModel"; id: string }
+  | { type: "clearModel" }
+  | { type: "setSubagentModel"; id: string }
+  | { type: "clearSubagentModel" };
 
 /** Acciones que el webview tiene permitido pedir. */
-const ACTION_TYPES = new Set<string>(["setModel"]);
+const ACTION_TYPES = new Set<string>([
+  "setModel",
+  "clearModel",
+  "setSubagentModel",
+  "clearSubagentModel",
+]);
 
 export class ModelsPanel implements vscode.WebviewViewProvider {
   public static readonly viewType = "opencodeAgents.models";
@@ -119,12 +150,21 @@ export class ModelsPanel implements vscode.WebviewViewProvider {
 <body>
 <div class="hud">
   <div class="models">
+    <div id="head" class="models-head" hidden>
+      <div id="title" class="models-title" hidden></div>
+      <div id="tags" class="models-tags" hidden>
+        <button id="t-main" class="tag on" type="button" aria-pressed="true">PRINCIPAL</button>
+        <button id="t-sub" class="tag" type="button" aria-pressed="false">SUBAGENTES</button>
+      </div>
+    </div>
     <input id="search" class="model-search" type="search" placeholder="Buscar conector o modelo…" autocomplete="off" spellcheck="false" aria-label="Buscar modelo" />
-    <div class="group"><span class="group-name">ACTUAL</span></div>
+    <div class="group"><span class="group-name">ACTUAL</span><button id="clear" type="button" hidden>SIN FIJAR</button></div>
     <div id="now" class="list"></div>
-    <div class="group"><span class="group-name">RECIENTES</span></div>
+    <div id="note" class="note" hidden></div>
+    <div id="groups" hidden></div>
+    <div id="recent-group" class="group"><span class="group-name">RECIENTES</span></div>
     <div id="recent" class="list"></div>
-    <div class="group"><span class="group-name">TODOS</span><span class="count" id="total"></span></div>
+    <div id="all-group" class="group"><span class="group-name">TODOS</span><span class="count" id="total"></span></div>
     <div id="all" class="list scroll"></div>
   </div>
 </div>

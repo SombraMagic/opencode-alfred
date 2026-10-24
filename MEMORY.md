@@ -115,9 +115,13 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   sesión viva y el CLI los persiste por proyecto; con diálogo abierto no se inyecta, y sin
   terminal se avisa. Decisión del usuario (2026-10-24): esta vía, no escribir el fichero.
 - Modelos: opencode mantiene `GET /api/model` y cambia la sesión viva por API. Claude no
-  tiene catálogo local: se listan los modelos vistos en los 5 `.jsonl` más recientes del
-  proyecto más `settings.model`; Codex usa `~/.codex/models_cache.json`. En los dos,
-  cambiar escribe `model` en su config y **no** toca la sesión viva (en el TUI, `/model`).
+  tiene catálogo local: el panel pinta los alias oficiales con su mapeo, los modelos del
+  endpoint configurado (`GET <base>/v1/models` o `GET <origin>/models`, caché 5 min, solo
+  https, token nunca guardado) y los vistos en los 5 `.jsonl` más recientes; Codex usa
+  `~/.codex/models_cache.json`. En los dos, cambiar escribe `model` en su config y **no**
+  toca la sesión viva (en el TUI, `/model`). El chip SUBAGENTES escribe
+  `env.CLAUDE_CODE_SUBAGENT_MODEL`; «SIN FIJAR» borra lo del fichero y el entorno del
+  sistema puede seguir mandando (la nota del panel lo dice).
 - Contexto: Claude mide el `.jsonl` de `~/.claude/projects/<slug>/` (`input + cache_read +
   cache_creation` del último assistant con uso > 0; `limit` 1M si el modelo acaba en
   `[...]`); Codex, el último rollout con `cwd` del proyecto (`last_token_usage.total_tokens`

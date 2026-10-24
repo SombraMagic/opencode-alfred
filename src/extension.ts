@@ -67,11 +67,15 @@ import {
   claudeModePresses,
   claudeModels,
   claudePermissionMode,
+  claudeProviderCatalog,
   claudeSessionMode,
+  clearClaudeModel,
   globalStateFile,
+  refreshClaudeProvider,
   setClaudeAutoAccept,
   setClaudeItem,
   setClaudeModel,
+  setClaudeSubagentModel,
 } from "./providers/claude";
 import {
   codexConfigFile,
@@ -546,11 +550,29 @@ export function activate(context: vscode.ExtensionContext): void {
     };
   }
 
+  /** Catálogo del proveedor de Claude: se pide en segundo plano y solo repinta si cambió. */
+  let claudeCatalogKey = "";
+  function refreshClaudeCatalog(): void {
+    if (sessionAgent !== "claude") {
+      return;
+    }
+    void refreshClaudeProvider().then(() => {
+      const key = JSON.stringify(claudeProviderCatalog() ?? null);
+      if (sessionAgent !== "claude" || key === claudeCatalogKey) {
+        return;
+      }
+      claudeCatalogKey = key;
+      modelsView.update(modelsData());
+    });
+  }
+
   /** Lista viva de opencode: `readConfigInfo` incluiría modelos vetados o deshabilitados. */
   async function refreshModels(): Promise<void> {
     if (sessionAgent !== "opencode") {
       // Claude y Codex no tienen API local de modelos: se pinta su catálogo y ya.
       modelsView.update(modelsData());
+      // El del proveedor se consulta aparte; sin red no cambia nada.
+      refreshClaudeCatalog();
       return;
     }
     try {
@@ -652,6 +674,8 @@ export function activate(context: vscode.ExtensionContext): void {
           ? claudeActivity(projectRoot()).map((a) => ({ name: a.agent, streaming: a.streaming }))
           : []
       );
+      // El catálogo del proveedor va por su caché: el sondeo no dispara red cada vez.
+      refreshClaudeCatalog();
       return;
     }
     const raw = await statsService.collect();
@@ -1419,6 +1443,9 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       case "setModel": {
+        if (typeof action.id !== "string") {
+          return;
+        }
         if (sessionAgent !== "opencode") {
           const isClaude = sessionAgent === "claude";
           const name = action.id.slice(action.id.indexOf("/") + 1);
@@ -1465,6 +1492,66 @@ export function activate(context: vscode.ExtensionContext): void {
         } catch (err) {
           void vscode.window.showErrorMessage(
             `No se pudo cambiar el modelo: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+        return;
+      }
+
+      // Los tres solo existen con Claude: opencode y Codex no tienen modelo «sin fijar».
+      case "clearModel": {
+        if (sessionAgent !== "claude") {
+          return;
+        }
+        try {
+          await clearClaudeModel();
+          refresh();
+          // Sin el `env` del fichero puede seguir mandando el del sistema: la nota lo dice.
+          void vscode.window.setStatusBarMessage(
+            "Claude: modelo sin fijar en settings.json.",
+            4000
+          );
+        } catch (err) {
+          void vscode.window.showErrorMessage(
+            `No se pudo cambiar el modelo: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+        return;
+      }
+
+      case "setSubagentModel": {
+        if (sessionAgent !== "claude" || typeof action.id !== "string") {
+          return;
+        }
+        const name = action.id.slice(action.id.indexOf("/") + 1);
+        try {
+          await setClaudeSubagentModel(action.id);
+          refresh();
+          void vscode.window.setStatusBarMessage(
+            `Claude: subagentes con «${name}»; se aplica a las sesiones nuevas.`,
+            4000
+          );
+        } catch (err) {
+          void vscode.window.showErrorMessage(
+            `No se pudo cambiar el modelo de los subagentes: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+        return;
+      }
+
+      case "clearSubagentModel": {
+        if (sessionAgent !== "claude") {
+          return;
+        }
+        try {
+          await setClaudeSubagentModel(undefined);
+          refresh();
+          void vscode.window.setStatusBarMessage(
+            "Claude: modelo de subagentes sin fijar en settings.json.",
+            4000
+          );
+        } catch (err) {
+          void vscode.window.showErrorMessage(
+            `No se pudo cambiar el modelo de los subagentes: ${err instanceof Error ? err.message : String(err)}`
           );
         }
         return;
