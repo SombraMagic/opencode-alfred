@@ -151,6 +151,9 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (`hooks`, `mcpServers`…) se conservan. El nombre solo admite `[a-z0-9._-]`; la
   descripción es obligatoria. Reiniciar Claude solo si la carpeta `agents` del destino no
   existía al arrancar.
+- La columna CONFIGURACIÓN del dictado se pliega a una tira vertical de 28 px en el borde
+  izquierdo con el título girado; el bloc gana el ancho. Se pliega con el propio título
+  (`#config-toggle`) y **no** se recuerda al reabrir el panel: no se pidió persistirlo.
 - El panel de dictado adjunta imágenes pegadas (Ctrl+V): se escriben en `<raíz>/.alfred/adjuntos`
   (ignorado por `.gitignore` y `.vscodeignore`) o en el almacén global sin carpeta, y el bloc
   `contenteditable` las guarda como `[[img:ruta-escapada]]`. Probado por el usuario en VS Code.

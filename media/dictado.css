@@ -12,7 +12,7 @@ body {
 
 .dict {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr) 210px;
+  grid-template-columns: auto minmax(0, 1fr) 210px;
   gap: 12px;
   padding: 10px 12px 12px;
   height: 100%;
@@ -44,7 +44,60 @@ body {
 
 /* Configuración */
 .config {
+  width: 230px;
   gap: 6px;
+}
+
+/* El envoltorio no pinta caja: los campos siguen siendo hijos del flex de la columna. */
+.config-body {
+  display: contents;
+}
+
+/* El título es el botón que pliega la columna. */
+.config-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 0 0 5px;
+  margin: 0 0 2px;
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--neon);
+  opacity: 0.85;
+  cursor: pointer;
+  text-align: left;
+}
+
+.config-toggle:hover {
+  opacity: 1;
+}
+
+/* Plegada: tira vertical con el título girado (de abajo arriba). */
+.config.collapsed {
+  width: 28px;
+  padding: 8px 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.config.collapsed .config-body {
+  display: none;
+}
+
+.config.collapsed .config-toggle {
+  flex: 1;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
 }
 
 .config select,
@@ -372,6 +425,7 @@ input[type="range"]:disabled {
     height: auto;
   }
   .col { overflow: visible; }
+  .config { width: auto; }
   #nota { min-height: 120px; }
   .note { order: -1; }
 }

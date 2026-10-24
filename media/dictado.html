@@ -7,8 +7,9 @@
 </head>
 <body>
   <div class="dict">
-    <section class="col config">
-      <div class="col-title">CONFIGURACIÓN</div>
+    <section class="col config" id="config">
+      <button class="col-title config-toggle" id="config-toggle" type="button" aria-expanded="true" title="Plegar configuración">CONFIGURACIÓN<span class="chev" aria-hidden="true">‹</span></button>
+      <div class="config-body">
 
       <label class="field"><span class="field-label">MOTOR</span><select id="engine"></select></label>
       <div class="hint" id="engine-hint"></div>
@@ -43,6 +44,7 @@
           <input id="key" type="password" placeholder="sk-…" />
           <button class="ghost-btn" id="save-key" type="button">GUARDAR</button>
         </div>
+      </div>
       </div>
     </section>
 

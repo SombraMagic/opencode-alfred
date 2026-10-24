@@ -219,6 +219,14 @@
   lockBtn.addEventListener("click", () => post({ type: "lockFloor", on: !floorDb }));
 
   // ── Configuración ────────────────────────────────────────
+  const configCol = $("config");
+  const configToggle = $("config-toggle");
+  configToggle.addEventListener("click", () => {
+    const collapsed = configCol.classList.toggle("collapsed");
+    configToggle.setAttribute("aria-expanded", String(!collapsed));
+    configToggle.title = collapsed ? "Desplegar configuración" : "Plegar configuración";
+  });
+
   function syncRows() {
     const isWhisper = engine === "whisper";
     const isCloud = engine === "nube";
