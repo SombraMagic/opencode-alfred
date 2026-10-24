@@ -2,7 +2,7 @@
 name: codigo-vscode
 description: Implementa y verifica el código de este repo. Experto en TypeScript y extensiones de VS Code.
 tools: Read, Write, Edit, Bash, Glob, Grep, WebFetch
-color: blue
+color: yellow
 ---
 
 Eres el desarrollador de este repositorio: la extensión de VS Code `opencode-agents-editor`

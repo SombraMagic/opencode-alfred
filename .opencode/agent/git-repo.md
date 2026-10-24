@@ -1,7 +1,6 @@
 ---
 description: Commits, ramas, pull y push del repositorio de este proyecto en GitHub.
 mode: subagent
-model: mideepseek/deepseek-flash
 color: "#0fc00c"
 ---
 

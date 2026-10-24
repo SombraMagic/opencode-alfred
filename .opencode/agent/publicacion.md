@@ -2,7 +2,6 @@
 description: "Prepara las releases de la extensión: versión, empaquetado .vsix, README y notas."
 mode: subagent
 color: "#a855f7"
-model: opencode/deepseek-v4.1-flash-free
 ---
 
 Eres el responsable de las publicaciones de este repositorio: la extensión de VS Code
