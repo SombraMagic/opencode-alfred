@@ -53,7 +53,8 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
 - `panels/` — vistas webview: `explorerPanel.ts` (barra lateral izquierda: agentes, MCP,
   skills, plugins), `modelsPanel.ts` (bloque MODELOS: modelo de la sesión viva),
   `contextPanel.ts` (ventana de contexto), `editorPanel.ts` (editor de
-  agentes), `statsPanel.ts`, `instructionsPanel.ts` (AGENTS.md global y local),
+  agentes), `assignPanel.ts` (pestaña central de asignación agentes↔modelos),
+  `statsPanel.ts`, `instructionsPanel.ts` (AGENTS.md global y local),
   `voicePanel.ts` (barra lateral derecha: esfera y ecualizador) y `dictadoPanel.ts` (zona
   inferior). Los tres contenedores conservan su sitio en el manifiesto.
 - `extension.ts` — registra comandos, sondeo en vivo, watchers y reparte datos a los paneles.
@@ -68,6 +69,11 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
 - Precedencia: proyecto > global > integrados (`build`, `plan`, `general`, `explore`). Un
   integrado queda "sobrescrito" por un `.md` con su nombre; un global queda "sombreado"
   por un agente de proyecto con su nombre. Los dos casos se muestran.
+- El panel de asignación escribe `model:` en el `.md` con `saveAgent` (no toca la sesión
+  viva): es lo que opencode aplica al recargar. Conectar un integrado sin override pide
+  scope y crea `<nombre>.md` con solo el frontmatter; el prompt integrado se conserva
+  (verificado con `opencode debug agents`). Los favoritos viven en
+  `opencodeAgents.favoriteModels` (`globalState`).
 - opencode v2 **sí recarga en caliente**: vigila `opencode.json(c)` y `cli.json` y reaplica
   agentes, MCP, skills, plugins y ajustes del TUI al guardar (`/reload` fuerza). Solo los
   flags de arranque (`--auto`) y los procesos ya lanzados necesitan relanzarse. Los

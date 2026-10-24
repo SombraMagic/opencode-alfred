@@ -122,6 +122,11 @@
         "icon": "$(graph)"
       },
       {
+        "command": "opencodeAgents.assignModels",
+        "title": "Asignar agentes a modelos",
+        "category": "opencode"
+      },
+      {
         "command": "opencodeAgents.resetAllStats",
         "title": "opencode: Reiniciar contadores de todos los agentes"
       },

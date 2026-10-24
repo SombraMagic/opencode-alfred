@@ -10,6 +10,7 @@
     tSub: document.getElementById("t-sub"),
     search: document.getElementById("search"),
     clear: document.getElementById("clear"),
+    assign: document.getElementById("assign"),
     now: document.getElementById("now"),
     note: document.getElementById("note"),
     groups: document.getElementById("groups"),
@@ -98,6 +99,7 @@
       data.title || "",
       data.note || "",
       !!data.clearable,
+      !!data.canAssign,
       data.subagent || null,
       models.map((m) => m.id),
       groups.map((g) => [g.name, g.models.map((m) => [m.id, m.name, m.hint || ""])]),
@@ -126,6 +128,9 @@
     el.clear.hidden = sub ? !sub.clearable : !data.clearable;
     // «Heredar» prometería más de lo que se puede: el entorno del sistema también fija.
     el.clear.textContent = "SIN FIJAR";
+
+    // La apertura del tablero de asignación no existe en todos los proveedores.
+    if (el.assign) el.assign.hidden = !data.canAssign;
 
     const now = models.find((m) => m.id === current);
 
@@ -222,6 +227,13 @@
       activeMode(lastData) === "sub" ? { type: "clearSubagentModel" } : { type: "clearModel" };
     vscode.postMessage({ type: "action", action });
   });
+
+  // Tablero de asignación: lo abre un panel aparte.
+  if (el.assign) {
+    el.assign.addEventListener("click", () =>
+      vscode.postMessage({ type: "action", action: { type: "openAssign" } })
+    );
+  }
 
   el.search.addEventListener("input", () => {
     modelQuery = el.search.value.trim().toLowerCase();

@@ -143,6 +143,35 @@ body {
   color: var(--text-dim);
 }
 
+/* ── Tablero de asignación ─────────────────────────────── */
+/* Ancho completo bajo la cabecera: discreto, pero se encuentra. No rompe la vista estrecha. */
+.assign-btn {
+  flex: none;
+  width: 100%;
+  margin-top: 7px;
+  padding: 5px 8px;
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.assign-btn:hover,
+.assign-btn:focus-visible {
+  background: color-mix(in srgb, var(--neon) 18%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+  outline: none;
+}
+
 /* El catálogo trae cientos de modelos: es la lista de TODOS la que se queda con el alto libre. */
 #all {
   flex: 1 1 auto;

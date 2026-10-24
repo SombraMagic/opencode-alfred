@@ -39,13 +39,16 @@ export interface ModelsData {
     source: string;
     clearable: boolean;
   };
+  /** El proveedor activo admite asignar agentes a modelos (solo opencode). */
+  canAssign?: boolean;
 }
 
 export type ModelsAction =
   | { type: "setModel"; id: string }
   | { type: "clearModel" }
   | { type: "setSubagentModel"; id: string }
-  | { type: "clearSubagentModel" };
+  | { type: "clearSubagentModel" }
+  | { type: "openAssign" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
@@ -53,6 +56,7 @@ const ACTION_TYPES = new Set<string>([
   "clearModel",
   "setSubagentModel",
   "clearSubagentModel",
+  "openAssign",
 ]);
 
 export class ModelsPanel implements vscode.WebviewViewProvider {
@@ -157,6 +161,7 @@ export class ModelsPanel implements vscode.WebviewViewProvider {
         <button id="t-sub" class="tag" type="button" aria-pressed="false">SUBAGENTES</button>
       </div>
     </div>
+    <button id="assign" class="assign-btn" type="button" title="Asignar agentes a modelos" hidden>ASIGNAR AGENTES</button>
     <input id="search" class="model-search" type="search" placeholder="Buscar conector o modelo…" autocomplete="off" spellcheck="false" aria-label="Buscar modelo" />
     <div class="group"><span class="group-name">ACTUAL</span><button id="clear" type="button" hidden>SIN FIJAR</button></div>
     <div id="now" class="list"></div>

@@ -1,12 +1,14 @@
 import * as vscode from "vscode";
-import { Agent, AgentFrontmatter, Scope } from "./agents/types";
+import { Agent, AgentFrontmatter, BUILTIN_AGENTS, Scope } from "./agents/types";
 import {
   AgentList,
   findAgent,
   listAgents,
   readConfigInfo,
+  saveAgent,
   writeAtomic,
 } from "./agents/store";
+import { setAgentModel } from "./agents/assign";
 import {
   DisabledPlugin,
   loadAutoAccept,
@@ -31,6 +33,7 @@ import {
   ExplorerPanel,
 } from "./panels/explorerPanel";
 import { ModelEntry, ModelsAction, ModelsData, ModelsPanel } from "./panels/modelsPanel";
+import { AssignAction, AssignAgent, AssignData, AssignPanel } from "./panels/assignPanel";
 import { InstructionsPanel } from "./panels/instructionsPanel";
 import { ClaudeAgentPanel } from "./panels/claudeAgentPanel";
 import { StatsPanel } from "./panels/statsPanel";
@@ -113,6 +116,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // the config; remember it here so the switch can add it back.
   const DISABLED_PLUGINS = "opencodeAgents.disabledPlugins";
   const RECENT_MODELS = "opencodeAgents.recentModels";
+  const FAVORITE_MODELS = "opencodeAgents.favoriteModels";
 
   // La detección espera procesos del sistema: se lanza sin bloquear el arranque y, cuando
   // termina, repinta el panel. Hasta entonces el selector muestra solo opencode.
@@ -370,8 +374,12 @@ export function activate(context: vscode.ExtensionContext): void {
   let autoAccept = false;
   let models: ModelEntry[] = [];
   let recentModels: string[] = context.globalState.get<string[]>(RECENT_MODELS, []);
+  let favoriteModels: string[] = context.globalState.get<string[]>(FAVORITE_MODELS, []);
 
   const refresh = () => {
+    if (sessionAgent !== "opencode") {
+      AssignPanel.close();
+    }
     void refreshAgents();
     void refreshCatalog();
     void refreshModels();
@@ -467,16 +475,17 @@ export function activate(context: vscode.ExtensionContext): void {
   function modelsData(): ModelsData {
     if (sessionAgent === "claude") {
       // Claude no tiene "recientes" guardados: solo el configurado y lo visto en sesiones.
-      return { ...claudeModels(projectRoot()), recentModels: [] };
+      return { ...claudeModels(projectRoot()), recentModels: [], canAssign: false };
     }
     if (sessionAgent === "codex") {
-      return { ...codexModels(), recentModels: [] };
+      return { ...codexModels(), recentModels: [], canAssign: false };
     }
     const snapshot = display ?? lastRaw;
     return {
       models,
       currentModel: snapshot ? (pickSession(snapshot)?.model ?? "") : "",
       recentModels: recentModelIds(),
+      canAssign: sessionAgent === "opencode",
     };
   }
 
@@ -610,6 +619,135 @@ export function activate(context: vscode.ExtensionContext): void {
       .get<boolean>("showBuiltins", true);
     agentList = await listAgents(showBuiltins);
     explorer.update(buildExplorerData());
+    AssignPanel.current?.update(assignData());
+  }
+
+  /** Scope donde vive el override del integrado, si existe (project > global). */
+  function builtinOverrideScope(name: string): Scope | undefined {
+    if (agentList.project.some((a) => a.name === name)) {
+      return "project";
+    }
+    return agentList.global.some((a) => a.name === name) ? "global" : undefined;
+  }
+
+  /** Agentes con su modelo y el catálogo vivo, en la forma que pinta el panel de asignación. */
+  function assignData(): AssignData {
+    const row = (agent: Agent, scope: "project" | "global"): AssignAgent => {
+      const description = (agent.frontmatter.description ?? "").trim();
+      const label = scope === "project" ? "proyecto" : "global";
+      return {
+        name: agent.name,
+        scope,
+        model: agent.frontmatter.model ?? "",
+        detail:
+          description ||
+          (agent.shadowed ? `${label} · sombreado por proyecto` : label),
+      };
+    };
+    // El `.md` que sobrescribe un integrado ya sale en su fila INTEGRADO: no se repite.
+    const builtinNames = new Set<string>(BUILTIN_AGENTS);
+    const agents: AssignAgent[] = [
+      ...agentList.project.filter((a) => !builtinNames.has(a.name)).map((a) => row(a, "project")),
+      ...agentList.global.filter((a) => !builtinNames.has(a.name)).map((a) => row(a, "global")),
+    ];
+    // Los cuatro integrados siempre salen: el override se resuelve sin `agentList.builtins`.
+    for (const name of BUILTIN_AGENTS) {
+      const overrideScope = builtinOverrideScope(name);
+      const override = overrideScope
+        ? (overrideScope === "project" ? agentList.project : agentList.global).find(
+            (a) => a.name === name
+          )
+        : undefined;
+      agents.push({
+        name,
+        scope: "builtin",
+        model: override?.frontmatter.model ?? "",
+        detail:
+          overrideScope === "project"
+            ? "sobrescrito por proyecto"
+            : overrideScope === "global"
+              ? "sobrescrito por global"
+              : "integrado",
+      });
+    }
+    return {
+      agents,
+      models,
+      favorites: favoriteModels.filter((id) => models.some((m) => m.id === id)),
+    };
+  }
+
+  async function openAssignPanel(): Promise<void> {
+    if (sessionAgent !== "opencode") {
+      void vscode.window.showWarningMessage(
+        "La asignación de agentes a modelos es solo de opencode."
+      );
+      return;
+    }
+    if (models.length === 0) {
+      await refreshModels();
+    }
+    AssignPanel.open(context, assignData(), {
+      onAction: handleAssignAction,
+      onReady: () => AssignPanel.current?.update(assignData()),
+    });
+  }
+
+  async function handleAssignAction(action: AssignAction): Promise<void> {
+    if (action.type === "toggleFavorite") {
+      favoriteModels = action.on
+        ? [...favoriteModels.filter((id) => id !== action.id), action.id]
+        : favoriteModels.filter((id) => id !== action.id);
+      await context.globalState.update(FAVORITE_MODELS, favoriteModels);
+      AssignPanel.current?.update(assignData());
+      return;
+    }
+    if (action.type !== "assign" && action.type !== "clear") {
+      return;
+    }
+    const model = action.type === "assign" ? action.model : "";
+    if (action.scope === "builtin" && !(BUILTIN_AGENTS as readonly string[]).includes(action.agent)) {
+      return;
+    }
+    if (model !== "" && !models.some((m) => m.id === model)) {
+      return;
+    }
+    const modelLabel = models.find((m) => m.id === model)?.name ?? model;
+    try {
+      const target =
+        action.scope === "builtin" ? builtinOverrideScope(action.agent) : action.scope;
+      let notice: string;
+      if (!target) {
+        // Integrado sin override: no hay modelo que borrar.
+        if (!model) {
+          return;
+        }
+        const scope = await pickScope("¿Dónde crear el override del integrado?");
+        if (!scope) {
+          return;
+        }
+        await saveAgent(scope, action.agent, { model }, "", undefined);
+        notice = `opencode: «${action.agent}.md» sobrescribe al integrado con «${modelLabel}»; opencode lo recarga al guardar.`;
+      } else {
+        const agent = await findAgent(action.agent, target);
+        if (!agent) {
+          void vscode.window.showWarningMessage(
+            `No hay ningún agente "${action.agent}" en ese scope.`
+          );
+          return;
+        }
+        await setAgentModel(agent, model);
+        notice = model
+          ? `opencode: «${agent.name}» usará «${modelLabel}».`
+          : `opencode: «${agent.name}» sin modelo fijado.`;
+      }
+      await refreshAgents();
+      void vscode.window.setStatusBarMessage(notice, 6000);
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        `No se pudo asignar el modelo: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
   }
 
   async function refreshCatalog(): Promise<void> {
@@ -794,6 +932,10 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
 
     vscode.commands.registerCommand("opencodeAgents.showStats", () => openStatsPanel()),
+
+    vscode.commands.registerCommand("opencodeAgents.assignModels", () =>
+      void openAssignPanel()
+    ),
 
     vscode.commands.registerCommand("opencodeAgents.resetAllStats", () => resetAllAgents()),
 
@@ -1431,6 +1573,10 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         return;
       }
+
+      case "openAssign":
+        await openAssignPanel();
+        return;
 
       case "setModel": {
         if (typeof action.id !== "string") {
