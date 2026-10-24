@@ -10,6 +10,7 @@ idea.md
 dist/**
 !dist/**/*.js
 .opencode/**
+.claude/**
 AGENTS.md
 MEMORY.md
 pront.md
