@@ -163,7 +163,8 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   override piden scope y crean el `.md` que los sobrescribe; el prompt integrado se conserva
   (comprobado con `opencode debug agents`). Favoritos en `opencodeAgents.favoriteModels`. El
   tablero se cierra al cambiar a Claude/Codex. Tres columnas, `media/assign.html` como
-  plantilla con marcadores.
+  plantilla con marcadores. El buscador y los conectores apagados persisten en
+  `assignSearch`/`assignProvidersOff` (debounce de 300 ms en el webview).
 
 ## Trampas ya pagadas
 

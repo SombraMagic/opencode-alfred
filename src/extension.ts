@@ -117,6 +117,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const DISABLED_PLUGINS = "opencodeAgents.disabledPlugins";
   const RECENT_MODELS = "opencodeAgents.recentModels";
   const FAVORITE_MODELS = "opencodeAgents.favoriteModels";
+  const ASSIGN_SEARCH = "opencodeAgents.assignSearch";
+  const ASSIGN_PROVIDERS_OFF = "opencodeAgents.assignProvidersOff";
 
   // La detección espera procesos del sistema: se lanza sin bloquear el arranque y, cuando
   // termina, repinta el panel. Hasta entonces el selector muestra solo opencode.
@@ -375,6 +377,9 @@ export function activate(context: vscode.ExtensionContext): void {
   let models: ModelEntry[] = [];
   let recentModels: string[] = context.globalState.get<string[]>(RECENT_MODELS, []);
   let favoriteModels: string[] = context.globalState.get<string[]>(FAVORITE_MODELS, []);
+  // Vista del tablero de asignación: el buscador y los conectores apagados sobreviven al cierre.
+  let assignSearch: string = context.globalState.get<string>(ASSIGN_SEARCH, "");
+  let assignProvidersOff: string[] = context.globalState.get<string[]>(ASSIGN_PROVIDERS_OFF, []);
 
   const refresh = () => {
     if (sessionAgent !== "opencode") {
@@ -674,6 +679,8 @@ export function activate(context: vscode.ExtensionContext): void {
       agents,
       models,
       favorites: favoriteModels.filter((id) => models.some((m) => m.id === id)),
+      search: assignSearch,
+      disabledProviders: assignProvidersOff,
     };
   }
 
@@ -710,6 +717,26 @@ export function activate(context: vscode.ExtensionContext): void {
         : favoriteModels.filter((id) => id !== action.id);
       await context.globalState.update(FAVORITE_MODELS, favoriteModels);
       AssignPanel.current?.update(assignData());
+      return;
+    }
+    if (action.type === "persistView") {
+      if (
+        typeof action.search !== "string" ||
+        !Array.isArray(action.disabledProviders) ||
+        action.disabledProviders.some((p) => typeof p !== "string")
+      ) {
+        return;
+      }
+      const offKey = action.disabledProviders.join("\u0000");
+      if (action.search !== assignSearch) {
+        assignSearch = action.search;
+        await context.globalState.update(ASSIGN_SEARCH, assignSearch);
+      }
+      if (offKey !== assignProvidersOff.join("\u0000")) {
+        assignProvidersOff = [...action.disabledProviders];
+        await context.globalState.update(ASSIGN_PROVIDERS_OFF, assignProvidersOff);
+      }
+      // Sin repintar: el usuario está escribiendo en el buscador.
       return;
     }
     if (action.type !== "assign" && action.type !== "clear") {

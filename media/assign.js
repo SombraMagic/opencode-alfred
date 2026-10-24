@@ -22,8 +22,11 @@
 
   // El buscador es HTML estático: su valor no se reconstruye al repintar.
   let query = "";
-  // Conectores apagados del filtro; solo viven en esta webview.
+  // Conectores apagados del filtro; se restauran de la vista guardada al arrancar.
   const off = new Set();
+  // Solo el primer assign siembra query/off: los siguientes son repintados de la extensión.
+  let inited = false;
+  let saveTimer = 0;
   let lastData = null;
   let lastKey = "";
   let favIds = new Set();
@@ -41,6 +44,15 @@
 
   function post(action) {
     vscode.postMessage({ type: "action", action });
+  }
+
+  // Una sola escritura por ráfaga: el filtro y el repintado siguen siendo inmediatos.
+  function persistView() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveTimer = 0;
+      post({ type: "persistView", search: el.search.value, disabledProviders: [...off] });
+    }, 300);
   }
 
   /** El nombre legible del modelo; si el catálogo ya no lo trae, el id. */
@@ -106,6 +118,7 @@
         if (off.has(provider)) off.delete(provider);
         else off.add(provider);
         repaint();
+        persistView();
       });
       el.providers.appendChild(chip);
     }
@@ -362,6 +375,13 @@
   // ── Repintado ───────────────────────────────────────────
   function renderAssign(data) {
     if (!data) return;
+    if (!inited) {
+      inited = true;
+      // El filtro compara en minúsculas; el buscador conserva lo que escribió el usuario.
+      query = (data.search || "").trim().toLowerCase();
+      el.search.value = data.search || "";
+      for (const provider of data.disabledProviders || []) off.add(provider);
+    }
     lastData = data;
     const agents = data.agents || [];
     const models = data.models || [];
@@ -396,6 +416,7 @@
   el.search.addEventListener("input", () => {
     query = el.search.value.trim().toLowerCase();
     repaint();
+    persistView();
   });
 
   el.close.addEventListener("click", () => post({ type: "close" }));

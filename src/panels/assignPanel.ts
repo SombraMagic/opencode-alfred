@@ -17,16 +17,27 @@ export interface AssignData {
   /** Catálogo vivo de opencode. */
   models: ModelEntry[];
   favorites: string[];
+  /** Texto del buscador, recordado entre aperturas. */
+  search: string;
+  /** Ids de conector que el usuario apagó, recordados entre aperturas. */
+  disabledProviders: string[];
 }
 
 export type AssignAction =
   | { type: "toggleFavorite"; id: string; on: boolean }
   | { type: "assign"; agent: string; scope: AssignAgent["scope"]; model: string }
   | { type: "clear"; agent: string; scope: AssignAgent["scope"] }
+  | { type: "persistView"; search: string; disabledProviders: string[] }
   | { type: "close" };
 
 /** Acciones que el webview tiene permitido pedir. */
-const ACTION_TYPES = new Set<string>(["toggleFavorite", "assign", "clear", "close"]);
+const ACTION_TYPES = new Set<string>([
+  "toggleFavorite",
+  "assign",
+  "clear",
+  "persistView",
+  "close",
+]);
 
 export interface AssignPanelHandlers {
   onAction(action: AssignAction): void | Promise<void>;
@@ -108,7 +119,15 @@ export class AssignPanel {
           return;
         }
         // El webview no es de fiar: se comprueba la forma antes de tocar ficheros.
-        if (action.type === "toggleFavorite") {
+        if (action.type === "persistView") {
+          if (
+            typeof action.search !== "string" ||
+            !Array.isArray(action.disabledProviders) ||
+            action.disabledProviders.some((p) => typeof p !== "string")
+          ) {
+            return;
+          }
+        } else if (action.type === "toggleFavorite") {
           if (typeof action.id !== "string" || !action.id || typeof action.on !== "boolean") {
             return;
           }

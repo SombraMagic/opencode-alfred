@@ -74,7 +74,8 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   scope y crea `<nombre>.md` con solo el frontmatter; el prompt integrado se conserva
   (verificado con `opencode debug agents`). Los favoritos viven en
   `opencodeAgents.favoriteModels` (`globalState`); al abrir el tablero se siembran con los
-  modelos que ya tienen los agentes, si están en el catálogo vivo.
+  modelos que ya tienen los agentes, si están en el catálogo vivo. El buscador y los
+  conectores apagados también persisten (`assignSearch`, `assignProvidersOff`).
 - opencode v2 **sí recarga en caliente**: vigila `opencode.json(c)` y `cli.json` y reaplica
   agentes, MCP, skills, plugins y ajustes del TUI al guardar (`/reload` fuerza). Solo los
   flags de arranque (`--auto`) y los procesos ya lanzados necesitan relanzarse. Los
