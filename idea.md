@@ -32,7 +32,15 @@ cuando un agente este trabajando, debajo de la esfera para el sinido, aparece un
 y si hay mas de una, apareceian como una lista de agentes cada uno con su efecto al lado.
 
 
+-----------------------------
 
+Fase 3. Compatible con Claud y Codex
+por defecto opencode [.Open.]
+cambiar el boton de Sesion . ahora tendra selector izquierda derecha, y en el boton pondra el agente de codigo.
+<[.Open.]><[.Claude.]><[.Codex.]>
+
+al abrir la sesion con claude, panel con terminal con claude, si esta la opencode o codex no la quitamos, 
+igual con codex y con opencode, respetamos que pueda haber una terminal con cada agente en los paneles centrales. pero no repetir las que ya existan.
 
 
 

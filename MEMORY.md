@@ -92,6 +92,17 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   puede ejecutar. Coste del spawn: ~120 ms; solo en el arranque y al guardar config, nunca
   en el sondeo de 2 s. Cada modelo lleva `free` cuando la tarifa viene a cero en todos los
   tramos (65 de 688); el nombre nunca se usa como pista.
+- El botón de sesión del Explorador es un selector de agente (`‹ ▶ OPEN ›`,
+  `‹ ▶ CLAUDE ›`, `‹ ▶ CODEX ›`, acción `cycleAgent`): abre una terminal **por agente** y no
+  toca las de los otros. `claude --continue` y `codex resume --last` retoman la última
+  conversación; sin historial el CLI avisa y se cierra (decisión del usuario: no encadenar
+  un fallback). Los CLIs se detectan **una vez al activar** (`where`/`which`, `timeout` 5 s,
+  en segundo plano, no en `activate` a la espera: un `await` ahí rompe `refresh()` por TDZ);
+  `codex` no está instalado aquí, así que el selector tiene dos paradas. Elegido en
+  `opencodeAgents.sessionAgent`. Ojo: `runningTerminal` casa por **nombre exacto** de
+  terminal, así que adopta también la del comando de paleta `opencodeAgents.newSession`
+  (clave `__new__`, que sigue creando una sesión nueva). Modelos y Contexto siguen leyendo
+  solo opencode.
 
 ## Trampas ya pagadas
 

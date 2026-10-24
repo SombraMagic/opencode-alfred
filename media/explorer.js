@@ -8,6 +8,9 @@
     global: document.getElementById("btn-global"),
     local: document.getElementById("btn-local"),
     session: document.getElementById("btn-session"),
+    agentLabel: document.getElementById("agent-label"),
+    agentPrev: document.getElementById("agent-prev"),
+    agentNext: document.getElementById("agent-next"),
     addPlugin: document.getElementById("btn-add-plugin"),
     agents: document.getElementById("agents"),
     agentsTotal: document.getElementById("agents-total"),
@@ -24,6 +27,8 @@
     autoAcceptBtn: document.getElementById("btn-auto-accept"),
     permState: document.getElementById("perm-state"),
   };
+
+  const AGENT_LABELS = { opencode: "OPEN", claude: "CLAUDE", codex: "CODEX" };
 
   function act(action) {
     vscode.postMessage({ type: "action", action });
@@ -250,6 +255,12 @@
       ? "Editar el AGENTS.md del proyecto"
       : "No hay ningún proyecto abierto.";
 
+    el.agentLabel.textContent =
+      AGENT_LABELS[data.sessionAgent] || String(data.sessionAgent || "").toUpperCase();
+    const cycle = Array.isArray(data.sessionAgents) && data.sessionAgents.length > 1;
+    el.agentPrev.disabled = !cycle;
+    el.agentNext.disabled = !cycle;
+
     const working = Number(data.totals && data.totals.working) || 0;
     el.status.textContent = working > 0 ? working + " EN VUELO" : "EN LÍNEA";
     el.status.className = "hud-status" + (working > 0 ? " busy" : "");
@@ -285,6 +296,8 @@
     act({ type: "editInstructions", scope: "project" })
   );
   el.session.addEventListener("click", () => act({ type: "openLastSession" }));
+  el.agentPrev.addEventListener("click", () => act({ type: "cycleAgent", delta: -1 }));
+  el.agentNext.addEventListener("click", () => act({ type: "cycleAgent", delta: 1 }));
   el.addPlugin.addEventListener("click", () => act({ type: "addPlugin" }));
   // Se engancha una sola vez: el HTML es estático y solo cambia de clase.
   el.autoAcceptBtn.addEventListener("click", () => {

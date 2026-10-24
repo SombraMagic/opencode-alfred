@@ -56,6 +56,52 @@
   white-space: nowrap;
 }
 
+/* Selector de agente: flecha + botón + flecha, sin hueco entre las tres. */
+.session-group {
+  display: inline-flex;
+  flex: none;
+  align-items: stretch;
+}
+
+.agent-arrow {
+  flex: none;
+  width: 16px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--neon-dim);
+  color: var(--neon-dim);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Se pegan al centro: el borde compartido lo pone el botón de sesión. */
+#agent-prev {
+  border-right: none;
+}
+
+#agent-next {
+  border-left: none;
+}
+
+.agent-arrow:hover,
+.agent-arrow:focus-visible {
+  background: color-mix(in srgb, var(--neon) 38%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+  outline: none;
+}
+
+/* Después del hover: con un solo agente instalado la flecha ni se ilumina ni se pulsa. */
+.agent-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+  border-color: var(--neon-dim);
+  color: var(--text-dim);
+}
+
 .session-btn {
   flex: none;
   padding: 7px 8px;
@@ -63,7 +109,8 @@
   border-color: var(--neon-dim);
   color: var(--text);
   font-size: 10px;
-  letter-spacing: 1px;
+  /* Sin letter-spacing: la etiqueta cambia de largo (OPEN/CLAUDE/CODEX) y la barra es estrecha. */
+  letter-spacing: 0;
   white-space: nowrap;
 }
 

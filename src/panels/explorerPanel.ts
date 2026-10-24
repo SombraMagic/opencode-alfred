@@ -36,6 +36,10 @@ export interface ExplorerData {
   plugins: ExplorerCatalogItem[];
   totals: { tokens: number; workMs: number; cost: number; working: number };
   autoAccept: boolean;
+  /** Agente elegido en el selector de sesión. */
+  sessionAgent: string;
+  /** Agentes instalados, en el orden del selector: las flechas solo recorren estos. */
+  sessionAgents: string[];
 }
 
 export type ExplorerAction =
@@ -48,7 +52,8 @@ export type ExplorerAction =
   | { type: "toggleSkill"; name: string; scope: ExplorerScope }
   | { type: "togglePlugin"; name: string; scope: ExplorerScope }
   | { type: "addPlugin" }
-  | { type: "setAutoAccept"; on: boolean };
+  | { type: "setAutoAccept"; on: boolean }
+  | { type: "cycleAgent"; delta: 1 | -1 };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
@@ -62,6 +67,7 @@ const ACTION_TYPES = new Set<string>([
   "togglePlugin",
   "addPlugin",
   "setAutoAccept",
+  "cycleAgent",
 ]);
 
 export class ExplorerPanel implements vscode.WebviewViewProvider {
@@ -169,7 +175,11 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
   <div class="actions">
     <button id="btn-global" class="brain-btn" type="button" title="Editar el AGENTS.md global">${brain}<span>GLOBAL</span></button>
     <button id="btn-local" class="brain-btn" type="button" title="Editar el AGENTS.md del proyecto" disabled>${brain}<span>LOCAL</span></button>
-    <button id="btn-session" class="ghost-btn session-btn" type="button" title="Enfocar la sesión de opencode abierta o reanudar la última; cierra la bienvenida y los editores vacíos">▶ SESIÓN</button>
+    <div class="session-group">
+      <button id="agent-prev" class="agent-arrow" type="button" title="Agente anterior" aria-label="Agente anterior" disabled>‹</button>
+      <button id="btn-session" class="ghost-btn session-btn" type="button" title="Abrir o enfocar la sesión del agente elegido; las flechas cambian de agente">▶ <span id="agent-label">OPEN</span></button>
+      <button id="agent-next" class="agent-arrow" type="button" title="Agente siguiente" aria-label="Agente siguiente" disabled>›</button>
+    </div>
   </div>
 
   <div id="banner" class="banner" hidden></div>

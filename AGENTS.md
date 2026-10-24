@@ -106,6 +106,15 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   que solo se envían ids de la lista viva `GET /api/model` (los que opencode da por
   `enabled`). No uses `readConfigInfo()` para esa lista: incluye modelos vetados o
   deshabilitados (nvidia en lista negra, etc.).
+- El botón de sesión del Explorador lanza tres CLIs (`SESSION_AGENTS` en
+  `src/extension.ts`): opencode (`-s <id>` o `-c`), Claude Code (`claude --continue`) y
+  Codex (`codex resume --last`), una terminal por agente y sin cerrar las demás. La
+  detección (`where`/`which`) se hace **una vez, en segundo plano** al activar: no metas un
+  `await` en la prosa síncrona de `activate` ni esperes ahí, porque `refresh()` corre en
+  cuanto el webview dice `ready` y `display`/`agentList` aún no existirían (TDZ). El
+  elegido vive en `opencodeAgents.sessionAgent`; `runningTerminal` casa por nombre exacto
+  de terminal, así que adopta también la abierta a mano. Modelos y Contexto siguen leyendo
+  solo opencode.
 - opencode migró su esquema: builds actuales usan `session_v2` + `session_message`
   (mensajes en JSON en `data`, `type` = `assistant`/`user`/`idle`/...; las tool calls van
   dentro del `content[]` del assistant, `state.status` = `running`/`pending`/`completed`/

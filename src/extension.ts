@@ -58,6 +58,11 @@ import { execFile } from "node:child_process";
 let voicePanel: VozPanel | undefined;
 let dictado: VozDictado | undefined;
 
+/** CLIs que puede lanzar el botón de sesión, en el orden del selector. */
+const SESSION_AGENTS = ["opencode", "claude", "codex"] as const;
+type SessionAgent = (typeof SESSION_AGENTS)[number];
+const SESSION_AGENT_KEY = "opencodeAgents.sessionAgent";
+
 export function activate(context: vscode.ExtensionContext): void {
   const explorer = new ExplorerPanel(context.extensionUri, {
     onAction: (action) => handleAction(action),
@@ -73,6 +78,13 @@ export function activate(context: vscode.ExtensionContext): void {
   // the config; remember it here so the switch can add it back.
   const DISABLED_PLUGINS = "opencodeAgents.disabledPlugins";
   const RECENT_MODELS = "opencodeAgents.recentModels";
+
+  // La detección espera procesos del sistema: se lanza sin bloquear el arranque y, cuando
+  // termina, repinta el panel. Hasta entonces el selector muestra solo opencode.
+  const availableAgents: SessionAgent[] = [];
+  let sessionAgent: SessionAgent = "opencode";
+  void detectAgents();
+
   let disabledPlugins: DisabledPlugin[] = context.globalState.get<DisabledPlugin[]>(DISABLED_PLUGINS, []);
   async function setPluginDisabled(
     spec: string,
@@ -168,8 +180,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
-  /** Abre (o enfoca) una terminal que lanza opencode como pestaña del editor. */
-  function openOpencode(key: string, cwd: string | undefined, command: string): void {
+  /** Abre (o enfoca) la terminal de un agente. Una por agente: nunca duplica la que ya vive. */
+  function openTerminal(key: string, name: string, cwd: string | undefined, command: string): void {
     const existing = sessionTerminals.get(key);
     if (existing && existing.exitStatus === undefined) {
       existing.show();
@@ -182,11 +194,44 @@ export function activate(context: vscode.ExtensionContext): void {
       viewColumn: empty ? vscode.ViewColumn.Active : vscode.ViewColumn.Beside,
     };
     const terminal = vscode.window.createTerminal(
-      cwd ? { name: "opencode", cwd, location } : { name: "opencode", location }
+      cwd ? { name, cwd, location } : { name, location }
     );
     terminal.show();
     terminal.sendText(command);
     sessionTerminals.set(key, terminal);
+  }
+
+  /** Terminal viva con el nombre del agente: también las abiertas a mano o antes de recargar. */
+  function runningTerminal(id: SessionAgent): vscode.Terminal | undefined {
+    return vscode.window.terminals.find(
+      (t) => t.exitStatus === undefined && t.name.toLowerCase() === id
+    );
+  }
+
+  // shortcut: la detección es al activar; instalar un CLI después exige recargar la ventana.
+  async function detectAgents(): Promise<void> {
+    for (const id of SESSION_AGENTS) {
+      if (await commandExists(id)) {
+        availableAgents.push(id);
+      }
+    }
+    if (availableAgents.length === 0) {
+      availableAgents.push("opencode");
+    }
+    const stored = context.globalState.get<SessionAgent>(SESSION_AGENT_KEY, "opencode");
+    sessionAgent = availableAgents.includes(stored) ? stored : availableAgents[0];
+    refresh();
+  }
+
+  /** Rota el selector de sesión entre los agentes instalados y lo guarda. */
+  async function cycleAgent(delta: 1 | -1): Promise<void> {
+    if (availableAgents.length < 2) {
+      return;
+    }
+    const index = availableAgents.indexOf(sessionAgent);
+    sessionAgent = availableAgents[(index + delta + availableAgents.length) % availableAgents.length];
+    await context.globalState.update(SESSION_AGENT_KEY, sessionAgent);
+    refresh();
   }
 
   const statsService = new StatsService();
@@ -346,6 +391,8 @@ export function activate(context: vscode.ExtensionContext): void {
         working: display?.agents.filter((a) => a.working).length ?? 0,
       },
       autoAccept,
+      sessionAgent,
+      sessionAgents: availableAgents,
     };
   }
 
@@ -554,7 +601,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("opencodeAgents.addPlugin", () => addPlugin()),
 
     vscode.commands.registerCommand("opencodeAgents.newSession", () => {
-      openOpencode("__new__", projectRoot(), "opencode");
+      openTerminal("__new__", "opencode", projectRoot(), "opencode");
     })
   );
 
@@ -644,23 +691,31 @@ export function activate(context: vscode.ExtensionContext): void {
       case "openLastSession": {
         await closeStarterTabs();
         await pruneEmptyGroups();
-        // Si ya hay un opencode vivo, es la sesión en la que el usuario trabaja: otra terminal duplicaría el cliente.
-        const running = vscode.window.terminals.find(
-          (t) => t.exitStatus === undefined && /opencode/i.test(t.name)
-        );
-        if (running) {
-          running.show();
+        // Si la terminal de ese agente ya vive, es en la que el usuario trabaja: se enfoca.
+        const live = runningTerminal(sessionAgent);
+        if (live) {
+          live.show();
           return;
         }
         const root = projectRoot();
-        const snapshot = lastRaw ?? (await statsService.collect());
-        const last = pickSession(snapshot);
-        // Sin sesión que case, `-c` retoma la última del propio opencode en vez de crear una nueva.
-        if (last) {
-          openOpencode("__last__", last.directory, `opencode -s ${last.id}`);
-        } else {
-          openOpencode("__last__", root, "opencode -c");
+        if (sessionAgent === "opencode") {
+          const snapshot = lastRaw ?? (await statsService.collect());
+          const last = pickSession(snapshot);
+          // Sin sesión que case, `-c` retoma la última del propio opencode en vez de crear una nueva.
+          if (last) {
+            openTerminal("opencode", "opencode", last.directory, `opencode -s ${last.id}`);
+          } else {
+            openTerminal("opencode", "opencode", root, "opencode -c");
+          }
+          return;
         }
+        // Continuar la última conversación del agente. Sin historial, el CLI avisa y se cierra.
+        openTerminal(
+          sessionAgent,
+          sessionAgent,
+          root,
+          sessionAgent === "claude" ? "claude --continue" : "codex resume --last"
+        );
         return;
       }
 
@@ -732,6 +787,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
       case "addPlugin":
         return addPlugin();
+
+      case "cycleAgent": {
+        if (action.delta !== 1 && action.delta !== -1) {
+          return;
+        }
+        return cycleAgent(action.delta);
+      }
 
       case "setAutoAccept": {
         try {
@@ -935,6 +997,14 @@ function opencodeApi(method: string, route: string, body?: unknown): Promise<str
       }
       resolve(stdout);
     });
+  });
+}
+
+/** ¿Existe el ejecutable en el PATH del host? `where` en Windows, `which` en el resto. */
+function commandExists(bin: string): Promise<boolean> {
+  const finder = process.platform === "win32" ? "where" : "which";
+  return new Promise((resolve) => {
+    execFile(finder, [bin], { windowsHide: true, timeout: 5000 }, (err) => resolve(!err));
   });
 }
 
