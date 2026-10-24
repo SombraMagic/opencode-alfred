@@ -25,8 +25,7 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (`local.opencode-agents-editor@0.1.7` y `sombra.voz@0.1.0`) están desinstaladas.
 - Pendiente: probar en VS Code con la ventana recargada (webviews, TTS y dictado no se han
   visto en ejecución).
-- `main` tiene commits sin subir a `origin/main` (límite de contexto, panel de asignación y
-  su memoria); el push lo confirma la persona.
+- `main` sincronizado con `origin/main` (`757d85f`); sin commits pendientes de subir.
 
 ## Decisiones
 
