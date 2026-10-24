@@ -10,6 +10,7 @@
     banner: document.getElementById("banner"),
     usage: document.getElementById("usage"),
     caption: document.getElementById("caption"),
+    compact: document.getElementById("compact"),
     cells: document.getElementById("cells"),
     legend: document.getElementById("legend"),
     footer: document.getElementById("footer"),
@@ -174,6 +175,11 @@
     if (message && message.type === "context") {
       render(message.payload);
     }
+  });
+
+  // Sin estado pendiente: el backend no responde, el siguiente sondeo "context" es el acuse.
+  el.compact.addEventListener("click", () => {
+    vscode.postMessage({ type: "compact" });
   });
 
   vscode.postMessage({ type: "ready" });

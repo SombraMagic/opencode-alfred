@@ -73,6 +73,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   compactar, y el panel se quedaba clavado hasta la petición siguiente. Ojo: la propia
   fila `compaction` lleva `tokens` con el histórico viejo, por eso `usedTokens` sigue
   filtrando `type='assistant'`.
+- El botón COMPACTAR de la vista lanza `POST /api/session/<id>/compact` (sin cuerpo) sobre
+  **la sesión que el panel está midiendo** (`contextView.currentSessionId()`), no sobre una
+  re-elegida: `pickSession` solo acepta sesiones del proyecto abierto y el panel cae a la
+  raíz más reciente de cualquier proyecto, así que re-elegir compactaba otra cosa.
 - El bloque MODELOS es vista propia (`opencodeAgents.models`, `src/panels/modelsPanel.ts` +
   `media/models.*`), entre Explorador y Contexto, **siempre desplegada**: sin `<details>`,
   el buscador y los tres grupos se ven de entrada. No toca la config: cambia la sesión viva
@@ -108,7 +112,6 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
 
 ## Cabos sueltos conocidos
 
-- Sin `git init`: no hay commit ni historial del proyecto nuevo.
 - El `.vsix` arrastra ~1.6 MB de fuentes C++ de koffi que no hacen falta en runtime:
   recortable con `.vscodeignore` si algún día importa el tamaño.
 - `.opencode/agent/*` y el manifiesto siguen llamando al proyecto `opencode-agents-editor`

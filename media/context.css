@@ -51,14 +51,47 @@ body.vscode-light {
 }
 
 /* ── Lectura de tokens ────────────────────────────────── */
-.caption {
+.caption-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 7px;
+}
+
+.caption {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
   font-size: 9px;
   letter-spacing: 1.2px;
   color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.compact-btn {
+  flex: none;
+  background: color-mix(in srgb, var(--neon) 14%, transparent);
+  border: 1px solid var(--neon-dim);
+  color: var(--neon);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.compact-btn:hover,
+.compact-btn:focus-visible {
+  background: color-mix(in srgb, var(--neon) 26%, transparent);
+  border-color: var(--neon);
+  outline: none;
+}
+
+.compact-btn:focus-visible {
+  background: color-mix(in srgb, var(--neon) 38%, transparent);
 }
 
 /* ── Rejilla de celdas (20 × 8 = 160, igual que TOTAL en context.js) ── */

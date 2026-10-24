@@ -191,7 +191,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const statsService = new StatsService();
   const contextService = new ContextWindowService();
-  const contextView = new ContextViewProvider(context.extensionUri, () => void refreshStats(true));
+  const contextView = new ContextViewProvider(
+    context.extensionUri,
+    () => void refreshStats(true),
+    () => void compactSession()
+  );
   const modelsView = new ModelsPanel(context.extensionUri, {
     onAction: (action) => handleAction(action),
     onReady: () => void refreshModels(),
@@ -257,6 +261,25 @@ export function activate(context: vscode.ExtensionContext): void {
     return (snapshot.sessions ?? [])
       .filter((s) => !s.parentId && !!root && isSamePath(s.directory, root))
       .sort((a, b) => b.updated - a.updated)[0];
+  }
+
+  /** Compacta la conversación de la sesión medida en el panel: el equivalente a `/compact` del TUI. */
+  async function compactSession(): Promise<void> {
+    const id = contextView.currentSessionId();
+    if (!id) {
+      void vscode.window.showWarningMessage(
+        "opencode: todavía no hay una sesión medida que compactar."
+      );
+      return;
+    }
+    try {
+      await opencodeApi("POST", `/api/session/${id}/compact`);
+      void vscode.window.setStatusBarMessage("opencode: compactación pedida a la sesión.", 4000);
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        `No se pudo compactar: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
   }
 
   /** Recientes guardados; en el primer arranque se siembran con las últimas sesiones. */

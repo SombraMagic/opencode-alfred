@@ -9,7 +9,8 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly onReady: () => void
+    private readonly onReady: () => void,
+    private readonly onCompact: () => void
   ) {}
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -21,6 +22,10 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
     view.webview.html = this.getHtml(view.webview);
 
     view.webview.onDidReceiveMessage((message: { type?: string }) => {
+      if (message?.type === "compact") {
+        this.onCompact();
+        return;
+      }
       if (message?.type !== "ready") {
         return;
       }
@@ -46,6 +51,11 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
     if (this.view) {
       this.post(info);
     }
+  }
+
+  /** Sesión que el panel está midiendo: es la que hay que compactar. */
+  currentSessionId(): string | undefined {
+    return this.last?.sessionId;
   }
 
   private post(info: ContextWindowInfo): void {
@@ -93,7 +103,7 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
   <div id="banner" class="banner" hidden></div>
 
   <section id="usage" hidden>
-    <p class="caption" id="caption"></p>
+    <div class="caption-row"><p class="caption" id="caption"></p><button id="compact" class="compact-btn" type="button" title="Compactar la conversación (equivale a /compact)">COMPACTAR</button></div>
     <div id="cells" class="cells" role="img" aria-label="Ocupación de la ventana de contexto"></div>
     <ul id="legend" class="legend"></ul>
     <p id="footer" class="footer"></p>
