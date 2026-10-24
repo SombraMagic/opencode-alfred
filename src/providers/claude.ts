@@ -28,7 +28,7 @@ export interface ClaudeExplorer {
   skills: ExplorerCatalogItem[];
   plugins: ExplorerCatalogItem[];
   autoAccept: boolean;
-  /** Agentes en marcha ahora mismo (la sesión principal se llama `claude`). */
+  /** Agentes en marcha ahora mismo (la sesión principal se llama `CLAUDE`). */
   activity: ClaudeActivity[];
 }
 
@@ -327,7 +327,20 @@ export function claudeExplorer(projectRoot: string | undefined): ClaudeExplorer 
     agents: {
       project: projectRoot ? withActivity(readAgents(projectAgentsDir(projectRoot), "project")) : [],
       global: withActivity(readAgents(path.join(claudeHome(), "agents"), "global")),
-      builtin: [],
+      // Claude no publica agentes integrados: la única fila es la sesión principal.
+      builtin: withActivity([
+        {
+          name: "CLAUDE",
+          mode: "builtin",
+          scope: "builtin",
+          filePath: claudeInstructionsFile(projectRoot ? "project" : "global", projectRoot),
+          working: false,
+          streaming: false,
+          tokens: 0,
+          workMs: 0,
+          cost: 0,
+        },
+      ]),
     },
     mcp: readMcp(projectRoot),
     skills: [
@@ -732,7 +745,7 @@ function writtenRecently(file: string): boolean {
 }
 
 /**
- * Agentes en marcha ahora mismo: la sesión principal (`claude`) si su registro está
+ * Agentes en marcha ahora mismo: la sesión principal (`CLAUDE`) si su registro está
  * `busy`/`waiting`, y los subagentes con meta sin `finished`. El CLI escribe ese meta al
  * lanzarlos, así que su ausencia marca la ejecución.
  */
@@ -747,7 +760,7 @@ export function claudeActivity(projectRoot: string | undefined): ClaudeActivity[
   };
   for (const session of claudeLiveSessions(projectRoot)) {
     if (session.status === "busy" || session.status === "waiting") {
-      add("claude", writtenRecently(path.join(dir, `${session.sessionId}.jsonl`)));
+      add("CLAUDE", writtenRecently(path.join(dir, `${session.sessionId}.jsonl`)));
     }
     const subagents = path.join(dir, session.sessionId, "subagents");
     let entries: Dirent[];

@@ -127,6 +127,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `@AGENTS.md` al final para cargar las reglas del repo). Por eso **no** hay
   `.claude/agents/orquestador.md`: se retiró a propósito. Con CLAUDE seleccionado, LOCAL
   abre `AGENTS.md` y `CLAUDE.md`; GLOBAL sigue abriendo `~/.claude/CLAUDE.md`.
+- En Claude el Explorador pinta una única fila INTEGRADOS `CLAUDE` (la sesión principal):
+  no hay integrados reales y la lista salía vacía. Se marca EN VUELO con el mismo registro
+  de sesiones y su clic abre el fichero de instrucciones (`CLAUDE.md`, o `AGENTS.md` si no
+  hay), creado vacío si falta.
 
 ## Trampas ya pagadas
 

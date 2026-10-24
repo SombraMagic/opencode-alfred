@@ -136,11 +136,14 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   (`auto → default → acceptEdits → plan → auto`). Con un diálogo abierto
   (`status: "waiting"` en el registro de sesiones) no se inyecta: ahí Shift+Tab cicla
   las opciones del diálogo, no el modo. La actividad en vivo sale del mismo registro:
-  `status` `busy`/`waiting` marca la sesión principal como `claude`, y cada
+  `status` `busy`/`waiting` marca la sesión principal como `CLAUDE`, y cada
   `<sesión>/subagents/agent-*.meta.json` sin `finished` es un subagente en marcha (el CLI
   escribe el meta al lanzarlo y lo completa al acabar); `streaming` = su `.jsonl` tocado
   en los últimos 3 s. Alimenta las filas del Explorador, el contador del HUD y las
-  tarjetas del panel de voz.
+  tarjetas del panel de voz. Claude no publica agentes integrados, así que el Explorador
+  pinta siempre una única fila INTEGRADOS llamada `CLAUDE` (la sesión principal); al
+  pulsarla se abre el fichero de instrucciones que Claude carga (CLAUDE.md del proyecto,
+  AGENTS.md si no hay, o el global sin proyecto), creado vacío si no existe ninguno.
 - opencode migró su esquema: builds actuales usan `session_v2` + `session_message`
   (mensajes en JSON en `data`, `type` = `assistant`/`user`/`idle`/...; las tool calls van
   dentro del `content[]` del assistant, `state.status` = `running`/`pending`/`completed`/

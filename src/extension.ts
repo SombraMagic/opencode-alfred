@@ -824,10 +824,24 @@ export function activate(context: vscode.ExtensionContext): void {
     switch (action.type) {
       case "editAgent":
       case "openAgentFile": {
-        const file =
-          action.scope === "builtin"
-            ? undefined
-            : claudeAgentFile(action.name, action.scope, projectRoot());
+        if (action.scope === "builtin") {
+          // La fila CLAUDE es la sesión principal: su fichero son las instrucciones.
+          const file = claudeInstructionsFile(projectRoot() ? "project" : "global", projectRoot());
+          if (!existsSync(file)) {
+            try {
+              await fs.mkdir(path.dirname(file), { recursive: true });
+              await writeAtomic(file, "");
+            } catch (err) {
+              void vscode.window.showErrorMessage(
+                `No se pudo crear ${path.basename(file)}: ${err instanceof Error ? err.message : String(err)}`
+              );
+              return true;
+            }
+          }
+          await openFile(file);
+          return true;
+        }
+        const file = claudeAgentFile(action.name, action.scope, projectRoot());
         if (file && existsSync(file)) {
           await openFile(file);
         } else {
