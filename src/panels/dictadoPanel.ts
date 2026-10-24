@@ -11,7 +11,8 @@
  */
 import * as vscode from "vscode";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   SapiDictado,
   STT_ENGINES,
@@ -44,6 +45,8 @@ const LANGUAGES = [
 const KEY_SECRET = "voz.dictado.apiKey";
 /** El bloc de notas sobrevive al panel y a VS Code. */
 const KEY_NOTE = "voz.dictado.note";
+/** Tope por imagen pegada en el bloc. */
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 /** Manos libres: esta pausa cierra el fragmento y lo manda a transcribir. */
 const PAUSE_MS = 2000;
@@ -79,6 +82,8 @@ export class VozDictado {
   private lastVoice = 0;
   /** Transcribe los fragmentos de uno en uno, en orden. */
   private chain: Promise<void> = Promise.resolve();
+  /** Guarda las imágenes pegadas en orden; el envío espera a que terminen. */
+  private attachChain: Promise<void> = Promise.resolve();
 
   constructor(
     view: vscode.WebviewView,
@@ -135,6 +140,7 @@ export class VozDictado {
       tolerance: s.tolerance,
       noiseFloor: s.noiseFloor,
       note: this.context.globalState.get<string>(KEY_NOTE, ""),
+      attachmentsDir: this.attachmentsDir(),
       engines: STT_ENGINES,
       models: WHISPER_MODELS,
       languages: LANGUAGES,
@@ -144,6 +150,22 @@ export class VozDictado {
 
   private whisperDir() {
     return join(this.context.globalStorageUri.fsPath, "whisper");
+  }
+
+  /** Las imágenes del bloc viven en el proyecto; sin proyecto, en el almacén global. */
+  private attachmentsDir() {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    return root ? join(root, ".alfred", "adjuntos") : join(this.context.globalStorageUri.fsPath, "adjuntos");
+  }
+
+  /** El global también vale: la nota pudo guardarse sin carpeta abierta. */
+  private isAttachment(path: string) {
+    if (!path) return false;
+    const dirs = [this.attachmentsDir(), join(this.context.globalStorageUri.fsPath, "adjuntos")];
+    return dirs.some((dir) => {
+      const rel = relative(resolve(dir), resolve(path));
+      return Boolean(rel) && !rel.startsWith("..") && !isAbsolute(rel);
+    });
   }
 
   private post(msg: unknown) {
@@ -204,6 +226,15 @@ export class VozDictado {
         break;
       case "saveNote":
         await this.context.globalState.update(KEY_NOTE, String(msg.text ?? ""));
+        break;
+      case "attach":
+        this.queueAttachment(msg);
+        break;
+      case "loadImages":
+        await this.sendImages(msg.paths);
+        break;
+      case "openAttachment":
+        await this.openAttachment(String(msg.path ?? ""));
         break;
       case "sendPrompt":
         await this.sendPrompt(String(msg.text ?? ""));
@@ -460,8 +491,68 @@ export class VozDictado {
     return this.chain;
   }
 
+  /** Encola la escritura de una imagen pegada, una detrás de otra. */
+  private queueAttachment(msg: any) {
+    const name = String(msg?.name ?? "");
+    const data = String(msg?.data ?? "");
+    const work = () => this.saveAttachment(name, data);
+    this.attachChain = this.attachChain.then(work, work);
+  }
+
+  /** Valida y guarda la imagen que el webview acaba de pegar. */
+  private async saveAttachment(name: string, data: string) {
+    try {
+      if (!/^img-[a-z0-9-]+\.(png|jpe?g|gif|webp)$/i.test(name)) throw new Error("Nombre de adjunto no válido.");
+      const bytes = Buffer.from(data, "base64");
+      if (!bytes.length) throw new Error("La imagen está vacía.");
+      if (bytes.length > MAX_ATTACHMENT_BYTES) throw new Error("La imagen supera los 20 MiB.");
+      const dir = this.attachmentsDir();
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, name), bytes);
+    } catch (err) {
+      this.post({
+        type: "attachmentError",
+        name,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /** Devuelve las miniaturas restauradas como data URLs; omiten las que falten. */
+  private async sendImages(paths: unknown) {
+    const images: Record<string, string> = {};
+    const list = Array.isArray(paths) ? paths.slice(0, 8) : [];
+    for (const raw of list) {
+      const path = String(raw ?? "");
+      if (!this.isAttachment(path)) continue;
+      try {
+        const bytes = await readFile(path);
+        if (!bytes.length || bytes.length > MAX_ATTACHMENT_BYTES) continue;
+        const ext = extname(path).toLowerCase();
+        const mime = ext === ".png" ? "png" : ext === ".gif" ? "gif" : ext === ".webp" ? "webp" : "jpeg";
+        images[path] = `data:image/${mime};base64,${bytes.toString("base64")}`;
+      } catch {
+        // El fichero ya no está: se omite y el chip sigue mostrando «imagen».
+      }
+    }
+    this.post({ type: "images", images });
+  }
+
+  /** Abre una miniatura en un editor de VS Code. */
+  private async openAttachment(path: string) {
+    if (!this.isAttachment(path)) return;
+    try {
+      await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(path));
+    } catch (err) {
+      this.fail(err);
+    }
+  }
+
   /** Manda el bloc de notas al terminal activo (donde suele correr el agente). */
   private async sendPrompt(raw: string) {
+    // Las rutas del prompt viajan dentro del texto: espera a que las imágenes
+    // pegadas estén escritas antes de mandarlo.
+    await this.attachChain;
     // Una sola línea: en los agentes de terminal, cada salto de línea envía.
     const text = raw.replace(/\s*\r?\n+\s*/g, " ").trim();
     if (!text) {

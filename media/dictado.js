@@ -54,24 +54,47 @@
   }
 
   function updateCount() {
-    const text = nota.value.trim();
+    const raw = nota.innerText;
+    const text = raw.trim();
     const words = text ? text.split(/\s+/).length : 0;
-    count.textContent = `${words} palabras · ${nota.value.length} caracteres`;
+    const images = nota.querySelectorAll("[data-path]").length;
+    count.textContent =
+      `${words} palabras · ${raw.length} caracteres` + (images ? ` · ${images} imagen(es)` : "");
   }
 
   /** Inserta el texto dictado en el cursor, sin pegar la frase anterior. */
   function insert(text) {
     const clean = text.trim();
     if (!clean) return;
-    const start = nota.selectionStart ?? nota.value.length;
-    const end = nota.selectionEnd ?? start;
-    const before = nota.value.slice(0, start);
+    nota.focus();
+    const sel = window.getSelection();
+    if (!sel) return;
+    let range;
+    if (sel.rangeCount && nota.contains(sel.anchorNode) && nota.contains(sel.focusNode)) {
+      range = sel.getRangeAt(0);
+    } else {
+      range = document.createRange();
+      range.selectNodeContents(nota);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    // Texto anterior al cursor: decide la mayúscula inicial y el espacio de separación.
+    const beforeRange = range.cloneRange();
+    beforeRange.selectNodeContents(nota);
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+    const before = beforeRange.toString();
     const sep = before && !/\s$/.test(before) ? " " : "";
     // SAPI devuelve todo en minúsculas: se pone mayúscula al empezar frase.
     const cap = !before.trim() || /[.!?]\s*$/.test(before) ? clean[0].toUpperCase() + clean.slice(1) : clean;
-    nota.setRangeText(sep + cap, start, end, "end");
-    if (!/\s$/.test(nota.value)) nota.setRangeText(" ", nota.selectionStart, nota.selectionEnd, "end");
-    nota.focus();
+    // Inserción por Range: execCommand falla con el webview oculto.
+    range.deleteContents();
+    const nodo = document.createTextNode(sep + cap + (/\s$/.test(cap) ? "" : " "));
+    range.insertNode(nodo);
+    range.setStartAfter(nodo);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
     nota.scrollTop = nota.scrollHeight;
     updateCount();
     saveNoteSoon();
@@ -234,12 +257,203 @@
   installBtn.addEventListener("click", () => post({ type: "installWhisper" }));
 
   // ── Bloc y envío ────────────────────────────────────────
+  /** Carpeta de adjuntos que manda la extensión en `init`. */
+  let attachmentsDir = "";
+
+  /** Texto del bloc con los tokens `[[img:ruta]]` donde va cada miniatura. */
+  function serialize() {
+    let text = "";
+    const walk = (node) => {
+      for (const child of node.childNodes) {
+        if (child.nodeType === Node.TEXT_NODE) text += child.nodeValue;
+        else if (child.nodeName === "BR") {
+          // Chrome deja un <br> de relleno al final: no es un salto real.
+          if (child !== nota.lastChild) text += "\n";
+        } else if (child.nodeName === "DIV" || child.nodeName === "P") {
+          // Chromium guarda cada línea pegada en un <div>: sin esto se funden.
+          if (text && !text.endsWith("\n")) text += "\n";
+          walk(child);
+        } else if (child.dataset?.path) text += `[[img:${encodeURIComponent(child.dataset.path)}]]`;
+        else walk(child);
+      }
+    };
+    walk(nota);
+    return text;
+  }
+
+  /** El token va escapado para que una ruta con `]` no rompa el separador. */
+  function decodePath(token) {
+    try {
+      return decodeURIComponent(token);
+    } catch {
+      return token;
+    }
+  }
+
+  /** Miniatura ya cargada; el clic la abre en un editor. */
+  function imageChip(path, src) {
+    const img = document.createElement("img");
+    img.className = "chip-img";
+    img.dataset.path = path;
+    img.src = src;
+    img.title = path;
+    img.alt = "Imagen adjunta";
+    // Un solo borrado se lleva el chip entero, como si fuera un carácter.
+    img.contentEditable = "false";
+    return img;
+  }
+
+  /** Chip provisional: la imagen aún se está cargando o falta el fichero. */
+  function missingChip(path) {
+    const span = document.createElement("span");
+    span.className = "chip-missing";
+    span.dataset.path = path;
+    span.textContent = "imagen";
+    // Un solo borrado se lleva el chip entero, como si fuera un carácter.
+    span.contentEditable = "false";
+    return span;
+  }
+
+  /** Restaura el bloc guardado: texto y tokens `[[img:ruta]]`. */
+  function setNote(texto) {
+    nota.textContent = "";
+    const parts = String(texto ?? "").split(/\[\[img:([^\]]+)\]\]/);
+    const paths = [];
+    for (let i = 0; i < parts.length; i++) {
+      if (i % 2) {
+        const path = decodePath(parts[i]);
+        nota.appendChild(missingChip(path));
+        paths.push(path);
+      } else if (parts[i]) {
+        nota.appendChild(document.createTextNode(parts[i]));
+      }
+    }
+    // La extensión acepta como mucho 8 rutas por petición.
+    for (let i = 0; i < paths.length; i += 8) {
+      post({ type: "loadImages", paths: paths.slice(i, i + 8) });
+    }
+    updateCount();
+  }
+
+  /** Inserta un nodo en el cursor (o al final si el foco está fuera del bloc). */
+  function insertNodeAtCaret(node) {
+    const sel = window.getSelection();
+    const range = sel?.rangeCount ? sel.getRangeAt(0) : null;
+    // Solo si la selección entera cae dentro del bloc: no borrar nada fuera.
+    if (!range || !nota.contains(range.startContainer) || !nota.contains(range.endContainer)) {
+      nota.appendChild(node);
+      return;
+    }
+    range.deleteContents();
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  /** Lee un fichero como data URL. */
+  function readDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error("No se pudo leer la imagen."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  /** Los formatos que el agente no lee se reescalan y se pasan a PNG. */
+  async function toPng(blob) {
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    if (typeof bitmap.close === "function") bitmap.close();
+    const png = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!png) throw new Error("No se pudo convertir la imagen.");
+    return png;
+  }
+
+  /** Nombre acordado con la extensión: img-<base36>-<4 chars>.<ext>. */
+  function imageName(ext) {
+    return `img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+  }
+
+  const IMAGE_TYPES = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" };
+
+  /** Pega imágenes del portapapeles; el resto, como texto plano. */
+  nota.addEventListener("paste", async (e) => {
+    const data = e.clipboardData;
+    if (!data) return;
+    const files = [...data.items]
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile());
+    if (!files.length) {
+      // Nada de HTML: solo el texto, tal cual.
+      e.preventDefault();
+      const text = data.getData("text/plain");
+      if (text) document.execCommand("insertText", false, text);
+      return;
+    }
+    e.preventDefault();
+    if (!attachmentsDir) {
+      setState("error", "El panel aún no está listo para adjuntar.");
+      return;
+    }
+    const sep = attachmentsDir.includes("\\") ? "\\" : "/";
+    for (const file of files) {
+      if (!file) continue;
+      try {
+        if (file.size > 20 * 1024 * 1024) throw new Error("La imagen supera los 20 MiB.");
+        const blob = IMAGE_TYPES[file.type] ? file : await toPng(file);
+        const ext = IMAGE_TYPES[file.type] ?? "png";
+        const dataUrl = await readDataUrl(blob);
+        const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+        const name = imageName(ext);
+        const path = attachmentsDir + sep + name;
+        insertNodeAtCaret(imageChip(path, dataUrl));
+        post({ type: "attach", name, data: base64 });
+        updateCount();
+        saveNoteSoon();
+      } catch (err) {
+        setState("error", err instanceof Error ? err.message : "No se pudo adjuntar la imagen.");
+      }
+    }
+    nota.focus();
+  });
+
+  // Soltar una imagen dejaría un <img> sin data-path, invisible para serialize().
+  nota.addEventListener("dragover", (e) => e.preventDefault());
+  nota.addEventListener("drop", (e) => {
+    e.preventDefault();
+    setState("idle", "Para adjuntar, pega la imagen con Ctrl+V.");
+  });
+
+  // Enter nativo crearía <div>: se usa <br>, que el serializador entiende.
+  nota.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing) {
+      e.preventDefault();
+      document.execCommand("insertLineBreak");
+    }
+  });
+
+  // Un clic en una miniatura (o en un chip sin fichero) abre su ruta.
+  nota.addEventListener("click", (e) => {
+    const chip = e.target instanceof Element ? e.target.closest("[data-path]") : null;
+    if (chip && nota.contains(chip)) post({ type: "openAttachment", path: chip.dataset.path });
+  });
+
   /** Se guarda solo: al cerrar el panel o VS Code vuelve tal cual. */
   let noteTimer;
+  /** Hay tecleo sin guardar: el init repetido no debe pisarlo. */
+  let notePendiente = false;
   function saveNote() {
     clearTimeout(noteTimer);
     noteTimer = undefined;
-    post({ type: "saveNote", text: nota.value });
+    notePendiente = false;
+    post({ type: "saveNote", text: serialize() });
   }
   function saveNoteSoon() {
     clearTimeout(noteTimer);
@@ -251,16 +465,25 @@
   window.addEventListener("blur", saveNote);
 
   nota.addEventListener("input", () => {
+    notePendiente = true;
     updateCount();
     saveNoteSoon();
   });
   $("clear").addEventListener("click", () => {
-    nota.value = "";
+    nota.textContent = "";
     updateCount();
     saveNoteSoon();
     nota.focus();
   });
-  $("send").addEventListener("click", () => post({ type: "sendPrompt", text: nota.value }));
+
+  /** Texto que viaja al terminal: cada token se vuelve la ruta entrecomillada. */
+  function promptText() {
+    return serialize()
+      .replace(/\[\[img:([^\]]+)\]\]/g, (_match, path) => `[imagen: "${decodePath(path)}"]`)
+      .replace(/\s*\r?\n+\s*/g, " ");
+  }
+
+  $("send").addEventListener("click", () => post({ type: "sendPrompt", text: promptText() }));
 
   // ── Mensajes de la extensión ────────────────────────────
   window.addEventListener("message", (event) => {
@@ -303,11 +526,10 @@
         syncNoise();
         syncTolerance();
         syncFloor();
-        // El bloc se recupera al reabrir el panel o VS Code.
-        if (msg.note != null && msg.note !== nota.value) {
-          nota.value = String(msg.note);
-          updateCount();
-        }
+        // El bloc se recupera al reabrir el panel o VS Code. `pushInitial` se
+        // repite al volver a ser visible: no pisar lo escrito desde el último guardado.
+        attachmentsDir = String(msg.attachmentsDir ?? "");
+        if (msg.note != null && !notePendiente && msg.note !== serialize()) setNote(msg.note);
         keyState.textContent = msg.hasKey ? "guardada ✓" : "";
         installBtn.textContent = msg.whisperReady ? "LISTO" : "PREPARAR";
         syncRows();
@@ -340,6 +562,26 @@
         floorDb = msg.on ? msg.db : 0;
         syncFloor();
         break;
+      case "images": {
+        for (const chip of nota.querySelectorAll("[data-path]")) {
+          const src = msg.images?.[chip.dataset.path];
+          if (src) chip.replaceWith(imageChip(chip.dataset.path, src));
+        }
+        updateCount();
+        break;
+      }
+      case "attachmentError": {
+        const name = String(msg.name ?? "");
+        if (name) {
+          for (const chip of nota.querySelectorAll("[data-path]")) {
+            if (chip.dataset.path.endsWith(name)) chip.remove();
+          }
+        }
+        updateCount();
+        saveNoteSoon();
+        setState("error", msg.message || "No se pudo guardar la imagen adjunta.");
+        break;
+      }
       case "whisperReady":
         installBtn.textContent = msg.ready ? "LISTO" : "PREPARAR";
         break;

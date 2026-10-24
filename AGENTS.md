@@ -182,6 +182,11 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   «Otro agente». En Claude Code usa su CLI (`claude mcp add --scope user voz -- <node>
   <voz-mcp>`), quitando antes la entrada para que reinstalar no falle, y confirma con
   `claude mcp get voz`; `~/.claude.json` no se escribe a mano porque guarda credenciales.
+- Voz: el bloc del panel de dictado es `contenteditable` para poder pegar imágenes. Se
+  guardan en `<raíz>/.alfred/adjuntos` (o en `globalStorageUri/adjuntos` sin carpeta, y los
+  dos valen al leer) con nombre `img-*.(png|jpg|gif|webp)` y tope de 20 MiB; el texto del
+  bloc viaja como `[[img:ruta]]` con la ruta escapada. `serialize()` tiene que entender
+  `BR` **y** los `<div>`/`<p>` que Chromium mete al pegar texto: si no, funde las líneas.
 
 ## Convenciones
 

@@ -133,7 +133,9 @@ body {
   flex: 1;
   min-height: 90px;
   width: 100%;
-  resize: none;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
   background: rgba(0, 0, 0, 0.28);
   color: var(--text);
   border: 1px solid var(--line);
@@ -147,6 +149,33 @@ body {
 #nota:focus {
   border-color: var(--neon);
   box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.2) inset;
+}
+
+#nota:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+/* Miniatura de una imagen pegada; un clic la abre. */
+.chip-img {
+  width: 32px;
+  height: 24px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+/* Adjunto restaurado cuyo fichero ya no está en disco. */
+.chip-missing {
+  display: inline-block;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--text-dim);
+  border: 1px dashed var(--line);
+  vertical-align: middle;
 }
 
 .note-foot {

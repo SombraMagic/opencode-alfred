@@ -150,6 +150,11 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (`hooks`, `mcpServers`…) se conservan. El nombre solo admite `[a-z0-9._-]`; la
   descripción es obligatoria. Reiniciar Claude solo si la carpeta `agents` del destino no
   existía al arrancar.
+- El panel de dictado adjunta imágenes pegadas (Ctrl+V): se escriben en `<raíz>/.alfred/adjuntos`
+  (ignorado por `.gitignore` y `.vscodeignore`) o en el almacén global sin carpeta, y el bloc
+  `contenteditable` las guarda como `[[img:ruta-escapada]]`. Probado por el usuario en VS Code.
+  Pegar **texto** de varias líneas llegaba fundido a ENVIAR porque Chromium lo mete en `<div>`
+  y `serialize()` solo entendía `BR`: arreglado y verificado en Chromium headless.
 
 ## Trampas ya pagadas
 

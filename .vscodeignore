@@ -11,6 +11,7 @@ dist/**
 !dist/**/*.js
 .opencode/**
 .claude/**
+.alfred/**
 AGENTS.md
 CLAUDE.md
 MEMORY.md

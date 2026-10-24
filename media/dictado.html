@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%';" />
 <!--CSS-->
 </head>
 <body>
@@ -48,7 +48,7 @@
 
     <section class="col note">
       <div class="col-title">BLOC DE NOTAS</div>
-      <textarea id="nota" spellcheck="false" placeholder="Pulsa y mantén el micrófono, o escribe aquí…"></textarea>
+      <div id="nota" contenteditable="true" role="textbox" aria-label="Bloc de notas" aria-multiline="true" spellcheck="false" data-placeholder="Pulsa y mantén el micrófono, o escribe aquí…"></div>
       <div class="note-foot">
         <span id="count">0 palabras · 0 caracteres</span>
         <button class="ghost-btn" id="clear">LIMPIAR</button>
