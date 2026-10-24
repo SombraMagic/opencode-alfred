@@ -58,6 +58,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "fs";
 import * as fs from "fs/promises";
 import {
+  claudeActivity,
   claudeAgentFile,
   claudeContext,
   claudeExplorer,
@@ -433,8 +434,8 @@ export function activate(context: vscode.ExtensionContext): void {
         mcp: claude.mcp,
         skills: claude.skills,
         plugins: claude.plugins,
-        // Claude no tiene histórico de actividad aquí: los totales se quedan a cero.
-        totals: { tokens: 0, workMs: 0, cost: 0, working: 0 },
+        // Claude no tiene histórico de tokens aquí: solo se marca el «en vuelo».
+        totals: { tokens: 0, workMs: 0, cost: 0, working: claude.activity.length },
         autoAccept: claude.autoAccept,
         sessionAgent,
         sessionAgents: availableAgents,
@@ -595,8 +596,12 @@ export function activate(context: vscode.ExtensionContext): void {
         sessionAgent === "claude" ? claudeContext(projectRoot()) : codexContext(projectRoot())
       );
       explorer.update(buildExplorerData());
-      // Las tarjetas de voz son de opencode: con otro agente no hay «en vuelo» que seguir.
-      voicePanel?.updateAgents([]);
+      // Codex no publica agentes en vuelo; Claude los saca de su registro de sesiones.
+      voicePanel?.updateAgents(
+        sessionAgent === "claude"
+          ? claudeActivity(projectRoot()).map((a) => ({ name: a.agent, streaming: a.streaming }))
+          : []
+      );
       return;
     }
     const raw = await statsService.collect();

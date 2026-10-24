@@ -130,7 +130,12 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   (`\x1b[Z`) en la terminal viva, que es el ciclo del propio CLI
   (`auto → default → acceptEdits → plan → auto`). Con un diálogo abierto
   (`status: "waiting"` en el registro de sesiones) no se inyecta: ahí Shift+Tab cicla
-  las opciones del diálogo, no el modo.
+  las opciones del diálogo, no el modo. La actividad en vivo sale del mismo registro:
+  `status` `busy`/`waiting` marca la sesión principal como `claude`, y cada
+  `<sesión>/subagents/agent-*.meta.json` sin `finished` es un subagente en marcha (el CLI
+  escribe el meta al lanzarlo y lo completa al acabar); `streaming` = su `.jsonl` tocado
+  en los últimos 3 s. Alimenta las filas del Explorador, el contador del HUD y las
+  tarjetas del panel de voz.
 - opencode migró su esquema: builds actuales usan `session_v2` + `session_message`
   (mensajes en JSON en `data`, `type` = `assistant`/`user`/`idle`/...; las tool calls van
   dentro del `content[]` del assistant, `state.status` = `running`/`pending`/`completed`/

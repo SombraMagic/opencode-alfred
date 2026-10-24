@@ -28,6 +28,8 @@ export interface ClaudeExplorer {
   skills: ExplorerCatalogItem[];
   plugins: ExplorerCatalogItem[];
   autoAccept: boolean;
+  /** Agentes en marcha ahora mismo (la sesión principal se llama `claude`). */
+  activity: ClaudeActivity[];
 }
 
 type JsonObject = Record<string, unknown>;
@@ -262,10 +264,16 @@ export function claudePermissionMode(): string | undefined {
 export function claudeExplorer(projectRoot: string | undefined): ClaudeExplorer {
   const settings = readJson(settingsFile());
   const defaultMode = claudePermissionMode();
+  const activity = claudeActivity(projectRoot);
+  const withActivity = (agents: ExplorerAgent[]): ExplorerAgent[] =>
+    agents.map((agent) => {
+      const live = activity.find((a) => a.agent === agent.name);
+      return live ? { ...agent, working: true, streaming: live.streaming } : agent;
+    });
   return {
     agents: {
-      project: projectRoot ? readAgents(projectAgentsDir(projectRoot), "project") : [],
-      global: readAgents(path.join(claudeHome(), "agents"), "global"),
+      project: projectRoot ? withActivity(readAgents(projectAgentsDir(projectRoot), "project")) : [],
+      global: withActivity(readAgents(path.join(claudeHome(), "agents"), "global")),
       builtin: [],
     },
     mcp: readMcp(projectRoot),
@@ -277,6 +285,7 @@ export function claudeExplorer(projectRoot: string | undefined): ClaudeExplorer 
     // `auto` es el modo automático del CLI; `bypassPermissions`, aceptar sin ningún filtro.
     // `acceptEdits` solo acepta ediciones: no es "aceptar todo".
     autoAccept: defaultMode === "auto" || defaultMode === "bypassPermissions",
+    activity,
   };
 }
 
@@ -651,6 +660,63 @@ export function claudeLiveSessions(projectRoot: string | undefined): ClaudeLiveS
   return (interactive.length > 0 ? interactive : out).sort(
     (a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0)
   );
+}
+
+export interface ClaudeActivity {
+  agent: string;
+  streaming: boolean;
+}
+
+/** Un transcript tocado en los últimos 3 s se considera generando (no dentro de una tool). */
+const STREAMING_WINDOW_MS = 3000;
+
+function writtenRecently(file: string): boolean {
+  try {
+    return Date.now() - statSync(file).mtimeMs <= STREAMING_WINDOW_MS;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Agentes en marcha ahora mismo: la sesión principal (`claude`) si su registro está
+ * `busy`/`waiting`, y los subagentes con meta sin `finished`. El CLI escribe ese meta al
+ * lanzarlos, así que su ausencia marca la ejecución.
+ */
+export function claudeActivity(projectRoot: string | undefined): ClaudeActivity[] {
+  const dir = projectRoot ? projectSessionsDir(projectRoot) : undefined;
+  if (!dir) {
+    return [];
+  }
+  const live = new Map<string, boolean>();
+  const add = (agent: string, streaming: boolean): void => {
+    live.set(agent, (live.get(agent) ?? false) || streaming);
+  };
+  for (const session of claudeLiveSessions(projectRoot)) {
+    if (session.status === "busy" || session.status === "waiting") {
+      add("claude", writtenRecently(path.join(dir, `${session.sessionId}.jsonl`)));
+    }
+    const subagents = path.join(dir, session.sessionId, "subagents");
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(subagents, { withFileTypes: true });
+    } catch {
+      continue; // Sesión sin subagentes.
+    }
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".meta.json")) {
+        continue;
+      }
+      const meta = readJson(path.join(subagents, entry.name));
+      const agent = meta?.agentType;
+      if (meta?.finished === true || typeof agent !== "string" || !agent.trim()) {
+        continue;
+      }
+      const transcript = `${entry.name.slice(0, -".meta.json".length)}.jsonl`;
+      add(agent, writtenRecently(path.join(subagents, transcript)));
+    }
+  }
+  return [...live].map(([agent, streaming]) => ({ agent, streaming }));
 }
 
 export interface ClaudeSessionMode {
