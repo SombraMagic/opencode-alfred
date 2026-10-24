@@ -273,7 +273,8 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     try {
-      await opencodeApi("POST", `/api/session/${id}/compact`);
+      // El endpoint exige cuerpo JSON: sin `-d` el CLI no lo manda y el servidor responde 400.
+      await opencodeApi("POST", `/api/session/${id}/compact`, {});
       void vscode.window.setStatusBarMessage("opencode: compactación pedida a la sesión.", 4000);
     } catch (err) {
       void vscode.window.showErrorMessage(
