@@ -1,5 +1,7 @@
 import * as fs from "fs";
+import { parseJsoncSafe } from "../agents/config";
 import {
+  configFileCandidates,
   isSamePath,
   opencodeDataDir,
   opencodeModelsCachePath,
@@ -110,6 +112,52 @@ function limitIn(registry: Record<string, unknown>, providerId: string, modelId:
   return typeof context === "number" && Number.isFinite(context) && context > 0 ? context : 0;
 }
 
+function obj(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * `limit.context` que el usuario declara en su opencode.json(c) para un proveedor
+ * propio: models.dev no los conoce. `configFileCandidates()` va del proyecto al
+ * global, así que gana el proyecto, como en opencode. Sin caché: son ficheros pequeños.
+ */
+function configLimit(model: string): number {
+  const parts = modelParts(model);
+  if (!parts) {
+    return 0;
+  }
+  for (const file of configFileCandidates()) {
+    try {
+      const parsed = parseJsoncSafe(fs.readFileSync(file, "utf8"));
+      const provider = obj(obj(parsed.value?.provider)?.[parts[0]]);
+      const entry = obj(obj(provider?.models)?.[parts[1]]);
+      const context = num(obj(entry?.limit)?.context);
+      if (context > 0) {
+        return context;
+      }
+    } catch {
+      /* fichero ausente o ilegible: probar con el siguiente */
+    }
+  }
+  return 0;
+}
+
+/** mtime+tamaño de los opencode.json(c): cambiar el límite debe invalidar la caché. */
+function configSignature(): string {
+  const parts: string[] = [];
+  for (const file of configFileCandidates()) {
+    try {
+      const st = fs.statSync(file);
+      parts.push(`${file}:${st.mtimeMs}:${st.size}`);
+    } catch {
+      /* fichero ausente: se omite */
+    }
+  }
+  return parts.join("|");
+}
+
 function contextLimit(model: string): number {
   const parts = modelParts(model);
   if (!parts) {
@@ -171,8 +219,8 @@ export class ContextWindowService {
       };
     }
 
-    // La sesión elegida depende de la carpeta abierta, así que entra en la clave de caché.
-    const sig = `${dbSignature(dbs)}|${projectRoot() ?? ""}`;
+    // La carpeta abierta y la config (su límite de contexto) entran en la clave de caché.
+    const sig = `${dbSignature(dbs)}|${projectRoot() ?? ""}|${configSignature()}`;
     if (this.cache && this.cache.sig === sig) {
       return this.cache.info;
     }
@@ -299,8 +347,9 @@ export class ContextWindowService {
       model,
       used,
       estimated: estimatedTotal || undefined,
-      // Primero el catálogo vivo de la BD; models.json sólo como respaldo de BDs viejas.
-      limit: catalogLimit(db, model) || contextLimit(model),
+      // Manda lo declarado en opencode.json(c); si no, el catálogo vivo de la BD y
+      // models.json sólo como respaldo de BDs viejas.
+      limit: configLimit(model) || catalogLimit(db, model) || contextLimit(model),
       slices: finalSlices.filter((s) => s.tokens > 0),
       scannedAt,
     };

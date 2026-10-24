@@ -94,9 +94,12 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   posterior y suma el `summary` a la conversación. Si tras compactar aún no hay petición
   medida, el total es una estimación (`estimated`, se pinta con `~`). Sin compactación el
   cálculo es el de siempre.
-- El límite de contexto del modelo sale del catálogo vivo de models.dev que opencode
-  guarda en su tabla `kv` (`models-dev:catalog`, el JSON en `body`). `~/.cache/opencode/
-  models.json` se queda viejo: solo es respaldo.
+- El límite de contexto del modelo, por este orden: lo declarado en `opencode.json(c)`
+  (`provider.<id>.models.<modelo>.limit.context`, que es lo único que tienen los
+  proveedores propios: no están en models.dev), el catálogo vivo de models.dev que opencode
+  guarda en su tabla `kv` (`models-dev:catalog`, el JSON en `body`) y, al final,
+  `~/.cache/opencode/models.json`, que se queda viejo. `collect()` mete el mtime de esos
+  ficheros en la clave de caché para que cambiar el límite repinte sin esperar actividad.
 - Cambiar el modelo de la sesión en marcha (vista `opencodeAgents.models`) se hace con
   `opencode api POST /api/session/<id>/model` y cuerpo
   `{"model":{"id":"<modelo>","providerID":"<conector>"}}` (`Model.Ref`). El `model` de
