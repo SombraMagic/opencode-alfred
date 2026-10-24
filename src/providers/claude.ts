@@ -193,24 +193,56 @@ function mcpDetail(entry: JsonObject): string | undefined {
   return typeof entry.type === "string" || typeof entry.url === "string" ? "http" : undefined;
 }
 
-function readMcpFile(file: string): Array<{ name: string; entry: JsonObject }> {
-  const servers = asObject(readJson(file)?.mcpServers);
-  if (!servers) {
+/** Servidores `name → entrada` de un mapa `mcpServers`; las entradas que no son objeto se omiten. */
+function mcpEntries(servers: unknown): Array<{ name: string; entry: JsonObject }> {
+  const map = asObject(servers);
+  if (!map) {
     return [];
   }
-  return Object.entries(servers)
+  return Object.entries(map)
     .map(([name, entry]) => ({ name, entry: asObject(entry) }))
     .filter((item): item is { name: string; entry: JsonObject } => item.entry !== undefined);
+}
+
+function readMcpFile(file: string): Array<{ name: string; entry: JsonObject }> {
+  return mcpEntries(readJson(file)?.mcpServers);
+}
+
+/**
+ * Estados de `~/.claude.json` de este proyecto. La misma carpeta puede estar anotada
+ * varias veces cambiando la caja de la unidad; se casan todas con `isSamePath`.
+ */
+function projectStates(projectRoot: string): JsonObject[] {
+  const projects = asObject(readJson(globalStateFile())?.projects);
+  if (!projects) {
+    return [];
+  }
+  return Object.entries(projects)
+    .filter(([dir]) => isSamePath(dir, projectRoot))
+    .map(([, state]) => asObject(state))
+    .filter((state): state is JsonObject => state !== undefined);
 }
 
 function readMcp(projectRoot: string | undefined): ExplorerCatalogItem[] {
   const out: ExplorerCatalogItem[] = [];
   const globalFile = globalStateFile();
+  const states = projectRoot ? projectStates(projectRoot) : [];
+  const disabled = new Set<string>();
+  for (const state of states) {
+    const names = state.disabledMcpServers;
+    if (Array.isArray(names)) {
+      for (const name of names) {
+        if (typeof name === "string") {
+          disabled.add(name);
+        }
+      }
+    }
+  }
   for (const { name, entry } of readMcpFile(globalFile)) {
     out.push({
       name,
       scope: "global",
-      enabled: true,
+      enabled: !disabled.has(name),
       detail: mcpDetail(entry),
       filePath: globalFile,
       // Los MCP globales viven en ~/.claude.json, que también guarda credenciales: solo se leen.
@@ -220,9 +252,30 @@ function readMcp(projectRoot: string | undefined): ExplorerCatalogItem[] {
   if (!projectRoot) {
     return out;
   }
+  // Locales del proyecto: también en ~/.claude.json (`projects[<ruta>].mcpServers`). Con
+  // varias claves para la misma carpeta se juntan por nombre; gana la última.
+  const local = new Map<string, JsonObject>();
+  for (const state of states) {
+    for (const { name, entry } of mcpEntries(state.mcpServers)) {
+      local.set(name, entry);
+    }
+  }
+  for (const [name, entry] of local) {
+    out.push({
+      name,
+      scope: "project",
+      enabled: !disabled.has(name),
+      detail: mcpDetail(entry),
+      filePath: globalFile,
+      toggleable: false,
+    });
+  }
+  // Compartidos: `<raíz>/.mcp.json`, aprobados desde settings.local.json (sí se escribe).
   const file = projectMcpFile(projectRoot);
-  const disabled = readJson(projectLocalSettingsFile(projectRoot))?.disabledMcpjsonServers;
-  const disabledNames = Array.isArray(disabled) ? disabled.filter((n) => typeof n === "string") : [];
+  const disabledJson = readJson(projectLocalSettingsFile(projectRoot))?.disabledMcpjsonServers;
+  const disabledNames = Array.isArray(disabledJson)
+    ? disabledJson.filter((n) => typeof n === "string")
+    : [];
   for (const { name, entry } of readMcpFile(file)) {
     out.push({
       name,

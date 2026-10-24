@@ -117,7 +117,12 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   Explorador, Modelos y Contexto salen de `src/providers/claude.ts`, `codex.ts` y
   `toml.ts` (TOML quirúrgico, no parser completo). Claude no deja apagar skills ni MCP
   globales (`~/.claude.json` guarda credenciales: solo lectura) y Codex tampoco sus
-  skills: esas filas van con `toggleable: false`. Modelos y Contexto de Claude/Codex no
+  skills: esas filas van con `toggleable: false`. Los MCP de Claude se leen de tres
+  sitios: usuario (`~/.claude.json` raíz `mcpServers`), locales del proyecto
+  (`projects[<ruta>].mcpServers`) y compartidos (`<raíz>/.mcp.json`); la lista
+  `projects[<ruta>].disabledMcpServers` marca los desactivados en ese proyecto. Las
+  claves de `projects` pueden repetir la carpeta cambiando la caja de la unidad: se casan
+  con `isSamePath` y sus datos se unen. Modelos y Contexto de Claude/Codex no
   cambian la sesión viva: escriben su `model` en la config y miden sus ficheros de
   sesión. En Claude el modelo efectivo es `ANTHROPIC_MODEL` (entorno o `env` de
   settings.json) y tapa a `settings.model`; el catálogo sale de ahí, del `modelPicker` y
