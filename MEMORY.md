@@ -143,6 +143,13 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   no hay integrados reales y la lista salía vacía. Se marca EN VUELO con el mismo registro
   de sesiones y su clic abre el fichero de instrucciones (`CLAUDE.md`, o `AGENTS.md` si no
   hay), creado vacío si falta.
+- Editar o crear un subagente de Claude abre un panel propio (`ClaudeAgentPanel`), no el
+  `.md`: identidad, herramientas (omitir = hereda todas), modelo con alias y mapeo, color
+  nominal, `permissionMode`/`effort`, avanzado (`maxTurns`, `skills`, `memory`, `isolation`,
+  `background`, `omitClaudeMd`) y vista previa del YAML. Las claves no gestionadas
+  (`hooks`, `mcpServers`…) se conservan. El nombre solo admite `[a-z0-9._-]`; la
+  descripción es obligatoria. Reiniciar Claude solo si la carpeta `agents` del destino no
+  existía al arrancar.
 
 ## Trampas ya pagadas
 

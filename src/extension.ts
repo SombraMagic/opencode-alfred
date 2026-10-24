@@ -32,6 +32,7 @@ import {
 } from "./panels/explorerPanel";
 import { ModelEntry, ModelsAction, ModelsData, ModelsPanel } from "./panels/modelsPanel";
 import { InstructionsPanel } from "./panels/instructionsPanel";
+import { ClaudeAgentPanel } from "./panels/claudeAgentPanel";
 import { StatsPanel } from "./panels/statsPanel";
 import { ContextViewProvider } from "./panels/contextPanel";
 import { VozPanel } from "./panels/voicePanel";
@@ -917,7 +918,20 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         const file = claudeAgentFile(action.name, action.scope, projectRoot());
         if (file && existsSync(file)) {
-          await openFile(file);
+          if (action.type === "editAgent") {
+            // El editor rico de opencode no sirve aquí: los campos de un subagente de
+            // Claude (tools, permissionMode, effort…) no existen en opencode.
+            await ClaudeAgentPanel.open(context, {
+              mode: "edit",
+              name: action.name,
+              scope: action.scope,
+              filePath: file,
+              projectRoot: projectRoot(),
+              onSaved: refresh,
+            });
+          } else {
+            await openFile(file);
+          }
         } else {
           void vscode.window.showWarningMessage(
             "No encuentro el fichero de ese agente de Claude."
@@ -927,37 +941,13 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       case "createAgent": {
-        const name = await vscode.window.showInputBox({
-          prompt: "Nombre del agente de Claude",
-          placeHolder: "mi-agente",
-          validateInput: (v) =>
-            /^[a-z0-9][a-z0-9-]*$/.test(v) ? undefined : "Minúsculas, números y guiones",
+        // El nombre se pide dentro del formulario, no en un input box.
+        await ClaudeAgentPanel.open(context, {
+          mode: "create",
+          scope: projectRoot() ? "project" : "global",
+          projectRoot: projectRoot(),
+          onSaved: refresh,
         });
-        if (!name) {
-          return true;
-        }
-        // Los agentes de Claude se crean siempre en el scope global.
-        const file = claudeAgentFile(name, "global", projectRoot());
-        if (!file) {
-          return true;
-        }
-        if (existsSync(file)) {
-          void vscode.window.showWarningMessage(`Ya existe un agente "${name}" en ese scope.`);
-          await openFile(file);
-          return true;
-        }
-        try {
-          await fs.mkdir(path.dirname(file), { recursive: true });
-          // Frontmatter mínimo: el cuerpo vacío es el prompt que se escribe luego.
-          await writeAtomic(file, `---\nname: ${name}\ndescription: \n---\n\n`);
-        } catch (err) {
-          void vscode.window.showErrorMessage(
-            `No se pudo crear el agente: ${err instanceof Error ? err.message : String(err)}`
-          );
-          return true;
-        }
-        await openFile(file);
-        refresh();
         return true;
       }
 

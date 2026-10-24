@@ -13,9 +13,11 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import { applyEdits, FormattingOptions, modify, parse as parseJsonc, ParseError } from "jsonc-parser";
-import { parseAgentFile } from "../agents/parser";
+import { parseAgentFile, serializeAgentFile } from "../agents/parser";
 import { isSamePath } from "../agents/paths";
 import { writeAtomic } from "../agents/store";
+import type { AgentFrontmatter } from "../agents/types";
+import type { ValidationIssue } from "../agents/validate";
 import type { ExplorerAgent, ExplorerCatalogItem } from "../panels/explorerPanel";
 import type { ModelEntry, ModelGroup } from "../panels/modelsPanel";
 import type { ContextWindowInfo } from "../stats/contextWindow";
@@ -1115,4 +1117,424 @@ export async function setClaudeSubagentModel(id: string | undefined): Promise<vo
   const raw = (id ?? "").trim();
   const model = raw.startsWith(prefix) ? raw.slice(prefix.length).trim() : raw;
   await modifyJsonFile(settingsFile(), ["env", "CLAUDE_CODE_SUBAGENT_MODEL"], model || undefined);
+}
+
+/* ---------------------------- agentes (subagentes) --------------------------- */
+
+/** Paleta de Claude: el CLI solo pinta nombres, un hex no se ve. */
+export const CLAUDE_AGENT_COLORS = [
+  "red",
+  "blue",
+  "green",
+  "yellow",
+  "purple",
+  "orange",
+  "pink",
+  "cyan",
+] as const;
+
+/** Herramientas del CLI que se ofrecen por defecto; los MCP van como `mcp__servidor__*`. */
+export const CLAUDE_AGENT_TOOLS = [
+  "Read",
+  "Write",
+  "Edit",
+  "Bash",
+  "PowerShell",
+  "Glob",
+  "Grep",
+  "LSP",
+  "WebFetch",
+  "WebSearch",
+  "Agent",
+  "TodoWrite",
+  "NotebookEdit",
+  "Skill",
+  "ToolSearch",
+  "EnterWorktree",
+  "ExitWorktree",
+  "Monitor",
+  "TaskStop",
+  "SendMessage",
+  "Artifact",
+  "ListAgents",
+] as const;
+
+const CLAUDE_PERMISSION_MODES = [
+  "default",
+  "acceptEdits",
+  "auto",
+  "dontAsk",
+  "bypassPermissions",
+  "plan",
+  "manual",
+] as const;
+
+const CLAUDE_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+
+/** Claves que escribe este editor; el resto del frontmatter se conserva tal cual. */
+const CLAUDE_MANAGED_KEYS = new Set([
+  "name",
+  "description",
+  "tools",
+  "model",
+  "color",
+  "permissionMode",
+  "effort",
+  "maxTurns",
+  "skills",
+  "memory",
+  "isolation",
+  "omitClaudeMd",
+  "background",
+]);
+
+export interface ClaudeAgentFields {
+  description: string;
+  /** Tal cual: admite `mcp__servidor__*` y `Agent(tipo1, tipo2)`. */
+  tools: string[];
+  /** "", sonnet, opus, haiku, fable, id completo o inherit. */
+  model: string;
+  /** "", o un nombre de `CLAUDE_AGENT_COLORS`. */
+  color: string;
+  permissionMode: string;
+  effort: string;
+  /** Número válido o el texto tecleado, para que la validación pueda señalarlo. */
+  maxTurns?: number | string;
+  skills: string[];
+  memory: string;
+  isolation: string;
+  omitClaudeMd: boolean;
+  background: boolean;
+}
+
+export interface ClaudeAgentData {
+  file: string;
+  name: string;
+  /** El original completo, con las claves que este editor no gestiona. */
+  frontmatter: AgentFrontmatter;
+  prompt: string;
+  fields: ClaudeAgentFields;
+}
+
+function trimmed(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * Lista de `tools`/`skills`: array YAML o cadena separada por comas. Las comas dentro
+ * de paréntesis (`Agent(explore, general)`) no separan entradas.
+ */
+function splitList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map(trimmed).filter((item) => item !== "");
+  }
+  const text = trimmed(value);
+  if (!text) {
+    return [];
+  }
+  const out: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of text) {
+    if (ch === "(") {
+      depth += 1;
+    } else if (ch === ")") {
+      depth = Math.max(0, depth - 1);
+    }
+    if (ch === "," && depth === 0) {
+      out.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  out.push(current);
+  return out.map((item) => item.trim()).filter((item) => item !== "");
+}
+
+/**
+ * `maxTurns` del YAML o del panel: número válido, o el texto tal cual (aunque no sea
+ * numérico) para que el editor lo muestre y la validación lo marque. Nunca `NaN`.
+ */
+function maxTurnsOf(value: unknown): number | string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : String(value);
+  }
+  const text = String(value).trim();
+  return text === "" ? undefined : text;
+}
+
+/** Lee un fichero de agente de Claude y normaliza los campos gestionables. */
+export function readClaudeAgent(file: string): ClaudeAgentData {
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    throw new Error(`No existe el fichero del agente ${path.basename(file)}.`);
+  }
+  let parsed: ReturnType<typeof parseAgentFile>;
+  try {
+    parsed = parseAgentFile(text);
+  } catch (err) {
+    throw new Error(
+      `${path.basename(file)}: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  const fm = parsed.frontmatter;
+  return {
+    file,
+    name: trimmed(fm.name) || path.basename(file, ".md"),
+    frontmatter: fm,
+    prompt: parsed.prompt,
+    fields: {
+      description: trimmed(fm.description),
+      tools: splitList(fm.tools),
+      model: trimmed(fm.model),
+      color: trimmed(fm.color),
+      permissionMode: trimmed(fm.permissionMode),
+      effort: trimmed(fm.effort),
+      maxTurns: maxTurnsOf(fm.maxTurns),
+      skills: splitList(fm.skills),
+      memory: trimmed(fm.memory),
+      isolation: trimmed(fm.isolation),
+      omitClaudeMd: fm.omitClaudeMd === true,
+      background: fm.background === true,
+    },
+  };
+}
+
+/** Alias oficiales con su mapeo actual (`ANTHROPIC_DEFAULT_*_MODEL`), para el desplegable. */
+export function claudeModelAliases(): { alias: string; mapped: string }[] {
+  const settings = readJson(settingsFile());
+  return CLAUDE_ALIASES.map((alias) => ({
+    alias,
+    mapped: envModel(settings, `ANTHROPIC_DEFAULT_${alias.toUpperCase()}_MODEL`),
+  }));
+}
+
+/** Valida nombre y campos; `file` excluye el propio fichero de la comprobación de duplicados. */
+export function validateClaudeAgent(
+  name: string,
+  fields: ClaudeAgentFields,
+  scope: ClaudeScope,
+  projectRoot: string | undefined,
+  file?: string
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const key = trimmed(name);
+
+  if (!key) {
+    issues.push({ level: "error", field: "name", message: "El nombre es obligatorio." });
+  } else if (!/^[a-z0-9][a-z0-9._-]*$/.test(key)) {
+    issues.push({
+      level: "error",
+      field: "name",
+      message: "Usa minúsculas, dígitos, punto, guion y guion bajo (sin espacios ni dos puntos).",
+    });
+  } else if (key.length > 256) {
+    issues.push({
+      level: "error",
+      field: "name",
+      message: "El nombre no puede pasar de 256 caracteres.",
+    });
+  } else {
+    const existing = claudeAgentFile(key, scope, projectRoot);
+    if (existing && existsSync(existing) && (!file || !isSamePath(existing, file))) {
+      issues.push({
+        level: "error",
+        field: "name",
+        message: `Ya existe un agente "${key}" en ese scope.`,
+      });
+    }
+  }
+
+  if (scope === "project" && !projectRoot) {
+    issues.push({
+      level: "error",
+      field: "scope",
+      message: "Abre una carpeta de proyecto para guardar un agente de proyecto.",
+    });
+  }
+
+  if (!trimmed(fields.description)) {
+    // Sin descripción, Claude descarta el agente y el fichero no sirve de nada.
+    issues.push({
+      level: "error",
+      field: "description",
+      message: "La descripción es obligatoria: sin ella, Claude omite el agente.",
+    });
+  }
+
+  const color = trimmed(fields.color);
+  if (color && !(CLAUDE_AGENT_COLORS as readonly string[]).includes(color)) {
+    issues.push({
+      level: "error",
+      field: "color",
+      message: `color debe ser uno de: ${CLAUDE_AGENT_COLORS.join(", ")}.`,
+    });
+  }
+
+  const model = trimmed(fields.model);
+  const knownModel =
+    !model ||
+    model === "inherit" ||
+    (CLAUDE_ALIASES as readonly string[]).includes(model) ||
+    model.startsWith("claude-");
+  if (!knownModel) {
+    issues.push({
+      level: "warning",
+      field: "model",
+      message: `"${model}" no es un alias de Claude: se enviará tal cual al proveedor.`,
+    });
+  }
+
+  const mode = trimmed(fields.permissionMode);
+  if (mode && !(CLAUDE_PERMISSION_MODES as readonly string[]).includes(mode)) {
+    issues.push({
+      level: "warning",
+      field: "permissionMode",
+      message: "Claude no reconoce ese valor; se guardará tal cual.",
+    });
+  } else if (mode === "bypassPermissions" || mode === "dontAsk") {
+    issues.push({
+      level: "warning",
+      field: "permissionMode",
+      message: `"${mode}" no pregunta nada al usuario: el subagente actúa sin confirmación.`,
+    });
+  }
+
+  const effort = trimmed(fields.effort);
+  if (effort && !(CLAUDE_EFFORTS as readonly string[]).includes(effort)) {
+    issues.push({
+      level: "warning",
+      field: "effort",
+      message: "Claude no reconoce ese valor; se guardará tal cual.",
+    });
+  }
+
+  const turns = maxTurnsOf(fields.maxTurns);
+  const validTurns =
+    turns === undefined ||
+    (typeof turns === "number"
+      ? Number.isInteger(turns) && turns >= 1
+      : /^\d+$/.test(turns) && Number(turns) > 0);
+  if (!validTurns) {
+    issues.push({
+      level: "error",
+      field: "maxTurns",
+      message: "maxTurns debe ser un entero mayor o igual que 1.",
+    });
+  }
+
+  const known = new Set<string>(CLAUDE_AGENT_TOOLS);
+  for (const tool of splitList(fields.tools)) {
+    if (!known.has(tool) && !tool.startsWith("mcp__") && !tool.includes("(")) {
+      issues.push({
+        level: "warning",
+        field: "tools",
+        message: `La herramienta "${tool}" no es del CLI ni un MCP: Claude la ignorará.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/** Texto del fichero: claves no gestionadas del original + campos + prompt como cuerpo. */
+export function claudeAgentText(
+  name: string,
+  original: AgentFrontmatter | undefined,
+  fields: ClaudeAgentFields,
+  prompt: string
+): string {
+  const fm: AgentFrontmatter = {};
+  for (const [key, value] of Object.entries(original ?? {})) {
+    if (!CLAUDE_MANAGED_KEYS.has(key)) {
+      fm[key] = value;
+    }
+  }
+  fm.name = name;
+  fm.description = trimmed(fields.description);
+  const tools = splitList(fields.tools);
+  if (tools.length > 0) {
+    fm.tools = tools.join(", ");
+  }
+  const model = trimmed(fields.model);
+  if (model) {
+    fm.model = model;
+  }
+  const color = trimmed(fields.color);
+  if (color) {
+    fm.color = color;
+  }
+  const mode = trimmed(fields.permissionMode);
+  if (mode) {
+    fm.permissionMode = mode;
+  }
+  const effort = trimmed(fields.effort);
+  if (effort) {
+    fm.effort = effort;
+  }
+  const turns = maxTurnsOf(fields.maxTurns);
+  if (turns !== undefined) {
+    fm.maxTurns = turns;
+  }
+  const skills = splitList(fields.skills);
+  if (skills.length > 0) {
+    fm.skills = skills;
+  }
+  const memory = trimmed(fields.memory);
+  if (memory) {
+    fm.memory = memory;
+  }
+  const isolation = trimmed(fields.isolation);
+  if (isolation) {
+    fm.isolation = isolation;
+  }
+  if (fields.omitClaudeMd === true) {
+    fm.omitClaudeMd = true;
+  }
+  if (fields.background === true) {
+    fm.background = true;
+  }
+  return serializeAgentFile(fm, prompt);
+}
+
+/** Guarda (crea, edita, renombra o mueve de scope); `createdDir` avisa si la carpeta nació aquí. */
+export async function saveClaudeAgent(
+  scope: ClaudeScope,
+  name: string,
+  fields: ClaudeAgentFields,
+  prompt: string,
+  projectRoot: string | undefined,
+  currentFile?: string
+): Promise<{ file: string; createdDir: boolean }> {
+  const errors = validateClaudeAgent(name, fields, scope, projectRoot, currentFile).filter(
+    (issue) => issue.level === "error"
+  );
+  if (errors.length > 0) {
+    throw new Error(errors.map((issue) => issue.message).join(" "));
+  }
+  const target = claudeAgentFile(name.trim(), scope, projectRoot);
+  if (!target) {
+    throw new Error("Abre una carpeta de proyecto para guardar un agente de proyecto.");
+  }
+  if (existsSync(target) && (!currentFile || !isSamePath(target, currentFile))) {
+    throw new Error(`Ya existe un agente "${name.trim()}" en ese scope.`);
+  }
+  // Las claves no gestionadas (hooks, mcpServers, disallowedTools…) viajan intactas.
+  let original: AgentFrontmatter | undefined;
+  if (currentFile && existsSync(currentFile)) {
+    original = readClaudeAgent(currentFile).frontmatter;
+  }
+  const createdDir = !existsSync(path.dirname(target));
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await writeAtomic(target, claudeAgentText(name.trim(), original, fields, prompt));
+  if (currentFile && !isSamePath(target, currentFile)) {
+    await fs.rm(currentFile, { force: true });
+  }
+  return { file: target, createdDir };
 }

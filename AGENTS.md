@@ -154,6 +154,17 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   pinta siempre una única fila INTEGRADOS llamada `CLAUDE` (la sesión principal); al
   pulsarla se abre el fichero de instrucciones que Claude carga (CLAUDE.md del proyecto,
   AGENTS.md si no hay, o el global sin proyecto), creado vacío si no existe ninguno.
+- El editor de subagentes de Claude (`ClaudeAgentPanel` + `media/claudeAgent.*`) es propio:
+  `EditorPanel` es de opencode (permisos por patrón, `variant`, `temperature`). Gestiona
+  `name`/`description`, `tools` (omitir = hereda todas), `model` (alias, `inherit` o id),
+  `color` (solo nombres: `red`, `blue`, `green`, `yellow`, `purple`, `orange`, `pink`,
+  `cyan`), `permissionMode`, `effort`, `maxTurns`, `skills`, `memory`, `isolation`,
+  `background` y `omitClaudeMd`. `hooks`, `mcpServers`, `disallowedTools` y demás claves
+  no gestionadas se conservan al guardar. El nombre acepta `[a-z0-9._-]`; la descripción es
+  obligatoria (sin ella Claude omite el agente). Crear puede ser en `~/.claude/agents` o
+  `.claude/agents`, y editar permite renombrar o mover de scope. El aviso de reiniciar
+  Claude solo sale si la carpeta `agents` del destino es nueva; si ya existía, Claude
+  recarga solo.
 - opencode migró su esquema: builds actuales usan `session_v2` + `session_message`
   (mensajes en JSON en `data`, `type` = `assistant`/`user`/`idle`/...; las tool calls van
   dentro del `content[]` del assistant, `state.status` = `running`/`pending`/`completed`/
