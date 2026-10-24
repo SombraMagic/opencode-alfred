@@ -64,6 +64,14 @@ import {
   setClaudeAutoAccept,
   setClaudeItem,
 } from "./providers/claude";
+import {
+  codexConfigFile,
+  codexExplorer,
+  codexInstructionsFile,
+  setCodexAutoAccept,
+  setCodexItem,
+} from "./providers/codex";
+import { findTable, setValue } from "./providers/toml";
 
 let voicePanel: VozPanel | undefined;
 let dictado: VozDictado | undefined;
@@ -381,6 +389,21 @@ export function activate(context: vscode.ExtensionContext): void {
         sessionAgents: availableAgents,
       };
     }
+    if (sessionAgent === "codex") {
+      const codex = codexExplorer(projectRoot());
+      return {
+        hasProject: !!projectRoot(),
+        agents: codex.agents,
+        mcp: codex.mcp,
+        skills: codex.skills,
+        plugins: codex.plugins,
+        // Codex tampoco tiene histórico de actividad aquí: los totales se quedan a cero.
+        totals: { tokens: 0, workMs: 0, cost: 0, working: 0 },
+        autoAccept: codex.autoAccept,
+        sessionAgent,
+        sessionAgents: availableAgents,
+      };
+    }
     const totals = display?.totals;
     return {
       hasProject: !!projectRoot(),
@@ -610,13 +633,13 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
 
     vscode.commands.registerCommand("opencodeAgents.createAgent", () =>
-      sessionAgent === "claude"
+      sessionAgent !== "opencode"
         ? void handleAction({ type: "createAgent", mode: "primary" })
         : createAgent(context, "primary", refresh)
     ),
 
     vscode.commands.registerCommand("opencodeAgents.createSubagent", () =>
-      sessionAgent === "claude"
+      sessionAgent !== "opencode"
         ? void handleAction({ type: "createAgent", mode: "subagent" })
         : createAgent(context, "subagent", refresh)
     ),
@@ -628,7 +651,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("opencodeAgents.clearAllStats", () => clearAllAgents()),
 
     vscode.commands.registerCommand("opencodeAgents.addPlugin", () =>
-      sessionAgent === "claude" ? void handleAction({ type: "addPlugin" }) : addPlugin()
+      sessionAgent !== "opencode" ? void handleAction({ type: "addPlugin" }) : addPlugin()
     ),
 
     vscode.commands.registerCommand("opencodeAgents.newSession", () => {
@@ -637,6 +660,11 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   async function openInstructions(scope: Scope): Promise<void> {
+    // Claude y Codex no comparten el editor de AGENTS.md de opencode: se abre su fichero.
+    if (sessionAgent !== "opencode") {
+      await handleAction({ type: "editInstructions", scope });
+      return;
+    }
     if (scope === "project" && !projectRoot()) {
       void vscode.window.showWarningMessage("Abre una carpeta de proyecto para editar su AGENTS.md.");
       return;
@@ -866,9 +894,149 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
+  /**
+   * Acciones del Explorador cuando el proveedor elegido es Codex. Devuelve true si la
+   * acción era suya; las que no lo son siguen el camino de opencode.
+   */
+  async function handleCodexAction(action: ExplorerAction | ModelsAction): Promise<boolean> {
+    const config = codexConfigFile();
+    switch (action.type) {
+      case "editAgent":
+      case "openAgentFile":
+        // Los agentes de Codex son tablas del config.toml, no ficheros sueltos.
+        if (existsSync(config)) {
+          await openFile(config);
+        } else {
+          void vscode.window.showWarningMessage("No encuentro la configuración de Codex.");
+        }
+        return true;
+
+      case "createAgent": {
+        const name = await vscode.window.showInputBox({
+          prompt: "Nombre del agente de Codex",
+          placeHolder: "mi-agente",
+          validateInput: (v) =>
+            /^[a-z0-9][a-z0-9-]*$/.test(v) ? undefined : "Minúsculas, números y guiones",
+        });
+        if (!name) {
+          return true;
+        }
+        let text = "";
+        try {
+          text = await fs.readFile(config, "utf8");
+        } catch {
+          // Sin config.toml todavía: se crea con la tabla del agente.
+        }
+        if (findTable(text, ["agents", name])) {
+          void vscode.window.showWarningMessage(`Ya existe un agente "${name}" en ese scope.`);
+          await openFile(config);
+          return true;
+        }
+        try {
+          await writeAtomic(config, setValue(text, ["agents", name], "description", ""));
+        } catch (err) {
+          void vscode.window.showErrorMessage(
+            `No se pudo crear el agente: ${err instanceof Error ? err.message : String(err)}`
+          );
+          return true;
+        }
+        await openFile(config);
+        refresh();
+        return true;
+      }
+
+      case "toggleMcp":
+      case "togglePlugin": {
+        const isMcp = action.type === "toggleMcp";
+        const codex = codexExplorer(projectRoot());
+        const item = (isMcp ? codex.mcp : codex.plugins).find((i) => i.name === action.name);
+        if (!item) {
+          void vscode.window.showWarningMessage(
+            `No encuentro ese ${isMcp ? "servidor MCP" : "plugin"} en la configuración de Codex.`
+          );
+          return true;
+        }
+        try {
+          await setCodexItem(isMcp ? "mcp" : "plugin", action.name, !item.enabled);
+        } catch (err) {
+          void vscode.window.showErrorMessage(
+            `No se pudo actualizar: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+        refresh();
+        return true;
+      }
+
+      case "toggleSkill":
+        try {
+          await setCodexItem("skill", action.name, false);
+        } catch (err) {
+          void vscode.window.showWarningMessage(err instanceof Error ? err.message : String(err));
+        }
+        return true;
+
+      case "addPlugin":
+        // Los plugins de Codex se declaran en el TOML; aquí no se inventan.
+        void vscode.window.showWarningMessage(
+          'Los plugins de Codex se añaden en config.toml (sección [plugins."nombre@marketplace"]).'
+        );
+        return true;
+
+      case "setModel":
+        // Hasta que el panel Modelos lea el catálogo de Codex, no se toca la sesión de opencode.
+        void vscode.window.showWarningMessage("El panel Modelos todavía no lee los modelos de Codex.");
+        return true;
+
+      case "setAutoAccept":
+        try {
+          await setCodexAutoAccept(action.on);
+        } catch (err) {
+          void vscode.window.showErrorMessage(
+            `No se pudo cambiar los permisos: ${err instanceof Error ? err.message : String(err)}`
+          );
+          return true;
+        }
+        refresh();
+        return true;
+
+      case "editInstructions": {
+        if (action.scope === "project" && !projectRoot()) {
+          void vscode.window.showWarningMessage(
+            "Abre una carpeta de proyecto para editar su AGENTS.md."
+          );
+          return true;
+        }
+        // El editor de AGENTS.md es de opencode: aquí se abre el fichero tal cual.
+        const file = codexInstructionsFile(action.scope, projectRoot());
+        if (!existsSync(file)) {
+          try {
+            await fs.mkdir(path.dirname(file), { recursive: true });
+            await writeAtomic(file, "");
+          } catch (err) {
+            void vscode.window.showErrorMessage(
+              `No se pudo crear ${path.basename(file)}: ${err instanceof Error ? err.message : String(err)}`
+            );
+            return true;
+          }
+        }
+        await openFile(file);
+        return true;
+      }
+
+      default:
+        return false;
+    }
+  }
+
   async function handleAction(action: ExplorerAction | ModelsAction): Promise<void> {
-    if (sessionAgent === "claude" && (await handleClaudeAction(action))) {
-      return;
+    if (sessionAgent !== "opencode") {
+      const handled =
+        sessionAgent === "claude"
+          ? await handleClaudeAction(action)
+          : await handleCodexAction(action);
+      if (handled) {
+        return;
+      }
     }
     switch (action.type) {
       case "editInstructions":
