@@ -94,9 +94,9 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   tramos (65 de 688); el nombre nunca se usa como pista.
 - El botón de sesión del Explorador es un selector de agente (`‹ ▶ OPEN ›`,
   `‹ ▶ CLAUDE ›`, `‹ ▶ CODEX ›`, acción `cycleAgent`): abre una terminal **por agente** y no
-  toca las de los otros. `claude --continue` y `codex resume --last` retoman la última
-  conversación; sin historial el CLI avisa y se cierra (decisión del usuario: no encadenar
-  un fallback). Los CLIs se detectan **una vez al activar** (`where`/`which`, `timeout` 5 s,
+  toca las de los otros. Con sesión viva/medida se reanuda por id (`claude --resume <id>`,
+  `codex resume <id>`); sin id caen a `claude --continue` / `codex resume --last`. Sin
+  historial el CLI avisa y se cierra (decisión del usuario: no encadenar un fallback). Los CLIs se detectan **una vez al activar** (`where`/`which`, `timeout` 5 s,
   en segundo plano, no en `activate` a la espera: un `await` ahí rompe `refresh()` por TDZ);
   `codex` no está instalado aquí, así que el selector tiene dos paradas. Elegido en
   `opencodeAgents.sessionAgent`. Ojo: `runningTerminal` casa por **nombre exacto** de
@@ -123,6 +123,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   medida; `<synthetic>` y los `token_count` con `info: null` no cuentan.
 - COMPACTAR con Claude/Codex escribe `/compact` en su terminal (no hay API local); con
   opencode sigue siendo `POST /api/session/<id>/compact` con cuerpo `{}`.
+- En Claude no hay agente «primary»: el orquestador es `CLAUDE.md` (su prompt, con
+  `@AGENTS.md` al final para cargar las reglas del repo). Por eso **no** hay
+  `.claude/agents/orquestador.md`: se retiró a propósito. Con CLAUDE seleccionado, LOCAL
+  abre `AGENTS.md` y `CLAUDE.md`; GLOBAL sigue abriendo `~/.claude/CLAUDE.md`.
 
 ## Trampas ya pagadas
 

@@ -12,5 +12,6 @@ dist/**
 .opencode/**
 .claude/**
 AGENTS.md
+CLAUDE.md
 MEMORY.md
 pront.md
