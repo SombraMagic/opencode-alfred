@@ -14,8 +14,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
 
 ## Estado
 
-- Proyecto nuevo (sin git todavía). Nace de copiar `AgentesControl_opencode` y añadir
-  `voz` (`src/voice/`, `media/{panel,dictado,sphere}.*`, `resources/stt-sapi.ps1`).
+- Repo git en `main` desde `d39aa64`, remoto `origin` →
+  `https://github.com/SombraMagic/Alfred_VS` (**privado**). Nace de copiar
+  `AgentesControl_opencode` y añadir `voz` (`src/voice/`,
+  `media/{panel,dictado,sphere}.*`, `resources/stt-sapi.ps1`).
 - Versión `0.1.0`, VS Code `^1.90.0`, tres contenedores: activitybar `opencodeAgents`
   (Explorador + Modelos + Contexto), secondary sidebar `vozPanel`, panel `vozDictado`.
 - Fusionado, compilando y empaquetado: `.vsix` `opencode-alfred-0.1.0.vsix` (raíz,
