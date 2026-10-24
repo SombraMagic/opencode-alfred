@@ -397,6 +397,12 @@
   outline-offset: 2px;
 }
 
+/* Fila que no se alterna: el interruptor queda de testigo y no invita al clic. */
+.entry.static,
+.entry.static .switch {
+  cursor: default;
+}
+
 /* ── Listas plegables de skills ────────────────────────── */
 .fold {
   border: 1px solid var(--line-soft);

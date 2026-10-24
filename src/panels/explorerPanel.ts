@@ -26,6 +26,8 @@ export interface ExplorerCatalogItem {
   enabled: boolean;
   detail?: string;
   filePath?: string;
+  /** false = no se puede activar ni desactivar; la fila no se pulsa. */
+  toggleable?: boolean;
 }
 
 export interface ExplorerData {

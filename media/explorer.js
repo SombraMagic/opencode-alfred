@@ -160,26 +160,34 @@
   }
 
   function catalogEntry(item, toggleType) {
-    const row = node("div", "entry" + (item.enabled ? "" : " off"));
+    // Un item que no se alterna (skills de Claude, p. ej.) se pinta igual pero sin mando.
+    const locked = item.toggleable === false;
+    const row = node(
+      "div",
+      "entry" + (item.enabled ? "" : " off") + (locked ? " static" : "")
+    );
     const main = node("span", "entry-main");
     main.appendChild(node("span", "entry-name", item.name));
     row.appendChild(main);
 
-    const sw = node("button", "switch" + (item.enabled ? " on" : ""));
-    sw.type = "button";
-    sw.setAttribute("aria-pressed", item.enabled ? "true" : "false");
-    sw.setAttribute("aria-label", (item.enabled ? "Desactivar " : "Activar ") + item.name);
-    // El tipo de MCP o la descripción de la skill no se pinta: va en el title del interruptor.
-    sw.title =
-      (item.enabled ? "Desactivar " : "Activar ") +
-      item.name +
-      (item.detail ? " — " + item.detail : "");
+    // Sin alternado no hay botón: un <span> no recibe foco ni se anuncia como pulsable.
+    const sw = node(locked ? "span" : "button", "switch" + (item.enabled ? " on" : ""));
+    if (!locked) {
+      sw.type = "button";
+      sw.setAttribute("aria-pressed", item.enabled ? "true" : "false");
+      sw.setAttribute("aria-label", (item.enabled ? "Desactivar " : "Activar ") + item.name);
+      // El tipo de MCP o la descripción de la skill no se pinta: va en el title del interruptor.
+      sw.title =
+        (item.enabled ? "Desactivar " : "Activar ") +
+        item.name +
+        (item.detail ? " — " + item.detail : "");
+      sw.addEventListener("click", () =>
+        act({ type: toggleType, name: item.name, scope: item.scope })
+      );
+    }
     const track = node("span", "switch-track");
     track.appendChild(node("span", "switch-thumb"));
     sw.appendChild(track);
-    sw.addEventListener("click", () =>
-      act({ type: toggleType, name: item.name, scope: item.scope })
-    );
     row.appendChild(sw);
 
     return row;

@@ -5,6 +5,7 @@ import {
   findAgent,
   listAgents,
   readConfigInfo,
+  writeAtomic,
 } from "./agents/store";
 import {
   DisabledPlugin,
@@ -54,6 +55,15 @@ import {
 } from "./stats/baseline";
 import * as path from "path";
 import { execFile } from "node:child_process";
+import { existsSync } from "fs";
+import * as fs from "fs/promises";
+import {
+  claudeAgentFile,
+  claudeExplorer,
+  claudeInstructionsFile,
+  setClaudeAutoAccept,
+  setClaudeItem,
+} from "./providers/claude";
 
 let voicePanel: VozPanel | undefined;
 let dictado: VozDictado | undefined;
@@ -356,6 +366,21 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   function buildExplorerData(): ExplorerData {
+    if (sessionAgent === "claude") {
+      const claude = claudeExplorer(projectRoot());
+      return {
+        hasProject: !!projectRoot(),
+        agents: claude.agents,
+        mcp: claude.mcp,
+        skills: claude.skills,
+        plugins: claude.plugins,
+        // Claude no tiene histórico de actividad aquí: los totales se quedan a cero.
+        totals: { tokens: 0, workMs: 0, cost: 0, working: 0 },
+        autoAccept: claude.autoAccept,
+        sessionAgent,
+        sessionAgents: availableAgents,
+      };
+    }
     const totals = display?.totals;
     return {
       hasProject: !!projectRoot(),
@@ -585,11 +610,15 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
 
     vscode.commands.registerCommand("opencodeAgents.createAgent", () =>
-      createAgent(context, "primary", refresh)
+      sessionAgent === "claude"
+        ? void handleAction({ type: "createAgent", mode: "primary" })
+        : createAgent(context, "primary", refresh)
     ),
 
     vscode.commands.registerCommand("opencodeAgents.createSubagent", () =>
-      createAgent(context, "subagent", refresh)
+      sessionAgent === "claude"
+        ? void handleAction({ type: "createAgent", mode: "subagent" })
+        : createAgent(context, "subagent", refresh)
     ),
 
     vscode.commands.registerCommand("opencodeAgents.showStats", () => openStatsPanel()),
@@ -598,7 +627,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand("opencodeAgents.clearAllStats", () => clearAllAgents()),
 
-    vscode.commands.registerCommand("opencodeAgents.addPlugin", () => addPlugin()),
+    vscode.commands.registerCommand("opencodeAgents.addPlugin", () =>
+      sessionAgent === "claude" ? void handleAction({ type: "addPlugin" }) : addPlugin()
+    ),
 
     vscode.commands.registerCommand("opencodeAgents.newSession", () => {
       openTerminal("__new__", "opencode", projectRoot(), "opencode");
@@ -683,7 +714,162 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
+  /**
+   * Acciones del Explorador cuando el proveedor elegido es Claude. Devuelve true si la
+   * acción era suya; las que no lo son siguen el camino de opencode.
+   */
+  async function handleClaudeAction(action: ExplorerAction | ModelsAction): Promise<boolean> {
+    switch (action.type) {
+      case "editAgent":
+      case "openAgentFile": {
+        const file =
+          action.scope === "builtin"
+            ? undefined
+            : claudeAgentFile(action.name, action.scope, projectRoot());
+        if (file && existsSync(file)) {
+          await openFile(file);
+        } else {
+          void vscode.window.showWarningMessage(
+            "No encuentro el fichero de ese agente de Claude."
+          );
+        }
+        return true;
+      }
+
+      case "createAgent": {
+        const name = await vscode.window.showInputBox({
+          prompt: "Nombre del agente de Claude",
+          placeHolder: "mi-agente",
+          validateInput: (v) =>
+            /^[a-z0-9][a-z0-9-]*$/.test(v) ? undefined : "Minúsculas, números y guiones",
+        });
+        if (!name) {
+          return true;
+        }
+        // Los agentes de Claude se crean siempre en el scope global.
+        const file = claudeAgentFile(name, "global", projectRoot());
+        if (!file) {
+          return true;
+        }
+        if (existsSync(file)) {
+          void vscode.window.showWarningMessage(`Ya existe un agente "${name}" en ese scope.`);
+          await openFile(file);
+          return true;
+        }
+        try {
+          await fs.mkdir(path.dirname(file), { recursive: true });
+          // Frontmatter mínimo: el cuerpo vacío es el prompt que se escribe luego.
+          await writeAtomic(file, `---\nname: ${name}\ndescription: \n---\n\n`);
+        } catch (err) {
+          void vscode.window.showErrorMessage(
+            `No se pudo crear el agente: ${err instanceof Error ? err.message : String(err)}`
+          );
+          return true;
+        }
+        await openFile(file);
+        refresh();
+        return true;
+      }
+
+      case "toggleMcp":
+      case "togglePlugin": {
+        const isMcp = action.type === "toggleMcp";
+        const root = projectRoot();
+        const claude = claudeExplorer(root);
+        const item = (isMcp ? claude.mcp : claude.plugins).find(
+          (i) => i.name === action.name && i.scope === action.scope
+        );
+        if (!item) {
+          void vscode.window.showWarningMessage(
+            `No encuentro ese ${isMcp ? "servidor MCP" : "plugin"} en la configuración de Claude.`
+          );
+          return true;
+        }
+        try {
+          await setClaudeItem(
+            isMcp ? "mcp" : "plugin",
+            action.name,
+            action.scope,
+            !item.enabled,
+            root
+          );
+        } catch (err) {
+          void vscode.window.showErrorMessage(
+            `No se pudo actualizar: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+        refresh();
+        return true;
+      }
+
+      case "toggleSkill":
+        // Claude no deja apagarlas: lo que lance setClaudeItem es lo que se avisa.
+        try {
+          await setClaudeItem("skill", action.name, action.scope, false, projectRoot());
+        } catch (err) {
+          void vscode.window.showWarningMessage(err instanceof Error ? err.message : String(err));
+        }
+        return true;
+
+      case "addPlugin":
+        // Los plugins de Claude se gestionan con su propio CLI, no con un campo de config.
+        void vscode.window.showWarningMessage(
+          "Los plugins de Claude se instalan con «claude plugin» en su terminal, no desde aquí."
+        );
+        return true;
+
+      case "setModel":
+        // Hasta que el panel Modelos lea el catálogo de Claude, no se toca la sesión de opencode.
+        void vscode.window.showWarningMessage(
+          "El panel Modelos todavía no lee los modelos de Claude."
+        );
+        return true;
+
+      case "setAutoAccept":
+        try {
+          await setClaudeAutoAccept(action.on);
+        } catch (err) {
+          void vscode.window.showErrorMessage(
+            `No se pudo cambiar los permisos: ${err instanceof Error ? err.message : String(err)}`
+          );
+          return true;
+        }
+        refresh();
+        return true;
+
+      case "editInstructions": {
+        if (action.scope === "project" && !projectRoot()) {
+          void vscode.window.showWarningMessage(
+            "Abre una carpeta de proyecto para editar su CLAUDE.md."
+          );
+          return true;
+        }
+        // El editor de AGENTS.md es de opencode: aquí se abre el fichero tal cual.
+        const file = claudeInstructionsFile(action.scope, projectRoot());
+        if (!existsSync(file)) {
+          try {
+            await fs.mkdir(path.dirname(file), { recursive: true });
+            await writeAtomic(file, "");
+          } catch (err) {
+            void vscode.window.showErrorMessage(
+              `No se pudo crear ${path.basename(file)}: ${err instanceof Error ? err.message : String(err)}`
+            );
+            return true;
+          }
+        }
+        await openFile(file);
+        return true;
+      }
+
+      default:
+        return false;
+    }
+  }
+
   async function handleAction(action: ExplorerAction | ModelsAction): Promise<void> {
+    if (sessionAgent === "claude" && (await handleClaudeAction(action))) {
+      return;
+    }
     switch (action.type) {
       case "editInstructions":
         return openInstructions(action.scope);

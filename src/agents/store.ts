@@ -145,7 +145,7 @@ export async function findAgent(name: string, scope: Scope): Promise<Agent | und
   return agents.find((a) => a.name === name);
 }
 
-async function writeAtomic(file: string, content: string): Promise<void> {
+export async function writeAtomic(file: string, content: string): Promise<void> {
   const dir = path.dirname(file);
   await ensureDir(dir);
   const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.tmp`);
