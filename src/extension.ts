@@ -687,6 +687,16 @@ export function activate(context: vscode.ExtensionContext): void {
     if (models.length === 0) {
       await refreshModels();
     }
+    // Los modelos que ya tienen los agentes entran en favoritos: así el tablero dibuja su
+    // línea al abrir y quitarlos es arrastrarlos, sin buscarlos antes.
+    const assigned = new Set(assignData().agents.map((a) => a.model));
+    const added = [...assigned].filter(
+      (id) => id && models.some((m) => m.id === id) && !favoriteModels.includes(id)
+    );
+    if (added.length > 0) {
+      favoriteModels = [...favoriteModels, ...added];
+      await context.globalState.update(FAVORITE_MODELS, favoriteModels);
+    }
     AssignPanel.open(context, assignData(), {
       onAction: handleAssignAction,
       onReady: () => AssignPanel.current?.update(assignData()),
