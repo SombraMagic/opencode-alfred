@@ -25,6 +25,7 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (`local.opencode-agents-editor@0.1.7` y `sombra.voz@0.1.0`) están desinstaladas.
 - Pendiente: probar en VS Code con la ventana recargada (webviews, TTS y dictado no se han
   visto en ejecución).
+- `main` va **2 commits por delante** de `origin/main` (`f845be9`, `c22f721`), sin push.
 
 ## Decisiones
 
@@ -155,6 +156,13 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `contenteditable` las guarda como `[[img:ruta-escapada]]`. Probado por el usuario en VS Code.
   Pegar **texto** de varias líneas llegaba fundido a ENVIAR porque Chromium lo mete en `<div>`
   y `serialize()` solo entendía `BR`: arreglado y verificado en Chromium headless.
+- Asignación agentes↔modelos es pestaña central (`AssignPanel` + `media/assign.*`), abierta
+  desde el botón de la vista Modelos (`opencodeAgents.assignModels`). Conectar escribe
+  `model:` en el `.md` (no cambia la sesión viva, solo las nuevas). Los integrados sin
+  override piden scope y crean el `.md` que los sobrescribe; el prompt integrado se conserva
+  (comprobado con `opencode debug agents`). Favoritos en `opencodeAgents.favoriteModels`. El
+  tablero se cierra al cambiar a Claude/Codex. Tres columnas, `media/assign.html` como
+  plantilla con marcadores.
 
 ## Trampas ya pagadas
 
