@@ -59,17 +59,23 @@ import { existsSync } from "fs";
 import * as fs from "fs/promises";
 import {
   claudeAgentFile,
+  claudeContext,
   claudeExplorer,
   claudeInstructionsFile,
+  claudeModels,
   setClaudeAutoAccept,
   setClaudeItem,
+  setClaudeModel,
 } from "./providers/claude";
 import {
   codexConfigFile,
+  codexContext,
   codexExplorer,
   codexInstructionsFile,
+  codexModels,
   setCodexAutoAccept,
   setCodexItem,
+  setCodexModel,
 } from "./providers/codex";
 import { findTable, setValue } from "./providers/toml";
 
@@ -328,6 +334,20 @@ export function activate(context: vscode.ExtensionContext): void {
 
   /** Compacta la conversación de la sesión medida en el panel: el equivalente a `/compact` del TUI. */
   async function compactSession(): Promise<void> {
+    if (sessionAgent !== "opencode") {
+      // En Claude y Codex `/compact` es un comando del TUI y no hay API local: se escribe en su terminal.
+      const label = sessionAgent === "claude" ? "Claude" : "Codex";
+      const terminal = runningTerminal(sessionAgent);
+      if (!terminal) {
+        void vscode.window.showWarningMessage(
+          `No hay ninguna terminal de ${label} abierta que compactar.`
+        );
+        return;
+      }
+      terminal.sendText("/compact");
+      void vscode.window.setStatusBarMessage(`opencode: compactación pedida a ${label}.`, 4000);
+      return;
+    }
     const id = contextView.currentSessionId();
     if (!id) {
       void vscode.window.showWarningMessage(
@@ -365,6 +385,13 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   function modelsData(): ModelsData {
+    if (sessionAgent === "claude") {
+      // Claude no tiene "recientes" guardados: solo el configurado y lo visto en sesiones.
+      return { ...claudeModels(projectRoot()), recentModels: [] };
+    }
+    if (sessionAgent === "codex") {
+      return { ...codexModels(), recentModels: [] };
+    }
     const snapshot = display ?? lastRaw;
     return {
       models,
@@ -446,6 +473,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
   /** Lista viva de opencode: `readConfigInfo` incluiría modelos vetados o deshabilitados. */
   async function refreshModels(): Promise<void> {
+    if (sessionAgent !== "opencode") {
+      // Claude y Codex no tienen API local de modelos: se pinta su catálogo y ya.
+      modelsView.update(modelsData());
+      return;
+    }
     try {
       const raw = await opencodeApi("GET", "/api/model");
       const parsed = JSON.parse(raw) as { data?: ApiModel[] };
@@ -533,6 +565,16 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   async function refreshStats(force = false): Promise<void> {
+    if (sessionAgent !== "opencode") {
+      // La BD que mide StatsService es la de opencode: con otro agente no se paga ese escaneo.
+      contextView.update(
+        sessionAgent === "claude" ? claudeContext(projectRoot()) : codexContext(projectRoot())
+      );
+      explorer.update(buildExplorerData());
+      // Las tarjetas de voz son de opencode: con otro agente no hay «en vuelo» que seguir.
+      voicePanel?.updateAgents([]);
+      return;
+    }
     const raw = await statsService.collect();
     lastRaw = raw;
     const disp = toDisplay(raw);
@@ -551,7 +593,10 @@ export function activate(context: vscode.ExtensionContext): void {
     display = disp;
     StatsPanel.current?.update(disp);
     explorer.update(buildExplorerData());
-    modelsView.update(modelsData());
+    // El modelo de Claude y Codex no sale de las estadísticas: bastan refresh() y setModel.
+    if (sessionAgent === "opencode") {
+      modelsView.update(modelsData());
+    }
   }
 
   async function resetAgent(agent: string): Promise<void> {
@@ -847,11 +892,8 @@ export function activate(context: vscode.ExtensionContext): void {
         return true;
 
       case "setModel":
-        // Hasta que el panel Modelos lea el catálogo de Claude, no se toca la sesión de opencode.
-        void vscode.window.showWarningMessage(
-          "El panel Modelos todavía no lee los modelos de Claude."
-        );
-        return true;
+        // Lo resuelve el switch común, que escribe en la config del proveedor activo.
+        return false;
 
       case "setAutoAccept":
         try {
@@ -983,9 +1025,8 @@ export function activate(context: vscode.ExtensionContext): void {
         return true;
 
       case "setModel":
-        // Hasta que el panel Modelos lea el catálogo de Codex, no se toca la sesión de opencode.
-        void vscode.window.showWarningMessage("El panel Modelos todavía no lee los modelos de Codex.");
-        return true;
+        // Lo resuelve el switch común, que escribe en la config del proveedor activo.
+        return false;
 
       case "setAutoAccept":
         try {
@@ -1169,6 +1210,23 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       case "setModel": {
+        if (sessionAgent !== "opencode") {
+          const isClaude = sessionAgent === "claude";
+          const name = action.id.slice(action.id.indexOf("/") + 1);
+          try {
+            await (isClaude ? setClaudeModel(action.id) : setCodexModel(action.id));
+            refresh();
+            void vscode.window.setStatusBarMessage(
+              `${isClaude ? "Claude" : "Codex"}: modelo «${name}» guardado; se aplica a las sesiones nuevas (en la actual, /model).`,
+              4000
+            );
+          } catch (err) {
+            void vscode.window.showErrorMessage(
+              `No se pudo cambiar el modelo: ${err instanceof Error ? err.message : String(err)}`
+            );
+          }
+          return;
+        }
         const model = models.find((m) => m.id === action.id);
         if (!model) {
           return;

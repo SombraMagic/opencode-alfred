@@ -113,8 +113,13 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   `await` en la prosa síncrona de `activate` ni esperes ahí, porque `refresh()` corre en
   cuanto el webview dice `ready` y `display`/`agentList` aún no existirían (TDZ). El
   elegido vive en `opencodeAgents.sessionAgent`; `runningTerminal` casa por nombre exacto
-  de terminal, así que adopta también la abierta a mano. Modelos y Contexto siguen leyendo
-  solo opencode.
+  de terminal, así que adopta también la abierta a mano. Es el **proveedor activo**:
+  Explorador, Modelos y Contexto salen de `src/providers/claude.ts`, `codex.ts` y
+  `toml.ts` (TOML quirúrgico, no parser completo). Claude no deja apagar skills ni MCP
+  globales (`~/.claude.json` guarda credenciales: solo lectura) y Codex tampoco sus
+  skills: esas filas van con `toggleable: false`. Modelos y Contexto de Claude/Codex no
+  cambian la sesión viva: escriben su `model` en la config y miden sus ficheros de
+  sesión.
 - opencode migró su esquema: builds actuales usan `session_v2` + `session_message`
   (mensajes en JSON en `data`, `type` = `assistant`/`user`/`idle`/...; las tool calls van
   dentro del `content[]` del assistant, `state.status` = `running`/`pending`/`completed`/

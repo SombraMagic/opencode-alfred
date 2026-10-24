@@ -101,8 +101,28 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `codex` no está instalado aquí, así que el selector tiene dos paradas. Elegido en
   `opencodeAgents.sessionAgent`. Ojo: `runningTerminal` casa por **nombre exacto** de
   terminal, así que adopta también la del comando de paleta `opencodeAgents.newSession`
-  (clave `__new__`, que sigue creando una sesión nueva). Modelos y Contexto siguen leyendo
-  solo opencode.
+  (clave `__new__`, que sigue creando una sesión nueva).
+- El selector es el **proveedor activo**: Explorador, Modelos y Contexto leen y escriben
+  la config del CLI elegido, no la de opencode. `src/providers/claude.ts` (agentes
+  `~/.claude/agents`, MCP de proyecto en `.mcp.json`, skills de solo lectura, plugins en
+  `enabledPlugins`, permisos en `permissions.defaultMode`, `CLAUDE.md`), `codex.ts`
+  (`[agents.*]`, `[mcp_servers.*]`, skills de solo lectura, `[plugins.*]`,
+  `approval_policy`, `AGENTS.md`) y `toml.ts` (editor TOML quirúrgico: conserva comentarios
+  y CRLF, no es un parser completo).
+- Lo que no se puede escribir: Claude no deja apagar skills ni MCP globales (viven en
+  `~/.claude.json`, que guarda credenciales: solo lectura), y Codex tampoco sus skills.
+  Esas filas van con `toggleable: false`.
+- Modelos: opencode mantiene `GET /api/model` y cambia la sesión viva por API. Claude no
+  tiene catálogo local: se listan los modelos vistos en los 5 `.jsonl` más recientes del
+  proyecto más `settings.model`; Codex usa `~/.codex/models_cache.json`. En los dos,
+  cambiar escribe `model` en su config y **no** toca la sesión viva (en el TUI, `/model`).
+- Contexto: Claude mide el `.jsonl` de `~/.claude/projects/<slug>/` (`input + cache_read +
+  cache_creation` del último assistant con uso > 0; `limit` 1M si el modelo acaba en
+  `[...]`); Codex, el último rollout con `cwd` del proyecto (`last_token_usage.total_tokens`
+  y `model_context_window`). Si la sesión más nueva no tiene medición se usa la anterior
+  medida; `<synthetic>` y los `token_count` con `info: null` no cuentan.
+- COMPACTAR con Claude/Codex escribe `/compact` en su terminal (no hay API local); con
+  opencode sigue siendo `POST /api/session/<id>/compact` con cuerpo `{}`.
 
 ## Trampas ya pagadas
 

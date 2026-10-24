@@ -3,13 +3,24 @@
  * Explorador. Las escrituras son quirúrgicas: solo tocan la clave pedida, vía
  * `setValue` de `toml.ts`, y el fichero solo se reescribe si el texto cambia.
  */
-import { readdirSync, readFileSync, type Dirent } from "fs";
+import {
+  closeSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  statSync,
+  type Dirent,
+} from "fs";
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
+import { isSamePath } from "../agents/paths";
 import { parseAgentFile } from "../agents/parser";
 import { writeAtomic } from "../agents/store";
 import type { ExplorerAgent, ExplorerCatalogItem } from "../panels/explorerPanel";
+import type { ModelEntry } from "../panels/modelsPanel";
+import type { ContextWindowInfo } from "../stats/contextWindow";
 import { findTable, getValue, listTables, setValue } from "./toml";
 
 export interface CodexExplorer {
@@ -152,6 +163,272 @@ export function codexExplorer(projectRoot: string | undefined): CodexExplorer {
   };
 }
 
+/* --------------------------------- modelos -------------------------------- */
+
+export interface CodexModels {
+  models: ModelEntry[];
+  /** Clave `model` del config.toml como `codex/<slug>`; vacío si no hay. */
+  currentModel: string;
+}
+
+function modelsCacheFile(): string {
+  return path.join(codexHome(), "models_cache.json");
+}
+
+/** Catálogo que Codex cachea de su servidor; si falta o está roto, la lista queda vacía. */
+export function codexModels(): CodexModels {
+  let entries: unknown;
+  try {
+    entries = (JSON.parse(readFileSync(modelsCacheFile(), "utf8")) as { models?: unknown }).models;
+  } catch {
+    entries = undefined;
+  }
+  const models: ModelEntry[] = [];
+  if (Array.isArray(entries)) {
+    for (const raw of entries) {
+      if (!raw || typeof raw !== "object") {
+        continue;
+      }
+      const { slug, display_name } = raw as { slug?: unknown; display_name?: unknown };
+      if (typeof slug !== "string" || !slug) {
+        continue;
+      }
+      models.push({
+        id: `codex/${slug}`,
+        provider: "codex",
+        model: slug,
+        name: typeof display_name === "string" && display_name ? display_name : slug,
+        free: false,
+      });
+    }
+  }
+  const current = getValue(readConfig(), [], "model")?.trim() ?? "";
+  return { models, currentModel: current ? `codex/${current}` : "" };
+}
+
+/* -------------------------------- contexto -------------------------------- */
+
+let contextCache: { key: string; info: ContextWindowInfo } | undefined;
+
+function num(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function subdirs(dir: string): string[] {
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+/** Los 20 rollouts más recientes. La carpeta y el nombre llevan la fecha, así que ordenan solos. */
+function recentRollouts(): string[] {
+  const base = path.join(codexHome(), "sessions");
+  const out: string[] = [];
+  for (const year of subdirs(base).sort().reverse()) {
+    for (const month of subdirs(path.join(base, year)).sort().reverse()) {
+      for (const day of subdirs(path.join(base, year, month)).sort().reverse()) {
+        const dir = path.join(base, year, month, day);
+        let names: string[];
+        try {
+          names = readdirSync(dir).filter((n) => n.startsWith("rollout-") && n.endsWith(".jsonl"));
+        } catch {
+          continue;
+        }
+        for (const name of names.sort().reverse()) {
+          out.push(path.join(dir, name));
+          if (out.length >= 20) {
+            return out;
+          }
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Cabecera del rollout sin leer el fichero entero. */
+function firstLine(file: string): string {
+  let fd: number | undefined;
+  try {
+    fd = openSync(file, "r");
+    const buffer = Buffer.alloc(65536);
+    const read = readSync(fd, buffer, 0, buffer.length, 0);
+    const text = buffer.toString("utf8", 0, read);
+    const end = text.indexOf("\n");
+    return end < 0 ? text : text.slice(0, end);
+  } catch {
+    return "";
+  } finally {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
+type RolloutLine = { type?: string; payload?: Record<string, unknown> };
+
+function parseLine<T>(line: string): T | undefined {
+  try {
+    return JSON.parse(line) as T;
+  } catch {
+    return undefined; // Línea a medio escribir de una sesión viva.
+  }
+}
+
+/** Rollouts del proyecto, de más nuevo a más viejo (se miran como mucho 20). */
+function rolloutsFor(root: string): string[] {
+  // shortcut: sólo se lee la cabecera (64 KB); un session_meta mayor no casaría.
+  const out: string[] = [];
+  for (const file of recentRollouts()) {
+    const meta = parseLine<RolloutLine>(firstLine(file));
+    const cwd = meta?.type === "session_meta" ? meta.payload?.cwd : undefined;
+    if (typeof cwd === "string" && isSamePath(cwd, root)) {
+      out.push(file);
+    }
+  }
+  return out;
+}
+
+/** Título del hilo: Codex lo guarda aparte, en `session_index.jsonl`. */
+function threadTitle(id: string): string | undefined {
+  if (!id) {
+    return undefined;
+  }
+  let text: string;
+  try {
+    text = readFileSync(path.join(codexHome(), "session_index.jsonl"), "utf8");
+  } catch {
+    return undefined;
+  }
+  for (const line of text.split("\n")) {
+    if (!line.includes(id)) {
+      continue;
+    }
+    const item = parseLine<{ id?: unknown; thread_name?: unknown }>(line);
+    if (item?.id === id && typeof item.thread_name === "string" && item.thread_name.trim()) {
+      return item.thread_name.trim();
+    }
+  }
+  return undefined;
+}
+
+function noSession(scannedAt: number): ContextWindowInfo {
+  return {
+    ok: false,
+    error: "Ninguna sesión de Codex de este proyecto tiene una respuesta medida todavía.",
+    used: 0,
+    limit: 0,
+    slices: [],
+    scannedAt,
+  };
+}
+
+/** Firma de caché de un fichero: ruta + fecha + tamaño. */
+function fileSignature(file: string): string {
+  try {
+    const st = statSync(file);
+    return `${file}:${st.mtimeMs}:${st.size}`;
+  } catch {
+    return `${file}:0:0`;
+  }
+}
+
+/** Último uso medido del rollout; `undefined` si no hay ninguno. */
+function readContext(file: string, scannedAt: number): ContextWindowInfo | undefined {
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+  let sessionId = "";
+  let model = "";
+  let used = 0;
+  let limit = 0;
+  for (const line of text.split("\n")) {
+    // Los tres tipos que importan; el resto del rollout (mensajes, tools) no se parsea.
+    if (
+      !line.includes('"session_meta"') &&
+      !line.includes('"turn_context"') &&
+      !line.includes('"token_count"')
+    ) {
+      continue;
+    }
+    const item = parseLine<RolloutLine>(line);
+    const payload = item?.payload;
+    if (item?.type === "session_meta") {
+      if (typeof payload?.session_id === "string") {
+        sessionId = payload.session_id;
+      }
+      continue;
+    }
+    if (item?.type === "turn_context") {
+      if (typeof payload?.model === "string" && payload.model.trim()) {
+        model = payload.model.trim();
+      }
+      continue;
+    }
+    if (item?.type === "event_msg" && payload?.type === "token_count") {
+      const info = payload.info as
+        | { last_token_usage?: { total_tokens?: unknown }; model_context_window?: unknown }
+        | null
+        | undefined;
+      // `info: null` sólo refresca los rate limits: no borra la última medición.
+      if (!info) {
+        continue;
+      }
+      // Tras compactar, `used` no cambia hasta el siguiente `token_count` con uso.
+      used = num(info.last_token_usage?.total_tokens);
+      limit = num(info.model_context_window) || limit;
+    }
+  }
+  if (used <= 0) {
+    return undefined;
+  }
+  return {
+    ok: true,
+    sessionId: sessionId || undefined,
+    title: threadTitle(sessionId),
+    agent: "codex",
+    model: model || undefined,
+    used,
+    limit,
+    slices: [{ key: "conversation", label: "Conversación", tokens: used, estimated: false }],
+    scannedAt,
+  };
+}
+
+/** Contexto de la sesión más reciente del proyecto con medición; cacheado por firmas. */
+export function codexContext(projectRoot: string | undefined): ContextWindowInfo {
+  const scannedAt = Date.now();
+  const files = projectRoot ? rolloutsFor(projectRoot) : [];
+  if (files.length === 0) {
+    return noSession(scannedAt);
+  }
+  const key = files.map(fileSignature).join("|");
+  if (contextCache?.key === key) {
+    return contextCache.info;
+  }
+  let info = noSession(scannedAt);
+  for (const file of files) {
+    const measured = readContext(file, scannedAt);
+    if (measured) {
+      info = measured;
+      break;
+    }
+  }
+  contextCache = { key, info };
+  return info;
+}
+
 /* -------------------------------- escritura ------------------------------- */
 
 /** Lee, aplica y escribe solo si el texto cambia. Un config ausente se trata como vacío. */
@@ -192,4 +469,17 @@ export async function setCodexItem(
 
 export async function setCodexAutoAccept(on: boolean): Promise<void> {
   await editConfig((text) => setValue(text, [], "approval_policy", on ? "never" : "on-request"));
+}
+
+/** Escribe `model` en config.toml: Codex lo lee al arrancar cada sesión. */
+export async function setCodexModel(id: string): Promise<void> {
+  const prefix = "codex/";
+  if (!id.startsWith(prefix)) {
+    throw new Error("Ese modelo no es de Codex.");
+  }
+  const model = id.slice(prefix.length);
+  if (!model.trim()) {
+    throw new Error("Falta el nombre del modelo.");
+  }
+  await editConfig((text) => setValue(text, [], "model", model));
 }
