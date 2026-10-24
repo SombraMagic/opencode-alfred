@@ -149,6 +149,10 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
 - Voz: `voice/core` es ESM en su origen; aquí se compila como CJS (requisito de VS Code) y
   se importa de forma estática. No metas `import()` dinámico de `@sombra/voz-core`: ese
   paquete ya no es dependencia.
+- Voz: INSTALAR MCP del panel deja elegir opencode, Claude Code, Claude Desktop, Cursor o
+  «Otro agente». En Claude Code usa su CLI (`claude mcp add --scope user voz -- <node>
+  <voz-mcp>`), quitando antes la entrada para que reinstalar no falle, y confirma con
+  `claude mcp get voz`; `~/.claude.json` no se escribe a mano porque guarda credenciales.
 
 ## Convenciones
 

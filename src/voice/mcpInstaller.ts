@@ -80,6 +80,7 @@ export async function installMcp(): Promise<string> {
   const choice = await vscode.window.showQuickPick(
     [
       { label: "opencode", description: "Instalar en opencode (recomendado)" },
+      { label: "Claude Code", description: "Instalar en Claude Code (usuario)" },
       { label: "Claude Desktop", description: "Instalar en Claude Desktop" },
       { label: "Cursor", description: "Instalar en ~/.cursor/mcp.json" },
       { label: "Otro agente", description: "Copiar la configuración a mano" },
@@ -93,6 +94,8 @@ export async function installMcp(): Promise<string> {
   switch (choice.label) {
     case "opencode":
       return installOpencode(command, args);
+    case "Claude Code":
+      return installClaudeCode(command, args);
     case "Claude Desktop":
       return writeJsonConfig(claudeConfigPath(), "mcpServers", command, args);
     case "Cursor":
@@ -124,6 +127,35 @@ async function installOpencode(command: string, args: string[]): Promise<string>
       : `VOZ: servidor MCP añadido a opencode, pero aparece como "${line.trim()}".`,
   );
   return ok ? "Instalado en opencode ✓" : `Añadido a opencode (${line.trim() || "sin confirmar"})`;
+}
+
+/** Instala en Claude Code con su CLI. */
+async function installClaudeCode(command: string, args: string[]): Promise<string> {
+  if (!(await hasCommand("claude"))) {
+    return "No se encontró Claude Code en el PATH. Instálalo o usa 'Otro agente'.";
+  }
+  // --scope user para que valga en todos los proyectos. Se usa el CLI y no se
+  // escribe ~/.claude.json a mano: ahí viven las credenciales.
+  // Borrar antes de añadir evita que re-instalar falle con "already exists";
+  // si no existía, remove falla y da igual. `add` deja la entrada nueva.
+  await run("claude", ["mcp", "remove", "--scope", "user", "voz"]);
+  const res = await run("claude", ["mcp", "add", "--scope", "user", "voz", "--", command, ...args]);
+  if (!res.ok) {
+    return `No se pudo instalar en Claude Code: ${res.out.slice(0, 200)}`;
+  }
+
+  // `mcp get` devuelve exit 0 solo si el servidor existe.
+  const check = await run("claude", ["mcp", "get", "voz"]);
+  if (check.ok) {
+    vscode.window.showInformationMessage(
+      "VOZ: servidor MCP instalado en Claude Code. Abre una sesión nueva para que lo cargue.",
+    );
+    return "Instalado en Claude Code ✓";
+  }
+  vscode.window.showWarningMessage(
+    `VOZ: servidor MCP añadido a Claude Code, pero no se pudo confirmar: ${check.out.slice(0, 120)}`,
+  );
+  return "Añadido a Claude Code (sin confirmar)";
 }
 
 /** Escribe la configuración MCP en un archivo JSON. */
