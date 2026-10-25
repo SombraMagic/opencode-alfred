@@ -7,6 +7,16 @@
 </head>
 <body>
   <div class="dict">
+    <section class="col note">
+      <div class="col-title">BLOC DE NOTAS</div>
+      <div id="nota" contenteditable="true" role="textbox" aria-label="Bloc de notas" aria-multiline="true" spellcheck="false" data-placeholder="Pulsa y mantén el micrófono, o escribe aquí…"></div>
+      <div class="note-foot">
+        <span id="count">0 palabras · 0 caracteres</span>
+        <span class="note-tip">Ctrl+V imágenes · arrastra ficheros con Mayús</span>
+        <button class="ghost-btn" id="clear">LIMPIAR</button>
+      </div>
+    </section>
+
     <section class="col config" id="config">
       <button class="col-title config-toggle" id="config-toggle" type="button" aria-expanded="true" title="Plegar configuración">CONFIGURACIÓN<span class="chev" aria-hidden="true">‹</span></button>
       <div class="config-body">
@@ -48,18 +58,9 @@
       </div>
     </section>
 
-    <section class="col note">
-      <div class="col-title">BLOC DE NOTAS</div>
-      <div id="nota" contenteditable="true" role="textbox" aria-label="Bloc de notas" aria-multiline="true" spellcheck="false" data-placeholder="Pulsa y mantén el micrófono, o escribe aquí…"></div>
-      <div class="note-foot">
-        <span id="count">0 palabras · 0 caracteres</span>
-        <button class="ghost-btn" id="clear">LIMPIAR</button>
-      </div>
-    </section>
-
     <section class="col controls">
       <div class="col-title">CONTROLES</div>
-      <div class="mic-wrap">
+      <div class="mic-row">
         <button id="mic" class="mic" title="Mantén pulsado para dictar" aria-label="Mantener pulsado para dictar">
           <svg viewBox="0 0 24 24" width="32" height="32" aria-hidden="true">
             <rect x="9" y="2.5" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6" />
@@ -67,13 +68,14 @@
           </svg>
           <span class="mic-ring"></span>
         </button>
-        <div class="level"><i id="level-bar"></i></div>
+        <button class="hf-switch" id="hands-free" type="button" role="switch" aria-checked="false" title="Un clic para escuchar; otro para parar">
+          <span class="hf-label">MANOS LIBRES</span>
+          <span class="hf-track" aria-hidden="true"><span class="hf-knob"></span></span>
+        </button>
       </div>
+      <div class="level"><i id="level-bar"></i></div>
       <div class="state" id="state">EN ESPERA</div>
       <div class="state-hint" id="state-hint">Mantén el micrófono, o activa MANOS LIBRES</div>
-      <button class="ghost-btn hands-free" id="hands-free" aria-pressed="false" title="Un clic para escuchar; otro para parar">
-        <span class="hf-dot"></span>MANOS LIBRES
-      </button>
       <button class="speak-btn" id="send"><span class="speak-glyph">▶</span>ENVIAR PROMPT</button>
       <div class="hint" id="send-hint">Al terminal activo, con Enter</div>
     </section>

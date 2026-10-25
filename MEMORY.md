@@ -25,7 +25,8 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (`local.opencode-agents-editor@0.1.7` y `sombra.voz@0.1.0`) están desinstaladas.
 - Pendiente: probar en VS Code con la ventana recargada (webviews, TTS y dictado no se han
   visto en ejecución).
-- `main` sincronizado con `origin/main` (`757d85f`); sin commits pendientes de subir.
+- `main` estaba sincronizado con `origin/main` en `0a6b876`; el rediseño del dictado queda
+  en un commit local pendiente de push.
 
 ## Decisiones
 
@@ -151,9 +152,12 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (`hooks`, `mcpServers`…) se conservan. El nombre solo admite `[a-z0-9._-]`; la
   descripción es obligatoria. Reiniciar Claude solo si la carpeta `agents` del destino no
   existía al arrancar.
-- La columna CONFIGURACIÓN del dictado se pliega a una tira vertical de 28 px en el borde
-  izquierdo con el título girado; el bloc gana el ancho. Se pliega con el propio título
-  (`#config-toggle`) y **no** se recuerda al reabrir el panel: no se pidió persistirlo.
+- El panel de dictado se rediseñó: bloc a la izquierda, configuración en medio (plegable)
+  y controles a la derecha; al plegar, el bloc gana el ancho y el estado se recuerda en
+  `globalState` (`voz.dictado.configCollapsed`). El micrófono es cuadrado redondeado, con
+  interruptor de manos libres al lado y vúmetro de 12 px. También acepta ficheros
+  arrastrados (chip con icono y `[[file:ruta]]`). Visto en Chromium headless; **falta**
+  probar en VS Code real el arrastre desde el Explorador (¿hace falta Mayús?) y el pegado.
 - El panel de dictado adjunta imágenes pegadas (Ctrl+V): se escriben en `<raíz>/.alfred/adjuntos`
   (ignorado por `.gitignore` y `.vscodeignore`) o en el almacén global sin carpeta, y el bloc
   `contenteditable` las guarda como `[[img:ruta-escapada]]`. Probado por el usuario en VS Code.

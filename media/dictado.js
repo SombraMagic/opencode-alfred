@@ -58,8 +58,11 @@
     const text = raw.trim();
     const words = text ? text.split(/\s+/).length : 0;
     const images = nota.querySelectorAll("[data-path]").length;
+    const files = nota.querySelectorAll("[data-file]").length;
     count.textContent =
-      `${words} palabras · ${raw.length} caracteres` + (images ? ` · ${images} imagen(es)` : "");
+      `${words} palabras · ${raw.length} caracteres` +
+      (images ? ` · ${images} imagen(es)` : "") +
+      (files ? ` · ${files} fichero(s)` : "");
   }
 
   /** Inserta el texto dictado en el cursor, sin pegar la frase anterior. */
@@ -154,7 +157,7 @@
   function setHandsFree(on) {
     handsFree = on;
     hfBtn.classList.toggle("on", on);
-    hfBtn.setAttribute("aria-pressed", String(on));
+    hfBtn.setAttribute("aria-checked", String(on));
     syncMic();
     if (on) {
       setState("listening", engine === "sapi" ? "Habla y haz pausas" : "Grabando por turnos…");
@@ -221,10 +224,18 @@
   // ── Configuración ────────────────────────────────────────
   const configCol = $("config");
   const configToggle = $("config-toggle");
-  configToggle.addEventListener("click", () => {
-    const collapsed = configCol.classList.toggle("collapsed");
+
+  /** Pinta la columna plegada o desplegada sin avisar a la extensión. */
+  function syncConfig(collapsed) {
+    configCol.classList.toggle("collapsed", collapsed);
     configToggle.setAttribute("aria-expanded", String(!collapsed));
     configToggle.title = collapsed ? "Desplegar configuración" : "Plegar configuración";
+  }
+
+  configToggle.addEventListener("click", () => {
+    const collapsed = !configCol.classList.contains("collapsed");
+    syncConfig(collapsed);
+    post({ type: "saveConfigCollapsed", collapsed });
   });
 
   function syncRows() {
@@ -268,7 +279,7 @@
   /** Carpeta de adjuntos que manda la extensión en `init`. */
   let attachmentsDir = "";
 
-  /** Texto del bloc con los tokens `[[img:ruta]]` donde va cada miniatura. */
+  /** Texto del bloc con los tokens `[[img:ruta]]` y `[[file:ruta]]` donde va cada adjunto. */
   function serialize() {
     let text = "";
     const walk = (node) => {
@@ -282,6 +293,7 @@
           if (text && !text.endsWith("\n")) text += "\n";
           walk(child);
         } else if (child.dataset?.path) text += `[[img:${encodeURIComponent(child.dataset.path)}]]`;
+        else if (child.dataset?.file) text += `[[file:${encodeURIComponent(child.dataset.file)}]]`;
         else walk(child);
       }
     };
@@ -322,18 +334,47 @@
     return span;
   }
 
-  /** Restaura el bloc guardado: texto y tokens `[[img:ruta]]`. */
+  /** Solo el nombre visible: la ruta completa no se interpola nunca en HTML. */
+  function baseName(path) {
+    return String(path).split(/[\\/]/).pop() || String(path);
+  }
+
+  /** Chip de un fichero arrastrado; la ruta viaja en `data-file`. */
+  function fileChip(path) {
+    const span = document.createElement("span");
+    span.className = "chip-file";
+    span.dataset.file = path;
+    span.title = path;
+    // Un solo borrado se lleva el chip entero, como si fuera un carácter.
+    span.contentEditable = "false";
+    // SVG estático: aquí no entra nada que venga del fichero.
+    span.innerHTML =
+      '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true">' +
+      '<path d="M6 2.5h7l5 5v14H6z" fill="none" stroke="currentColor" stroke-width="1.6" />' +
+      '<path d="M13 2.5v5h5" fill="none" stroke="currentColor" stroke-width="1.6" /></svg>';
+    const name = document.createElement("span");
+    name.className = "chip-file-name";
+    name.textContent = baseName(path);
+    span.appendChild(name);
+    return span;
+  }
+
+  /** Restaura el bloc guardado: texto y tokens `[[img:ruta]]` / `[[file:ruta]]`. */
   function setNote(texto) {
     nota.textContent = "";
-    const parts = String(texto ?? "").split(/\[\[img:([^\]]+)\]\]/);
+    // El tipo viaja como grupo: split devuelve [texto, tipo, ruta, texto, ...].
+    const parts = String(texto ?? "").split(/\[\[(img|file):([^\]]+)\]\]/);
     const paths = [];
-    for (let i = 0; i < parts.length; i++) {
-      if (i % 2) {
-        const path = decodePath(parts[i]);
+    for (let i = 0; i < parts.length; i += 3) {
+      if (parts[i]) nota.appendChild(document.createTextNode(parts[i]));
+      const kind = parts[i + 1];
+      if (!kind) continue;
+      const path = decodePath(parts[i + 2]);
+      if (kind === "file") {
+        nota.appendChild(fileChip(path));
+      } else {
         nota.appendChild(missingChip(path));
         paths.push(path);
-      } else if (parts[i]) {
-        nota.appendChild(document.createTextNode(parts[i]));
       }
     }
     // La extensión acepta como mucho 8 rutas por petición.
@@ -365,7 +406,7 @@
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error ?? new Error("No se pudo leer la imagen."));
+      reader.onerror = () => reject(reader.error ?? new Error("No se pudo leer el fichero."));
       reader.readAsDataURL(blob);
     });
   }
@@ -432,11 +473,91 @@
     nota.focus();
   });
 
-  // Soltar una imagen dejaría un <img> sin data-path, invisible para serialize().
-  nota.addEventListener("dragover", (e) => e.preventDefault());
-  nota.addEventListener("drop", (e) => {
+  // ── Arrastrar ficheros al bloc ──────────────────────────
+  /** Rutas de un `text/uri-list` (así llega un arrastre desde el Explorador de VS Code). */
+  function pathsFromUriList(list) {
+    const out = [];
+    for (const line of String(list ?? "").split(/\r?\n/)) {
+      const uri = line.trim();
+      if (!uri || uri.startsWith("#") || !/^file:/i.test(uri)) continue;
+      const raw = decodePath(uri.replace(/^file:\/\//i, ""));
+      if (/^\/[a-zA-Z]:/.test(raw)) out.push(raw.slice(1)); // file:///C:/… → C:/…
+      else if (raw.startsWith("/")) out.push(raw);          // file:///home/… → /home/…
+      else out.push("//" + raw);                            // file://host/… → //host/…
+    }
+    return out;
+  }
+
+  /** Nombre acordado con la extensión: file-<base36>-<4 chars>-<stem>.<ext>. */
+  function fileName(original) {
+    const name = String(original ?? "");
+    const dot = name.lastIndexOf(".");
+    const ext = (dot > 0 ? name.slice(dot + 1) : "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
+    const stem = name
+      .replace(/\.[^.]*$/, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 30);
+    return `file-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}-${stem || "adjunto"}.${ext}`;
+  }
+
+  function afterFiles(n) {
+    updateCount();
+    saveNoteSoon();
+    setState("idle", `${n} fichero(s) adjunto(s).`);
+  }
+
+  function addFileChip(path) {
+    insertNodeAtCaret(fileChip(path));
+    insertNodeAtCaret(document.createTextNode(" "));
+  }
+
+  // Un <img> soltado tal cual quedaría sin data-path, invisible para serialize().
+  nota.addEventListener("dragover", (e) => {
     e.preventDefault();
-    setState("idle", "Para adjuntar, pega la imagen con Ctrl+V.");
+    e.dataTransfer.dropEffect = "copy";
+    nota.classList.add("dragging");
+  });
+  nota.addEventListener("dragleave", (e) => {
+    // Solo al salir de verdad del bloc, no al pasar de un hijo a otro.
+    if (!nota.contains(e.relatedTarget)) nota.classList.remove("dragging");
+  });
+  nota.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    nota.classList.remove("dragging");
+    const dt = e.dataTransfer;
+    if (!dt) return;
+
+    const paths = pathsFromUriList(dt.getData("text/uri-list"));
+    if (paths.length) {
+      for (const path of paths) addFileChip(path);
+      afterFiles(paths.length);
+      return;
+    }
+
+    const files = Array.from(dt.files ?? []);
+    if (!files.length) return;
+    if (!attachmentsDir) {
+      setState("error", "El panel aún no está listo para adjuntar.");
+      return;
+    }
+    const sep = attachmentsDir.includes("\\") ? "\\" : "/";
+    let n = 0;
+    for (const file of files) {
+      try {
+        if (file.size > 20 * 1024 * 1024) throw new Error("El fichero supera los 20 MiB.");
+        const dataUrl = await readDataUrl(file);
+        const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+        const name = fileName(file.name);
+        addFileChip(attachmentsDir + sep + name);
+        post({ type: "attach", name, data: base64 });
+        n++;
+      } catch (err) {
+        setState("error", err instanceof Error ? err.message : "No se pudo adjuntar el fichero.");
+      }
+    }
+    if (n) afterFiles(n);
   });
 
   // Enter nativo crearía <div>: se usa <br>, que el serializador entiende.
@@ -488,6 +609,7 @@
   function promptText() {
     return serialize()
       .replace(/\[\[img:([^\]]+)\]\]/g, (_match, path) => `[imagen: "${decodePath(path)}"]`)
+      .replace(/\[\[file:([^\]]+)\]\]/g, (_match, path) => `[fichero: "${decodePath(path)}"]`)
       .replace(/\s*\r?\n+\s*/g, " ");
   }
 
@@ -541,6 +663,7 @@
         keyState.textContent = msg.hasKey ? "guardada ✓" : "";
         installBtn.textContent = msg.whisperReady ? "LISTO" : "PREPARAR";
         syncRows();
+        syncConfig(Boolean(msg.configCollapsed));
         setState("idle", "Mantén el micrófono, o activa MANOS LIBRES");
         break;
       }
@@ -581,13 +704,14 @@
       case "attachmentError": {
         const name = String(msg.name ?? "");
         if (name) {
-          for (const chip of nota.querySelectorAll("[data-path]")) {
-            if (chip.dataset.path.endsWith(name)) chip.remove();
+          for (const chip of nota.querySelectorAll("[data-path], [data-file]")) {
+            const path = chip.dataset.path || chip.dataset.file;
+            if (path && path.endsWith(name)) chip.remove();
           }
         }
         updateCount();
         saveNoteSoon();
-        setState("error", msg.message || "No se pudo guardar la imagen adjunta.");
+        setState("error", msg.message || "No se pudo guardar el adjunto.");
         break;
       }
       case "whisperReady":

@@ -1,7 +1,7 @@
 /**
  * Panel de dictado (zona inferior de VS Code): voz a texto.
  *
- * Tres columnas: configuración, bloc de notas y controles. El botón del
+ * Tres columnas: bloc de notas, configuración y controles. El botón del
  * micrófono se mantiene pulsado para hablar; al soltarlo, SAPI ya tiene texto
  * y Whisper o la nube transcriben lo grabado.
  *
@@ -45,7 +45,9 @@ const LANGUAGES = [
 const KEY_SECRET = "voz.dictado.apiKey";
 /** El bloc de notas sobrevive al panel y a VS Code. */
 const KEY_NOTE = "voz.dictado.note";
-/** Tope por imagen pegada en el bloc. */
+/** La columna de configuración recuerda si quedó plegada. */
+const KEY_CONFIG_COLLAPSED = "voz.dictado.configCollapsed";
+/** Tope por adjunto (imagen pegada o fichero soltado) en el bloc. */
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 /** Manos libres: esta pausa cierra el fragmento y lo manda a transcribir. */
@@ -140,6 +142,7 @@ export class VozDictado {
       tolerance: s.tolerance,
       noiseFloor: s.noiseFloor,
       note: this.context.globalState.get<string>(KEY_NOTE, ""),
+      configCollapsed: this.context.globalState.get<boolean>(KEY_CONFIG_COLLAPSED, false),
       attachmentsDir: this.attachmentsDir(),
       engines: STT_ENGINES,
       models: WHISPER_MODELS,
@@ -226,6 +229,9 @@ export class VozDictado {
         break;
       case "saveNote":
         await this.context.globalState.update(KEY_NOTE, String(msg.text ?? ""));
+        break;
+      case "saveConfigCollapsed":
+        await this.context.globalState.update(KEY_CONFIG_COLLAPSED, Boolean(msg.collapsed));
         break;
       case "attach":
         this.queueAttachment(msg);
@@ -499,13 +505,13 @@ export class VozDictado {
     this.attachChain = this.attachChain.then(work, work);
   }
 
-  /** Valida y guarda la imagen que el webview acaba de pegar. */
+  /** Valida y guarda un adjunto que el webview acaba de pegar o soltar. */
   private async saveAttachment(name: string, data: string) {
     try {
-      if (!/^img-[a-z0-9-]+\.(png|jpe?g|gif|webp)$/i.test(name)) throw new Error("Nombre de adjunto no válido.");
+      if (!/^(?:img|file)-[a-z0-9-]+(?:\.[a-z0-9]{1,8})?$/i.test(name)) throw new Error("Nombre de adjunto no válido.");
       const bytes = Buffer.from(data, "base64");
-      if (!bytes.length) throw new Error("La imagen está vacía.");
-      if (bytes.length > MAX_ATTACHMENT_BYTES) throw new Error("La imagen supera los 20 MiB.");
+      if (!bytes.length) throw new Error("El adjunto está vacío.");
+      if (bytes.length > MAX_ATTACHMENT_BYTES) throw new Error("El adjunto supera los 20 MiB.");
       const dir = this.attachmentsDir();
       await mkdir(dir, { recursive: true });
       await writeFile(join(dir, name), bytes);
