@@ -44,3 +44,62 @@ igual con codex y con opencode, respetamos que pueda haber una terminal con cada
 
 
 
+-------------------------
+
+Fase de refactorizacion del panelquierdo, Ahoramismo tenemos
+>[Explorador]
+>[Modelos]
+>[Contexto]
+
+Nuevo
+>[Mando]
+[Global][Proyecto] [<][Icono de la aplicacion][<>]
+[ X ] Aceptar todo sin preguntar.
+
+>[Explorador] (Lista de agentes)
+[Agentes de Proyecto].............(colapsable)
+[Icono] [Nombre.....][modelo][Ejecto_Trabajo] [TokesTotales/TokesenSesion] [Ver][Edit] (Ver = sacar la pestaña. Edit = Editar .md)
+[Agentes Globales   ].............(colapsable)(globales e internos)
+[Icono] [Nombre.....][modelos][Ejecto_Trabajo] [TokesTotales/TokesenSesion] [Ver][Edit] (Ver = sacar la pestaña. Edit = Editar .md)
+* Cada agente con forma de tarjeta borde suave no muy alta. (suelen ser muchos)
+>[Control]
+[MCP Globales]   [MCP Proyecto]
+[ X ] Nombre   | [ X ]  Nombre
+-
+[Plugins Globales]   [Plugins Proyecto]
+[ X ] Nombre   | [ X ]  Nombre
+-
+[Skill Globales] (Colapsable)
+[ Swhit delante ] : Nombre de la skill (color diferencial si esta activa o no)
+
+[Skill Proyecto] (Colapsable)
+[ Swhit delante ] : Nombre de la skill (color diferencial si esta activa o no)
+
+>[Modelos] (sin cambios)
+>[Contexto] (sin cambios)
+
+* Aprobechar el espacio vertical. no se trata de hacerlo mas ficno, o usar letra pequeña. se trata de poner varias lineas en una sola. eveitar lineas de label innecesarias.
+-------------------------
+# Questions
+En la tarjeta de agente: [Icono][Nombre][modelo][Ejecto_Trabajo][Tokens…][Ver][Edit] — ¿qué debe mostrar «Ejecto_Trabajo»?
+(Efecto_Trabajo) Estado de trabajo en streaming, una animacion mientras trabaja
+El botón [Ver] («sacar la pestaña») ¿qué abre?
+La pestaña del editor de agentes del panel central. (las mismas que abren ahora, asegurate que entiendes esto bien)
+La [X] delante de cada MCP y Plugin: ¿qué hace?
+Desactivar (switch)
+Las tarjetas con [TokensTotales/TokensSesión]: los datos de tokens por agente hoy solo existen para opencode (SQLite). ¿Qué hago con las filas de Claude/Codex?
+Contar también en Claude/Codex
+
+
+--------------- 
+# panel izquierdo, contenedor de Modelos
+> Los dos botones como ahora
+> ACTUAL : [Nombre del modelo] [*][B] 
+(todo en una sola linea. no hay nada mas debajo si no se oulsa algun desplegable.) 
+[*] Justificado a la derecha un icno desplegable, para desplegar los 5 recientes, (sin titulo, solo los 5 modelos.
+[B] Lupa de Buscar, Abre el despleble de busqueda, Linea para la caja de texto del filtro, y debajo lista de modelos filtrados.
+# Block de notas 
+> Al enciar el pronmt no envia bien los saltos de linea, lo envia todo como una linea
+
+# Ecualizador de voz - Agentes
+> Cada anete tiene un color definido en su pane de agentes, que el ecualizador de los ajentes (pixeles voladores) se ajuste a ese color.

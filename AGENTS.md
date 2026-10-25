@@ -178,7 +178,8 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   tarjetas del panel de voz. Claude no publica agentes integrados, así que el Explorador
   pinta siempre una única fila INTEGRADOS llamada `CLAUDE` (la sesión principal); al
   pulsarla se abre el fichero de instrucciones que Claude carga (CLAUDE.md del proyecto,
-  AGENTS.md si no hay, o el global sin proyecto), creado vacío si no existe ninguno.
+  AGENTS.md si no hay, o el global sin proyecto; si no existe ninguno ofrece crear
+  `CLAUDE.md` en vez de escribirlo en silencio).
 - El editor de subagentes de Claude (`ClaudeAgentPanel` + `media/claudeAgent.*`) es propio:
   `EditorPanel` es de opencode (permisos por patrón, `variant`, `temperature`). Gestiona
   `name`/`description`, `tools` (omitir = hereda todas), `model` (alias, `inherit` o id),
@@ -230,10 +231,14 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
 - Ajustes: `opencodeAgents.*` y `voz.*` conservan el namespace de las dos extensiones.
 - La UI de los paneles se reparte siempre entre `src/panels/*.ts` y `media/*`; las dos
   mitades van en la misma mano.
+- En el HUD, `--text-dim` es **solo** para estado apagado (`:disabled`, `.off`, placeholder,
+  `—`): los rótulos y botones normales van en `--text` y lo secundario en un intermedio
+  `--text-soft` definido en el CSS de cada panel (no en `tokens.css`). El cian `--neon` de los
+  rótulos de grupo no es un color apagado: se conserva.
 - Identificadores de vista: `opencodeAgents.view`, `opencodeAgents.models`,
   `opencodeAgents.context`, `voz.panel`, `voz.dictado`. Comandos: prefijos
   `opencodeAgents.` y `voz.`.
 
 ## No es guía
 
-- `idea.md` es la petición original, no guía del proyecto.
+- `idea.md` es la petición original, notas agregadas,apuntes, no guía del proyecto.

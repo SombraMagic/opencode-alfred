@@ -52,10 +52,60 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   Revisión **PASS** en las dos rondas; humos headless en Edge (250 px, tema claro,
   limit=0, estimated, ok=false) con alturas medidas (−141 px). `.vsix` reempaquetado e
   instalado; falta el veredicto visual del usuario.
-- `main` va 2 commits por delante de `origin/main` (`f0b7086`, `9df2097`), pendientes de
-  push. Los anteriores (editor, memoria, dictado, conectores…) ya están subidos.
-- Cambio local de la persona sin commitear: `.opencode/agent/codigo-vscode.md` (modelo del
-  subagente). No commitearlo salvo orden.
+- Panel izquierdo refactorizado (2026-10-25, commit `6cde908`, esquema del usuario en
+  `idea.md`): cabecera **MANDO** en ≤2 filas (GLOBAL/PROYECTO + grupo de sesión +
+  ACEPTAR TODO; la sección PERMISOS y el hud-header viejo desaparecen), **EXPLORADOR**
+  con dos `<details>` (Proyecto / Globales+integrados fusionados) y tarjetas de agente de
+  UNA fila `[icono][nombre][modelo][vuelo animado][total/sesión tok][VER→editAgent][EDIT→
+  openAgentFile]` (media query ≤340 px oculta modelo y chips), **CONTROL** con MCP y
+  plugins en columnas de una línea por entrada y skills en plegables con switch y color
+  activo/inactivo. Backend nuevo: `tokensTotal`/`tokensSession` por agente en los 3
+  proveedores (opencode vía `latestSessionTokens` filtrado por proyecto; Claude suma
+  `.jsonl` con caché por firma SIN tope —medido: cualquier tope degrada porque enumera
+  todos los transcripts por pasada—; Codex suma rollouts con caché LRU 100). Alcances
+  mezclados a propósito: total = histórico global del agente, sesión = del proyecto
+  abierto. Cabos: `byAgent` de Claude solo mira la última sesión (subagente viejo → «—»);
+  `[agents.*]` de Codex siempre 0/0 (el rollout no atribuye rol); los transcripts Claude
+  se leen dos veces por tick con sesión viva (contexto + tokens). Revisión **PASS** (un
+  NEEDS WORK por el acantilado de la caché, corregido y medido); humo headless Edge
+  250/730 px. Ajustes vistos por el usuario (commit `e4cdba6`): VER/EDIT van en un
+  `.agent-actions` con `margin-left: auto` (con `.agent-name` en `flex: 0 1 auto` y nombre
+  corto se quedaban pegados a los tokens) y el botón de sesión lleva el **svg del icono de
+  la app** en vez de `OPEN`/`CLAUDE`/`CODEX` (paths inline en `AGENT_LOGOS`: opencode y
+  Claude de simple-icons, Codex de lobehub — no hay svg en los installs locales; `d` de
+  opencode también en el HTML para no pintar en blanco antes del primer `render`).
+  Segunda ronda del usuario (commit `f14fde4`): `--text-dim` queda **solo** para apagado
+  (`:disabled`, `.off`, placeholder) — nombres, rótulos de sección, `summary` y VER/EDIT van a
+  `--text` y lo secundario (modelo, tokens, leyendas) a `--text-soft` (intermedio, en el CSS de
+  cada panel, nunca en `tokens.css`); las cabeceras MCP/PLUGINS usan la misma rejilla
+  `--cat-cols` que `.cols`, en una sola fila (`GLOBAL` sobre su columna, `+ PLUGIN` empujado a
+  la derecha sin desplazarla; a ≤340 px se ocultan el nombre de área y « PLUGIN»). Modelos
+  reordenado y luego compactado a UNA línea (commit `a2af1f9`, esquema del usuario): dos botones
+  arriba y fila ACTUAL `[etiqueta][nombre][recientes][buscar]`; RECIENTES y BUSCADOR ya no son
+  `<details>`: desplegables ABSOLUTOS bajo la fila, excluyentes, que cierran con clic fuera /
+  Escape / elegir (mandan la misma acción al host). El de recientes solo lista los 5 (sin
+  título; oculto en el modo agrupado de Claude); el del buscador lleva `#search` + `#total`
+  fijos arriba (`flex:none`) y `#all`/`#groups` scrollean dentro (`max-height: 45vh`). `#note`
+  debajo, solo con texto. Revisión PASS (1ª ronda NEEDS WORK: se cayó la clave `el.recent` y
+  el render petaba sin `groups` — opencode/Codex). Falta verlo en VS Code (reempaquetar el
+  `.vsix` para ello).
+- Dictado (commit `a2af1f9`): ENVIAR conserva los saltos del bloc — se quitó el aplastamiento
+  de `promptText()` (`media/dictado.js`) y de `sendPrompt()`. Multilínea viaja a la terminal
+  como pegada con corchetes (`\x1b[200~…\x1b[201~`: sin bracketed paste cada `\n` era un Enter
+  que partía el prompt); de una línea va crudo. El Enter final sigue aplazado 100 ms y el
+  portapapeles sin terminal conserva los `\n`. Riesgo aceptado: un terminal SIN modo 2004 vería
+  los escapes literales en multilínea; los TUI destino (opencode/Claude/Codex) lo soportan.
+- Panel de voz (commit `a2af1f9`): los píxeles de cada agente en vuelo usan el `color:` de su
+  `.md` (`WorkingAgent.color`, resuelto en `refreshStats`: opencode busca en `agentList.project`
+  → `global`; Claude usa `claudeExplorer`, que ahora se calcula UNA vez por tick y se pasa a
+  `buildExplorerData(claudeData)`). Tiñen el hex de 6 y los 8 nombres de Claude (`PALETTE` en
+  `panel.js` casa `claudeAgent.css:363-370`); los nombres de tema de opencode caen al acento,
+  como en el explorador.
+- `main` va 5 commits por delante de `origin/main` (`6cde908`, `e4cdba6`, `79c7789`,
+  `f14fde4`, `a2af1f9`), pendientes de push (el usuario quiere aprobarlo; nada tocado en
+  GitHub). Los anteriores ya los subió él.
+- Cambios locales de la persona sin commitear: `AGENTS.md` (nota sobre idea.md) e
+  `idea.md` (esquemas nuevos al final). No commitearlos salvo orden.
 
 ## Decisiones
 
@@ -112,8 +162,9 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   object», y con un id inexistente contesta 404 aunque el cuerpo falte, así que probar la
   ruta con un id falso no detecta el cuerpo que falta.
 - El bloque MODELOS es vista propia (`opencodeAgents.models`, `src/panels/modelsPanel.ts` +
-  `media/models.*`), entre Explorador y Contexto, **siempre desplegada**: sin `<details>`,
-  el buscador y los tres grupos se ven de entrada. No toca la config: cambia la sesión viva
+  `media/models.*`), entre Explorador y Contexto. Orden (2026-10-25): los dos botones, ACTUAL,
+  RECIENTES y BUSCADOR como `<details>` plegables (dentro del segundo: input, `#all` o
+  `#groups` en Claude, y `#total`). No toca la config: cambia la sesión viva
   con `opencode api` (ver `AGENTS.md`) y guarda los 5 últimos elegidos en
   `opencodeAgents.recentModels` (`globalState`). El modelo en uso sale de la última sesión
   raíz del proyecto en `session_v2`, no del TUI; si se cambia desde el TUI, la vista lo
@@ -123,8 +174,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   puede ejecutar. Coste del spawn: ~120 ms; solo en el arranque y al guardar config, nunca
   en el sondeo de 2 s. Cada modelo lleva `free` cuando la tarifa viene a cero en todos los
   tramos (65 de 688); el nombre nunca se usa como pista.
-- El botón de sesión del Explorador es un selector de agente (`‹ ▶ OPEN ›`,
-  `‹ ▶ CLAUDE ›`, `‹ ▶ CODEX ›`, acción `cycleAgent`): abre una terminal **por agente** y no
+- El botón de sesión del Explorador es un selector de agente (`‹ [logo] ›`: svg con el icono
+  de opencode / Claude / Codex en `AGENT_LOGOS` de `media/explorer.js`, antes decía `OPEN` /
+  `CLAUDE` / `CODEX`; el nombre legible va en `title`/`aria-label`), acción `cycleAgent`):
+  abre una terminal **por agente** y no
   toca las de los otros. Con sesión viva/medida se reanuda por id (`claude --resume <id>`,
   `codex resume <id>`); sin id caen a `claude --continue` / `codex resume --last`. Sin
   historial el CLI avisa y se cierra (decisión del usuario: no encadenar un fallback). Los CLIs se detectan **una vez al activar** (`where`/`which`, `timeout` 5 s,
@@ -162,8 +215,12 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   opencode sigue siendo `POST /api/session/<id>/compact` con cuerpo `{}`.
 - En Claude no hay agente «primary»: el orquestador es `CLAUDE.md` (su prompt, con
   `@AGENTS.md` al final para cargar las reglas del repo). Por eso **no** hay
-  `.claude/agents/orquestador.md`: se retiró a propósito. Con CLAUDE seleccionado, LOCAL
-  abre `AGENTS.md` y `CLAUDE.md`; GLOBAL sigue abriendo `~/.claude/CLAUDE.md`.
+  `.claude/agents/orquestador.md`: se retiró a propósito. Con CLAUDE seleccionado, PROYECTO
+  abre UN solo fichero siguiendo la precedencia de Claude Code (`CLAUDE.md`; si no,
+   `AGENTS.md`; si no hay ninguno, ofrece crear `CLAUDE.md` en vez de escribirlo en silencio);
+   GLOBAL sigue abriendo/creando `~/.claude/CLAUDE.md`. Compartido por el botón y por la fila
+   `CLAUDE` en `openClaudeInstructions(scope)`; el `title` nombra el fichero del proveedor
+   (`AGENT_FILE` en `media/explorer.js`).
 - Las terminales de agente se abren como **pestaña del grupo activo** (`ViewColumn.Active`),
   nunca con `Beside`: se cambia con la pestaña de arriba. `openTerminal` tolera una entrada
   del mapa ya destruida (leer `exitStatus` de una terminal dispose lanza y el clic no hacía
@@ -173,7 +230,7 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
 - En Claude el Explorador pinta una única fila INTEGRADOS `CLAUDE` (la sesión principal):
   no hay integrados reales y la lista salía vacía. Se marca EN VUELO con el mismo registro
   de sesiones y su clic abre el fichero de instrucciones (`CLAUDE.md`, o `AGENTS.md` si no
-  hay), creado vacío si falta.
+  hay), y si no hay ninguno ofrece crear `CLAUDE.md` en vez de escribirlo en silencio.
 - Editar o crear un subagente de Claude abre un panel propio (`ClaudeAgentPanel`), no el
   `.md`: identidad, herramientas (omitir = hereda todas), modelo con alias y mapeo, color
   nominal, `permissionMode`/`effort`, avanzado (`maxTurns`, `skills`, `memory`, `isolation`,
