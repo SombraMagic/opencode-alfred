@@ -36,38 +36,33 @@ body.vscode-light {
   white-space: nowrap;
 }
 
-.hud-status {
-  flex-shrink: 0;
-}
-
-.hud-meta {
-  margin: 0 0 2px;
-  font-size: 9px;
-  letter-spacing: 1px;
-  color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ── Lectura de tokens ────────────────────────────────── */
-.caption-row {
+/* ── Lectura principal: porcentaje, tokens y compactar ── */
+.usage-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 7px;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
 }
 
-.caption {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  font-size: 9px;
-  letter-spacing: 1.2px;
+.pct {
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: 1px;
   color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.pct.ok {
+  color: var(--neon);
+  text-shadow: 0 0 12px var(--neon-dim);
+}
+
+.pct.busy {
+  color: var(--amber);
+}
+
+.pct.error {
+  color: var(--magenta);
 }
 
 .compact-btn {
@@ -78,7 +73,7 @@ body.vscode-light {
   font-family: inherit;
   font-size: 9px;
   letter-spacing: 1px;
-  padding: 2px 6px;
+  padding: 4px 7px;
   cursor: pointer;
   text-transform: uppercase;
 }
@@ -94,19 +89,33 @@ body.vscode-light {
   background: color-mix(in srgb, var(--neon) 38%, transparent);
 }
 
+.tokens {
+  margin: 0;
+  font-size: 11.5px;
+  letter-spacing: 0.8px;
+  color: var(--text);
+}
+
+.free {
+  margin: 3px 0 0;
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+}
+
 /* ── Rejilla de celdas (20 × 8 = 160, igual que TOTAL en context.js) ── */
 .cells {
   display: grid;
   grid-template-columns: repeat(20, minmax(0, 1fr));
   gap: 2px;
-  max-width: 260px;
-  margin: 0 auto 8px;
+  margin: 10px 0 8px;
 }
 
 .cell {
   aspect-ratio: 1 / 1;
   background: var(--bg-soft);
   border: 1px solid var(--line-soft);
+  border-radius: 2px;
 }
 
 .cell.on {
@@ -115,36 +124,71 @@ body.vscode-light {
   box-shadow: 0 0 3px var(--k, var(--neon));
 }
 
-/* ── Leyenda a dos columnas ───────────────────────────── */
-.legend {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 8px;
-  margin: 0;
-  padding: 6px 0 0;
+/* ── Leyenda colapsable (una columna, para leerla sin forzar la vista) ── */
+.legend-box {
   border-top: 1px solid var(--line);
+}
+
+.legend-box > summary {
+  padding: 4px 0 2px;
+  font-size: 9.5px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+}
+
+.legend-box > summary::-webkit-details-marker {
+  display: none;
+}
+
+.legend-box > summary::before {
+  content: "▸ ";
+  color: var(--neon);
+}
+
+.legend-box[open] > summary::before {
+  content: "▾ ";
+}
+
+.legend-box > summary:hover,
+.legend-box > summary:focus-visible {
+  color: var(--neon);
+  outline: none;
+}
+
+.legend {
+  margin: 2px 0 0;
+  padding: 0;
   list-style: none;
 }
 
 .legend li {
   display: grid;
-  grid-template-columns: 7px minmax(0, 1fr);
-  gap: 0 5px;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 0 7px;
   align-items: center;
   min-width: 0;
+  padding: 3px 0;
+}
+
+.legend li + li {
+  border-top: 1px solid var(--line-soft);
 }
 
 .sw {
   grid-row: span 2;
   align-self: stretch;
-  min-height: 10px;
+  min-height: 12px;
   background: var(--k, var(--neon));
-  box-shadow: 0 0 5px var(--k, var(--neon));
+  box-shadow: 0 0 6px var(--k, var(--neon));
+  border-radius: 1px;
 }
 
 .lg-name {
-  font-size: 10px;
-  line-height: 1.25;
+  font-size: 11px;
+  line-height: 1.3;
   letter-spacing: 0.4px;
   color: var(--text);
   overflow: hidden;
@@ -154,8 +198,8 @@ body.vscode-light {
 }
 
 .lg-num {
-  font-size: 9px;
-  line-height: 1.25;
+  font-size: 10px;
+  line-height: 1.3;
   letter-spacing: 0.6px;
   color: var(--text-dim);
   white-space: nowrap;
@@ -166,17 +210,7 @@ abbr {
   cursor: help;
 }
 
-/* ── Pie y error ──────────────────────────────────────── */
-.footer {
-  margin: 6px 0 0;
-  font-size: 9px;
-  letter-spacing: 1.2px;
-  color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* ── Error ────────────────────────────────────────────── */
 .banner {
   margin: 10px 0 0;
   padding: 8px;

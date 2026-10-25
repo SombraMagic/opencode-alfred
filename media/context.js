@@ -5,16 +5,22 @@
 
   const el = {
     title: document.getElementById("title"),
-    status: document.getElementById("status"),
-    meta: document.getElementById("meta"),
     banner: document.getElementById("banner"),
     usage: document.getElementById("usage"),
-    caption: document.getElementById("caption"),
+    pct: document.getElementById("pct"),
+    tokens: document.getElementById("tokens"),
+    free: document.getElementById("free"),
     compact: document.getElementById("compact"),
     cells: document.getElementById("cells"),
     legend: document.getElementById("legend"),
-    footer: document.getElementById("footer"),
   };
+
+  // La leyenda arranca abierta; el plegado se recuerda en el estado del webview.
+  const legendBox = document.getElementById("legend-box");
+  legendBox.open = !(vscode.getState() || {}).legendCollapsed;
+  legendBox.addEventListener("toggle", () => {
+    vscode.setState({ legendCollapsed: !legendBox.open });
+  });
 
   // Misma escala que media/stats.js.
   function fmtTokens(n) {
@@ -83,6 +89,8 @@
     slices.forEach((s) => {
       const li = document.createElement("li");
       li.className = keyClass(s.key);
+      li.title =
+        s.label + ": " + (s.estimated ? "~" : "") + fmtTokens(s.tokens) + " tokens";
 
       const sw = document.createElement("span");
       sw.className = "sw";
@@ -115,9 +123,6 @@
     if (!info.ok) {
       el.title.textContent = "CONTEXTO";
       el.title.title = "";
-      el.meta.textContent = "";
-      el.status.textContent = "ERROR";
-      el.status.className = "hud-status error";
       el.usage.hidden = true;
       el.banner.hidden = false;
       el.banner.textContent = info.error || "No se pudo leer el contexto.";
@@ -131,43 +136,42 @@
 
     el.title.textContent = label;
     el.title.title = label;
-    el.meta.textContent = [info.agent, info.model].filter(Boolean).join(" · ");
     el.usage.hidden = false;
 
+    // Porcentaje protagonista; sin límite conocido no hay lectura posible.
     const pct = limit > 0 ? Math.round((used / limit) * 100) : 0;
-    if (limit > 0) {
-      el.status.textContent = pct + "%";
-      el.status.removeAttribute("title");
-    } else {
-      el.status.textContent = "—";
-      el.status.title = "Límite de contexto desconocido";
-    }
     const level = limit > 0 ? (pct >= 90 ? "error" : pct >= 70 ? "busy" : "ok") : "";
-    el.status.className = "hud-status" + (level ? " " + level : "");
+    el.pct.textContent = limit > 0 ? pct + "%" : "—";
+    if (limit > 0) {
+      el.pct.removeAttribute("title");
+    } else {
+      el.pct.title = "Límite de contexto desconocido";
+    }
+    el.pct.className = "pct" + (level ? " " + level : "");
 
-    const caption =
+    const tokens =
       limit > 0
         ? fmtTokens(used) + " / " + fmtTokens(limit) + " tokens"
         : fmtTokens(used) + " tokens";
-    el.caption.textContent = info.estimated ? "~" + caption : caption;
+    el.tokens.textContent = info.estimated ? "~" + tokens : tokens;
     if (info.estimated) {
-      el.caption.title =
+      el.tokens.title =
         "Estimado: todavía no hay una petición medida después de compactar la sesión";
     } else {
-      el.caption.removeAttribute("title");
+      el.tokens.removeAttribute("title");
+    }
+
+    if (used === 0) {
+      el.free.textContent = "Sin datos todavía";
+    } else if (limit > 0) {
+      el.free.textContent = "Libre: " + fmtTokens(Math.max(0, limit - used)) + " tokens";
+    } else {
+      el.free.textContent = "límite desconocido";
     }
 
     const slices = Array.isArray(info.slices) ? info.slices : [];
     renderGrid(slices, denom);
     renderLegend(slices, denom);
-
-    if (used === 0) {
-      el.footer.textContent = "Sin datos todavía";
-    } else if (limit > 0) {
-      el.footer.textContent = "Libre: " + fmtTokens(Math.max(0, limit - used));
-    } else {
-      el.footer.textContent = "límite desconocido";
-    }
   }
 
   window.addEventListener("message", (event) => {

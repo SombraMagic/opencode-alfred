@@ -95,18 +95,22 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
   <div class="hud-header">
     <span class="hud-dot"></span>
     <span class="hud-title" id="title">CONTEXTO</span>
-    <span class="hud-status" id="status">—</span>
   </div>
-
-  <p class="hud-meta" id="meta">Leyendo datos de opencode…</p>
 
   <div id="banner" class="banner" hidden></div>
 
   <section id="usage" hidden>
-    <div class="caption-row"><p class="caption" id="caption"></p><button id="compact" class="compact-btn" type="button" title="Compactar la conversación (equivale a /compact)">COMPACTAR</button></div>
+    <div class="usage-head">
+      <span class="pct" id="pct">—</span>
+      <button id="compact" class="compact-btn" type="button" title="Compactar la conversación (equivale a /compact)">COMPACTAR</button>
+    </div>
+    <p class="tokens" id="tokens"></p>
+    <p class="free" id="free"></p>
     <div id="cells" class="cells" role="img" aria-label="Ocupación de la ventana de contexto"></div>
-    <ul id="legend" class="legend"></ul>
-    <p id="footer" class="footer"></p>
+    <details id="legend-box" class="legend-box">
+      <summary>Leyenda</summary>
+      <ul id="legend" class="legend"></ul>
+    </details>
   </section>
 </div>
 <script nonce="${nonce}" src="${scriptUri}"></script>
