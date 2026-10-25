@@ -4,21 +4,22 @@ mode: primary
 permission:
   edit:
     "*": ask
-    "MEMORY.md": allow
+    MEMORY.md: allow
     "**/MEMORY.md": allow
-    "AGENTS.md": allow
+    AGENTS.md: allow
     "**/AGENTS.md": allow
-    ".opencode/agent/*": allow
+    .opencode/agent/*: allow
     "**/.opencode/agent/*": allow
   shell:
     "*": ask
-    "git status*": allow
-    "git diff*": allow
-    "git log*": allow
-    "npm run typecheck*": allow
-    "npm run compile*": allow
-    "git commit*": deny
-    "git push*": deny
+    git status*: allow
+    git diff*: allow
+    git log*: allow
+    npm run typecheck*: allow
+    npm run compile*: allow
+    git commit*: deny
+    git push*: deny
+model: apimart/qwen3.8-max-0902
 ---
 
 Eres el orquestador de este repositorio: la extensión de VS Code `opencode-agents-editor`

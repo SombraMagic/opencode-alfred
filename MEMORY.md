@@ -30,8 +30,9 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   AGENTES en Modelos (solo opencode), pestaña central de tres columnas, alta clave/OAuth/
   externa/comando y borrado con modal. Revisión **PASS**; falta probar un alta real y verlo
   en VS Code. `.vsix` reempaquetado e instalado (`sombra.opencode-alfred@0.1.0`).
-- `main` va por delante de `origin/main`: commits locales del dictado (`2eba67e`) y del
-  panel de conectores, pendientes de push.
+- `main` va por delante de `origin/main`: commits locales del dictado (`2eba67e`), del
+  panel de conectores (`782d57d`), del resaltado de cables (`34c8249`) y del pegado de texto
+  en el bloc (`255d6f1`), pendientes de push.
 
 ## Decisiones
 
@@ -171,7 +172,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (ignorado por `.gitignore` y `.vscodeignore`) o en el almacén global sin carpeta, y el bloc
   `contenteditable` las guarda como `[[img:ruta-escapada]]`. Probado por el usuario en VS Code.
   Pegar **texto** de varias líneas llegaba fundido a ENVIAR porque Chromium lo mete en `<div>`
-  y `serialize()` solo entendía `BR`: arreglado y verificado en Chromium headless.
+  y `serialize()` solo entendía `BR`: arreglado y verificado en Chromium headless. Pegar texto
+  plano tampoco entraba (Ctrl+V ignorado): la rama usaba `execCommand("insertText")`, poco
+  fiable en el webview, y `getData("text/plain")` a veces viene vacío. Ahora inserta por
+  Range (`insertPlainText`) con fallback al `item.getAsString`. Commit `255d6f1`.
 - Asignación agentes↔modelos es pestaña central (`AssignPanel` + `media/assign.*`), abierta
   desde el botón de la vista Modelos (`opencodeAgents.assignModels`). Conectar escribe
   `model:` en el `.md` (no cambia la sesión viva, solo las nuevas). Los integrados sin
@@ -179,7 +183,9 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (comprobado con `opencode debug agents`). Favoritos en `opencodeAgents.favoriteModels`. El
   tablero se cierra al cambiar a Claude/Codex. Tres columnas, `media/assign.html` como
   plantilla con marcadores. El buscador y los conectores apagados persisten en
-  `assignSearch`/`assignProvidersOff` (debounce de 300 ms en el webview).
+  `assignSearch`/`assignProvidersOff` (debounce de 300 ms en el webview). Clic en un agente
+  o en un favorito resalta el cable que los conecta (`hot`/`sel`, estado solo visual del
+  webview; otro clic deselecciona).
 - Conectores de opencode: pestaña central (`ConnectorsPanel` + `media/connectors.*`) abierta
   con el botón CONECTORES de Modelos, visible solo con opencode. La izquierda une
   `GET /api/integration`, `GET /api/provider`, `GET /api/model` y el catálogo models.dev
@@ -209,6 +215,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
 - `cancelAttempt` distingue OAuth y comando: el `DELETE` de comando va a
   `/connect/command/<attempt>`, no a `/connect/oauth/<attempt>`.
 - `npm run compile` no valida tipos: esbuild no typechequea.
+- VS Code carga la extensión **instalada** (`%USERPROFILE%\.vscode\extensions\…`), no el repo:
+  un cambio en `media/*` o `dist/` no se ve hasta reempaquetar el `.vsix`
+  (`npx @vscode/vsce package`), reinstalar (`code --install-extension … --force`) y
+  recargar la ventana. El usuario probó así un cambio "invisible" por esto.
 - opencode v2 descarta en silencio un `.md` de agente cuyo `color:` no sea un hex
   `#rrggbb`: con un color con nombre y sin bloque `permission:`, el agente no se
   registra y `subagent` responde "Agent not found". Comprobar con `opencode debug agents`.

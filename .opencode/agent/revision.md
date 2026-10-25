@@ -13,6 +13,7 @@ permission:
     npm run compile*: allow
     git commit*: deny
     git push*: deny
+model: apimart/deepseek-v4.1-flash
 ---
 
 Eres el revisor de este repositorio: la extensión de VS Code `opencode-agents-editor`.
