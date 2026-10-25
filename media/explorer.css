@@ -2,6 +2,13 @@
 
 .hud {
   padding: 0 10px 18px;
+  /* Regla de color de este panel: `--text-dim` SOLO para lo deshabilitado/apagado
+     (`:disabled`, `.agent.disabled`, `.entry.off`, iconos discontinuos y vacíos);
+     nombres, rótulos y botones van con `--text`, y lo secundario (modelo, tokens,
+     leyenda) con este intermedio. */
+  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
+  /* Rejilla única del catálogo: los rótulos de área se alinean con estas columnas. */
+  --cat-cols: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 /* ── [MANDO]: una cabecera, dos filas ──────────────────── */
@@ -156,13 +163,18 @@
   border-bottom: 1px solid var(--line-soft);
 }
 
+/* El rótulo de la sección no está apagado: `--text`; su cuenta la hereda. */
+.section-head .label {
+  color: var(--text);
+}
+
 .count {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 9px;
   letter-spacing: 0.8px;
-  color: var(--text-dim);
+  color: var(--text);
   white-space: nowrap;
 }
 
@@ -264,7 +276,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--text-soft);
 }
 
 /* Efecto de trabajo: las barras del HUD junto al nombre. Streaming acelera el pulso. */
@@ -324,7 +336,7 @@
 .agent-tokens {
   flex: none;
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--text-soft);
   white-space: nowrap;
 }
 
@@ -348,6 +360,13 @@
   .agent {
     gap: 4px;
   }
+
+  /* En la barra estrecha el prefijo del área y la palabra del botón no caben en su
+     columna: se caen (el rótulo y el `+` se quedan, el rótulo sigue en su borde). */
+  .area-name,
+  .add-plugin-name {
+    display: none;
+  }
 }
 
 .mini {
@@ -355,7 +374,7 @@
   padding: 2px 4px;
   background: transparent;
   border: 1px solid var(--line-soft);
-  color: var(--text-dim);
+  color: var(--text);
   font-family: inherit;
   font-size: 10px;
   letter-spacing: 0.5px;
@@ -374,41 +393,59 @@
   display: grid;
   /* minmax(0,…) deja que las columnas encojan: con `1fr` la rejilla se sale
      cuando una entrada tiene un nombre largo y no cabe recortarlo. */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: var(--cat-cols);
   gap: 8px;
 }
 
-/* Un área (MCP, PLUGINS) es una línea de rótulo y las dos columnas. */
+/* Un área (MCP, PLUGINS): UNA fila con la rejilla de `.cols`, para no gastar una línea
+   extra y que cada rótulo caiga encima de su lista. Celda 1 = nombre del área + GLOBAL;
+   celda 2 = PROYECTO y, si toca, el botón pegado al borde derecho. */
 .area-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--cat-cols);
+  gap: 0 8px;
   align-items: baseline;
-  gap: 6px;
   padding-bottom: 3px;
   margin: 10px 0 3px;
   border-bottom: 1px solid var(--line-soft);
 }
 
+/* Cada celda es una línea: el rótulo se apoya en su borde izquierdo (y así casa con la
+   lista de abajo); el `margin-left: auto` del botón no lo desplaza. */
+.area-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* El nombre del área va delante del rótulo de su columna, dentro de la misma celda. */
 .area-name {
-  flex: none;
   font-size: 10px;
   letter-spacing: 1.6px;
-  color: var(--text-dim);
+  color: var(--text);
+}
+
+.area-head .add-plugin {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 5px;
+  color: var(--text);
 }
 
 .legend {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 9.5px;
   letter-spacing: 0.8px;
-  color: var(--text-dim);
+  color: var(--text-soft);
 }
 
-.area-head .add-plugin {
-  flex: none;
-  margin-left: auto;
+/* El número hereda el tono de la leyenda (no el `--text` del `.count` suelto). */
+.legend .count {
+  color: inherit;
 }
 
 .cols + .fold {
@@ -488,7 +525,7 @@
   padding: 3px 0;
   font-size: 10px;
   letter-spacing: 1.4px;
-  color: var(--text-dim);
+  color: var(--text);
   cursor: pointer;
   list-style: none;
 }
@@ -543,7 +580,7 @@
 .empty {
   padding: 3px 4px 4px;
   font-size: 10px;
-  color: var(--text-dim);
+  color: var(--text-soft);
 }
 
 .banner {

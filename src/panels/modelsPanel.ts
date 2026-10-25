@@ -156,6 +156,10 @@ export class ModelsPanel implements vscode.WebviewViewProvider {
 <body>
 <div class="hud">
   <div class="models">
+    <div id="actions" class="panel-actions" hidden>
+      <button id="connectors" class="assign-btn" type="button" title="Gestionar los conectores de opencode">CONECTORES</button>
+      <button id="assign" class="assign-btn" type="button" title="Asignar agentes a modelos" hidden>ASIGNAR AGENTES</button>
+    </div>
     <div id="head" class="models-head" hidden>
       <div id="title" class="models-title" hidden></div>
       <div id="tags" class="models-tags" hidden>
@@ -163,19 +167,20 @@ export class ModelsPanel implements vscode.WebviewViewProvider {
         <button id="t-sub" class="tag" type="button" aria-pressed="false">SUBAGENTES</button>
       </div>
     </div>
-    <div id="actions" class="panel-actions" hidden>
-      <button id="connectors" class="assign-btn" type="button" title="Gestionar los conectores de opencode">CONECTORES</button>
-      <button id="assign" class="assign-btn" type="button" title="Asignar agentes a modelos" hidden>ASIGNAR AGENTES</button>
-    </div>
-    <input id="search" class="model-search" type="search" placeholder="Buscar conector o modelo…" autocomplete="off" spellcheck="false" aria-label="Buscar modelo" />
     <div class="group"><span class="group-name">ACTUAL</span><button id="clear" type="button" hidden>SIN FIJAR</button></div>
     <div id="now" class="list"></div>
     <div id="note" class="note" hidden></div>
-    <div id="groups" hidden></div>
-    <div id="recent-group" class="group"><span class="group-name">RECIENTES</span></div>
-    <div id="recent" class="list"></div>
-    <div id="all-group" class="group"><span class="group-name">TODOS</span><span class="count" id="total"></span></div>
-    <div id="all" class="list scroll"></div>
+    <details id="recent-group" class="fold" open>
+      <summary class="group"><span class="group-name">RECIENTES</span></summary>
+      <div id="recent" class="list"></div>
+    </details>
+    <details id="search-group" class="fold" open>
+      <summary class="group"><span class="group-name">BUSCADOR</span></summary>
+      <input id="search" class="model-search" type="search" placeholder="Buscar conector o modelo…" autocomplete="off" spellcheck="false" aria-label="Buscar modelo" />
+      <div id="groups" hidden></div>
+      <div id="all-group" class="group"><span class="group-name">TODOS</span><span class="count" id="total"></span></div>
+      <div id="all" class="list scroll"></div>
+    </details>
   </div>
 </div>
 <script nonce="${nonce}" src="${scriptUri}"></script>

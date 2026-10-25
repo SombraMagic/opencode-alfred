@@ -19,12 +19,52 @@ body {
 }
 
 /* ── Contenedor ────────────────────────────────────────── */
-/* Todo desplegado: la vista entera es la lista, sin pliegue que abrir. */
+/* Dos bloques plegables (RECIENTES y BUSCADOR) y, dentro del buscador, la lista. */
 .models {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Texto secundario (conector, procedencia, estados vacíos). `--text-dim` se queda
+     solo para lo apagado y lo deshabilitado: lo normal no debe parecerlo. */
+  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
+}
+
+/* ── Bloques plegables ─────────────────────────────────── */
+/* Chromium envuelve el contenido del <details> en una caja que no cede el alto
+   disponible: con `display: contents` la lista vuelve a ser la que scrollea dentro.
+   El plegado lo hace entonces la regla de abajo, no el mecanismo de la sombra. */
+.fold[open]::details-content {
+  display: contents;
+}
+
+.fold:not([open]) > :not(summary) {
+  display: none;
+}
+
+.fold > summary {
+  cursor: pointer;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary::before {
+  content: "▸";
+}
+
+.fold[open] > summary::before {
+  content: "▾";
+}
+
+/* Abierto, el buscador se queda con el alto libre: la lista de TODOS scrollea dentro y
+   el resto del panel no se desplaza. Cerrado vuelve a su alto (`.models > *`). */
+#search-group[open] {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
 }
 
 /* Solo la lista de TODOS crece: el resto conserva su alto y, si no cabe, scrollea el body. */
@@ -50,7 +90,7 @@ body {
   min-width: 0;
   font-size: 11px;
   letter-spacing: 2px;
-  color: var(--text-dim);
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -69,7 +109,7 @@ body {
 .tag {
   background: transparent;
   border: 1px solid var(--line-soft);
-  color: var(--text-dim);
+  color: var(--text);
   font-family: inherit;
   font-size: 10px;
   letter-spacing: 1px;
@@ -94,7 +134,7 @@ body {
   padding: 0;
   background: none;
   border: none;
-  color: var(--text-dim);
+  color: var(--text);
   font-family: inherit;
   font-size: 10px;
   letter-spacing: 1px;
@@ -112,7 +152,7 @@ body {
   margin: 2px 0 0 5px;
   font-size: 11px;
   line-height: 1.35;
-  color: var(--text-dim);
+  color: var(--text-soft);
 }
 
 /* Con grupos del proveedor es la lista la que se queda con el alto libre. */
@@ -140,7 +180,7 @@ body {
 }
 
 .model-search::placeholder {
-  color: var(--text-dim);
+  color: var(--text-soft);
 }
 
 /* ── Tablero de asignación ─────────────────────────────── */
@@ -169,7 +209,7 @@ body {
   padding: 5px 8px;
   background: color-mix(in srgb, var(--neon) 8%, transparent);
   border: 1px solid var(--line);
-  color: var(--text-dim);
+  color: var(--text);
   font-family: inherit;
   font-size: 10px;
   letter-spacing: 1.6px;
@@ -187,6 +227,12 @@ body {
   border-color: var(--neon);
   color: var(--neon);
   outline: none;
+}
+
+/* Único sitio donde el gris apagado dice la verdad: un botón que no se puede pulsar. */
+.assign-btn:disabled {
+  color: var(--text-dim);
+  cursor: default;
 }
 
 /* El catálogo trae cientos de modelos: es la lista de TODOS la que se queda con el alto libre. */
@@ -228,7 +274,7 @@ body {
   max-width: 42%;
   font-size: 10.5px;
   letter-spacing: 0.6px;
-  color: var(--text-dim);
+  color: var(--text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -275,7 +321,7 @@ body {
   flex: none;
   max-width: 45%;
   font-size: 10px;
-  color: var(--text-dim);
+  color: var(--text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -294,19 +340,20 @@ body {
 .group-name {
   font-size: 11.5px;
   letter-spacing: 2px;
+  /* El cian del HUD no es un color «apagado»: se queda, no entra en la corrección de texto. */
   color: var(--neon);
 }
 
-/* El contador se queda apagado para no competir con la etiqueta. */
+/* El contador se lee como la etiqueta; ya no es un estado apagado. */
 .count {
   font-size: 10.5px;
   letter-spacing: 0.8px;
-  color: var(--text-dim);
+  color: var(--text);
   white-space: nowrap;
 }
 
 .empty {
   padding: 4px 5px;
   font-size: 12px;
-  color: var(--text-dim);
+  color: var(--text-soft);
 }
