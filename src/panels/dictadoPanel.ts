@@ -242,6 +242,9 @@ export class VozDictado {
       case "openAttachment":
         await this.openAttachment(String(msg.path ?? ""));
         break;
+      case "pickFiles":
+        await this.pickFiles();
+        break;
       case "sendPrompt":
         await this.sendPrompt(String(msg.text ?? ""));
         break;
@@ -549,6 +552,24 @@ export class VozDictado {
     if (!this.isAttachment(path)) return;
     try {
       await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(path));
+    } catch (err) {
+      this.fail(err);
+    }
+  }
+
+  /**
+   * Diálogo nativo de selección: soltar ficheros en una webview exige Mayús,
+   * así que esta vía siempre funciona. Las rutas van al bloc tal cual.
+   */
+  private async pickFiles() {
+    try {
+      const uris = await vscode.window.showOpenDialog({
+        canSelectMany: true,
+        openLabel: "Adjuntar al bloc",
+        title: "Adjuntar ficheros al bloc de notas",
+      });
+      if (!uris?.length) return;
+      this.post({ type: "files", paths: uris.map((uri) => uri.fsPath) });
     } catch (err) {
       this.fail(err);
     }

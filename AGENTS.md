@@ -205,7 +205,10 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   `file-*.<ext>` (los arrastrados desde el Explorador conservan su ruta original). El texto
   del bloc viaja como `[[img:ruta]]` y `[[file:ruta]]` con la ruta escapada; al enviar,
   `[[file:…]]` se convierte en `[fichero: "ruta"]`. `serialize()` tiene que entender `BR`
-  **y** los `<div>`/`<p>` que Chromium mete al pegar texto: si no, funde las líneas.
+  **y** los `<div>`/`<p>` que Chromium mete al pegar texto: si no, funde las líneas. Soltar
+  ficheros en una webview exige **Mayús** (sin él VS Code intercepta el gesto); por eso el
+  pie del bloc tiene ADJUNTAR, que pide los ficheros con `showOpenDialog` y los adjunta por
+  ruta.
 
 ## Convenciones
 

@@ -110,7 +110,13 @@
   }
 
   function press() {
-    if (listening || handsFree) return;
+    // El micro manda: con MANOS LIBRES puesto, lo apaga en vez de dictar encima.
+    if (handsFree) {
+      setHandsFree(false);
+      post({ type: "handsFree", on: false });
+      return;
+    }
+    if (listening) return;
     listening = true;
     syncMic();
     setState("listening", engine === "sapi" ? "Habla ahora" : "Grabando…");
@@ -513,19 +519,22 @@
     insertNodeAtCaret(document.createTextNode(" "));
   }
 
-  // Un <img> soltado tal cual quedaría sin data-path, invisible para serialize().
-  nota.addEventListener("dragover", (e) => {
+  // VS Code solo entrega un arrastre de ficheros con Mayús pulsada: se escucha en
+  // toda la sección para que valga cualquier punto del bloc, el pie incluido.
+  // Sin preventDefault en dragover, un <img> soltado se quedaría sin data-path.
+  const noteCol = nota.closest(".note");
+  noteCol.addEventListener("dragover", (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
-    nota.classList.add("dragging");
+    noteCol.classList.add("dragging");
   });
-  nota.addEventListener("dragleave", (e) => {
+  noteCol.addEventListener("dragleave", (e) => {
     // Solo al salir de verdad del bloc, no al pasar de un hijo a otro.
-    if (!nota.contains(e.relatedTarget)) nota.classList.remove("dragging");
+    if (!noteCol.contains(e.relatedTarget)) noteCol.classList.remove("dragging");
   });
-  nota.addEventListener("drop", async (e) => {
+  noteCol.addEventListener("drop", async (e) => {
     e.preventDefault();
-    nota.classList.remove("dragging");
+    noteCol.classList.remove("dragging");
     const dt = e.dataTransfer;
     if (!dt) return;
 
@@ -537,7 +546,12 @@
     }
 
     const files = Array.from(dt.files ?? []);
-    if (!files.length) return;
+    if (!files.length) {
+      // Arrastre de texto: no es un adjunto y no se avisa.
+      if (dt.types.includes("text/plain")) return;
+      setState("idle", "Suelta el fichero con Mayús, o pulsa ADJUNTAR.");
+      return;
+    }
     if (!attachmentsDir) {
       setState("error", "El panel aún no está listo para adjuntar.");
       return;
@@ -604,6 +618,8 @@
     saveNoteSoon();
     nota.focus();
   });
+  // Soltar exige Mayús: el diálogo nativo es la vía que siempre funciona.
+  $("attach").addEventListener("click", () => post({ type: "pickFiles" }));
 
   /** Texto que viaja al terminal: cada token se vuelve la ruta entrecomillada. */
   function promptText() {
@@ -699,6 +715,14 @@
           if (src) chip.replaceWith(imageChip(chip.dataset.path, src));
         }
         updateCount();
+        break;
+      }
+      case "files": {
+        // Rutas elegidas en el diálogo nativo: se adjuntan tal cual, sin copiarlas.
+        const paths = Array.isArray(msg.paths) ? msg.paths : [];
+        if (!paths.length) break;
+        for (const path of paths) addFileChip(String(path));
+        afterFiles(paths.length);
         break;
       }
       case "attachmentError": {
