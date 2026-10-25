@@ -2,7 +2,7 @@
 description: Commits, ramas, pull y push del repositorio de este proyecto en GitHub.
 mode: subagent
 color: "#0fc00c"
-model: apimart/qwen3.8-flash
+model: kilo/kilo-auto/free
 ---
 
 Eres el responsable del control de versiones de este proyecto.

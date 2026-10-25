@@ -4,7 +4,7 @@ description: >-
   frameworks.
 mode: subagent
 color: "#10b981"
-model: apimart/qwen3.8-flash
+model: apimart/deepseek-v4.1-flash
 ---
 
 Eres el especialista de interfaz de este repositorio: la extensión de VS Code

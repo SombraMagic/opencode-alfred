@@ -30,9 +30,21 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   AGENTES en Modelos (solo opencode), pestaña central de tres columnas, alta clave/OAuth/
   externa/comando y borrado con modal. Revisión **PASS**; falta probar un alta real y verlo
   en VS Code. `.vsix` reempaquetado e instalado (`sombra.opencode-alfred@0.1.0`).
-- `main` va por delante de `origin/main`: commits locales del dictado (`2eba67e`), del
-  panel de conectores (`782d57d`), del resaltado de cables (`34c8249`) y del pegado de texto
-  en el bloc (`255d6f1`), pendientes de push.
+- Editor de agentes opencode rediseñado (2026-10-25, commit `835f4c1`): estética HUD con
+  `tokens.css` (como el de Claude), permisos con las 15 tools conocidas y reglas de patrón
+  ordenadas (al añadir la primera regla con acción plana preexistente se siembra `*` con
+  esa acción; el orden de claves del fichero se conserva porque gana la última que
+  coincide), chips de color de tema + hex, opciones del proveedor (claves no gestionadas
+  editables), contador de prompt y vista previa del frontmatter calculada en el host con
+  `serializeAgentFile` (`preview` en init y en cada `validation`). `lsp` y `skill` movidos
+  a PATTERN_PERMISSION_TOOLS (doc oficial oct-2026; `catalog.ts` ya los escribía como
+  mapa). Efecto lateral buscado: `instructionsPanel` enlaza `tokens.css` y hereda la
+  estética HUD. Revisión **PASS** (orden de permission contrastado con `opencode debug
+  agents`); humos headless 55/55 + casos de corrección. `.vsix` reempaquetado e instalado;
+  falta verlo en VS Code real (popup del combo bajo la cabecera sticky, scanlines, temas).
+- `main` va 1 commit por delante de `origin/main`: el del editor (`835f4c1`), pendiente de
+  push. Los anteriores (dictado, conectores, resaltado, pegado) ya los subió la persona con
+  `b06e629`.
 
 ## Decisiones
 
@@ -219,9 +231,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   un cambio en `media/*` o `dist/` no se ve hasta reempaquetar el `.vsix`
   (`npx @vscode/vsce package`), reinstalar (`code --install-extension … --force`) y
   recargar la ventana. El usuario probó así un cambio "invisible" por esto.
-- opencode v2 descarta en silencio un `.md` de agente cuyo `color:` no sea un hex
-  `#rrggbb`: con un color con nombre y sin bloque `permission:`, el agente no se
-  registra y `subagent` responde "Agent not found". Comprobar con `opencode debug agents`.
+- Un `.md` de agente con `color:` de nombre (p. ej. `primary`) SÍ se registra en
+  opencode v2.1.4, pero `opencode debug agents` no conserva el color (el hex `#rrggbb`
+  sí). La doc oficial (oct-2026) documenta los nombres de tema; en la práctica actual
+  pulsar un chip de tema es un no-op silencioso. Comprobar con `opencode debug agents`.
 - El tool de delegación en opencode v2 se llama `subagent` y su parámetro es `agent`.
 - Los `.js` de `src/voice/core` son specifiers de TypeScript (`.js` en el import, `.ts`
   en disco): esbuild los resuelve, `tsc` también con `moduleResolution: Node16`. No los
@@ -240,8 +253,8 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   recortable con `.vscodeignore` si algún día importa el tamaño.
 - `.opencode/agent/*` y el manifiesto siguen llamando al proyecto `opencode-agents-editor`
   en varios textos.
-- `src/agents/validate.ts` acepta colores con nombre; opencode no. El validador es más
-  permisivo que el runtime.
+- `src/agents/validate.ts` acepta colores con nombre (la doc los lista); el runtime
+  v2.1.4 los ignora. El validador es más permisivo que el runtime.
 - `PATTERN_PERMISSION_TOOLS` en `src/agents/types.ts` dice `bash`; la clave real de
   opencode es `shell`.
 - `opencode-dev.db` (esquema v1, grande) no aparece en la vista de contexto: `scan` solo
