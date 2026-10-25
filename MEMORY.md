@@ -42,9 +42,20 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   estética HUD. Revisión **PASS** (orden de permission contrastado con `opencode debug
   agents`); humos headless 55/55 + casos de corrección. `.vsix` reempaquetado e instalado;
   falta verlo en VS Code real (popup del combo bajo la cabecera sticky, scanlines, temas).
-- `main` va 1 commit por delante de `origin/main`: el del editor (`835f4c1`), pendiente de
-  push. Los anteriores (dictado, conectores, resaltado, pegado) ya los subió la persona con
-  `b06e629`.
+- Ventana de Contexto rediseñada (2026-10-25, commits `f0b7086` + `9df2097`): una sola
+  fila `[pct] used / limit · Libre: X [COMPACTAR]` (pct ~17 px coloreado 70/90; ellipsis
+  si no cabe, nunca dos líneas; a <~320 px de barra se recorta la cola del Libre), fuera
+  agente·modelo y chip de estado (el error vive solo en el banner). Matriz 20×8 a ancho
+  completo; leyenda en `<details>` con UNA línea por entrada (swatch + nombre ellipsis +
+  tokens·% a la derecha), colapsado persistente con `vscode.getState()/setState()` del
+  webview (VS Code lo conserva entre reinicios; no hace falta globalState del host).
+  Revisión **PASS** en las dos rondas; humos headless en Edge (250 px, tema claro,
+  limit=0, estimated, ok=false) con alturas medidas (−141 px). `.vsix` reempaquetado e
+  instalado; falta el veredicto visual del usuario.
+- `main` va 2 commits por delante de `origin/main` (`f0b7086`, `9df2097`), pendientes de
+  push. Los anteriores (editor, memoria, dictado, conectores…) ya están subidos.
+- Cambio local de la persona sin commitear: `.opencode/agent/codigo-vscode.md` (modelo del
+  subagente). No commitearlo salvo orden.
 
 ## Decisiones
 

@@ -2,7 +2,7 @@
 description: Implementa y verifica el código de este repo. Experto en TypeScript y extensiones de VS Code.
 mode: subagent
 color: "#3b82f6"
-model: apimart/qwen3.8-max-0902
+model: apimart/deepseek-v4.1-flash
 ---
 
 Eres el desarrollador de este repositorio: la extensión de VS Code `opencode-agents-editor`
