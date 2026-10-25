@@ -9,7 +9,6 @@
     usage: document.getElementById("usage"),
     pct: document.getElementById("pct"),
     tokens: document.getElementById("tokens"),
-    free: document.getElementById("free"),
     compact: document.getElementById("compact"),
     cells: document.getElementById("cells"),
     legend: document.getElementById("legend"),
@@ -149,24 +148,26 @@
     }
     el.pct.className = "pct" + (level ? " " + level : "");
 
-    const tokens =
-      limit > 0
-        ? fmtTokens(used) + " / " + fmtTokens(limit) + " tokens"
-        : fmtTokens(used) + " tokens";
-    el.tokens.textContent = info.estimated ? "~" + tokens : tokens;
+    // Cifras en una sola línea: gastado, límite y libre (o el caso que toque).
+    let figs;
+    if (used === 0) {
+      figs = "Sin datos todavía";
+    } else if (limit > 0) {
+      figs =
+        fmtTokens(used) +
+        " / " +
+        fmtTokens(limit) +
+        " · Libre: " +
+        fmtTokens(Math.max(0, limit - used));
+    } else {
+      figs = fmtTokens(used) + " · límite desconocido";
+    }
+    el.tokens.textContent = info.estimated && used !== 0 ? "~" + figs : figs;
     if (info.estimated) {
       el.tokens.title =
         "Estimado: todavía no hay una petición medida después de compactar la sesión";
     } else {
       el.tokens.removeAttribute("title");
-    }
-
-    if (used === 0) {
-      el.free.textContent = "Sin datos todavía";
-    } else if (limit > 0) {
-      el.free.textContent = "Libre: " + fmtTokens(Math.max(0, limit - used)) + " tokens";
-    } else {
-      el.free.textContent = "límite desconocido";
     }
 
     const slices = Array.isArray(info.slices) ? info.slices : [];

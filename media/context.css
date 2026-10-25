@@ -36,17 +36,16 @@ body.vscode-light {
   white-space: nowrap;
 }
 
-/* ── Lectura principal: porcentaje, tokens y compactar ── */
-.usage-head {
+/* ── Lectura en una línea: porcentaje, cifras y compactar ── */
+.usage-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 5px;
+  gap: 6px;
 }
 
 .pct {
-  font-size: 24px;
+  flex: none;
+  font-size: 17px;
   line-height: 1;
   letter-spacing: 1px;
   color: var(--text-dim);
@@ -65,8 +64,20 @@ body.vscode-light {
   color: var(--magenta);
 }
 
+.tokens {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  letter-spacing: 0.8px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .compact-btn {
   flex: none;
+  margin-left: auto;
   background: color-mix(in srgb, var(--neon) 14%, transparent);
   border: 1px solid var(--neon-dim);
   color: var(--neon);
@@ -87,20 +98,6 @@ body.vscode-light {
 
 .compact-btn:focus-visible {
   background: color-mix(in srgb, var(--neon) 38%, transparent);
-}
-
-.tokens {
-  margin: 0;
-  font-size: 11.5px;
-  letter-spacing: 0.8px;
-  color: var(--text);
-}
-
-.free {
-  margin: 3px 0 0;
-  font-size: 9.5px;
-  letter-spacing: 1.2px;
-  color: var(--text-dim);
 }
 
 /* ── Rejilla de celdas (20 × 8 = 160, igual que TOTAL en context.js) ── */
@@ -165,10 +162,9 @@ body.vscode-light {
 }
 
 .legend li {
-  display: grid;
-  grid-template-columns: 10px minmax(0, 1fr);
-  gap: 0 7px;
+  display: flex;
   align-items: center;
+  gap: 7px;
   min-width: 0;
   padding: 3px 0;
 }
@@ -178,15 +174,16 @@ body.vscode-light {
 }
 
 .sw {
-  grid-row: span 2;
-  align-self: stretch;
-  min-height: 12px;
+  flex: none;
+  width: 10px;
+  height: 12px;
   background: var(--k, var(--neon));
   box-shadow: 0 0 6px var(--k, var(--neon));
   border-radius: 1px;
 }
 
 .lg-name {
+  flex: 1;
   font-size: 11px;
   line-height: 1.3;
   letter-spacing: 0.4px;
@@ -198,6 +195,7 @@ body.vscode-light {
 }
 
 .lg-num {
+  flex: none;
   font-size: 10px;
   line-height: 1.3;
   letter-spacing: 0.6px;
