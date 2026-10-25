@@ -595,8 +595,8 @@ export class VozDictado {
     // Las rutas del prompt viajan dentro del texto: espera a que las imágenes
     // pegadas estén escritas antes de mandarlo.
     await this.attachChain;
-    // Una sola línea: en los agentes de terminal, cada salto de línea envía.
-    const text = raw.replace(/\s*\r?\n+\s*/g, " ").trim();
+    // Los saltos de línea viajan reales; solo se normaliza CRLF/CR a \n.
+    const text = raw.replace(/\r\n?/g, "\n").trim();
     if (!text) {
       this.state("error", "El bloc está vacío.");
       return;
@@ -605,9 +605,13 @@ export class VozDictado {
     const terminal = vscode.window.activeTerminal;
     if (terminal) {
       terminal.show(true);
-      // Los TUI (Claude, opencode) toman el bloque como pegado y no lo envían: el
-      // Enter va en una escritura aparte, cuando el texto ya está en su cuadro.
-      terminal.sendText(text, false);
+      // Con bracketed paste (modo 2004) el TUI inserta los saltos de línea como
+      // texto y no envía; sin él, cada \n suelto sería un Enter que partía el
+      // prompt. Solo se envuelve si hay saltos: uno de una línea no puede pintar
+      // escapes literales en un terminal sin modo 2004. El Enter final va en una
+      // escritura aparte, como antes.
+      const payload = text.includes("\n") ? "\x1b[200~" + text + "\x1b[201~" : text;
+      terminal.sendText(payload, false);
       setTimeout(() => {
         try {
           terminal.sendText("\r", false);

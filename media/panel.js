@@ -116,6 +116,27 @@
   let frames = 0;
   let accent = "#00e5ff";
 
+  /** Paleta de Claude: coincide con los puntos de media/claudeAgent.css. */
+  const PALETTE = {
+    red: "#e05a5a",
+    blue: "#4a9eff",
+    green: "#3fb950",
+    yellow: "#d4a72c",
+    purple: "#a371f7",
+    orange: "#f0883e",
+    pink: "#f778ba",
+    cyan: "#39c5cf",
+  };
+
+  /** Color de los píxeles: hex tal cual, nombre de la paleta de Claude o "" → acento. */
+  function resolveColor(value) {
+    if (typeof value !== "string") return "";
+    if (/^#[0-9a-f]{6}$/i.test(value)) return value;
+    const name = value.toLowerCase();
+    // hasOwn: un "constructor" o "__proto__" no debe colar como color.
+    return Object.hasOwn(PALETTE, name) ? PALETTE[name] : "";
+  }
+
   function makeCard(agent) {
     const el = document.createElement("div");
     el.className = "agent" + (agent.streaming ? " streaming" : "");
@@ -134,6 +155,7 @@
       cols: new Uint8Array(COLS * ROWS),
       next: 0,
       streaming: agent.streaming,
+      color: agent.color,
     };
   }
 
@@ -145,7 +167,7 @@
   function drawCard(card) {
     const { ctx, cols } = card;
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = accent;
+    ctx.fillStyle = card.color || accent;
     for (let x = 0; x < COLS; x++) {
       // La estela se apaga hacia la izquierda: la columna nueva entra a la derecha.
       const fade = 0.08 + 0.92 * (x / (COLS - 1));
@@ -206,7 +228,10 @@
       ...new Map(
         (Array.isArray(list) ? list : [])
           .filter((a) => a && a.name)
-          .map((a) => [a.name, { name: a.name, streaming: Boolean(a.streaming) }]),
+          .map((a) => [
+            a.name,
+            { name: a.name, streaming: Boolean(a.streaming), color: resolveColor(a.color) },
+          ]),
       ).values(),
     ];
     const alive = new Set(agents.map((a) => a.name));
@@ -231,6 +256,12 @@
       if (card.streaming !== streaming) {
         card.streaming = streaming;
         card.el.classList.toggle("streaming", streaming);
+      }
+      // Color nuevo (por ejemplo al editar el `color:` del .md): el siguiente
+      // tick ya lo pinta; si no hay bucle porque la vista está oculta, se repinta aquí.
+      if (card.color !== agent.color) {
+        card.color = agent.color;
+        if (!raf && !document.hidden) drawCard(card);
       }
     }
 

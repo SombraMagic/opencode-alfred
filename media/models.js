@@ -16,11 +16,14 @@
     now: document.getElementById("now"),
     note: document.getElementById("note"),
     groups: document.getElementById("groups"),
-    recentGroup: document.getElementById("recent-group"),
     recent: document.getElementById("recent"),
-    allGroup: document.getElementById("all-group"),
     total: document.getElementById("total"),
     all: document.getElementById("all"),
+    currentRow: document.querySelector(".current-row"),
+    recentBtn: document.getElementById("recent-btn"),
+    searchBtn: document.getElementById("search-btn"),
+    recentPop: document.getElementById("recent-pop"),
+    searchPop: document.getElementById("search-pop"),
   };
 
   // El buscador es HTML estático: su valor vive aquí y manda al repintar.
@@ -159,16 +162,22 @@
     const grouped = groups.length > 0;
     el.groups.textContent = "";
     el.groups.hidden = !grouped;
-    el.recentGroup.hidden = grouped;
-    el.recent.hidden = grouped;
-    el.allGroup.hidden = grouped;
-    el.total.hidden = grouped;
     el.all.hidden = grouped;
+    // Con grupos (Claude) no hay RECIENTES: el icono y su desplegable se retiran.
+    if (grouped) {
+      closePop(el.recentPop, el.recentBtn);
+      el.recentBtn.hidden = true;
+    } else {
+      el.recentBtn.hidden = false;
+    }
 
     if (grouped) {
       let shown = 0;
+      let totalCount = 0;
       for (const group of groups) {
-        const rows = filterModels(group.models || [], modelQuery);
+        const all = group.models || [];
+        totalCount += all.length;
+        const rows = filterModels(all, modelQuery);
         // El buscador esconde los grupos que se quedan sin filas.
         if (rows.length === 0) continue;
         shown += rows.length;
@@ -186,6 +195,7 @@
           node("div", "empty", modelQuery ? "Sin coincidencias." : "Sin modelos.")
         );
       }
+      el.total.textContent = shown + "/" + totalCount;
       return;
     }
 
@@ -221,6 +231,50 @@
     target = next;
     modelsKey = "";
     if (lastData) renderModels(lastData);
+  }
+
+  // Los dos desplegables son flotantes y se excluyen entre sí.
+  function showPop(pop, btn) {
+    pop.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+  }
+
+  function closePop(pop, btn) {
+    pop.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+  }
+
+  function closePops() {
+    closePop(el.recentPop, el.recentBtn);
+    closePop(el.searchPop, el.searchBtn);
+  }
+
+  function togglePop(pop, btn) {
+    const open = pop.hidden;
+    closePops();
+    if (open) showPop(pop, btn);
+    return open;
+  }
+
+  el.recentBtn.addEventListener("click", () => togglePop(el.recentPop, el.recentBtn));
+
+  el.searchBtn.addEventListener("click", () => {
+    if (togglePop(el.searchPop, el.searchBtn)) el.search.focus();
+  });
+
+  // Clic fuera (los pops cuelgan de la fila), Escape y elegir un modelo cierran.
+  document.addEventListener("click", (event) => {
+    if (!el.currentRow.contains(event.target)) closePops();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closePops();
+  });
+
+  for (const pop of [el.recentPop, el.searchPop]) {
+    pop.addEventListener("click", (event) => {
+      if (event.target.closest(".model")) closePops();
+    });
   }
 
   el.tMain.addEventListener("click", () => switchTarget("main"));

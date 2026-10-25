@@ -167,20 +167,36 @@ export class ModelsPanel implements vscode.WebviewViewProvider {
         <button id="t-sub" class="tag" type="button" aria-pressed="false">SUBAGENTES</button>
       </div>
     </div>
-    <div class="group"><span class="group-name">ACTUAL</span><button id="clear" type="button" hidden>SIN FIJAR</button></div>
-    <div id="now" class="list"></div>
+    <div class="current-row">
+      <div class="group">
+        <span class="group-name">ACTUAL</span>
+        <div id="now"></div>
+        <button id="clear" type="button" hidden>SIN FIJAR</button>
+        <button id="recent-btn" class="pop-btn" type="button" aria-expanded="false" title="Modelos recientes" aria-label="Modelos recientes">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path d="M6 9.5l6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button id="search-btn" class="pop-btn" type="button" aria-expanded="false" title="Buscar modelos" aria-label="Buscar modelos">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.8" />
+            <path d="M15 15l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+      <div id="recent-pop" class="pop" hidden>
+        <div id="recent" class="list"></div>
+      </div>
+      <div id="search-pop" class="pop" hidden>
+        <div class="pop-search">
+          <input id="search" class="model-search" type="search" placeholder="Buscar conector o modelo…" autocomplete="off" spellcheck="false" aria-label="Buscar modelo" />
+          <span id="total" class="count"></span>
+        </div>
+        <div id="groups" hidden></div>
+        <div id="all" class="list" hidden></div>
+      </div>
+    </div>
     <div id="note" class="note" hidden></div>
-    <details id="recent-group" class="fold" open>
-      <summary class="group"><span class="group-name">RECIENTES</span></summary>
-      <div id="recent" class="list"></div>
-    </details>
-    <details id="search-group" class="fold" open>
-      <summary class="group"><span class="group-name">BUSCADOR</span></summary>
-      <input id="search" class="model-search" type="search" placeholder="Buscar conector o modelo…" autocomplete="off" spellcheck="false" aria-label="Buscar modelo" />
-      <div id="groups" hidden></div>
-      <div id="all-group" class="group"><span class="group-name">TODOS</span><span class="count" id="total"></span></div>
-      <div id="all" class="list scroll"></div>
-    </details>
   </div>
 </div>
 <script nonce="${nonce}" src="${scriptUri}"></script>

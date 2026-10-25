@@ -636,12 +636,11 @@
   // Soltar exige Mayús: el diálogo nativo es la vía que siempre funciona.
   $("attach").addEventListener("click", () => post({ type: "pickFiles" }));
 
-  /** Texto que viaja al terminal: cada token se vuelve la ruta entrecomillada. */
+  /** Texto que viaja al terminal: cada token se vuelve la ruta entrecomillada. Los saltos de línea viajan reales. */
   function promptText() {
     return serialize()
       .replace(/\[\[img:([^\]]+)\]\]/g, (_match, path) => `[imagen: "${decodePath(path)}"]`)
-      .replace(/\[\[file:([^\]]+)\]\]/g, (_match, path) => `[fichero: "${decodePath(path)}"]`)
-      .replace(/\s*\r?\n+\s*/g, " ");
+      .replace(/\[\[file:([^\]]+)\]\]/g, (_match, path) => `[fichero: "${decodePath(path)}"]`);
   }
 
   $("send").addEventListener("click", () => post({ type: "sendPrompt", text: promptText() }));

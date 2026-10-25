@@ -19,7 +19,7 @@ body {
 }
 
 /* ── Contenedor ────────────────────────────────────────── */
-/* Dos bloques plegables (RECIENTES y BUSCADOR) y, dentro del buscador, la lista. */
+/* Una fila ACTUAL y, colgando de ella, los dos desplegables flotantes. */
 .models {
   flex: 1;
   min-height: 0;
@@ -30,44 +30,77 @@ body {
   --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
 }
 
-/* ── Bloques plegables ─────────────────────────────────── */
-/* Chromium envuelve el contenido del <details> en una caja que no cede el alto
-   disponible: con `display: contents` la lista vuelve a ser la que scrollea dentro.
-   El plegado lo hace entonces la regla de abajo, no el mecanismo de la sombra. */
-.fold[open]::details-content {
-  display: contents;
+/* ── Fila ACTUAL y desplegables ────────────────────────── */
+/* Ancla de los pops: cuelgan justo debajo de la fila. */
+.current-row {
+  position: relative;
 }
 
-.fold:not([open]) > :not(summary) {
-  display: none;
+/* El nombre en uso se queda con lo que sobre: la fila es una sola línea. */
+#now {
+  flex: 1;
+  min-width: 0;
 }
 
-.fold > summary {
+/* Iconos de los desplegables: mismo lenguaje que los tags. */
+.pop-btn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  color: var(--text);
   cursor: pointer;
 }
 
-.fold > summary::-webkit-details-marker {
-  display: none;
+.pop-btn:hover,
+.pop-btn:focus-visible,
+.pop-btn[aria-expanded="true"] {
+  color: var(--neon);
+  outline: none;
 }
 
-.fold > summary::before {
-  content: "▸";
-}
-
-.fold[open] > summary::before {
-  content: "▾";
-}
-
-/* Abierto, el buscador se queda con el alto libre: la lista de TODOS scrollea dentro y
-   el resto del panel no se desplaza. Cerrado vuelve a su alto (`.models > *`). */
-#search-group[open] {
+/* Flotantes a lo ancho del panel, bajo la fila; el catálogo trae cientos de filas.
+   En columna: la fila del filtro (arriba) se queda fija y scrollea la lista. */
+.pop {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 20;
   display: flex;
   flex-direction: column;
-  flex: 1 1 0%;
-  min-height: 0;
+  max-height: 45vh;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
-/* Solo la lista de TODOS crece: el resto conserva su alto y, si no cabe, scrollea el body. */
+/* Primera fila del buscador: campo y contador; no scrollea. */
+.pop-search {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+}
+
+.pop-search .model-search {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+/* Lo que no es el filtro (recientes, grupos o la lista de TODOS) es lo que scrollea. */
+.pop > :not(.pop-search) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Solo la fila ACTUAL conserva su alto: el resto del panel no crece. */
 .models > * {
   flex: none;
 }
@@ -155,13 +188,6 @@ body {
   color: var(--text-soft);
 }
 
-/* Con grupos del proveedor es la lista la que se queda con el alto libre. */
-#groups:not(:empty) {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-}
-
 /* ── Buscador y filas ──────────────────────────────────── */
 .model-search {
   width: 100%;
@@ -235,14 +261,7 @@ body {
   cursor: default;
 }
 
-/* El catálogo trae cientos de modelos: es la lista de TODOS la que se queda con el alto libre. */
-#all {
-  flex: 1 1 auto;
-  min-height: 140px;
-  max-height: none;
-  overflow-y: auto;
-}
-
+/* ── Filas de modelo ───────────────────────────────────── */
 .model {
   display: flex;
   align-items: baseline;

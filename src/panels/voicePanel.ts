@@ -23,6 +23,8 @@ const nowFile = join(
 export interface WorkingAgent {
   name: string;
   streaming: boolean;
+  /** Color del `.md` del agente (hex o nombre de la paleta de Claude); sin él, el acento. */
+  color?: string;
 }
 
 /**

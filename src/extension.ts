@@ -69,7 +69,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "fs";
 import * as fs from "fs/promises";
 import {
-  claudeActivity,
+  type ClaudeExplorer,
   claudeAgentFile,
   claudeContext,
   claudeExplorer,
@@ -516,9 +516,10 @@ export function activate(context: vscode.ExtensionContext): void {
     };
   }
 
-  function buildExplorerData(): ExplorerData {
+  /** `claudeData` ya calculada (la de `refreshStats`): evita volver a leer el disco. */
+  function buildExplorerData(claudeData?: ClaudeExplorer): ExplorerData {
     if (sessionAgent === "claude") {
-      const claude = claudeExplorer(projectRoot());
+      const claude = claudeData ?? claudeExplorer(projectRoot());
       return {
         hasProject: !!projectRoot(),
         agents: claude.agents,
@@ -1218,11 +1219,22 @@ export function activate(context: vscode.ExtensionContext): void {
       contextView.update(
         sessionAgent === "claude" ? claudeContext(projectRoot()) : codexContext(projectRoot())
       );
-      explorer.update(buildExplorerData());
-      // Codex no publica agentes en vuelo; Claude los saca de su registro de sesiones.
+      // Claude saca las tarjetas de la misma pasada que alimenta el explorador:
+      // actividad y color por nombre sin duplicar lecturas. Codex no publica agentes en vuelo.
+      const claudeData =
+        sessionAgent === "claude" ? claudeExplorer(projectRoot()) : undefined;
+      explorer.update(buildExplorerData(claudeData));
       voicePanel?.updateAgents(
-        sessionAgent === "claude"
-          ? claudeActivity(projectRoot()).map((a) => ({ name: a.agent, streaming: a.streaming }))
+        claudeData
+          ? claudeData.activity.map((a) => ({
+              name: a.agent,
+              streaming: a.streaming,
+              color: [
+                ...claudeData.agents.project,
+                ...claudeData.agents.global,
+                ...claudeData.agents.builtin,
+              ].find((x) => x.name === a.agent)?.color,
+            }))
           : []
       );
       // El catálogo del proveedor va por su caché: el sondeo no dispara red cada vez.
@@ -1237,7 +1249,16 @@ export function activate(context: vscode.ExtensionContext): void {
     // El panel de voz sigue a los agentes en vuelo aunque el snapshot no haya cambiado:
     // el `key` solo corta el resto de la actualización.
     voicePanel?.updateAgents(
-      disp.agents.filter((a) => a.working).map((a) => ({ name: a.agent, streaming: a.streaming }))
+      disp.agents
+        .filter((a) => a.working)
+        .map((a) => {
+          // Precedencia del explorador: proyecto sobre global. Los integrados sin
+          // override no están en `agentList`: van sin color (acento del tema).
+          const def =
+            agentList.project.find((x) => x.name === a.agent) ??
+            agentList.global.find((x) => x.name === a.agent);
+          return { name: a.agent, streaming: a.streaming, color: def?.frontmatter.color };
+        })
     );
     const key = keyOf(disp);
     if (!force && key === lastKey) {
