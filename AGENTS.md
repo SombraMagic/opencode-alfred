@@ -40,8 +40,9 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
 
 - `agents/` — núcleo de dominio: `types.ts` (modelo de agente, listas de tools/permisos),
   `parser.ts` (markdown + frontmatter YAML), `store.ts` (CRUD, escrituras atómicas),
-  `paths.ts` (scopes y rutas XDG), `config.ts` (registro de modelos), `catalog.ts`
-  (descubrimiento y activado/desactivado de MCP, skills y plugins), `validate.ts`.
+  `paths.ts` (scopes y rutas XDG), `config.ts` (registro de modelos), `connectors.ts`
+  (integraciones de opencode, catálogo models.dev, políticas y alta de conectores),
+  `catalog.ts` (descubrimiento y activado/desactivado de MCP, skills y plugins), `validate.ts`.
 - `stats/` — lee las bases SQLite de opencode en solo lectura: `baseline.ts` (deltas de
   reinicio), `format.ts`, `contextWindow.ts` (desglose de la ventana de contexto),
   `opencodeStats.ts` (actividad por agente y sesiones).
@@ -54,6 +55,7 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   skills, plugins), `modelsPanel.ts` (bloque MODELOS: modelo de la sesión viva),
   `contextPanel.ts` (ventana de contexto), `editorPanel.ts` (editor de
   agentes), `assignPanel.ts` (pestaña central de asignación agentes↔modelos),
+  `connectorsPanel.ts` (pestaña central de conectores de opencode),
   `statsPanel.ts`, `instructionsPanel.ts` (AGENTS.md global y local),
   `voicePanel.ts` (barra lateral derecha: esfera y ecualizador) y `dictadoPanel.ts` (zona
   inferior). Los tres contenedores conservan su sitio en el manifiesto.
@@ -76,6 +78,18 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   `opencodeAgents.favoriteModels` (`globalState`); al abrir el tablero se siembran con los
   modelos que ya tienen los agentes, si están en el catálogo vivo. El buscador y los
   conectores apagados también persisten (`assignSearch`, `assignProvidersOff`).
+- El botón CONECTORES del bloque MODELOS (solo opencode) abre `ConnectorsPanel` +
+  `media/connectors.*`: la izquierda es el catálogo completo (`GET /api/integration` +
+  `GET /api/provider` + `GET /api/model` + models.dev), el centro los configurados y la
+  derecha los modelos del seleccionado. `configured` = conexiones, `provider`/`providers` en
+  config o `activation:"enabled"`. Apagar escribe una política `provider.use` con `deny` en
+  el `opencode.json(c)` global (encender añade `allow`; gana la última) y no toca
+  credenciales. Eliminar pide confirmación y borra credenciales con
+  `DELETE /api/credential/<id>` (nunca la BD), las entradas `provider`/`providers` de todos
+  los config y sus reglas exactas; las conexiones `env` no se pueden borrar desde aquí. El
+  alta usa `connect/key|external|oauth|command`; la clave no se registra ni se manda al
+  webview, y el sondeo OAuth en modo `code` no repinta el campo del código. Nunca enviar
+  ids de credencial ni secretos al webview.
 - opencode v2 **sí recarga en caliente**: vigila `opencode.json(c)` y `cli.json` y reaplica
   agentes, MCP, skills, plugins y ajustes del TUI al guardar (`/reload` fuerza). Solo los
   flags de arranque (`--auto`) y los procesos ya lanzados necesitan relanzarse. Los

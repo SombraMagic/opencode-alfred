@@ -332,7 +332,7 @@ function readDbCatalog(dataDir: string): Registry | undefined {
 let registryCache: { path: string; mtimeMs: number; data: Registry } | undefined;
 
 /** models.dev: primero la BD (v2), después la caché en fichero (~/.cache/opencode/models.json). */
-async function loadRegistry(): Promise<Registry | undefined> {
+export async function loadRegistry(): Promise<Registry | undefined> {
   const fromDb = readDbCatalog(opencodeDataDir());
   if (fromDb) {
     return fromDb;

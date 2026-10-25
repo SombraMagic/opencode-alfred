@@ -48,7 +48,8 @@ export type ModelsAction =
   | { type: "clearModel" }
   | { type: "setSubagentModel"; id: string }
   | { type: "clearSubagentModel" }
-  | { type: "openAssign" };
+  | { type: "openAssign" }
+  | { type: "openConnectors" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
@@ -57,6 +58,7 @@ const ACTION_TYPES = new Set<string>([
   "setSubagentModel",
   "clearSubagentModel",
   "openAssign",
+  "openConnectors",
 ]);
 
 export class ModelsPanel implements vscode.WebviewViewProvider {
@@ -161,7 +163,10 @@ export class ModelsPanel implements vscode.WebviewViewProvider {
         <button id="t-sub" class="tag" type="button" aria-pressed="false">SUBAGENTES</button>
       </div>
     </div>
-    <button id="assign" class="assign-btn" type="button" title="Asignar agentes a modelos" hidden>ASIGNAR AGENTES</button>
+    <div id="actions" class="panel-actions" hidden>
+      <button id="connectors" class="assign-btn" type="button" title="Gestionar los conectores de opencode">CONECTORES</button>
+      <button id="assign" class="assign-btn" type="button" title="Asignar agentes a modelos" hidden>ASIGNAR AGENTES</button>
+    </div>
     <input id="search" class="model-search" type="search" placeholder="Buscar conector o modelo…" autocomplete="off" spellcheck="false" aria-label="Buscar modelo" />
     <div class="group"><span class="group-name">ACTUAL</span><button id="clear" type="button" hidden>SIN FIJAR</button></div>
     <div id="now" class="list"></div>

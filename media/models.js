@@ -10,6 +10,8 @@
     tSub: document.getElementById("t-sub"),
     search: document.getElementById("search"),
     clear: document.getElementById("clear"),
+    actions: document.getElementById("actions"),
+    connectors: document.getElementById("connectors"),
     assign: document.getElementById("assign"),
     now: document.getElementById("now"),
     note: document.getElementById("note"),
@@ -130,6 +132,9 @@
     el.clear.textContent = "SIN FIJAR";
 
     // La apertura del tablero de asignación no existe en todos los proveedores.
+    // Conectores y asignación comparten fila: el contenedor y los dos botones siguen el mismo flag.
+    if (el.actions) el.actions.hidden = !data.canAssign;
+    if (el.connectors) el.connectors.hidden = !data.canAssign;
     if (el.assign) el.assign.hidden = !data.canAssign;
 
     const now = models.find((m) => m.id === current);
@@ -232,6 +237,13 @@
   if (el.assign) {
     el.assign.addEventListener("click", () =>
       vscode.postMessage({ type: "action", action: { type: "openAssign" } })
+    );
+  }
+
+  // Conectores: panel central propio.
+  if (el.connectors) {
+    el.connectors.addEventListener("click", () =>
+      vscode.postMessage({ type: "action", action: { type: "openConnectors" } })
     );
   }
 

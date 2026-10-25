@@ -30,12 +30,33 @@ export interface OpencodeConfigInfo {
 type JsonObject = Record<string, unknown>;
 
 export interface RegistryModel {
+  id?: string;
   name?: string;
+  description?: string;
+  /** Precios en USD por millón de tokens. */
+  cost?: {
+    input?: number;
+    output?: number;
+    reasoning?: number;
+    cache_read?: number;
+    cache_write?: number;
+  };
+  limit?: { context?: number; output?: number };
+  status?: string;
+  /** Fecha de publicación, YYYY-MM-DD. */
+  release_date?: string;
+  last_updated?: string;
+  tool_call?: boolean;
+  reasoning?: boolean;
+  attachment?: boolean;
+  modalities?: { input?: string[]; output?: string[] };
 }
 
 export interface RegistryProvider {
   id?: string;
   name?: string;
+  api?: string;
+  env?: string[];
   models?: Record<string, RegistryModel>;
 }
 

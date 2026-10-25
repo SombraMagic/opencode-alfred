@@ -34,6 +34,12 @@ import {
 } from "./panels/explorerPanel";
 import { ModelEntry, ModelsAction, ModelsData, ModelsPanel } from "./panels/modelsPanel";
 import { AssignAction, AssignAgent, AssignData, AssignPanel } from "./panels/assignPanel";
+import { ConnectorsPanel, ConnectorAction } from "./panels/connectorsPanel";
+import {
+  ConnectorAttempt,
+  ConnectorService,
+  ConnectorsData,
+} from "./agents/connectors";
 import { InstructionsPanel } from "./panels/instructionsPanel";
 import { ClaudeAgentPanel } from "./panels/claudeAgentPanel";
 import { StatsPanel } from "./panels/statsPanel";
@@ -119,6 +125,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const FAVORITE_MODELS = "opencodeAgents.favoriteModels";
   const ASSIGN_SEARCH = "opencodeAgents.assignSearch";
   const ASSIGN_PROVIDERS_OFF = "opencodeAgents.assignProvidersOff";
+  const CONNECTORS_SEARCH = "opencodeAgents.connectorsSearch";
+  const CONNECTORS_SELECTED = "opencodeAgents.connectorsSelected";
 
   // La detección espera procesos del sistema: se lanza sin bloquear el arranque y, cuando
   // termina, repinta el panel. Hasta entonces el selector muestra solo opencode.
@@ -355,6 +363,7 @@ export function activate(context: vscode.ExtensionContext): void {
     onAction: (action) => handleAction(action),
     onReady: () => void refreshModels(),
   });
+  const connectorsService = new ConnectorService(opencodeApi);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(ModelsPanel.viewType, modelsView, {
       webviewOptions: { retainContextWhenHidden: true },
@@ -380,10 +389,18 @@ export function activate(context: vscode.ExtensionContext): void {
   // Vista del tablero de asignación: el buscador y los conectores apagados sobreviven al cierre.
   let assignSearch: string = context.globalState.get<string>(ASSIGN_SEARCH, "");
   let assignProvidersOff: string[] = context.globalState.get<string[]>(ASSIGN_PROVIDERS_OFF, []);
+  // Vista del panel de conectores: selección y buscador sobreviven al cierre.
+  let connectorsSearch: string = context.globalState.get<string>(CONNECTORS_SEARCH, "");
+  let connectorsSelected: string = context.globalState.get<string>(CONNECTORS_SELECTED, "");
+  let connectorsData: ConnectorsData | undefined;
+  let connectorAttempt:
+    | { id: string; attemptID: string; kind: "oauth" | "command"; timer?: ReturnType<typeof setTimeout> }
+    | undefined;
 
   const refresh = () => {
     if (sessionAgent !== "opencode") {
       AssignPanel.close();
+      ConnectorsPanel.close();
     }
     void refreshAgents();
     void refreshCatalog();
@@ -785,6 +802,354 @@ export function activate(context: vscode.ExtensionContext): void {
         `No se pudo asignar el modelo: ${err instanceof Error ? err.message : String(err)}`
       );
     }
+  }
+
+  /** Último catálogo de conectores, con la selección y la búsqueda recordadas. */
+  async function collectConnectors(refresh: boolean): Promise<ConnectorsData> {
+    const data = await connectorsService.collect({
+      selected: connectorsSelected,
+      search: connectorsSearch,
+      refresh,
+    });
+    if (data.selected !== connectorsSelected) {
+      connectorsSelected = data.selected;
+      await context.globalState.update(CONNECTORS_SELECTED, connectorsSelected);
+    }
+    connectorsData = data;
+    return data;
+  }
+
+  async function openConnectorsPanel(): Promise<void> {
+    if (sessionAgent !== "opencode") {
+      void vscode.window.showWarningMessage("Los conectores son solo de opencode.");
+      return;
+    }
+    let data: ConnectorsData;
+    try {
+      data = await collectConnectors(true);
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        `No se pudieron leer los conectores: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return;
+    }
+    ConnectorsPanel.open(context, data, {
+      onAction: handleConnectorAction,
+      // Al abrir ya se leyó el catálogo; solo se refresca si el panel se montó sin datos.
+      onReady: () => {
+        if (!connectorsData) void refreshConnectorsPanel();
+      },
+      onClosed: () => clearConnectorAttempt(),
+    });
+  }
+
+  async function refreshConnectorsPanel(): Promise<void> {
+    const panel = ConnectorsPanel.current;
+    if (!panel) {
+      return;
+    }
+    try {
+      panel.update(await collectConnectors(true));
+    } catch (err) {
+      panel.postNotice(
+        "error",
+        `No se pudieron leer los conectores: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  async function handleConnectorAction(action: ConnectorAction): Promise<void> {
+    const panel = ConnectorsPanel.current;
+    const notice = (level: "info" | "error", text: string): void => panel?.postNotice(level, text);
+    const fail = (err: unknown): void =>
+      notice("error", err instanceof Error ? err.message : String(err));
+
+    switch (action.type) {
+      case "select": {
+        connectorsSelected = action.id;
+        try {
+          const data = await collectConnectors(false);
+          await context.globalState.update(CONNECTORS_SELECTED, connectorsSelected);
+          panel?.update(data);
+        } catch (err) {
+          fail(err);
+        }
+        return;
+      }
+
+      case "persistView":
+        if (action.search !== connectorsSearch) {
+          connectorsSearch = action.search;
+          await context.globalState.update(CONNECTORS_SEARCH, connectorsSearch);
+        }
+        return;
+
+      case "refresh":
+        await refreshConnectorsPanel();
+        return;
+
+      case "toggle": {
+        try {
+          await connectorsService.toggle(action.id, action.on);
+          const data = await collectConnectors(true);
+          panel?.update(data);
+          const name = data.connectors.find((c) => c.id === action.id)?.name ?? action.id;
+          notice(
+            "info",
+            action.on
+              ? `«${name}» activado.`
+              : `«${name}» desactivado: opencode deja de ofrecerlo; credenciales y configuración se conservan.`
+          );
+        } catch (err) {
+          fail(err);
+        }
+        return;
+      }
+
+      case "remove": {
+        const entry = connectorsData?.connectors.find((c) => c.id === action.id);
+        if (!entry) {
+          return;
+        }
+        const credentials = entry.connections.filter((c) => c.type === "credential").length;
+        const envs = entry.connections
+          .filter((c) => c.type === "env")
+          .map((c) => c.label)
+          .filter((label) => !!label);
+        const files = entry.configFiles.map((file) => path.basename(file));
+        if (credentials === 0 && files.length === 0) {
+          // Sin credenciales ni config no hay nada que borrar desde aquí.
+          notice(
+            "info",
+            envs.length > 0
+              ? `«${entry.name}» solo tiene variables de entorno (${envs.join(", ")}): se quitan en el servidor de opencode.`
+              : `«${entry.name}» no tiene credenciales ni configuración que eliminar.`
+          );
+          return;
+        }
+        const detail = [
+          credentials > 0 ? `${credentials} credencial(es)` : "",
+          files.length > 0 ? `configuración en ${files.join(", ")}` : "",
+        ]
+          .filter(Boolean)
+          .join(" y ");
+        const kept =
+          envs.length > 0
+            ? ` Las variables de entorno (${envs.join(", ")}) no se pueden borrar desde aquí.`
+            : "";
+        const choice = await vscode.window.showWarningMessage(
+          `¿Eliminar «${entry.name}»? Se borran ${detail}.${kept}`,
+          { modal: true },
+          "Eliminar"
+        );
+        if (choice !== "Eliminar") {
+          return;
+        }
+        try {
+          const result = await connectorsService.remove(action.id);
+          panel?.update(await collectConnectors(true));
+          const done: string[] = [];
+          if (result.credentialsRemoved > 0) {
+            done.push(`${result.credentialsRemoved} credencial(es)`);
+          }
+          if (result.configFilesChanged.length > 0) {
+            done.push(
+              `configuración de ${result.configFilesChanged.map((f) => path.basename(f)).join(", ")}`
+            );
+          }
+          if (result.envKept.length > 0) {
+            done.push(`variables de entorno sin tocar (${result.envKept.join(", ")})`);
+          }
+          const head =
+            done.length > 0
+              ? `«${entry.name}»: eliminado ${done.join("; ")}.`
+              : `«${entry.name}»: no se borró nada.`;
+          notice(result.errors.length > 0 ? "error" : "info", [head, ...result.errors].join(" "));
+        } catch (err) {
+          fail(err);
+        }
+        return;
+      }
+
+      case "connectKey":
+      case "connectExternal": {
+        try {
+          if (action.type === "connectKey") {
+            await connectorsService.connectKey(action.id, action.key, action.answer);
+          } else {
+            await connectorsService.connectExternal(action.id, action.methodID, action.answer);
+          }
+          const data = await collectConnectors(true);
+          panel?.update(data);
+          notice("info", "Conector añadido.");
+        } catch (err) {
+          fail(err);
+        }
+        return;
+      }
+
+      case "startOauth": {
+        try {
+          trackConnectorAttempt(
+            await connectorsService.startOauth(action.id, action.methodID, action.answer)
+          );
+        } catch (err) {
+          fail(err);
+        }
+        return;
+      }
+
+      case "completeOauth": {
+        try {
+          await connectorsService.completeOauth(action.id, action.attemptID, action.code);
+          clearConnectorAttempt();
+          panel?.postAttempt({
+            id: action.id,
+            attemptID: action.attemptID,
+            kind: "oauth",
+            status: "complete",
+          });
+          await refreshConnectorsPanel();
+          notice("info", "Autorización completada.");
+        } catch (err) {
+          fail(err);
+        }
+        return;
+      }
+
+      case "cancelAttempt": {
+        try {
+          // El intento pudo nacer de un comando: se usa su clase para llamar al endpoint correcto.
+          const kind =
+            action.kind ??
+            (connectorAttempt?.attemptID === action.attemptID ? connectorAttempt.kind : "oauth");
+          await (kind === "command"
+            ? connectorsService.cancelCommand(action.id, action.attemptID)
+            : connectorsService.cancelOauth(action.id, action.attemptID));
+          clearConnectorAttempt();
+          panel?.postAttempt({
+            id: action.id,
+            attemptID: action.attemptID,
+            kind,
+            status: "cancelled",
+          });
+          notice("info", "Intento cancelado.");
+        } catch (err) {
+          fail(err);
+        }
+        return;
+      }
+
+      case "startCommand": {
+        try {
+          trackConnectorAttempt(await connectorsService.startCommand(action.id, action.methodID));
+        } catch (err) {
+          fail(err);
+        }
+        return;
+      }
+
+      case "openUrl": {
+        if (!/^https?:\/\//.test(action.url)) {
+          return;
+        }
+        try {
+          await vscode.env.openExternal(vscode.Uri.parse(action.url));
+        } catch (err) {
+          fail(err);
+        }
+        return;
+      }
+
+      case "close":
+        // Lo cierra el panel; aquí no llega.
+        return;
+    }
+  }
+
+  /** Sondeos de autorización hasta 5 min: 150 vueltas cada 2 s. */
+  const ATTEMPT_POLL_MS = 2000;
+  const ATTEMPT_POLL_TRIES = 150;
+
+  function trackConnectorAttempt(attempt: ConnectorAttempt): void {
+    clearConnectorAttempt();
+    // Sin panel nadie vería el intento: cerrar mientras se iniciaba corta el sondeo.
+    if (!ConnectorsPanel.current) {
+      return;
+    }
+    connectorAttempt = { id: attempt.id, attemptID: attempt.attemptID, kind: attempt.kind };
+    ConnectorsPanel.current?.postAttempt(attempt);
+    // El modo `code` espera a que el usuario pegue el código: sondear repintaría el campo.
+    if (attempt.status !== "pending" || attempt.mode === "code") {
+      return;
+    }
+    const { id, attemptID, kind } = attempt;
+    connectorAttempt.timer = setTimeout(() => void pollConnectorAttempt(kind, id, attemptID, 0), 1000);
+  }
+
+  async function pollConnectorAttempt(
+    kind: "oauth" | "command",
+    id: string,
+    attemptID: string,
+    tries: number
+  ): Promise<void> {
+    if (connectorAttempt?.attemptID !== attemptID) {
+      return; // cancelado o sustituido por otro intento
+    }
+    let attempt: ConnectorAttempt;
+    try {
+      attempt =
+        kind === "oauth"
+          ? await connectorsService.oauthStatus(id, attemptID)
+          : await connectorsService.commandStatus(id, attemptID);
+    } catch (err) {
+      // Un fallo de red repetido sería un bucle infinito: se corta y se avisa.
+      clearConnectorAttempt();
+      ConnectorsPanel.current?.postNotice(
+        "error",
+        err instanceof Error ? err.message : String(err)
+      );
+      return;
+    }
+    if (connectorAttempt?.attemptID !== attemptID) {
+      return;
+    }
+    ConnectorsPanel.current?.postAttempt(attempt);
+    if (attempt.status === "pending") {
+      if (tries >= ATTEMPT_POLL_TRIES) {
+        clearConnectorAttempt();
+        ConnectorsPanel.current?.postAttempt({
+          id,
+          attemptID,
+          kind,
+          status: "expired",
+          message: "La autorización caducó sin respuesta. Vuelve a iniciarla.",
+        });
+        return;
+      }
+      connectorAttempt.timer = setTimeout(
+        () => void pollConnectorAttempt(kind, id, attemptID, tries + 1),
+        ATTEMPT_POLL_MS
+      );
+      return;
+    }
+    clearConnectorAttempt();
+    if (attempt.status === "complete") {
+      await refreshConnectorsPanel();
+      ConnectorsPanel.current?.postNotice("info", "Conector añadido.");
+      return;
+    }
+    ConnectorsPanel.current?.postNotice(
+      "error",
+      attempt.message || "No se pudo completar la autorización."
+    );
+  }
+
+  function clearConnectorAttempt(): void {
+    if (connectorAttempt?.timer) {
+      clearTimeout(connectorAttempt.timer);
+    }
+    connectorAttempt = undefined;
   }
 
   async function refreshCatalog(): Promise<void> {
@@ -1613,6 +1978,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
       case "openAssign":
         await openAssignPanel();
+        return;
+
+      case "openConnectors":
+        await openConnectorsPanel();
         return;
 
       case "setModel": {

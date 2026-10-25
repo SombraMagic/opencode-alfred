@@ -23,10 +23,15 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
 - Fusionado, compilando y empaquetado: `.vsix` `opencode-alfred-0.1.0.vsix` (raíz,
   gitignorado) instalado como `sombra.opencode-alfred@0.1.0`. Las dos extensiones viejas
   (`local.opencode-agents-editor@0.1.7` y `sombra.voz@0.1.0`) están desinstaladas.
-- Pendiente: probar en VS Code con la ventana recargada (webviews, TTS y dictado no se han
-  visto en ejecución).
-- `main` estaba sincronizado con `origin/main` en `0a6b876`; el rediseño del dictado queda
-  en un commit local pendiente de push.
+- Pendiente: probar en VS Code con la ventana recargada (webviews, TTS, dictado y panel de
+  conectores no se han visto en ejecución dentro de VS Code; el panel se probó en Chromium
+  con datos reales).
+- Panel de conectores de opencode montado (2026-10-25): botón CONECTORES junto a ASIGNAR
+  AGENTES en Modelos (solo opencode), pestaña central de tres columnas, alta clave/OAuth/
+  externa/comando y borrado con modal. Revisión **PASS**; falta probar un alta real y verlo
+  en VS Code. `.vsix` reempaquetado e instalado (`sombra.opencode-alfred@0.1.0`).
+- `main` va por delante de `origin/main`: commits locales del dictado (`2eba67e`) y del
+  panel de conectores, pendientes de push.
 
 ## Decisiones
 
@@ -175,11 +180,34 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   tablero se cierra al cambiar a Claude/Codex. Tres columnas, `media/assign.html` como
   plantilla con marcadores. El buscador y los conectores apagados persisten en
   `assignSearch`/`assignProvidersOff` (debounce de 300 ms en el webview).
+- Conectores de opencode: pestaña central (`ConnectorsPanel` + `media/connectors.*`) abierta
+  con el botón CONECTORES de Modelos, visible solo con opencode. La izquierda une
+  `GET /api/integration`, `GET /api/provider`, `GET /api/model` y el catálogo models.dev
+  (`loadRegistry`); el centro lista los configurados y la derecha (la columna más ancha) los
+  modelos con precio, descripción y contexto. Apagar escribe una política
+  `provider.use` con `deny` en el `opencode.json(c)` global; encender quita la regla exacta y
+  añade `allow` (la última gana). Eliminar pide modal y borra credenciales con
+  `DELETE /api/credential/<id>` (nunca la BD), `provider`/`providers` de todos los config,
+  `disabled_providers` y las reglas exactas; las conexiones `env` no se borran desde aquí. El
+  alta usa `connect/key|external|oauth|command`; OAuth con `mode:"code"` **no** se sondea
+  (repintaría el campo del código) y el intento conserva URL/instrucciones al fusionar
+  estados. La clave no se registra ni viaja al webview. Buscador y selección persisten en
+  `connectorsSearch`/`connectorsSelected`; el catálogo en vivo se refresca al abrir, al
+  refrescar y tras cada acción, no en el sondeo de 2 s.
 
 ## Trampas ya pagadas
 
 - Editar la UI de un panel es tocar dos sitios: la cadena HTML del panel en
   `src/panels/*.ts` **y** el `media/*.js`/`*.css` correspondiente.
+- El `pattern` de los formularios de `/api/integration` es una regex **parcial** de opencode
+  (p. ej. `\S`), no el `pattern` HTML (que ancla todo el valor): copiarlo al input bloquea
+  perfiles/proyectos de más de un carácter. Se valida en el servidor.
+- `connections[].status` de `/api/integration` es un objeto `{status,message,url}`, no un
+  string; hay que leer el `status` anidado o se pierde un `needs_auth`.
+- Al añadir una política a un `policies: []` escrito en una línea, insertar en el inicio de
+  la línea rompe el JSONC; hay que insertar antes del `]`.
+- `cancelAttempt` distingue OAuth y comando: el `DELETE` de comando va a
+  `/connect/command/<attempt>`, no a `/connect/oauth/<attempt>`.
 - `npm run compile` no valida tipos: esbuild no typechequea.
 - opencode v2 descarta en silencio un `.md` de agente cuyo `color:` no sea un hex
   `#rrggbb`: con un color con nombre y sin bloque `permission:`, el agente no se
@@ -213,3 +241,11 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (antes, desde el árbol). `store.ts` conserva `deleteAgent`/`duplicateAgent` sin UI.
 - `openAgentFile` resuelve por nombre+scope, así que el `.md` del global sombreado se abre
   desde su fila.
+- Conectores: los formularios con varias condiciones `when` solo usan la primera (hoy no hay
+  ninguno con más de una). `minItems`/`maxItems`/`format`/`custom` se mapean y no se aplican.
+  Borrar deja a veces `"provider": { }` o `"disabled_providers": []` (válido).
+- El alta real de clave/OAuth no se ha probado contra la API (crea credenciales): se probaron
+  los formularios y las rutas con mocks y lecturas reales. El panel tampoco se ha abierto en
+  VS Code, solo en Chromium con datos vivos.
+- `opencode api ... -d` lleva la clave en los argumentos del proceso: visible un instante en
+  la lista de procesos del sistema.

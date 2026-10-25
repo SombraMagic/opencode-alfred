@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="%%TOKENS%%" rel="stylesheet" />
+<link href="%%STYLE%%" rel="stylesheet" />
+<title>Conectores</title>
+</head>
+<body>
+  <div class="conn">
+    <header class="conn-head">
+      <div class="conn-title">
+        <span class="conn-kicker">CONECTORES</span>
+        <span class="conn-sub" id="sub">opencode</span>
+      </div>
+      <input id="search" class="conn-search" type="search" placeholder="Buscar conector…" autocomplete="off" spellcheck="false" aria-label="Buscar conector" />
+      <button id="refresh" class="ghost-btn" type="button" title="Volver a leer los conectores de opencode">REFRESCAR</button>
+      <button id="close" class="ghost-btn" type="button" title="Cerrar el panel">CERRAR</button>
+    </header>
+
+    <main class="board">
+      <section class="col col-all">
+        <h2 class="col-title">TODOS <span class="count" id="all-count"></span></h2>
+        <div id="all" class="cards"></div>
+      </section>
+
+      <section class="col col-configured">
+        <h2 class="col-title">CONFIGURADOS <span class="count" id="conf-count"></span></h2>
+        <div id="configured" class="cards conf-list"></div>
+        <div id="detail" class="detail"></div>
+      </section>
+
+      <section class="col col-models">
+        <h2 class="col-title">MODELOS <span class="count" id="models-count"></span></h2>
+        <div id="models" class="cards model-cards"></div>
+      </section>
+    </main>
+
+    <div id="notice" class="notice" role="status" hidden>
+      <span id="notice-text" class="notice-text"></span>
+      <button id="notice-x" class="notice-x" type="button" aria-label="Cerrar aviso">✕</button>
+    </div>
+  </div>
+<script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
+</body>
+</html>
