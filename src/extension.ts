@@ -1446,6 +1446,45 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   /**
+   * Abre las instrucciones de Claude del scope pedido. En proyecto, si no hay ni CLAUDE.md
+   * ni AGENTS.md (Claude Code no tiene nada que cargar) se ofrece crearlo; no se escribe
+   * a la fuerza. En global se mantiene la creación silenciosa de siempre.
+   */
+  async function openClaudeInstructions(scope: Scope): Promise<void> {
+    if (scope === "project" && !projectRoot()) {
+      void vscode.window.showWarningMessage(
+        "Abre una carpeta de proyecto para editar su CLAUDE.md."
+      );
+      return;
+    }
+    const file = claudeInstructionsFile(scope, projectRoot());
+    if (existsSync(file)) {
+      await openFile(file);
+      return;
+    }
+    if (scope === "project") {
+      const crear = "Crear CLAUDE.md";
+      const choice = await vscode.window.showInformationMessage(
+        "El proyecto no tiene CLAUDE.md ni AGENTS.md.",
+        crear
+      );
+      if (choice !== crear) {
+        return;
+      }
+    }
+    try {
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await writeAtomic(file, "");
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        `No se pudo crear ${path.basename(file)}: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return;
+    }
+    await openFile(file);
+  }
+
+  /**
    * Acciones del Explorador cuando el proveedor elegido es Claude. Devuelve true si la
    * acción era suya; las que no lo son siguen el camino de opencode.
    */
@@ -1455,19 +1494,7 @@ export function activate(context: vscode.ExtensionContext): void {
       case "openAgentFile": {
         if (action.scope === "builtin") {
           // La fila CLAUDE es la sesión principal: su fichero son las instrucciones.
-          const file = claudeInstructionsFile(projectRoot() ? "project" : "global", projectRoot());
-          if (!existsSync(file)) {
-            try {
-              await fs.mkdir(path.dirname(file), { recursive: true });
-              await writeAtomic(file, "");
-            } catch (err) {
-              void vscode.window.showErrorMessage(
-                `No se pudo crear ${path.basename(file)}: ${err instanceof Error ? err.message : String(err)}`
-              );
-              return true;
-            }
-          }
-          await openFile(file);
+          await openClaudeInstructions(projectRoot() ? "project" : "global");
           return true;
         }
         const file = claudeAgentFile(action.name, action.scope, projectRoot());
@@ -1652,50 +1679,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       case "editInstructions": {
-        if (action.scope === "project") {
-          const root = projectRoot();
-          if (!root) {
-            void vscode.window.showWarningMessage(
-              "Abre una carpeta de proyecto para editar su CLAUDE.md."
-            );
-            return true;
-          }
-          // Dos ficheros: AGENTS.md son las reglas del repo y CLAUDE.md las del
-          // orquestador; Claude carga este último y este importa el primero.
-          const agents = path.join(root, "AGENTS.md");
-          const claude = path.join(root, "CLAUDE.md");
-          if (!existsSync(claude)) {
-            try {
-              await fs.mkdir(path.dirname(claude), { recursive: true });
-              await writeAtomic(claude, "");
-            } catch (err) {
-              void vscode.window.showErrorMessage(
-                `No se pudo crear ${path.basename(claude)}: ${err instanceof Error ? err.message : String(err)}`
-              );
-              return true;
-            }
-          }
-          // AGENTS.md es del repo: si falta no se inventa.
-          if (existsSync(agents)) {
-            await openFile(agents);
-          }
-          await openFile(claude);
-          return true;
-        }
-        // Global: solo el CLAUDE.md del usuario.
-        const file = claudeInstructionsFile(action.scope, projectRoot());
-        if (!existsSync(file)) {
-          try {
-            await fs.mkdir(path.dirname(file), { recursive: true });
-            await writeAtomic(file, "");
-          } catch (err) {
-            void vscode.window.showErrorMessage(
-              `No se pudo crear ${path.basename(file)}: ${err instanceof Error ? err.message : String(err)}`
-            );
-            return true;
-          }
-        }
-        await openFile(file);
+        await openClaudeInstructions(action.scope);
         return true;
       }
 

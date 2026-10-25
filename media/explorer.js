@@ -39,6 +39,10 @@
   // que identifica el botón; las abreviaturas de AGENT_LABELS no sirven para eso.
   const AGENT_NAMES = { opencode: "opencode", claude: "Claude Code", codex: "Codex" };
 
+  // Fichero de instrucciones que abre cada botón del mando: opencode y Codex escriben
+  // AGENTS.md, Claude CLAUDE.md. Un proveedor desconocido cae al de opencode.
+  const AGENT_FILE = { opencode: "AGENTS.md", codex: "AGENTS.md", claude: "CLAUDE.md" };
+
   // Dibujo de cada app para el botón de sesión (monócromos, viewBox 0 0 24 24).
   // Fuente: simple-icons (opencode, claude) y lobe-icons (codex). No redibujar aquí.
   const AGENT_LOGOS = {
@@ -283,10 +287,15 @@
     if (!data) return;
 
     el.banner.hidden = true;
+    // Los dos botones nombran el fichero que de verdad abren con el proveedor activo.
+    const fichero = AGENT_FILE[data.sessionAgent] || "AGENTS.md";
+    el.global.title = "Editar el " + fichero + " global";
+    el.global.setAttribute("aria-label", el.global.title);
     el.local.disabled = !data.hasProject;
     el.local.title = data.hasProject
-      ? "Editar el AGENTS.md del proyecto"
-      : "No hay ningún proyecto abierto.";
+      ? "Editar el " + fichero + " del proyecto"
+      : "No hay ningún proyecto abierto: no hay " + fichero + " del proyecto.";
+    el.local.setAttribute("aria-label", el.local.title);
 
     // El botón de sesión lleva el dibujo de la app; sin logo conocido, el texto de siempre.
     const nombreSesion = (
