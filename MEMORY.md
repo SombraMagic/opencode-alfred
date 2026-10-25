@@ -158,8 +158,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   tarjeta de MANOS LIBRES al lado (114×84) y vúmetro de 12 px; un clic en el micro con
   manos libres lo apaga. También acepta ficheros soltados (chip con icono y
   `[[file:ruta]]`) y elegidos con ADJUNTAR. Soltar en una webview exige **Mayús**; sin él
-  VS Code intercepta el gesto, así que ADJUNTAR es la vía fiable. Visto en Chromium
-  headless; falta verlo en VS Code real con la ventana recargada.
+  VS Code intercepta el gesto, así que ADJUNTAR es la vía fiable. La fila URL DE LA API
+  (motor nube) edita `voz.dictado.cloudUrl` en caliente: vacía vuelve al endpoint de
+  OpenAI y solo acepta `http(s)://`. Visto en Chromium headless; falta verlo en VS Code
+  real con la ventana recargada.
 - El panel de dictado adjunta imágenes pegadas (Ctrl+V): se escriben en `<raíz>/.alfred/adjuntos`
   (ignorado por `.gitignore` y `.vscodeignore`) o en el almacén global sin carpeta, y el bloc
   `contenteditable` las guarda como `[[img:ruta-escapada]]`. Probado por el usuario en VS Code.

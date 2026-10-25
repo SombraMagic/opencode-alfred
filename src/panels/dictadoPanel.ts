@@ -49,6 +49,8 @@ const KEY_NOTE = "voz.dictado.note";
 const KEY_CONFIG_COLLAPSED = "voz.dictado.configCollapsed";
 /** Tope por adjunto (imagen pegada o fichero soltado) en el bloc. */
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+/** Endpoint de la nube por defecto (compatible con OpenAI). */
+const CLOUD_URL_DEFAULT = "https://api.openai.com/v1/audio/transcriptions";
 
 /** Manos libres: esta pausa cierra el fragmento y lo manda a transcribir. */
 const PAUSE_MS = 2000;
@@ -121,7 +123,7 @@ export class VozDictado {
       language: cfg.get("dictado.language", "es-ES"),
       whisperModel: cfg.get("dictado.whisperModel", WHISPER_MODELS[2].id),
       cloudModel: cfg.get("dictado.cloudModel", "whisper-1"),
-      cloudUrl: cfg.get("dictado.cloudUrl", "https://api.openai.com/v1/audio/transcriptions"),
+      cloudUrl: cfg.get("dictado.cloudUrl", CLOUD_URL_DEFAULT),
       denoise: cfg.get<boolean>("dictado.denoise", true),
       tolerance: cfg.get<number>("dictado.noiseTolerance", 6),
       noiseFloor: cfg.get<number>("dictado.noiseFloor", 0),
@@ -137,6 +139,7 @@ export class VozDictado {
       language: s.language,
       whisperModel: s.whisperModel,
       cloudModel: s.cloudModel,
+      cloudUrl: s.cloudUrl,
       hasKey,
       denoise: s.denoise,
       tolerance: s.tolerance,
@@ -213,6 +216,18 @@ export class VozDictado {
       case "setCloudModel":
         await this.updateSetting("dictado.cloudModel", msg.model);
         break;
+      case "setCloudUrl": {
+        const raw = String(msg.url ?? "").trim();
+        if (raw && !/^https?:\/\//i.test(raw)) {
+          this.state("error", "La URL debe empezar por http:// o https://.");
+          break;
+        }
+        // Vaciar el campo devuelve el endpoint por defecto.
+        const url = raw || CLOUD_URL_DEFAULT;
+        await this.updateSetting("dictado.cloudUrl", url);
+        this.post({ type: "cloudUrl", url });
+        break;
+      }
       case "setDenoise":
         await this.updateSetting("dictado.denoise", Boolean(msg.on));
         break;

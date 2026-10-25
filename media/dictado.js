@@ -7,6 +7,7 @@
   const langSel = $("language");
   const whisperSel = $("whisper-model");
   const cloudModelIn = $("cloud-model");
+  const cloudUrlIn = $("cloud-url");
   const keyIn = $("key");
   const keyState = $("key-state");
   const micBtn = $("mic");
@@ -249,6 +250,7 @@
     const isCloud = engine === "nube";
     $("whisper-row").style.display = isWhisper ? "" : "none";
     installBtn.style.display = isWhisper ? "" : "none";
+    $("cloud-url-row").style.display = isCloud ? "" : "none";
     $("cloud-row").style.display = isCloud ? "" : "none";
     $("key-row").style.display = isCloud ? "" : "none";
     $("save-key").style.display = isCloud ? "" : "none";
@@ -275,6 +277,7 @@
   langSel.addEventListener("change", () => post({ type: "setLanguage", language: langSel.value }));
   whisperSel.addEventListener("change", () => post({ type: "setWhisperModel", model: whisperSel.value }));
   cloudModelIn.addEventListener("change", () => post({ type: "setCloudModel", model: cloudModelIn.value.trim() }));
+  cloudUrlIn.addEventListener("change", () => post({ type: "setCloudUrl", url: cloudUrlIn.value.trim() }));
   $("save-key").addEventListener("click", () => {
     post({ type: "saveKey", key: keyIn.value });
     keyIn.value = "";
@@ -666,6 +669,7 @@
         whisperSel.value = msg.whisperModel;
 
         cloudModelIn.value = msg.cloudModel ?? "";
+        cloudUrlIn.value = msg.cloudUrl ?? "";
         denoise = msg.denoise !== false;
         tolerance = msg.tolerance ?? 6;
         floorDb = msg.noiseFloor ?? 0;
@@ -700,6 +704,10 @@
         break;
       case "key":
         keyState.textContent = msg.hasKey ? "guardada ✓" : "";
+        break;
+      case "cloudUrl":
+        // La extensión normaliza la URL (el vacío vuelve al endpoint por defecto).
+        cloudUrlIn.value = msg.url ?? "";
         break;
       case "floor":
         measured = msg.db;
