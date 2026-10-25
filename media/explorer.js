@@ -3,7 +3,6 @@
   const vscode = acquireVsCodeApi();
 
   const el = {
-    status: document.getElementById("status"),
     banner: document.getElementById("banner"),
     global: document.getElementById("btn-global"),
     local: document.getElementById("btn-local"),
@@ -12,18 +11,23 @@
     agentPrev: document.getElementById("agent-prev"),
     agentNext: document.getElementById("agent-next"),
     addPlugin: document.getElementById("btn-add-plugin"),
-    agents: document.getElementById("agents"),
+    agentsProject: document.getElementById("agents-project"),
+    agentsGlobal: document.getElementById("agents-global"),
+    agentsProjectCount: document.getElementById("agents-project-count"),
+    agentsGlobalCount: document.getElementById("agents-global-count"),
     agentsTotal: document.getElementById("agents-total"),
-    mcpTotal: document.getElementById("mcp-total"),
-    skillsTotal: document.getElementById("skills-total"),
     mcpGlobal: document.getElementById("mcp-global"),
     mcpProject: document.getElementById("mcp-project"),
+    mcpGlobalCount: document.getElementById("mcp-global-count"),
+    mcpProjectCount: document.getElementById("mcp-project-count"),
     skillsGlobal: document.getElementById("skills-global"),
     skillsProject: document.getElementById("skills-project"),
     skillsGlobalCount: document.getElementById("skills-global-count"),
     skillsProjectCount: document.getElementById("skills-project-count"),
     pluginsGlobal: document.getElementById("plugins-global"),
     pluginsProject: document.getElementById("plugins-project"),
+    pluginsGlobalCount: document.getElementById("plugins-global-count"),
+    pluginsProjectCount: document.getElementById("plugins-project-count"),
     autoAcceptBtn: document.getElementById("btn-auto-accept"),
     permState: document.getElementById("perm-state"),
   };
@@ -68,27 +72,18 @@
     return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
   }
 
+  /** Tarjeta de una línea: icono, nombre, modelo, trabajo, tokens, VER y EDIT. */
   function agentRow(agent) {
-    const row = node("div", "agent");
-    if (agent.working) row.classList.add("working");
-    if (agent.streaming) row.classList.add("streaming");
-    if (agent.disabled) row.classList.add("disabled");
-
-    // Modo y modelo ya no van en una línea propia: quedan en el title de la fila.
-    const sub = [agent.mode, agent.model].filter(Boolean).join(" · ");
-    const open = node("button", "agent-open");
-    open.type = "button";
-    open.title = "Editar " + agent.name + (sub ? " — " + sub : "");
-    open.addEventListener("click", () =>
-      act({ type: "editAgent", name: agent.name, scope: agent.scope })
-    );
+    const card = node("div", "agent");
+    if (agent.working) card.classList.add("working");
+    if (agent.streaming) card.classList.add("streaming");
+    if (agent.disabled) card.classList.add("disabled");
 
     const icon = node("span", "agent-icon mode-" + (agent.mode || "primary"));
     icon.setAttribute("aria-hidden", "true");
     if (isHex(agent.color)) icon.style.setProperty("--agent-color", agent.color);
-    open.appendChild(icon);
+    card.appendChild(icon);
 
-    const id = node("span", "agent-id");
     const name = node("span", "agent-name");
     name.appendChild(node("span", "agent-label", agent.name));
     if (agent.disabled) name.appendChild(node("span", "chip off", "OFF"));
@@ -96,67 +91,80 @@
     if (agent.overriddenBy && agent.overriddenBy.length > 0) {
       name.appendChild(node("span", "chip", "SOBRESCRITO"));
     }
-    id.appendChild(name);
-    open.appendChild(id);
+    card.appendChild(name);
 
-    const stats = node("span", "agent-stats");
-    stats.appendChild(
-      node(
-        "span",
-        "stat",
-        agent.tokens > 0 || agent.workMs > 0
-          ? fmtTokens(agent.tokens) + " tok · " + fmtDuration(agent.workMs)
-          : "—"
-      )
-    );
-    if (agent.working) {
-      const flight = node("span", "flight");
+    const sub = [agent.mode, agent.model].filter(Boolean).join(" · ");
+    if (agent.model) {
+      const model = node("span", "agent-model", agent.model);
+      model.title = "Modelo: " + agent.model;
+      card.appendChild(model);
+    }
+
+    // Efecto de trabajo: las barras del HUD mientras trabaja; en reposo no se pinta nada.
+    if (agent.working || agent.streaming) {
+      const work = node("span", "work");
+      work.title = agent.streaming ? "Trabajando (en streaming)" : "Trabajando";
       const bars = node("span", "bars");
       bars.setAttribute("aria-hidden", "true");
       for (let i = 0; i < 3; i++) bars.appendChild(node("i"));
-      flight.appendChild(bars);
-      flight.appendChild(document.createTextNode("EN VUELO"));
-      stats.appendChild(flight);
+      work.appendChild(bars);
+      card.appendChild(work);
     }
-    open.appendChild(stats);
-    row.appendChild(open);
+
+    // Contrato nuevo del host: histórico / última sesión. Sin datos todavía se leen como 0.
+    const total = Number(agent.tokensTotal) || 0;
+    const session = Number(agent.tokensSession) || 0;
+    const tokens = node(
+      "span",
+      "agent-tokens",
+      total > 0 || session > 0 ? fmtTokens(total) + "/" + fmtTokens(session) : "—"
+    );
+    tokens.title = "Tokens históricos / tokens de la última sesión";
+    card.appendChild(tokens);
+
+    const ver = node("button", "mini", "VER");
+    ver.type = "button";
+    ver.title = "Editar " + agent.name + (sub ? " — " + sub : "");
+    ver.addEventListener("click", () =>
+      act({ type: "editAgent", name: agent.name, scope: agent.scope })
+    );
+    card.appendChild(ver);
 
     if (agent.filePath) {
-      const md = node("button", "mini", ".md");
-      md.type = "button";
-      md.title = "Abrir " + agent.filePath;
-      md.addEventListener("click", () =>
-      act({ type: "openAgentFile", name: agent.name, scope: agent.scope })
-    );
-      row.appendChild(md);
+      const edit = node("button", "mini", "EDIT");
+      edit.type = "button";
+      edit.title = "Abrir " + agent.filePath;
+      edit.addEventListener("click", () =>
+        act({ type: "openAgentFile", name: agent.name, scope: agent.scope })
+      );
+      card.appendChild(edit);
     }
 
-    return row;
+    return card;
+  }
+
+  function fillAgents(box, list, emptyText) {
+    box.textContent = "";
+    if (list.length === 0) {
+      box.appendChild(node("div", "empty", emptyText));
+      return;
+    }
+    for (const agent of list) box.appendChild(agentRow(agent));
   }
 
   function renderAgents(data) {
-    const groups = [
-      ["project", "PROYECTO", data.hasProject ? "Sin agentes de proyecto." : "Sin proyecto abierto."],
-      ["global", "GLOBALES", "Sin agentes globales."],
-      ["builtin", "INTEGRADOS", "Sin integrados."],
-    ];
-
-    el.agents.textContent = "";
-    for (const [key, label, emptyText] of groups) {
-      const list = (data.agents && data.agents[key]) || [];
-      const head = node("div", "group");
-      head.appendChild(node("span", "group-name", label));
-      head.appendChild(node("span", "count", String(list.length)));
-      el.agents.appendChild(head);
-
-      if (list.length === 0) {
-        el.agents.appendChild(node("div", "empty", emptyText));
-        continue;
-      }
-      for (const agent of list) {
-        el.agents.appendChild(agentRow(agent));
-      }
-    }
+    const agents = data.agents || {};
+    const project = agents.project || [];
+    // Los integrados van con los globales: cambia de dónde salen, no su sitio en la lista.
+    const global = (agents.global || []).concat(agents.builtin || []);
+    el.agentsProjectCount.textContent = String(project.length);
+    el.agentsGlobalCount.textContent = String(global.length);
+    fillAgents(
+      el.agentsProject,
+      project,
+      data.hasProject ? "Sin agentes de proyecto." : "Sin proyecto abierto."
+    );
+    fillAgents(el.agentsGlobal, global, "Sin agentes globales.");
   }
 
   function catalogEntry(item, toggleType) {
@@ -164,12 +172,9 @@
     const locked = item.toggleable === false;
     const row = node(
       "div",
-      "entry" + (item.enabled ? "" : " off") + (locked ? " static" : "")
+      "entry" + (item.enabled ? "" : " off") + (locked ? " static" : "") +
+        (toggleType === "toggleSkill" ? " skill" : "")
     );
-    const main = node("span", "entry-main");
-    main.appendChild(node("span", "entry-name", item.name));
-    row.appendChild(main);
-
     // Sin alternado no hay botón: un <span> no recibe foco ni se anuncia como pulsable.
     const sw = node(locked ? "span" : "button", "switch" + (item.enabled ? " on" : ""));
     if (!locked) {
@@ -189,6 +194,12 @@
     track.appendChild(node("span", "switch-thumb"));
     sw.appendChild(track);
     row.appendChild(sw);
+
+    const main = node("span", "entry-main");
+    const entryName = node("span", "entry-name", item.name);
+    entryName.title = item.name + (item.detail ? " — " + item.detail : "");
+    main.appendChild(entryName);
+    row.appendChild(main);
 
     return row;
   }
@@ -213,23 +224,32 @@
     const plugins = data.plugins || [];
     const noProject = "Sin proyecto abierto.";
 
-    el.mcpTotal.textContent = countLabel(mcp);
-    fillColumn(
-      el.mcpGlobal,
-      mcp.filter((i) => i.scope === "global"),
-      "Sin servidores.",
-      "toggleMcp"
-    );
+    const mcpGlobal = mcp.filter((i) => i.scope === "global");
+    const mcpProject = mcp.filter((i) => i.scope === "project");
+    el.mcpGlobalCount.textContent = countLabel(mcpGlobal);
+    el.mcpProjectCount.textContent = countLabel(mcpProject);
+    fillColumn(el.mcpGlobal, mcpGlobal, "Sin servidores.", "toggleMcp");
     fillColumn(
       el.mcpProject,
-      mcp.filter((i) => i.scope === "project"),
+      mcpProject,
       data.hasProject ? "Sin servidores." : noProject,
       "toggleMcp"
     );
 
+    const pluginsGlobal = plugins.filter((i) => i.scope === "global");
+    const pluginsProject = plugins.filter((i) => i.scope === "project");
+    el.pluginsGlobalCount.textContent = countLabel(pluginsGlobal);
+    el.pluginsProjectCount.textContent = countLabel(pluginsProject);
+    fillColumn(el.pluginsGlobal, pluginsGlobal, "Sin plugins.", "togglePlugin");
+    fillColumn(
+      el.pluginsProject,
+      pluginsProject,
+      data.hasProject ? "Sin plugins." : noProject,
+      "togglePlugin"
+    );
+
     const skillsGlobal = skills.filter((i) => i.scope === "global");
     const skillsProject = skills.filter((i) => i.scope === "project");
-    el.skillsTotal.textContent = countLabel(skills);
     el.skillsGlobalCount.textContent = String(skillsGlobal.length);
     el.skillsProjectCount.textContent = String(skillsProject.length);
     fillColumn(el.skillsGlobal, skillsGlobal, "Sin skills.", "toggleSkill");
@@ -238,19 +258,6 @@
       skillsProject,
       data.hasProject ? "Sin skills." : noProject,
       "toggleSkill"
-    );
-
-    fillColumn(
-      el.pluginsGlobal,
-      plugins.filter((i) => i.scope === "global"),
-      "Sin plugins.",
-      "togglePlugin"
-    );
-    fillColumn(
-      el.pluginsProject,
-      plugins.filter((i) => i.scope === "project"),
-      data.hasProject ? "Sin plugins." : noProject,
-      "togglePlugin"
     );
   }
 
@@ -270,17 +277,14 @@
     el.agentNext.disabled = !cycle;
 
     const working = Number(data.totals && data.totals.working) || 0;
-    el.status.textContent = working > 0 ? working + " EN VUELO" : "EN LÍNEA";
-    el.status.className = "hud-status" + (working > 0 ? " busy" : "");
-    el.status.title =
-      fmtTokens(data.totals && data.totals.tokens) +
-      " tok · " +
-      fmtDuration(data.totals && data.totals.workMs);
-
-    el.agentsTotal.textContent =
-      data.totals && (data.totals.tokens > 0 || data.totals.workMs > 0)
-        ? "Σ " + fmtTokens(data.totals.tokens) + " tok · " + fmtDuration(data.totals.workMs)
-        : "";
+    // La cabecera del explorador lleva lo que antes eran dos chips: sumas y agentes en vuelo.
+    const sums = [];
+    if (data.totals && (data.totals.tokens > 0 || data.totals.workMs > 0)) {
+      sums.push("Σ " + fmtTokens(data.totals.tokens) + " tok · " + fmtDuration(data.totals.workMs));
+    }
+    if (working > 0) sums.push(working + " EN VUELO");
+    el.agentsTotal.textContent = sums.join(" · ");
+    el.agentsTotal.classList.toggle("busy", working > 0);
 
     renderPermissions(data);
 
@@ -288,13 +292,14 @@
     renderCatalog(data);
   }
 
-  /** El estado vive en el DOM: el interruptor y la etiqueta de la cabecera, nada más. */
+  /** El estado vive en el DOM: el interruptor y su chip, nada más. */
   function renderPermissions(data) {
     const on = data.autoAccept === true;
     el.autoAcceptBtn.classList.toggle("on", on);
     el.autoAcceptBtn.setAttribute("aria-pressed", on ? "true" : "false");
-    el.permState.textContent = on ? "AUTO" : "PREGUNTA";
-    el.permState.classList.toggle("on", on);
+    // El chip solo aparece con el auto-aceptar puesto: apagado, el interruptor ya lo dice.
+    el.permState.hidden = !on;
+    el.permState.textContent = on ? "AUTO" : "";
   }
 
   el.global.addEventListener("click", () =>

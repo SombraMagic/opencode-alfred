@@ -32,6 +32,8 @@ export interface ClaudeExplorer {
   autoAccept: boolean;
   /** Agentes en marcha ahora mismo (la sesión principal se llama `CLAUDE`). */
   activity: ClaudeActivity[];
+  /** Tokens del proyecto: histórico, última sesión y subagentes. */
+  tokens: ClaudeTokens;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -147,6 +149,9 @@ function readAgents(dir: string, scope: ClaudeScope): ExplorerAgent[] {
         working: false,
         streaming: false,
         tokens: 0,
+        // Sin transcript propio conocido: los rellena claudeTokens cuando lo haya.
+        tokensTotal: 0,
+        tokensSession: 0,
         workMs: 0,
         cost: 0,
       });
@@ -321,11 +326,22 @@ export function claudePermissionMode(): string | undefined {
 export function claudeExplorer(projectRoot: string | undefined): ClaudeExplorer {
   const settings = readJson(settingsFile());
   const defaultMode = claudePermissionMode();
+  const tokens = claudeTokens(projectRoot);
   const activity = claudeActivity(projectRoot);
   const withActivity = (agents: ExplorerAgent[]): ExplorerAgent[] =>
     agents.map((agent) => {
       const live = activity.find((a) => a.agent === agent.name);
-      return live ? { ...agent, working: true, streaming: live.streaming } : agent;
+      // Cada fila lleva lo suyo: la sesión principal el histórico del proyecto, un subagente
+      // el de su último transcript. Sin dato, 0 (el panel pinta «—»).
+      const own = tokens.byAgent.get(agent.name) ?? 0;
+      const main = agent.mode === "builtin";
+      return {
+        ...agent,
+        working: !!live,
+        streaming: live?.streaming === true,
+        tokensTotal: main ? tokens.total : own,
+        tokensSession: main ? tokens.session : own,
+      };
     });
   return {
     agents: {
@@ -341,6 +357,8 @@ export function claudeExplorer(projectRoot: string | undefined): ClaudeExplorer 
           working: false,
           streaming: false,
           tokens: 0,
+          tokensTotal: 0,
+          tokensSession: 0,
           workMs: 0,
           cost: 0,
         },
@@ -356,6 +374,7 @@ export function claudeExplorer(projectRoot: string | undefined): ClaudeExplorer 
     // `acceptEdits` solo acepta ediciones: no es "aceptar todo".
     autoAccept: defaultMode === "auto" || defaultMode === "bypassPermissions",
     activity,
+    tokens,
   };
 }
 
@@ -429,8 +448,8 @@ function projectSessionsDir(root: string): string | undefined {
   }
 }
 
-/** Los cinco `.jsonl` más recientes de la carpeta. */
-function recentSessionFiles(dir: string): string[] {
+/** Los `.jsonl` de la carpeta, del más reciente al más viejo; `limit` corta la lista. */
+function sessionFiles(dir: string, limit?: number): string[] {
   let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -451,7 +470,7 @@ function recentSessionFiles(dir: string): string[] {
   }
   return files
     .sort((a, b) => b.at - a.at)
-    .slice(0, 5)
+    .slice(0, limit ?? files.length)
     .map((item) => item.file);
 }
 
@@ -601,7 +620,7 @@ export function claudeModels(projectRoot: string | undefined): ClaudeModels {
   const seen = new Set(groups.flatMap((g) => g.models.map((m) => m.id.toLowerCase())));
   const seenModels: ModelEntry[] = [];
   const dir = projectRoot ? projectSessionsDir(projectRoot) : undefined;
-  for (const file of dir ? recentSessionFiles(dir) : []) {
+  for (const file of dir ? sessionFiles(dir, 5) : []) {
     let text = "";
     try {
       text = readFileSync(file, "utf8");
@@ -740,10 +759,7 @@ function readContext(
     if (item.type === "assistant") {
       const usage = item.message?.usage;
       if (usage) {
-        const total =
-          num(usage.input_tokens) +
-          num(usage.cache_read_input_tokens) +
-          num(usage.cache_creation_input_tokens);
+        const total = usageTotal(usage);
         if (total > 0) {
           used = total;
           model = typeof item.message?.model === "string" ? item.message.model.trim() : "";
@@ -796,7 +812,7 @@ function fileSignature(file: string): string {
 export function claudeContext(projectRoot: string | undefined): ContextWindowInfo {
   const scannedAt = Date.now();
   const dir = projectRoot ? projectSessionsDir(projectRoot) : undefined;
-  const files = dir ? recentSessionFiles(dir) : [];
+  const files = dir ? sessionFiles(dir, 5) : [];
   if (files.length === 0) {
     return noSession(scannedAt);
   }
@@ -814,6 +830,134 @@ export function claudeContext(projectRoot: string | undefined): ContextWindowInf
   }
   contextCache = { key, info };
   return info;
+}
+
+/* --------------------------------- tokens --------------------------------- */
+
+export interface ClaudeTokens {
+  /** Histórico del proyecto: suma de todos los transcripts de sesión de su carpeta. */
+  total: number;
+  /** La sesión más reciente del proyecto. */
+  session: number;
+  /** Tokens del último transcript de cada subagente, por nombre de agente. */
+  byAgent: Map<string, number>;
+}
+
+/** Tokens por transcript, cacheados por firma: un fichero solo se relee si cambió. */
+const transcriptCache = new Map<string, { sig: string; tokens: number }>();
+
+/** Uso medido de un mensaje: la misma cuenta que la ventana de contexto. */
+function usageTotal(usage: Record<string, unknown> | undefined): number {
+  return (
+    num(usage?.input_tokens) +
+    num(usage?.cache_read_input_tokens) +
+    num(usage?.cache_creation_input_tokens)
+  );
+}
+
+/** Suma del uso de los assistant de un transcript; 0 si no se puede leer. */
+function transcriptTokens(file: string): number {
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return 0;
+  }
+  let total = 0;
+  for (const line of text.split("\n")) {
+    // Filtro barato: el uso solo viaja en las líneas del assistant.
+    if (!line.includes('"usage"')) {
+      continue;
+    }
+    let item: ClaudeLine;
+    try {
+      item = JSON.parse(line) as ClaudeLine;
+    } catch {
+      continue; // Línea a medio escribir de una sesión viva.
+    }
+    if (item.type === "assistant") {
+      total += usageTotal(item.message?.usage);
+    }
+  }
+  return total;
+}
+
+function cachedTranscriptTokens(file: string): number {
+  const sig = fileSignature(file);
+  const hit = transcriptCache.get(file);
+  if (hit && hit.sig === sig) {
+    return hit.tokens;
+  }
+  const tokens = transcriptTokens(file);
+  // Sin desalojo a propósito: `claudeTokens` recorre TODOS los transcripts del proyecto en
+  // cada pasada, así que cualquier tope por debajo de ese número relee los desalojados en
+  // cada sondeo (medido con 500 ficheros y tope 400: 501 lecturas por pasada).
+  transcriptCache.set(file, { sig, tokens });
+  return tokens;
+}
+
+/** Fecha de modificación del fichero; 0 si no se puede leer. */
+function fileTime(file: string): number {
+  try {
+    return statSync(file).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+/** El transcript más nuevo de cada subagente de una sesión, por nombre de agente. */
+function subagentTokens(sessionDir: string): Map<string, number> {
+  const dir = path.join(sessionDir, "subagents");
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return new Map(); // Sesión sin subagentes.
+  }
+  const newest = new Map<string, { at: number; tokens: number }>();
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".jsonl")) {
+      continue;
+    }
+    const stem = entry.name.slice(0, -".jsonl".length);
+    // El meta es el que dice a qué agente pertenece el transcript.
+    const agent = readJson(path.join(dir, `${stem}.meta.json`))?.agentType;
+    if (typeof agent !== "string" || !agent.trim()) {
+      continue;
+    }
+    const file = path.join(dir, entry.name);
+    const at = fileTime(file);
+    const prev = newest.get(agent);
+    if (prev && prev.at >= at) {
+      continue;
+    }
+    // Solo se leen los transcripts que ganan: uno por agente.
+    newest.set(agent, { at, tokens: cachedTranscriptTokens(file) });
+  }
+  return new Map([...newest].map(([agent, item]) => [agent, item.tokens]));
+}
+
+/**
+ * Tokens del proyecto de Claude: el histórico, el de su sesión más reciente y el último
+ * transcript de cada subagente. Cacheado por firma de fichero.
+ */
+export function claudeTokens(projectRoot: string | undefined): ClaudeTokens {
+  const dir = projectRoot ? projectSessionsDir(projectRoot) : undefined;
+  // shortcut: el histórico suma los transcripts de sesión (raíz de la carpeta), no los de
+  // subagente: sumarlos costaría releer una veintena de ficheros por sesión en cada sondeo.
+  const files = dir ? sessionFiles(dir) : [];
+  let total = 0;
+  for (const file of files) {
+    total += cachedTranscriptTokens(file);
+  }
+  return {
+    total,
+    session: files.length > 0 ? cachedTranscriptTokens(files[0]) : 0,
+    byAgent:
+      dir && files.length > 0
+        ? subagentTokens(path.join(dir, path.basename(files[0], ".jsonl")))
+        : new Map(),
+  };
 }
 
 /* ------------------------------ sesiones vivas ----------------------------- */

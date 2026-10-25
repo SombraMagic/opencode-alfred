@@ -4,12 +4,21 @@
   padding: 0 10px 18px;
 }
 
-/* ── Fila de acciones: AGENTS.md y sesión ──────────────── */
-/* Los tres en una fila, con fondo teñido: sobre el negro del HUD se perdían. */
-.actions {
+/* ── [MANDO]: una cabecera, dos filas ──────────────────── */
+/* Sin título ni estado propios: el nombre de la vista ya lo pone VS Code arriba. */
+.mando {
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mando-row {
   display: flex;
   gap: 6px;
-  margin-bottom: 16px;
+}
+
+.mando-row + .mando-row {
+  margin-top: 6px;
 }
 
 .brain-btn {
@@ -17,15 +26,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 3px;
   min-width: 0;
-  padding: 7px 4px;
+  padding: 5px 2px;
   background: color-mix(in srgb, var(--neon) 14%, transparent);
   border: 1px solid var(--neon-dim);
   color: var(--neon);
   font-family: inherit;
   font-size: 10px;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   cursor: pointer;
 }
 
@@ -44,8 +53,8 @@
 
 .brain-btn svg {
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 11px;
+  height: 11px;
 }
 
 /* Barra muy estrecha: el texto se recorta dentro del botón en vez de pisar al vecino. */
@@ -137,10 +146,17 @@
 }
 
 .count {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 9px;
   letter-spacing: 0.8px;
   color: var(--text-dim);
   white-space: nowrap;
+}
+
+.count.busy {
+  color: var(--amber);
 }
 
 .add-plugin {
@@ -148,57 +164,35 @@
   font-size: 8.5px;
 }
 
-/* ── Agentes ───────────────────────────────────────────── */
-.group {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin: 8px 0 2px;
-}
-
-.group-name {
-  font-size: 9.5px;
-  letter-spacing: 1.6px;
-  color: var(--text-dim);
-}
-
+/* ── Agentes: tarjeta de una fila ──────────────────────── */
 .agent {
   display: flex;
-  align-items: stretch;
-  border-left: 2px solid transparent;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 3px 4px;
+  margin-bottom: 3px;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  overflow: hidden;
 }
 
 .agent:hover {
   background: var(--line-soft);
-  border-left-color: var(--line);
+  border-color: var(--line);
 }
 
-.agent.working {
-  border-left-color: var(--amber);
+.agent.working,
+.agent.streaming {
+  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
 }
 
-.agent.disabled .agent-name {
+.agent.disabled {
+  opacity: 0.7;
+}
+
+.agent.disabled .agent-name .agent-label {
   color: var(--text-dim);
-}
-
-.agent-open {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  padding: 6px 4px;
-  background: none;
-  border: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.agent-open:focus-visible {
-  outline: 1px solid var(--neon);
-  outline-offset: -1px;
 }
 
 /* Figura geométrica por modo; el color del frontmatter manda si llega. */
@@ -229,57 +223,44 @@
   border: 1px dashed var(--text-dim);
 }
 
-.agent-id {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-}
-
 .agent-name {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 0 1 auto;
   min-width: 0;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--text);
 }
 
-.agent-label {
+.agent-name .agent-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text);
 }
 
 .agent-name .chip {
   flex: none;
 }
 
-.agent-stats {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-  flex: none;
-}
-
-.stat {
-  font-size: 8.5px;
+/* El modelo nunca por debajo de 11px: es la pista de con qué corre el agente. */
+.agent-model {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
   color: var(--text-dim);
-  white-space: nowrap;
 }
 
-/* En vuelo: barras + etiqueta. Streaming acelera el pulso. */
-.flight {
+/* Efecto de trabajo: las barras del HUD junto al nombre. Streaming acelera el pulso. */
+.work {
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 8px;
-  letter-spacing: 1.2px;
+  flex: none;
   color: var(--amber);
-  white-space: nowrap;
 }
 
 .bars {
@@ -320,16 +301,44 @@
   }
 }
 
+/* Quien pide no ver movimiento ve las barras quietas. */
+@media (prefers-reduced-motion: reduce) {
+  .bars i {
+    animation: none;
+    transform: scaleY(0.7);
+    opacity: 1;
+  }
+}
+
+.agent-tokens {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* Barra muy estrecha: el nombre, los tokens y los dos botones se quedan; el modelo
+   (que sigue en el title de VER) y las etiquetas de estado son lo prescindible. */
+@media (max-width: 340px) {
+  .agent-model,
+  .agent-name .chip {
+    display: none;
+  }
+
+  .agent {
+    gap: 4px;
+  }
+}
+
 .mini {
-  align-self: center;
   flex: none;
   padding: 2px 4px;
-  margin: 0 2px;
   background: transparent;
   border: 1px solid var(--line-soft);
   color: var(--text-dim);
   font-family: inherit;
-  font-size: 8.5px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
   cursor: pointer;
 }
 
@@ -343,39 +352,64 @@
 /* ── Catálogo en dos columnas ──────────────────────────── */
 .cols {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0,…) deja que las columnas encojan: con `1fr` la rejilla se sale
+     cuando una entrada tiene un nombre largo y no cabe recortarlo. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
-.col {
-  min-width: 0;
+/* Un área (MCP, PLUGINS) es una línea de rótulo y las dos columnas. */
+.area-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-bottom: 3px;
+  margin: 10px 0 3px;
+  border-bottom: 1px solid var(--line-soft);
 }
 
-.col-head {
-  padding-bottom: 2px;
-  margin-bottom: 3px;
-  border-bottom: 1px solid var(--line-soft);
-  font-size: 8.5px;
-  letter-spacing: 1.2px;
+.area-name {
+  flex: none;
+  font-size: 10px;
+  letter-spacing: 1.6px;
   color: var(--text-dim);
+}
+
+.legend {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+}
+
+.area-head .add-plugin {
+  flex: none;
+  margin-left: auto;
+}
+
+.cols + .fold {
+  margin-top: 10px;
 }
 
 .entry {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
-  padding: 4px 0;
+  padding: 3px 0;
 }
 
 .entry-main {
-  display: flex;
-  flex-direction: column;
   flex: 1;
   min-width: 0;
 }
 
 .entry-name {
+  display: block;
   font-size: 10.5px;
   line-height: 1.4;
   color: var(--text);
@@ -385,6 +419,15 @@
 }
 
 .entry.off .entry-name {
+  color: var(--text-dim);
+}
+
+/* Una skill activa se distingue a un vistazo de una apagada. */
+.entry.skill .entry-name {
+  color: var(--green);
+}
+
+.entry.skill.off .entry-name {
   color: var(--text-dim);
 }
 
@@ -447,13 +490,19 @@
   margin-left: auto;
 }
 
-/* ── Permisos ──────────────────────────────────────────── */
+/* ── Permisos: el interruptor de la cabecera ───────────── */
 .perm-switch {
+  width: 100%;
   max-width: 100%;
-  padding: 4px 0;
+  padding: 2px 0;
 }
 
 .perm-switch .perm-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 10.5px;
   line-height: 1.4;
   letter-spacing: 1.2px;
@@ -461,15 +510,13 @@
   text-align: left;
 }
 
+.perm-switch .chip {
+  flex: none;
+}
+
 .perm-switch:focus-visible {
   outline: 1px solid var(--neon);
   outline-offset: 2px;
-}
-
-.perm-help {
-  margin: 2px 0 0;
-  font-size: 9.5px;
-  color: var(--text-dim);
 }
 
 /* ── Estados vacíos y errores ──────────────────────────── */

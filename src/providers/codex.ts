@@ -29,6 +29,8 @@ export interface CodexExplorer {
   skills: ExplorerCatalogItem[];
   plugins: ExplorerCatalogItem[];
   autoAccept: boolean;
+  /** Tokens del proyecto: histórico de rollouts y sesión en curso. */
+  tokens: CodexTokens;
 }
 
 /* --------------------------------- rutas --------------------------------- */
@@ -80,6 +82,10 @@ function readAgents(text: string, file: string): ExplorerAgent[] {
       working: false,
       streaming: false,
       tokens: 0,
+      // Los rollouts de Codex no dicen qué rol gastó los tokens: cada fila va a 0 y el
+      // total del proyecto viaja en CodexExplorer.tokens.
+      tokensTotal: 0,
+      tokensSession: 0,
       workMs: 0,
       cost: 0,
     }))
@@ -160,6 +166,7 @@ export function codexExplorer(projectRoot: string | undefined): CodexExplorer {
     skills: readSkills(),
     plugins: readPlugins(text, file),
     autoAccept: getValue(text, [], "approval_policy") === "never",
+    tokens: codexTokens(projectRoot),
   };
 }
 
@@ -427,6 +434,74 @@ export function codexContext(projectRoot: string | undefined): ContextWindowInfo
   }
   contextCache = { key, info };
   return info;
+}
+
+/* --------------------------------- tokens --------------------------------- */
+
+export interface CodexTokens {
+  /** Suma del último uso medido de cada rollout del proyecto. */
+  total: number;
+  /** Último uso medido del rollout más reciente: la sesión en curso. */
+  session: number;
+}
+
+/** Tokens por rollout, cacheados por firma: un fichero solo se relee si cambió. */
+const rolloutTokensCache = new Map<string, { sig: string; tokens: number }>();
+
+/** Último `last_token_usage.total_tokens` del rollout; 0 si no tiene medición. */
+function rolloutTokens(file: string): number {
+  const sig = fileSignature(file);
+  const hit = rolloutTokensCache.get(file);
+  if (hit && hit.sig === sig) {
+    return hit.tokens;
+  }
+  let text = "";
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    // Rollout borrado o ilegible: se queda a 0.
+  }
+  let tokens = 0;
+  for (const line of text.split("\n")) {
+    if (!line.includes('"token_count"')) {
+      continue;
+    }
+    const payload = parseLine<RolloutLine>(line)?.payload;
+    if (payload?.type !== "token_count") {
+      continue;
+    }
+    const info = payload.info as
+      | { last_token_usage?: { total_tokens?: unknown } }
+      | null
+      | undefined;
+    // `info: null` sólo refresca los rate limits: no borra la última medición.
+    if (!info) {
+      continue;
+    }
+    tokens = num(info.last_token_usage?.total_tokens);
+  }
+  if (rolloutTokensCache.size > 100) {
+    // El tope queda por encima de la ventana de 20 rollouts que se recorre: desalojar la
+    // entrada más vieja nunca obliga a releer un fichero de la pasada.
+    const oldest = rolloutTokensCache.keys().next().value;
+    if (oldest !== undefined) {
+      rolloutTokensCache.delete(oldest);
+    }
+  }
+  rolloutTokensCache.set(file, { sig, tokens });
+  return tokens;
+}
+
+/**
+ * Tokens del proyecto de Codex: el histórico de sus rollouts y el de la sesión en curso.
+ * shortcut: solo mira los 20 rollouts más recientes (ver recentRollouts).
+ */
+export function codexTokens(projectRoot: string | undefined): CodexTokens {
+  let total = 0;
+  for (const file of projectRoot ? rolloutsFor(projectRoot) : []) {
+    total += rolloutTokens(file);
+  }
+  return { total, session: codexContext(projectRoot).used };
 }
 
 /* -------------------------------- escritura ------------------------------- */

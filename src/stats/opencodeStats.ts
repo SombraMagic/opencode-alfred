@@ -227,6 +227,18 @@ export function openSqlite(file: string): RawSqlite | undefined {
   }
 }
 
+/** Tokens de la última sesión de cada agente (por `updated`), para las tarjetas del explorador. */
+export function latestSessionTokens(sessions: SessionInfo[]): Map<string, number> {
+  const latest = new Map<string, { updated: number; tokens: number }>();
+  for (const session of sessions) {
+    const prev = latest.get(session.agent);
+    if (!prev || session.updated >= prev.updated) {
+      latest.set(session.agent, { updated: session.updated, tokens: session.tokens.total });
+    }
+  }
+  return new Map([...latest].map(([agent, item]) => [agent, item.tokens]));
+}
+
 export class StatsService {
   private cache?: { sig: string; agents: AgentActivity[]; sessions: SessionInfo[]; totals: AgentActivity };
   private marks = new Map<string, ActivityMarks>();

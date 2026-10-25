@@ -18,6 +18,10 @@ export interface ExplorerAgent {
   tokens: number;
   workMs: number;
   cost: number;
+  /** Tokens históricos del agente. Opcional: los proveedores que aún no los miden no lo mandan. */
+  tokensTotal?: number;
+  /** Tokens de la última sesión del agente. Opcional, como `tokensTotal`. */
+  tokensSession?: number;
 }
 
 export interface ExplorerCatalogItem {
@@ -168,19 +172,23 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
 </head>
 <body>
 <div class="hud">
-  <div class="hud-header">
-    <span class="hud-dot"></span>
-    <span class="hud-title">ALFRED // CONTROL</span>
-    <span class="hud-status" id="status">EN LÍNEA</span>
-  </div>
-
-  <div class="actions">
-    <button id="btn-global" class="brain-btn" type="button" title="Editar el AGENTS.md global">${brain}<span>GLOBAL</span></button>
-    <button id="btn-local" class="brain-btn" type="button" title="Editar el AGENTS.md del proyecto" disabled>${brain}<span>LOCAL</span></button>
-    <div class="session-group">
-      <button id="agent-prev" class="agent-arrow" type="button" title="Agente anterior" aria-label="Agente anterior" disabled>‹</button>
-      <button id="btn-session" class="ghost-btn session-btn" type="button" title="Abrir o enfocar la sesión del agente elegido; las flechas cambian de agente">▶ <span id="agent-label">OPEN</span></button>
-      <button id="agent-next" class="agent-arrow" type="button" title="Agente siguiente" aria-label="Agente siguiente" disabled>›</button>
+  <!-- [MANDO] Dos filas: AGENTS.md + sesión, y el interruptor de permisos. -->
+  <div class="mando">
+    <div class="mando-row">
+      <button id="btn-global" class="brain-btn" type="button" title="Editar el AGENTS.md global">${brain}<span>GLOBAL</span></button>
+      <button id="btn-local" class="brain-btn" type="button" title="Editar el AGENTS.md del proyecto" disabled>${brain}<span>PROYECTO</span></button>
+      <div class="session-group">
+        <button id="agent-prev" class="agent-arrow" type="button" title="Agente anterior" aria-label="Agente anterior" disabled>‹</button>
+        <button id="btn-session" class="ghost-btn session-btn" type="button" title="Abrir o enfocar la sesión del agente elegido; las flechas cambian de agente">▶ <span id="agent-label">OPEN</span></button>
+        <button id="agent-next" class="agent-arrow" type="button" title="Agente siguiente" aria-label="Agente siguiente" disabled>›</button>
+      </div>
+    </div>
+    <div class="mando-row">
+      <button id="btn-auto-accept" class="switch perm-switch" type="button" aria-pressed="false" title="Aceptar sin preguntar lo que el agente pida. Las reglas «deny» siguen bloqueando; se aplica al momento.">
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+        <span class="perm-label">ACEPTAR TODO SIN PREGUNTAR</span>
+        <span class="chip" id="perm-state" hidden>AUTO</span>
+      </button>
     </div>
   </div>
 
@@ -188,71 +196,47 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
 
   <section class="section">
     <div class="section-head">
-      <span class="label">AGENTES</span>
+      <span class="label">EXPLORADOR</span>
       <span class="count" id="agents-total"></span>
     </div>
-    <div id="agents"></div>
+    <details class="fold" open>
+      <summary>AGENTES DE PROYECTO <span class="count" id="agents-project-count">0</span></summary>
+      <div id="agents-project" class="list"></div>
+    </details>
+    <details class="fold" open>
+      <summary>AGENTES GLOBALES <span class="count" id="agents-global-count">0</span></summary>
+      <div id="agents-global" class="list"></div>
+    </details>
   </section>
 
   <section class="section">
-    <div class="section-head">
-      <span class="label">MCP</span>
-      <span class="count" id="mcp-total"></span>
+    <div class="area-head">
+      <span class="area-name">MCP</span>
+      <span class="legend">GLOBAL <span class="count" id="mcp-global-count">0</span> · PROYECTO <span class="count" id="mcp-project-count">0</span></span>
     </div>
     <div class="cols">
-      <div class="col">
-        <div class="col-head">GLOBAL</div>
-        <div id="mcp-global" class="list"></div>
-      </div>
-      <div class="col">
-        <div class="col-head">PROYECTO</div>
-        <div id="mcp-project" class="list"></div>
-      </div>
+      <div id="mcp-global" class="list"></div>
+      <div id="mcp-project" class="list"></div>
     </div>
-  </section>
 
-  <section class="section">
-    <div class="section-head">
-      <span class="label">SKILLS</span>
-      <span class="count" id="skills-total"></span>
-    </div>
-    <details class="fold">
-      <summary>GLOBAL <span class="count" id="skills-global-count">0</span></summary>
-      <div id="skills-global" class="list"></div>
-    </details>
-    <details class="fold">
-      <summary>LOCAL <span class="count" id="skills-project-count">0</span></summary>
-      <div id="skills-project" class="list"></div>
-    </details>
-  </section>
-
-  <section class="section">
-    <div class="section-head">
-      <span class="label">PLUGINS</span>
+    <div class="area-head">
+      <span class="area-name">PLUGINS</span>
+      <span class="legend">GLOBAL <span class="count" id="plugins-global-count">0</span> · PROYECTO <span class="count" id="plugins-project-count">0</span></span>
       <button id="btn-add-plugin" class="ghost-btn add-plugin" type="button">+ PLUGIN</button>
     </div>
     <div class="cols">
-      <div class="col">
-        <div class="col-head">GLOBAL</div>
-        <div id="plugins-global" class="list"></div>
-      </div>
-      <div class="col">
-        <div class="col-head">PROYECTO</div>
-        <div id="plugins-project" class="list"></div>
-      </div>
+      <div id="plugins-global" class="list"></div>
+      <div id="plugins-project" class="list"></div>
     </div>
-  </section>
 
-  <section class="section">
-    <div class="section-head">
-      <span class="label">PERMISOS</span>
-      <span class="chip" id="perm-state">PREGUNTA</span>
-    </div>
-    <button id="btn-auto-accept" class="switch perm-switch" type="button" aria-pressed="false">
-      <span class="switch-track"><span class="switch-thumb"></span></span>
-      <span class="perm-label">ACEPTAR TODO SIN PREGUNTAR</span>
-    </button>
-    <p class="perm-help">Las reglas «deny» siguen bloqueando. Se aplica al momento.</p>
+    <details class="fold">
+      <summary>SKILLS GLOBALES <span class="count" id="skills-global-count">0</span></summary>
+      <div id="skills-global" class="list"></div>
+    </details>
+    <details class="fold">
+      <summary>SKILLS PROYECTO <span class="count" id="skills-project-count">0</span></summary>
+      <div id="skills-project" class="list"></div>
+    </details>
   </section>
 </div>
 <script nonce="${nonce}" src="${scriptUri}"></script>

@@ -51,6 +51,7 @@ import { installMcp } from "./voice/mcpInstaller";
 import { ContextWindowService } from "./stats/contextWindow";
 import {
   emptyActivity,
+  latestSessionTokens,
   StatsService,
   StatsSnapshot,
   AgentActivity,
@@ -410,7 +411,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   /** Agente en la forma que pinta el explorador, con su actividad en vivo. */
-  function explorerAgent(agent: Agent): ExplorerAgent {
+  function explorerAgent(agent: Agent, sessionTokens: Map<string, number>): ExplorerAgent {
     const act = display?.agents.find((a) => a.agent === agent.name);
     const mode = agent.frontmatter.mode;
     // Sin mode, el explorador solo distingue integrado o primary; "all" se pinta como primary.
@@ -429,6 +430,10 @@ export function activate(context: vscode.ExtensionContext): void {
       working: act?.working === true,
       streaming: act?.streaming === true,
       tokens: act?.tokens.total ?? 0,
+      // El histórico es el total (ya con el reinicio de contadores aplicado); la sesión, la
+      // última suya en la BD, que no pasa por el reinicio. Sin dato, 0.
+      tokensTotal: act?.tokens.total ?? 0,
+      tokensSession: sessionTokens.get(agent.name) ?? 0,
       workMs: act?.workMs ?? 0,
       cost: act?.cost ?? 0,
     };
@@ -520,8 +525,8 @@ export function activate(context: vscode.ExtensionContext): void {
         mcp: claude.mcp,
         skills: claude.skills,
         plugins: claude.plugins,
-        // Claude no tiene histórico de tokens aquí: solo se marca el «en vuelo».
-        totals: { tokens: 0, workMs: 0, cost: 0, working: claude.activity.length },
+        // Claude no guarda coste ni duración de trabajo: solo entran sus tokens.
+        totals: { tokens: claude.tokens.total, workMs: 0, cost: 0, working: claude.activity.length },
         autoAccept: claude.autoAccept,
         sessionAgent,
         sessionAgents: availableAgents,
@@ -535,20 +540,25 @@ export function activate(context: vscode.ExtensionContext): void {
         mcp: codex.mcp,
         skills: codex.skills,
         plugins: codex.plugins,
-        // Codex tampoco tiene histórico de actividad aquí: los totales se quedan a cero.
-        totals: { tokens: 0, workMs: 0, cost: 0, working: 0 },
+        // Codex tampoco: sus rollouts solo traen tokens.
+        totals: { tokens: codex.tokens.total, workMs: 0, cost: 0, working: 0 },
         autoAccept: codex.autoAccept,
         sessionAgent,
         sessionAgents: availableAgents,
       };
     }
     const totals = display?.totals;
+    const root = projectRoot();
+    // Mismo criterio que `pickSession`: la sesión de otro proyecto no cuenta en estas tarjetas.
+    const sessionTokens = latestSessionTokens(
+      (display?.sessions ?? []).filter((s) => !!root && isSamePath(s.directory, root))
+    );
     return {
       hasProject: !!projectRoot(),
       agents: {
-        project: agentList.project.map(explorerAgent),
-        global: agentList.global.map(explorerAgent),
-        builtin: agentList.builtins.map(explorerAgent),
+        project: agentList.project.map((a) => explorerAgent(a, sessionTokens)),
+        global: agentList.global.map((a) => explorerAgent(a, sessionTokens)),
+        builtin: agentList.builtins.map((a) => explorerAgent(a, sessionTokens)),
       },
       mcp: catalogData.mcp.map((s) => ({
         name: s.name,
