@@ -340,6 +340,14 @@ body {
   background: color-mix(in srgb, var(--neon) 18%, transparent);
 }
 
+/* Fila de agente o tarjeta de favorito seleccionada: realce sutil y persistente. */
+.card.sel,
+.card.sel:hover {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 12%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--neon) 35%, transparent);
+}
+
 .empty {
   padding: 12px 6px;
   font-size: 11px;
@@ -365,6 +373,14 @@ body {
   stroke: var(--neon);
   stroke-width: 1.5;
   opacity: 0.85;
+}
+
+/* Cable de la fila/tarjeta seleccionada: más grueso, más brillante y con resplandor. */
+.wires path.hot {
+  stroke: color-mix(in srgb, var(--neon) 65%, #fff);
+  stroke-width: 3;
+  opacity: 1;
+  filter: drop-shadow(0 0 5px var(--neon));
 }
 
 /* ── Pie ───────────────────────────────────────────────── */

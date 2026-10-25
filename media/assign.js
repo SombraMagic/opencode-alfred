@@ -31,6 +31,8 @@
   let lastKey = "";
   let favIds = new Set();
   let drag = null;
+  // Fila/tarjeta seleccionada ({ kind, id }): resalta su cable. Solo visual: no se persiste ni se envía al host.
+  let sel = null;
   let agentEls = new Map();
   let favEls = new Map();
   let raf = 0;
@@ -138,6 +140,8 @@
       const card = node("div", "card agent");
       card.draggable = true;
       card.title = agent.name;
+      // La marca sobrevive a los repintados del sondeo: se deriva de sel al construir.
+      if (sel && sel.kind === "agente" && sel.id === agentKey(agent)) card.classList.add("sel");
 
       const line = node("div", "card-line");
       line.appendChild(node("span", "card-name", agent.name));
@@ -168,6 +172,12 @@
         startDrag(event, { kind: "agent", agent: agent.name, scope: agent.scope })
       );
       card.addEventListener("dragend", endDrag);
+      // Tras un drag real el navegador no dispara click, así que no interfiere con el arrastre.
+      // El botón «×» ya tiene su propio clic: no lo convertimos también en selección.
+      card.addEventListener("click", (event) => {
+        if (event.target.closest(".card-x")) return;
+        toggleSel("agente", agentKey(agent));
+      });
 
       agentEls.set(agentKey(agent), card);
       el.agents.appendChild(card);
@@ -192,6 +202,7 @@
       const card = node("div", "card fav");
       card.draggable = true;
       card.title = model.id;
+      if (sel && sel.kind === "modelo" && sel.id === model.id) card.classList.add("sel");
       card.appendChild(node("div", "card-line")).appendChild(node("span", "card-name", model.name));
       card.appendChild(node("div", "card-provider", model.provider));
 
@@ -219,6 +230,7 @@
         startDrag(event, { kind: "model", id: model.id })
       );
       card.addEventListener("dragend", endDrag);
+      card.addEventListener("click", () => toggleSel("modelo", model.id));
 
       favEls.set(model.id, card);
       el.favorites.appendChild(card);
@@ -323,6 +335,21 @@
   });
   window.addEventListener("dragend", endDrag);
 
+  // ── Selección ───────────────────────────────────────────
+  // Clic en un agente o en un favorito: resalta el cable que los une. Clic en lo ya seleccionado: deselecciona.
+  function toggleSel(kind, id) {
+    sel = sel && sel.kind === kind && sel.id === id ? null : { kind, id };
+    markSel();
+    drawWires();
+  }
+
+  function markSel() {
+    for (const [key, card] of agentEls)
+      card.classList.toggle("sel", !!sel && sel.kind === "agente" && sel.id === key);
+    for (const [id, card] of favEls)
+      card.classList.toggle("sel", !!sel && sel.kind === "modelo" && sel.id === id);
+  }
+
   // ── Líneas ──────────────────────────────────────────────
   function visibleIn(rect, list) {
     const box = list.getBoundingClientRect();
@@ -341,7 +368,8 @@
 
     for (const agent of lastData.agents || []) {
       if (!agent.model || !favIds.has(agent.model)) continue;
-      const from = agentEls.get(agentKey(agent));
+      const key = agentKey(agent);
+      const from = agentEls.get(key);
       const to = favEls.get(agent.model);
       if (!from || !to) continue;
       const a = from.getBoundingClientRect();
@@ -355,6 +383,11 @@
       const dx = round(Math.max(18, (x2 - x1) / 2));
 
       const path = document.createElementNS(SVG, "path");
+      // El resaltado se deriva de sel aquí, porque el SVG se repinta entero en cada fotograma.
+      const hot =
+        (sel && sel.kind === "agente" && sel.id === key) ||
+        (sel && sel.kind === "modelo" && sel.id === agent.model);
+      if (hot) path.classList.add("hot");
       path.setAttribute(
         "d",
         "M" + x1 + " " + y1 + " C" + round(x1 + dx) + " " + y1 + " " + round(x2 - dx) + " " + y2 + " " + x2 + " " + y2
