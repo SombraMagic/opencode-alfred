@@ -18,6 +18,7 @@
     el.textContent = text;
     el.hidden = false;
     el.classList.toggle("error", !!isError);
+    el.classList.toggle("ok", !isError);
   }
 
   function wireEvents() {

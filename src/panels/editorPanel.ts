@@ -4,9 +4,11 @@ import {
   AgentFrontmatter,
   ALL_PERMISSION_TOOLS,
   FLAT_PERMISSION_TOOLS,
+  OPENCODE_AGENT_COLORS,
   PATTERN_PERMISSION_TOOLS,
   Scope,
 } from "../agents/types";
+import { serializeAgentFile } from "../agents/parser";
 import { findAgent, readConfigInfo, saveAgent } from "../agents/store";
 import { validateAgentName, validateFrontmatter, ValidationIssue } from "../agents/validate";
 import { projectRoot } from "../agents/paths";
@@ -21,12 +23,24 @@ interface EditorInit {
   filePath?: string;
   frontmatter: AgentFrontmatter;
   prompt: string;
+  /** Vista previa del .md calculada con el mismo serializador que usa saveAgent. */
+  preview: string;
   models: { id: string; name: string }[];
   allTools: readonly string[];
   flatTools: readonly string[];
   patternTools: readonly string[];
+  themeColors: readonly string[];
   schemaUrl: string;
   hasProject: boolean;
+}
+
+/** Preview del fichero tal como lo escribiría saveAgent; vacío si el YAML falla. */
+function previewOf(frontmatter: AgentFrontmatter): string {
+  try {
+    return serializeAgentFile(frontmatter, "");
+  } catch {
+    return "";
+  }
 }
 
 export class EditorPanel {
@@ -77,10 +91,12 @@ export class EditorPanel {
       filePath: agent.filePath,
       frontmatter: agent.frontmatter,
       prompt: agent.prompt,
+      preview: previewOf(agent.frontmatter),
       models: config.models.map((m) => ({ id: m.id, name: m.name })),
       allTools: ALL_PERMISSION_TOOLS,
       flatTools: FLAT_PERMISSION_TOOLS,
       patternTools: PATTERN_PERMISSION_TOOLS,
+      themeColors: OPENCODE_AGENT_COLORS,
       schemaUrl: vscode.workspace
         .getConfiguration("opencodeAgents")
         .get<string>("schemaUrl", "https://opencode.ai/config.json"),
@@ -163,7 +179,7 @@ export class EditorPanel {
 
   private handleValidate(payload: { name: string; frontmatter: AgentFrontmatter }): void {
     const issues = this.computeIssues(payload);
-    this.post({ type: "validation", issues });
+    this.post({ type: "validation", issues, preview: previewOf(payload.frontmatter) });
   }
 
   private async handleSave(payload: {
@@ -215,7 +231,7 @@ export class EditorPanel {
       });
       this.onSaved?.();
       void vscode.window.setStatusBarMessage(
-        `opencode agents: guardado ${payload.name}. Reinicia opencode para aplicarlo.`,
+        `opencode agents: guardado ${payload.name}. opencode v2 recarga los agentes al guardar; si no, /reload.`,
         6000
       );
     } catch (err) {
@@ -238,6 +254,9 @@ export class EditorPanel {
 
   private getHtml(webview: vscode.Webview, name: string): string {
     const nonce = getNonce();
+    const tokensUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
+    );
     const styleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "editor.css")
     );
@@ -247,7 +266,7 @@ export class EditorPanel {
     const csp = [
       `default-src 'none'`,
       `img-src ${webview.cspSource} data:`,
-      `style-src ${webview.cspSource} 'unsafe-inline'`,
+      `style-src ${webview.cspSource}`,
       `script-src 'nonce-${nonce}'`,
       `font-src ${webview.cspSource}`,
     ].join("; ");
@@ -258,6 +277,7 @@ export class EditorPanel {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="${tokensUri}" rel="stylesheet" />
 <link href="${styleUri}" rel="stylesheet" />
 <title>Editor de agente</title>
 </head>
@@ -282,12 +302,12 @@ export class EditorPanel {
       <h2>Identidad</h2>
       <div class="row">
         <label>Nombre (fichero)
-          <input id="f-name" type="text" placeholder="mi-agente" spellcheck="false" />
+          <input id="f-name" type="text" placeholder="mi-agente" spellcheck="false" autocomplete="off" />
         </label>
         <label>Scope de destino
           <select id="f-scope">
-            <option value="project">Proyecto (.opencode/agent)</option>
-            <option value="global">Usuario (~/.config/opencode/agent)</option>
+            <option value="project">PROYECTO (.opencode/agent)</option>
+            <option value="global">USUARIO (~/.config/opencode/agent)</option>
           </select>
         </label>
         <label>Tipo (mode)
@@ -299,69 +319,97 @@ export class EditorPanel {
           </select>
         </label>
       </div>
+      <p class="hint">Tipo (mode) omitido = all.</p>
       <label class="block">Descripción
         <textarea id="f-description" rows="2" placeholder="Qué hace y cuándo usarlo."></textarea>
       </label>
+      <p class="hint">Un subagente sin description es difícil de descubrir.</p>
     </section>
 
-    <section class="card">
+    <section class="card span-2">
       <h2>Modelo</h2>
-      <label class="model-label" for="f-model">Modelo (provider/model-id)</label>
-      <div class="combo">
-        <input id="f-model" type="text" autocomplete="off" spellcheck="false" placeholder="busca provider/model-id…" role="combobox" aria-expanded="false" aria-controls="model-popup" aria-autocomplete="list" />
-        <div id="model-popup" class="combo-popup" role="listbox" aria-label="Modelos disponibles" hidden></div>
-      </div>
-      <p class="hint" id="model-hint"></p>
       <div class="row">
+        <div class="model-col">
+          <label class="model-label" for="f-model">Modelo (provider/model-id)</label>
+          <!-- El popup no puede colgar de un <label>: ver el comentario de .combo en editor.css. -->
+          <div class="combo">
+            <input id="f-model" type="text" autocomplete="off" spellcheck="false" placeholder="busca provider/model-id…" role="combobox" aria-expanded="false" aria-controls="model-popup" aria-autocomplete="list" />
+            <div id="model-popup" class="combo-popup" role="listbox" aria-label="Modelos disponibles" hidden></div>
+          </div>
+        </div>
         <label>variant
           <input id="f-variant" type="text" spellcheck="false" placeholder="(opcional)" />
         </label>
-        <label>temperature
-          <input id="f-temperature" type="number" step="0.05" min="0" max="2" placeholder="(opcional)" />
-        </label>
-        <label>top_p
-          <input id="f-top_p" type="number" step="0.05" min="0" max="1" placeholder="(opcional)" />
-        </label>
-        <label>steps
-          <input id="f-steps" type="number" step="1" min="1" placeholder="(opcional)" />
-        </label>
       </div>
-    </section>
-
-    <section class="card">
-      <h2>Apariencia y estado</h2>
-      <div class="row">
-        <label>color
-          <input id="f-color" type="color" />
-        </label>
-        <button id="btn-clear-color" class="secondary small" type="button">Quitar color</button>
-        <label class="check"><input id="f-hidden" type="checkbox" /> hidden</label>
-        <label class="check"><input id="f-disable" type="checkbox" /> disable</label>
-      </div>
-      <p class="hint" id="color-hint"></p>
+      <p class="hint" id="model-hint"></p>
     </section>
 
     <section class="card span-2">
       <h2>Permisos</h2>
-      <p class="hint">Acción plana o por patrón. En objetos con patrones, <strong>la última regla que coincide gana</strong>: pon lo amplio primero y lo concreto después.</p>
-      <div id="perm-rows"></div>
-      <button id="btn-add-perm" class="secondary small" type="button">+ Añadir permiso</button>
-      <details class="preview">
-        <summary>Vista previa YAML de permission</summary>
-        <pre id="perm-preview"></pre>
+      <p class="hint">En los mapas con patrón gana la <strong>ÚLTIMA</strong> regla que coincide: pon lo amplio (*) primero y lo concreto después.</p>
+      <div id="perm-tools"></div>
+      <h3>Otras reglas</h3>
+      <p class="hint">Las claves de permission se casan como comodines contra el nombre de la tool: vale para MCP (<code>mymcp_*</code>) y tools propias.</p>
+      <div id="perm-extra"></div>
+      <button id="btn-add-perm" class="secondary small" type="button">+ Añadir</button>
+    </section>
+
+    <section class="card span-2">
+      <h2>Apariencia</h2>
+      <div id="colors" class="chips"></div>
+      <div class="row">
+        <label class="color-pick">Color personalizado
+          <input id="f-color" type="color" />
+        </label>
+        <button id="btn-clear-color" class="secondary small" type="button">Quitar color</button>
+      </div>
+      <p class="hint" id="color-hint"></p>
+      <div class="row">
+        <label class="check"><input id="f-hidden" type="checkbox" /> hidden</label>
+        <label class="check"><input id="f-disable" type="checkbox" /> disable</label>
+      </div>
+      <p class="hint">hidden: solo afecta al autocompletado @ de subagentes. disable: desactiva el agente.</p>
+    </section>
+
+    <section class="card span-2">
+      <details class="advanced">
+        <summary>Avanzado</summary>
+        <div class="row">
+          <label>temperature
+            <input id="f-temperature" type="number" step="0.05" min="0" max="2" placeholder="(opcional)" />
+          </label>
+          <label>top_p
+            <input id="f-top_p" type="number" step="0.05" min="0" max="1" placeholder="(opcional)" />
+          </label>
+          <label>steps
+            <input id="f-steps" type="number" step="1" min="1" placeholder="(opcional)" />
+          </label>
+        </div>
+        <p class="hint">steps sustituye al deprecado maxSteps.</p>
+        <h3>Opciones del proveedor</h3>
+        <p class="hint">Las claves del frontmatter que no están en la lista conocida se pasan al proveedor del modelo tal cual (reasoningEffort, textVerbosity…). <code>options</code> viaja intacto.</p>
+        <div id="option-rows"></div>
+        <button id="btn-add-option" class="secondary small" type="button">+ Añadir opción</button>
       </details>
     </section>
 
     <section class="card span-2">
       <h2>Prompt (system prompt)</h2>
-      <p class="hint">El cuerpo del fichero. No incluyas <code>prompt:</code> en el frontmatter.</p>
+      <p class="hint">El cuerpo del fichero ES el prompt: no se escribe ninguna clave <code>prompt:</code>.</p>
       <textarea id="f-prompt" class="prompt" rows="18" spellcheck="false" placeholder="Eres un..."></textarea>
+      <p class="hint" id="prompt-count"></p>
+    </section>
+
+    <section class="card span-2">
+      <h2>Vista previa</h2>
+      <p class="hint">Tal cual se escribirá el frontmatter.</p>
+      <pre id="preview" class="preview"></pre>
     </section>
 
     <section class="card span-2">
       <h2>Validación</h2>
       <ul id="issues" class="issues"><li class="ok">Sin problemas.</li></ul>
-      <p class="hint">Esquema de referencia: <a href="${this.init.schemaUrl}" id="schema-link">${escapeHtml(this.init.schemaUrl)}</a>. Tras guardar, reinicia opencode para aplicar los cambios.</p>
+      <p class="hint">Esquema de referencia: <a href="${escapeHtml(this.init.schemaUrl)}" id="schema-link">${escapeHtml(this.init.schemaUrl)}</a>. opencode v2 recarga los agentes al guardar; si no lo ves, usa <code>/reload</code> o reinicia opencode.</p>
     </section>
   </main>
 </div>

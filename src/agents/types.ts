@@ -16,9 +16,7 @@ export const FLAT_PERMISSION_TOOLS = [
   "question",
   "webfetch",
   "websearch",
-  "lsp",
   "doom_loop",
-  "skill",
 ] as const;
 
 export const PATTERN_PERMISSION_TOOLS = [
@@ -30,6 +28,8 @@ export const PATTERN_PERMISSION_TOOLS = [
   "bash",
   "task",
   "external_directory",
+  "lsp",
+  "skill",
 ] as const;
 
 export const ALL_PERMISSION_TOOLS = [
@@ -78,3 +78,14 @@ export const BUILTIN_AGENTS = ["build", "plan", "general", "explore"] as const;
 export const HIDDEN_BUILTIN_AGENTS = ["compaction", "title", "summary"] as const;
 
 export const AGENT_MODES: AgentMode[] = ["primary", "subagent", "all"];
+
+/** Nombres de tema que acepta el campo `color` de un agente, además de un hex válido. */
+export const OPENCODE_AGENT_COLORS = [
+  "primary",
+  "secondary",
+  "accent",
+  "success",
+  "warning",
+  "error",
+  "info",
+] as const;

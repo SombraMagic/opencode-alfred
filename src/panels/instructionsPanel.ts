@@ -158,6 +158,9 @@ export class InstructionsPanel {
     const targets = global
       ? "Instrucciones para todos los agentes"
       : "Instrucciones para los agentes de este proyecto";
+    const tokensUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
+    );
     const styleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "editor.css")
     );
@@ -178,6 +181,7 @@ export class InstructionsPanel {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="${tokensUri}" rel="stylesheet" />
 <link href="${styleUri}" rel="stylesheet" />
 <title>${heading}</title>
 </head>
