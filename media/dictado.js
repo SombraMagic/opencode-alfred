@@ -410,6 +410,13 @@
     sel.addRange(range);
   }
 
+  /** Inserta texto pegado en el cursor; execCommand("insertText") no es fiable en el webview. */
+  function insertPlainText(text) {
+    insertNodeAtCaret(document.createTextNode(text));
+    updateCount();
+    saveNoteSoon();
+  }
+
   /** Lee un fichero como data URL. */
   function readDataUrl(blob) {
     return new Promise((resolve, reject) => {
@@ -452,7 +459,12 @@
       // Nada de HTML: solo el texto, tal cual.
       e.preventDefault();
       const text = data.getData("text/plain");
-      if (text) document.execCommand("insertText", false, text);
+      if (text) insertPlainText(text);
+      else {
+        // Portapapeles que no pueblan getData: se le pide al item de cadena.
+        const item = [...data.items].find((i) => i.kind === "string");
+        if (item) item.getAsString((s) => s && insertPlainText(s));
+      }
       return;
     }
     e.preventDefault();
