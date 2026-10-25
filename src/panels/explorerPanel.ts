@@ -179,7 +179,7 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
       <button id="btn-local" class="brain-btn" type="button" title="Editar el AGENTS.md del proyecto" disabled>${brain}<span>PROYECTO</span></button>
       <div class="session-group">
         <button id="agent-prev" class="agent-arrow" type="button" title="Agente anterior" aria-label="Agente anterior" disabled>‹</button>
-        <button id="btn-session" class="ghost-btn session-btn" type="button" title="Abrir o enfocar la sesión del agente elegido; las flechas cambian de agente">▶ <span id="agent-label">OPEN</span></button>
+        <button id="btn-session" class="ghost-btn session-btn" type="button" title="Abrir o enfocar la terminal de opencode; las flechas cambian de agente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 24H2V0h20zM17 4.8H7v14.4h10z" fill-rule="evenodd" clip-rule="evenodd"></path></svg><span id="agent-label" hidden>OPEN</span></button>
         <button id="agent-next" class="agent-arrow" type="button" title="Agente siguiente" aria-label="Agente siguiente" disabled>›</button>
       </div>
     </div>

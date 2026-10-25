@@ -113,7 +113,10 @@
 
 .session-btn {
   flex: none;
-  padding: 7px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 7px;
   background: color-mix(in srgb, var(--neon) 24%, transparent);
   border-color: var(--neon-dim);
   color: var(--text);
@@ -121,6 +124,14 @@
   /* Sin letter-spacing: la etiqueta cambia de largo (OPEN/CLAUDE/CODEX) y la barra es estrecha. */
   letter-spacing: 0;
   white-space: nowrap;
+}
+
+/* El logo de la app, al tamaño de la fila: ni menos de 13px ni más de los 27 del mando. */
+.session-btn svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
 }
 
 .session-btn:hover,
@@ -315,6 +326,15 @@
   font-size: 11px;
   color: var(--text-dim);
   white-space: nowrap;
+}
+
+/* VER y EDIT viajan juntos y pegados al borde derecho: el hueco libre lo absorbe
+   `margin-left`, no el nombre, que se recorta con elipsis. */
+.agent-actions {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
 }
 
 /* Barra muy estrecha: el nombre, los tokens y los dos botones se quedan; el modelo
