@@ -931,6 +931,9 @@
     }
   });
 
+  // El prompt es Markdown: se ve coloreado sin dejar de editarse como texto plano.
+  window.MdEditor?.attachTextarea(textarea("f-prompt"));
+
   wireEvents();
   post({ type: "ready" });
 })();

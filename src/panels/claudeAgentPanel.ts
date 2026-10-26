@@ -356,6 +356,12 @@ export class ClaudeAgentPanel {
     const styleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "claudeAgent.css")
     );
+    const mdStyleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "mdEditor.css")
+    );
+    const mdScriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "mdEditor.js")
+    );
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "claudeAgent.js")
     );
@@ -375,6 +381,7 @@ export class ClaudeAgentPanel {
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link href="${tokensUri}" rel="stylesheet" />
 <link href="${styleUri}" rel="stylesheet" />
+<link href="${mdStyleUri}" rel="stylesheet" />
 <title>Subagente de Claude</title>
 </head>
 <body>
@@ -531,6 +538,7 @@ export class ClaudeAgentPanel {
     </section>
   </main>
 </div>
+<script nonce="${nonce}" src="${mdScriptUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

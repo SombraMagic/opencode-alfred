@@ -56,8 +56,8 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `idea.md`): cabecera **MANDO** en ≤2 filas (GLOBAL/PROYECTO + grupo de sesión +
   ACEPTAR TODO; la sección PERMISOS y el hud-header viejo desaparecen), **EXPLORADOR**
   con dos `<details>` (Proyecto / Globales+integrados fusionados) y tarjetas de agente de
-  UNA fila `[icono][nombre][modelo][vuelo animado][total/sesión tok][VER→editAgent][EDIT→
-  openAgentFile]` (media query ≤340 px oculta modelo y chips), **CONTROL** con MCP y
+  UNA fila `[icono][nombre][modelo][vuelo animado][total/sesión tok][VER→editAgent]` (media
+  query ≤340 px oculta modelo y chips), **CONTROL** con MCP y
   plugins en columnas de una línea por entrada y skills en plegables con switch y color
   activo/inactivo. Backend nuevo: `tokensTotal`/`tokensSession` por agente en los 3
   proveedores (opencode vía `latestSessionTokens` filtrado por proyecto; Claude suma
@@ -68,27 +68,18 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `[agents.*]` de Codex siempre 0/0 (el rollout no atribuye rol); los transcripts Claude
   se leen dos veces por tick con sesión viva (contexto + tokens). Revisión **PASS** (un
   NEEDS WORK por el acantilado de la caché, corregido y medido); humo headless Edge
-  250/730 px. Ajustes vistos por el usuario (commit `e4cdba6`): VER/EDIT van en un
+  250/730 px. Ajustes vistos por el usuario (commit `e4cdba6`): VER va en un
   `.agent-actions` con `margin-left: auto` (con `.agent-name` en `flex: 0 1 auto` y nombre
   corto se quedaban pegados a los tokens) y el botón de sesión lleva el **svg del icono de
   la app** en vez de `OPEN`/`CLAUDE`/`CODEX` (paths inline en `AGENT_LOGOS`: opencode y
   Claude de simple-icons, Codex de lobehub — no hay svg en los installs locales; `d` de
   opencode también en el HTML para no pintar en blanco antes del primer `render`).
   Segunda ronda del usuario (commit `f14fde4`): `--text-dim` queda **solo** para apagado
-  (`:disabled`, `.off`, placeholder) — nombres, rótulos de sección, `summary` y VER/EDIT van a
+  (`:disabled`, `.off`, placeholder) — nombres, rótulos de sección, `summary` y VER van a
   `--text` y lo secundario (modelo, tokens, leyendas) a `--text-soft` (intermedio, en el CSS de
   cada panel, nunca en `tokens.css`); las cabeceras MCP/PLUGINS usan la misma rejilla
   `--cat-cols` que `.cols`, en una sola fila (`GLOBAL` sobre su columna, `+ PLUGIN` empujado a
-  la derecha sin desplazarla; a ≤340 px se ocultan el nombre de área y « PLUGIN»). Modelos
-  reordenado y luego compactado a UNA línea (commit `a2af1f9`, esquema del usuario): dos botones
-  arriba y fila ACTUAL `[etiqueta][nombre][recientes][buscar]`; RECIENTES y BUSCADOR ya no son
-  `<details>`: desplegables ABSOLUTOS bajo la fila, excluyentes, que cierran con clic fuera /
-  Escape / elegir (mandan la misma acción al host). El de recientes solo lista los 5 (sin
-  título; oculto en el modo agrupado de Claude); el del buscador lleva `#search` + `#total`
-  fijos arriba (`flex:none`) y `#all`/`#groups` scrollean dentro (`max-height: 45vh`). `#note`
-  debajo, solo con texto. Revisión PASS (1ª ronda NEEDS WORK: se cayó la clave `el.recent` y
-  el render petaba sin `groups` — opencode/Codex). Falta verlo en VS Code (reempaquetar el
-  `.vsix` para ello).
+  la derecha sin desplazarla; a ≤340 px se ocultan el nombre de área y « PLUGIN»).
 - Dictado (commit `a2af1f9`): ENVIAR conserva los saltos del bloc — se quitó el aplastamiento
   de `promptText()` (`media/dictado.js`) y de `sendPrompt()`. Multilínea viaja a la terminal
   como pegada con corchetes (`\x1b[200~…\x1b[201~`: sin bracketed paste cada `\n` era un Enter
@@ -115,8 +106,20 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   paralelo, prompt vivo con 8 carriles y colores, cerrado y persistido correctamente
   (74 s, coste estimado, `live:false` en `prompt-stats.json`).
 - `main` = `origin/main` en `870cc3c`: las estadísticas de prompts y los extras (`idea.md`)
-  quedaron commiteados y empujados por orden de la persona (2026-10-26). Árbol limpio.
-- `AGENTS.md` ya no tiene cambios locales pendientes: entraron antes, en `9bdbe7c`.
+  quedaron commiteados y empujados por orden de la persona (2026-10-26).
+- Lote 2026-10-26 (idea.md, revisión **PASS**, typecheck/compile verdes; falta reempaquetar
+  `.vsix` y verlo en VS Code): fuera el botón EDIT de las filas del Explorador (VER ya abre
+  la pestaña con todo); fuera la vista Modelos entera (`modelsPanel.ts`, `media/models.*`,
+  actions `setModel`/`clearModel`/`setSubagentModel`/`clearSubagentModel` y helpers muertos de
+  `providers/claude.ts`/`codex.ts`) — solo sobrevivieron sus botones, CONECTORES y ASIGNAR
+  AGENTES, ahora en una fila del mando (`.off` con proveedor ≠ opencode); nuevo componente
+  compartido `media/mdEditor.*` que colorea Markdown en `#f-prompt` (editor y subagente
+  Claude), `#f-text` (instrucciones) y el bloc del dictado; botón bombilla `#idea` en el pie
+  del bloc que abre `idea.md` de la raíz (si no existe, modal → `writeAtomic` vacío → abrir).
+  `refreshModels()` sigue poblando `models` para el tablero de asignación. Punto
+  «Panel de GitHub simplificado» de idea.md: aplazado por la persona, sin alcance.
+- `AGENTS.md` se sincronizó con este lote (vista Modelos fuera, mando con los dos botones,
+  `media/mdEditor.*`): viaja en el mismo commit.
 
 ## Decisiones
 
@@ -211,25 +214,15 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   El endpoint **exige cuerpo JSON** (mandar `-d {}`): sin `-d` devuelve 400 «Expected
   object», y con un id inexistente contesta 404 aunque el cuerpo falte, así que probar la
   ruta con un id falso no detecta el cuerpo que falta.
-- El bloque MODELOS es vista propia (`opencodeAgents.models`, `src/panels/modelsPanel.ts` +
-  `media/models.*`), entre Explorador y Contexto. Orden (2026-10-25): los dos botones, ACTUAL,
-  RECIENTES y BUSCADOR como `<details>` plegables (dentro del segundo: input, `#all` o
-  `#groups` en Claude, y `#total`). Guarda los 5 últimos elegidos en
-  `opencodeAgents.recentModels` (`globalState`).
-- Modelo ACTUAL del bloque (2026-10-26): el **efectivo**, no el de la sesión — `model:` del
-  `.md` del agente de la sesión viva (project > global, sin `#variant`) y, si el agente no fija,
-  `session.model`; el origen se dice en `note`. Elegir un modelo hace `POST /api/session/<id>/model`
-  **y**, si ese agente fija `model:` en su `.md`, reescribe también el `.md` con `setAgentModel`
-  (decisión de la persona: prefiere que el TUI lo aplique de verdad a que respete la asignación;
-  con los agentes que no fijan modelo solo se toca la sesión, sin crear la clave).
 - Trampa medida en opencode v2.1.4: `POST /api/session/<id>/agent` (lo que hace Shift+Tab) cambia
   `agent` en API y BD pero **no toca `model`**, y el `.md` del agente no se escribe: por eso leer
   `session_v2.model` no sigue al TUI. La BD coincide con la API (comprobado en 300 sesiones), así
   que el retraso no era de la BD. `keyOf()` lleva `id`, `agent` y `model` de esa sesión.
 - La sesión viva la elige `pickSession()` por `max(time_viewed, time_updated)` de las raíces del
   proyecto (`time_viewed` existe en `session_v2`; en el esquema v1 vale 0): con dos terminales
-  abiertas gana la que el usuario tiene delante, antes se fallaba y el POST se iba a otra sesión.
-- La lista del bloque sale de `GET /api/model` (688 aquí), no del catálogo models.dev:
+  abiertas gana la que el usuario tiene delante, antes se fallaba y se actuaba sobre otra sesión.
+- La lista que alimenta el tablero de asignación sale de `GET /api/model` (688 aquí), no del
+  catálogo models.dev:
   `readConfigInfo` devuelve 822 y cuela vetados (nvidia en `blacklist`) que opencode no
   puede ejecutar. Coste del spawn: ~120 ms; solo en el arranque y al guardar config, nunca
   en el sondeo de 2 s. Cada modelo lleva `free` cuando la tarifa viene a cero en todos los
@@ -246,7 +239,7 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `opencodeAgents.sessionAgent`. Ojo: `runningTerminal` casa por **nombre exacto** de
   terminal, así que adopta también la del comando de paleta `opencodeAgents.newSession`
   (clave `__new__`, que sigue creando una sesión nueva).
-- El selector es el **proveedor activo**: Explorador, Modelos y Contexto leen y escriben
+- El selector es el **proveedor activo**: Explorador y Contexto leen y escriben
   la config del CLI elegido, no la de opencode. `src/providers/claude.ts` (agentes
   `~/.claude/agents`, MCP de proyecto en `.mcp.json`, skills de solo lectura, plugins en
   `enabledPlugins`, permisos en `permissions.defaultMode`, `CLAUDE.md`), `codex.ts`
@@ -258,14 +251,11 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `~/.claude.json` (solo lectura): se piden con `/mcp disable|enable <servidor>` a la
   sesión viva y el CLI los persiste por proyecto; con diálogo abierto no se inyecta, y sin
   terminal se avisa. Decisión del usuario (2026-10-24): esta vía, no escribir el fichero.
-- Modelos: opencode mantiene `GET /api/model` y cambia la sesión viva por API. Claude no
-  tiene catálogo local: el panel pinta los alias oficiales con su mapeo, los modelos del
-  endpoint configurado (`GET <base>/v1/models` o `GET <origin>/models`, caché 5 min, solo
-  https, token nunca guardado) y los vistos en los 5 `.jsonl` más recientes; Codex usa
-  `~/.codex/models_cache.json`. En los dos, cambiar escribe `model` en su config y **no**
-  toca la sesión viva (en el TUI, `/model`). El chip SUBAGENTES escribe
-  `env.CLAUDE_CODE_SUBAGENT_MODEL`; «SIN FIJAR» borra lo del fichero y el entorno del
-  sistema puede seguir mandando (la nota del panel lo dice).
+- Modelos: sin la vista, no queda panel de modelos para Claude/Codex ni escritura de su
+  `model` desde la extensión. En Claude el modelo con el que arrancan las sesiones nuevas lo
+  sigue resolviendo `src/providers/claude.ts` (`ANTHROPIC_MODEL`, entorno o `env` de
+  settings.json, tapa a `settings.model`) solo para leerlo: mostrarlo y medir. En opencode la
+  única escritura de modelo viva es el `model:` del `.md` que hace el tablero (`setAgentModel`).
 - Contexto: Claude mide el `.jsonl` de `~/.claude/projects/<slug>/` (`input + cache_read +
   cache_creation` del último assistant con uso > 0; `limit` 1M si el modelo acaba en
   `[...]`); Codex, el último rollout con `cwd` del proyecto (`last_token_usage.total_tokens`
@@ -336,7 +326,7 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   fiable en el webview, y `getData("text/plain")` a veces viene vacío. Ahora inserta por
   Range (`insertPlainText`) con fallback al `item.getAsString`. Commit `255d6f1`.
 - Asignación agentes↔modelos es pestaña central (`AssignPanel` + `media/assign.*`), abierta
-  desde el botón de la vista Modelos (`opencodeAgents.assignModels`). Conectar escribe
+  desde el botón ASIGNAR AGENTES del mando del Explorador. Conectar escribe
   `model:` en el `.md` (no cambia la sesión viva, solo las nuevas). Los integrados sin
   override piden scope y crean el `.md` que los sobrescribe; el prompt integrado se conserva
   (comprobado con `opencode debug agents`). Favoritos en `opencodeAgents.favoriteModels`. El
@@ -346,7 +336,7 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   o en un favorito resalta el cable que los conecta (`hot`/`sel`, estado solo visual del
   webview; otro clic deselecciona).
 - Conectores de opencode: pestaña central (`ConnectorsPanel` + `media/connectors.*`) abierta
-  con el botón CONECTORES de Modelos, visible solo con opencode. La izquierda une
+  con el botón CONECTORES del mando, visible solo con opencode. La izquierda une
   `GET /api/integration`, `GET /api/provider`, `GET /api/model` y el catálogo models.dev
   (`loadRegistry`); el centro lista los configurados y la derecha (la columna más ancha) los
   modelos con precio, descripción y contexto. Apagar escribe una política
@@ -420,8 +410,8 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
 - Desde el explorador ya no se renombran agentes ni se abre la config de un MCP/skill
   (antes, desde el árbol). `deleteAgent` volvió a tener UI (botón BORRAR de los formularios);
   `duplicateAgent` y `renameAgentFile` siguen sin UI.
-- `openAgentFile` resuelve por nombre+scope, así que el `.md` del global sombreado se abre
-  desde su fila.
+- El `.md` del global sombreado se abre desde su fila con VER (`findLoadedAgent` resuelve por
+  nombre+scope; el `openAgentFile` del Explorador se retiró con el botón EDIT).
 - Conectores: los formularios con varias condiciones `when` solo usan la primera (hoy no hay
   ninguno con más de una). `minItems`/`maxItems`/`format`/`custom` se mapean y no se aplican.
   Borrar deja a veces `"provider": { }` o `"disabled_providers": []` (válido).
@@ -430,3 +420,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   VS Code, solo en Chromium con datos vivos.
 - `opencode api ... -d` lleva la clave en los argumentos del proceso: visible un instante en
   la lista de procesos del sistema.
+- mdEditor: en el bloc del dictado el deshacer nativo y la selección múltiple quedan degradados
+  (declarado `shortcut:`); el overlay de las textarea no repinta al cambiar de tema (solo en
+  input/scroll/resize). Nada visto en VS Code: falta reempaquetar el `.vsix` y ver la fila del
+  mando, los colores, el bloc y el botón bombilla.
+- Claves muertas sin limpiar: `opencodeAgents.recentModels` en `globalState` de quien la tuviera
+  y la vista «Modelos» en layouts guardados (VS Code avisa de la vista eliminada; no hay acción
+  desde el código).

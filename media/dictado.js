@@ -303,6 +303,7 @@
           walk(child);
         } else if (child.dataset?.path) text += `[[img:${encodeURIComponent(child.dataset.path)}]]`;
         else if (child.dataset?.file) text += `[[file:${encodeURIComponent(child.dataset.file)}]]`;
+        // Los <span> del resaltado (media/mdEditor.js) solo envuelven texto: se baja.
         else walk(child);
       }
     };
@@ -635,6 +636,7 @@
   });
   // Soltar exige Mayús: el diálogo nativo es la vía que siempre funciona.
   $("attach").addEventListener("click", () => post({ type: "pickFiles" }));
+  $("idea").addEventListener("click", () => post({ type: "idea" }));
 
   /** Texto que viaja al terminal: cada token se vuelve la ruta entrecomillada. Los saltos de línea viajan reales. */
   function promptText() {
@@ -764,5 +766,8 @@
   });
 
   updateCount();
+  // El bloc colorea el Markdown con spans inline; el texto plano que serializa
+  // y las rutas de los chips salen igual (solo se sustituyen nodos de texto).
+  window.MdEditor?.attachEditable(nota);
   post({ type: "ready" });
 })();

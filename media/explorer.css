@@ -11,7 +11,7 @@
   --cat-cols: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-/* ── [MANDO]: una cabecera, dos filas ──────────────────── */
+/* ── [MANDO]: una cabecera, tres filas ─────────────────── */
 /* Sin título ni estado propios: el nombre de la vista ya lo pone VS Code arriba. */
 .mando {
   padding-bottom: 10px;
@@ -26,6 +26,12 @@
 
 .mando-row + .mando-row {
   margin-top: 6px;
+}
+
+/* La fila de opencode se esconde con una clase: el `display:flex` de `.mando-row`
+   ganaría al atributo `hidden`. */
+.mando-row.off {
+  display: none;
 }
 
 .brain-btn {
@@ -146,6 +152,33 @@
   background: color-mix(in srgb, var(--neon) 38%, transparent);
   border-color: var(--neon);
   color: var(--neon);
+}
+
+/* CONECTORES y ASIGNAR AGENTES: las dos acciones de opencode que vivían en la vista Modelos. */
+.assign-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 5px 4px;
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.assign-btn:hover,
+.assign-btn:focus-visible {
+  background: color-mix(in srgb, var(--neon) 18%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+  outline: none;
 }
 
 /* ── Secciones ─────────────────────────────────────────── */
@@ -348,8 +381,8 @@
   white-space: nowrap;
 }
 
-/* VER y EDIT viajan juntos y pegados al borde derecho: el hueco libre lo absorbe
-   `margin-left`, no el nombre, que se recorta con elipsis. */
+/* VER viaja pegado al borde derecho: el hueco libre lo absorbe `margin-left`, no
+   el nombre, que se recorta con elipsis. */
 .agent-actions {
   flex: none;
   display: flex;
@@ -357,7 +390,7 @@
   margin-left: auto;
 }
 
-/* Barra muy estrecha: el nombre, los tokens y los dos botones se quedan; el modelo
+/* Barra muy estrecha: el nombre, los tokens y VER se quedan; el modelo
    (que sigue en el title de VER) y las etiquetas de estado son lo prescindible. */
 @media (max-width: 340px) {
   .agent-model,

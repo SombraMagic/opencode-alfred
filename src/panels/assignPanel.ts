@@ -1,7 +1,20 @@
 import * as vscode from "vscode";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ModelEntry } from "./modelsPanel";
+
+/** Modelo del catálogo vivo, en la forma que espera el tablero de asignación. */
+export interface ModelEntry {
+  /** proveedor/modelo: la misma forma que usa `session_v2.model`. */
+  id: string;
+  provider: string;
+  /** Id del modelo dentro del conector, sin el prefijo. */
+  model: string;
+  name: string;
+  /** Todas las tarifas a cero: el modelo no cuesta nada. */
+  free: boolean;
+  /** Texto corto a la derecha de la fila (mapeo de un alias, «visto»…). */
+  hint?: string;
+}
 
 export interface AssignAgent {
   name: string;

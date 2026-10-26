@@ -53,13 +53,14 @@ export type ExplorerAction =
   | { type: "openLastSession" }
   | { type: "createAgent"; mode: "primary" | "subagent" }
   | { type: "editAgent"; name: string; scope: ExplorerScope | "builtin" }
-  | { type: "openAgentFile"; name: string; scope: ExplorerScope | "builtin" }
   | { type: "toggleMcp"; name: string; scope: ExplorerScope }
   | { type: "toggleSkill"; name: string; scope: ExplorerScope }
   | { type: "togglePlugin"; name: string; scope: ExplorerScope }
   | { type: "addPlugin" }
   | { type: "setAutoAccept"; on: boolean }
-  | { type: "cycleAgent"; delta: 1 | -1 };
+  | { type: "cycleAgent"; delta: 1 | -1 }
+  | { type: "openAssign" }
+  | { type: "openConnectors" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
@@ -67,13 +68,14 @@ const ACTION_TYPES = new Set<string>([
   "openLastSession",
   "createAgent",
   "editAgent",
-  "openAgentFile",
   "toggleMcp",
   "toggleSkill",
   "togglePlugin",
   "addPlugin",
   "setAutoAccept",
   "cycleAgent",
+  "openAssign",
+  "openConnectors",
 ]);
 
 export class ExplorerPanel implements vscode.WebviewViewProvider {
@@ -172,7 +174,7 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
 </head>
 <body>
 <div class="hud">
-  <!-- [MANDO] Dos filas: AGENTS.md + sesión, y el interruptor de permisos. -->
+  <!-- [MANDO] Tres filas: AGENTS.md + sesión, las acciones de opencode y el interruptor de permisos. -->
   <div class="mando">
     <div class="mando-row">
       <button id="btn-global" class="brain-btn" type="button" title="Editar el AGENTS.md global">${brain}<span>GLOBAL</span></button>
@@ -182,6 +184,10 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
         <button id="btn-session" class="ghost-btn session-btn" type="button" title="Abrir o enfocar la terminal de opencode; las flechas cambian de agente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 24H2V0h20zM17 4.8H7v14.4h10z" fill-rule="evenodd" clip-rule="evenodd"></path></svg><span id="agent-label" hidden>OPEN</span></button>
         <button id="agent-next" class="agent-arrow" type="button" title="Agente siguiente" aria-label="Agente siguiente" disabled>›</button>
       </div>
+    </div>
+    <div class="mando-row off" id="row-opencode">
+      <button id="btn-connectors" class="assign-btn" type="button" title="Gestionar los conectores de opencode">CONECTORES</button>
+      <button id="btn-assign" class="assign-btn" type="button" title="Asignar agentes a modelos">ASIGNAR AGENTES</button>
     </div>
     <div class="mando-row">
       <button id="btn-auto-accept" class="switch perm-switch" type="button" aria-pressed="false" title="Aceptar sin preguntar lo que el agente pida. Las reglas «deny» siguen bloqueando; se aplica al momento.">

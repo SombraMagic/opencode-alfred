@@ -274,6 +274,14 @@ body {
   color: var(--text-dim);
 }
 
+/* Bombilla: solo icono, cuadrado y centrado como los botones del pie. */
+#idea {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+}
+
 .note-tip {
   flex: 1;
   min-width: 0;

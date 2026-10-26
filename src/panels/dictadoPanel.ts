@@ -92,6 +92,7 @@ export class VozDictado {
   constructor(
     view: vscode.WebviewView,
     private readonly context: vscode.ExtensionContext,
+    private readonly onIdea: () => Promise<void>,
   ) {
     this.view = view;
   }
@@ -259,6 +260,9 @@ export class VozDictado {
         break;
       case "pickFiles":
         await this.pickFiles();
+        break;
+      case "idea":
+        await this.onIdea();
         break;
       case "sendPrompt":
         await this.sendPrompt(String(msg.text ?? ""));
@@ -644,10 +648,14 @@ export class VozDictado {
       webview.asWebviewUri(vscode.Uri.joinPath(media, "tokens.css")),
       webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.css")),
       webview.asWebviewUri(vscode.Uri.joinPath(media, "dictado.css")),
+      webview.asWebviewUri(vscode.Uri.joinPath(media, "mdEditor.css")),
     ]
       .map((uri) => `<link rel="stylesheet" href="${uri}" />`)
       .join("\n");
     const script = `<script nonce="${nonce}" src="${webview.asWebviewUri(
+      vscode.Uri.joinPath(media, "mdEditor.js"),
+    )}"></script>
+<script nonce="${nonce}" src="${webview.asWebviewUri(
       vscode.Uri.joinPath(media, "dictado.js"),
     )}"></script>`;
 

@@ -25,7 +25,6 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onView:opencodeAgents.view",
-    "onView:opencodeAgents.models",
     "onView:opencodeAgents.context",
     "onView:voz.panel",
     "onView:voz.dictado"
@@ -61,11 +60,6 @@
           "name": "Explorador",
           "type": "webview",
           "icon": "media/icon.svg"
-        },
-        {
-          "id": "opencodeAgents.models",
-          "name": "Modelos",
-          "type": "webview"
         },
         {
           "id": "opencodeAgents.context",

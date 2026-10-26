@@ -19,7 +19,6 @@ import { isSamePath } from "../agents/paths";
 import { parseAgentFile } from "../agents/parser";
 import { writeAtomic } from "../agents/store";
 import type { ExplorerAgent, ExplorerCatalogItem } from "../panels/explorerPanel";
-import type { ModelEntry } from "../panels/modelsPanel";
 import type { ContextWindowInfo } from "../stats/contextWindow";
 import { findTable, getValue, listTables, setValue } from "./toml";
 
@@ -168,49 +167,6 @@ export function codexExplorer(projectRoot: string | undefined): CodexExplorer {
     autoAccept: getValue(text, [], "approval_policy") === "never",
     tokens: codexTokens(projectRoot),
   };
-}
-
-/* --------------------------------- modelos -------------------------------- */
-
-export interface CodexModels {
-  models: ModelEntry[];
-  /** Clave `model` del config.toml como `codex/<slug>`; vacío si no hay. */
-  currentModel: string;
-}
-
-function modelsCacheFile(): string {
-  return path.join(codexHome(), "models_cache.json");
-}
-
-/** Catálogo que Codex cachea de su servidor; si falta o está roto, la lista queda vacía. */
-export function codexModels(): CodexModels {
-  let entries: unknown;
-  try {
-    entries = (JSON.parse(readFileSync(modelsCacheFile(), "utf8")) as { models?: unknown }).models;
-  } catch {
-    entries = undefined;
-  }
-  const models: ModelEntry[] = [];
-  if (Array.isArray(entries)) {
-    for (const raw of entries) {
-      if (!raw || typeof raw !== "object") {
-        continue;
-      }
-      const { slug, display_name } = raw as { slug?: unknown; display_name?: unknown };
-      if (typeof slug !== "string" || !slug) {
-        continue;
-      }
-      models.push({
-        id: `codex/${slug}`,
-        provider: "codex",
-        model: slug,
-        name: typeof display_name === "string" && display_name ? display_name : slug,
-        free: false,
-      });
-    }
-  }
-  const current = getValue(readConfig(), [], "model")?.trim() ?? "";
-  return { models, currentModel: current ? `codex/${current}` : "" };
 }
 
 /* -------------------------------- contexto -------------------------------- */
@@ -544,17 +500,4 @@ export async function setCodexItem(
 
 export async function setCodexAutoAccept(on: boolean): Promise<void> {
   await editConfig((text) => setValue(text, [], "approval_policy", on ? "never" : "on-request"));
-}
-
-/** Escribe `model` en config.toml: Codex lo lee al arrancar cada sesión. */
-export async function setCodexModel(id: string): Promise<void> {
-  const prefix = "codex/";
-  if (!id.startsWith(prefix)) {
-    throw new Error("Ese modelo no es de Codex.");
-  }
-  const model = id.slice(prefix.length);
-  if (!model.trim()) {
-    throw new Error("Falta el nombre del modelo.");
-  }
-  await editConfig((text) => setValue(text, [], "model", model));
 }

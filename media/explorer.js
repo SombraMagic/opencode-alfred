@@ -11,6 +11,9 @@
     agentPrev: document.getElementById("agent-prev"),
     agentNext: document.getElementById("agent-next"),
     addPlugin: document.getElementById("btn-add-plugin"),
+    rowOpencode: document.getElementById("row-opencode"),
+    connectors: document.getElementById("btn-connectors"),
+    assign: document.getElementById("btn-assign"),
     agentsProject: document.getElementById("agents-project"),
     agentsGlobal: document.getElementById("agents-global"),
     agentsProjectCount: document.getElementById("agents-project-count"),
@@ -91,7 +94,7 @@
     return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
   }
 
-  /** Tarjeta de una línea: icono, nombre, modelo, trabajo, tokens, VER y EDIT.
+  /** Tarjeta de una línea: icono, nombre, modelo, trabajo, tokens y VER.
    * `extraClass` (opcional) añade la clase del icono según la fila: el integrado con
    * override en el proyecto lleva su marca. No se toca `agent.mode`, que va en el title del VER. */
   function agentRow(agent, extraClass) {
@@ -154,18 +157,9 @@
       act({ type: "editAgent", name: agent.name, scope: agent.scope })
     );
 
-    // Los dos botones viajan juntos y pegados al borde derecho (margin-left: auto).
+    // VER va pegado al borde derecho: el contenedor es el que lleva `margin-left: auto`.
     const acciones = node("div", "agent-actions");
     acciones.appendChild(ver);
-    if (agent.filePath) {
-      const edit = node("button", "mini", "EDIT");
-      edit.type = "button";
-      edit.title = "Abrir " + agent.filePath;
-      edit.addEventListener("click", () =>
-        act({ type: "openAgentFile", name: agent.name, scope: agent.scope })
-      );
-      acciones.appendChild(edit);
-    }
     card.appendChild(acciones);
 
     return card;
@@ -334,6 +328,9 @@
       : "No hay ningún proyecto abierto: no hay " + fichero + " del proyecto.";
     el.local.setAttribute("aria-label", el.local.title);
 
+    // CONECTORES y ASIGNAR AGENTES solo valen con opencode: con otro agente se oculta su fila.
+    el.rowOpencode.classList.toggle("off", data.sessionAgent !== "opencode");
+
     // El botón de sesión lleva el dibujo de la app; sin logo conocido, el texto de siempre.
     const nombreSesion = (
       AGENT_LABELS[data.sessionAgent] || String(data.sessionAgent || "")
@@ -387,6 +384,8 @@
   el.agentPrev.addEventListener("click", () => act({ type: "cycleAgent", delta: -1 }));
   el.agentNext.addEventListener("click", () => act({ type: "cycleAgent", delta: 1 }));
   el.addPlugin.addEventListener("click", () => act({ type: "addPlugin" }));
+  el.connectors.addEventListener("click", () => act({ type: "openConnectors" }));
+  el.assign.addEventListener("click", () => act({ type: "openAssign" }));
   // Se engancha una sola vez: el HTML es estático y solo cambia de clase.
   el.autoAcceptBtn.addEventListener("click", () => {
     const on = el.autoAcceptBtn.classList.contains("on");

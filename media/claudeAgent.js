@@ -491,5 +491,8 @@
   el.issues.setAttribute("aria-live", "polite");
   el.save.disabled = true;
 
+  // El prompt es Markdown: se ve coloreado sin dejar de editarse como texto plano.
+  window.MdEditor?.attachTextarea(el.prompt);
+
   vscode.postMessage({ type: "ready" });
 })();

@@ -33,6 +33,10 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
 - `media/*.js` y `media/*.css` son assets escritos a mano que el webview carga por URI:
   no pasan por el bundle. Tocar la UI de un panel es tocar el HTML del panel en
   `src/panels/*.ts` **y** el `media/*` correspondiente.
+- `media/mdEditor.js`/`mdEditor.css` es el resaltado de Markdown compartido: overlay `<pre>`
+  tras las textarea (`attachTextarea`) y spans inline en contenteditable (`attachEditable`,
+  el bloc del dictado). Se enlaza el CSS el último y el JS antes del script de cada panel.
+  El tokenizador (`highlight`) no toca el DOM: comprobable en node sin navegador.
 - `resources/stt-sapi.ps1` es el puente con el reconocedor de Windows (dictado SAPI).
   Viaja en el `.vsix`; `src/voice/stt.ts` lo lanza por ruta.
 
@@ -53,14 +57,15 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
 - `voice/` — `stt.ts` (dentro: puente SAPI, Whisper local bajo demanda, nube),
   `mcpInstaller.ts` (instala/actualiza el MCP `voz` en la config de opencode).
 - `panels/` — vistas webview: `explorerPanel.ts` (barra lateral izquierda: agentes, MCP,
-  skills, plugins), `modelsPanel.ts` (bloque MODELOS: modelo de la sesión viva),
+  skills, plugins; las acciones de opencode CONECTORES y ASIGNAR AGENTES van en su mando),
   `contextPanel.ts` (ventana de contexto), `editorPanel.ts` (editor de
   agentes), `assignPanel.ts` (pestaña central de asignación agentes↔modelos),
   `connectorsPanel.ts` (pestaña central de conectores de opencode),
   `statsPanel.ts`, `promptStatsPanel.ts` (pestaña de estadísticas de prompts, con su
   `media/promptStats.*`), `instructionsPanel.ts` (AGENTS.md global y local),
   `voicePanel.ts` (barra lateral derecha: esfera y ecualizador) y `dictadoPanel.ts` (zona
-  inferior). Los tres contenedores conservan su sitio en el manifiesto.
+  inferior). Los tres contenedores conservan su sitio en el manifiesto. La antigua vista
+  `modelsPanel.ts` (bloque MODELOS) fue eliminada: no hay vista de modelos en la barra.
 - `extension.ts` — registra comandos, sondeo en vivo, watchers y reparte datos a los paneles.
 
 ## Hechos de dominio fáciles de equivocar
@@ -80,7 +85,8 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   `opencodeAgents.favoriteModels` (`globalState`); al abrir el tablero se siembran con los
   modelos que ya tienen los agentes, si están en el catálogo vivo. El buscador y los
   conectores apagados también persisten (`assignSearch`, `assignProvidersOff`).
-- El botón CONECTORES del bloque MODELOS (solo opencode) abre `ConnectorsPanel` +
+- Los botones CONECTORES y ASIGNAR AGENTES del mando del Explorador (fila que solo se ve con
+  opencode) abren `ConnectorsPanel` +
   `media/connectors.*`: la izquierda es el catálogo completo (`GET /api/integration` +
   `GET /api/provider` + `GET /api/model` + models.dev), el centro los configurados y la
   derecha los modelos del seleccionado. `configured` = conexiones, `provider`/`providers` en
@@ -139,15 +145,11 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   guarda en su tabla `kv` (`models-dev:catalog`, el JSON en `body`) y, al final,
   `~/.cache/opencode/models.json`, que se queda viejo. `collect()` mete el mtime de esos
   ficheros en la clave de caché para que cambiar el límite repinte sin esperar actividad.
-- Cambiar el modelo de la sesión en marcha (vista `opencodeAgents.models`) se hace con
-  `opencode api POST /api/session/<id>/model` y cuerpo
-  `{"model":{"id":"<modelo>","providerID":"<conector>"}}` (`Model.Ref`). El `model` de
-  `opencode.json` solo es el modelo por defecto de las sesiones nuevas: no cambia la viva.
-  El CLI descubre él solo la URL y la auth del servidor en segundo plano (`service.json`).
-  Ese endpoint no valida nada: escribir un `providerID` inventado deja la sesión rota, así
-  que solo se envían ids de la lista viva `GET /api/model` (los que opencode da por
-  `enabled`). No uses `readConfigInfo()` para esa lista: incluye modelos vetados o
-  deshabilitados (nvidia en lista negra, etc.).
+- Ya no hay UI que cambie el modelo de la sesión en marcha: solo se escribe el `model:` del
+  `.md` del agente (tablero de asignación). El `model` de `opencode.json` es solo el defecto de
+  las sesiones nuevas. La lista que consume el tablero la puebla `refreshModels()` desde la
+  lista viva `GET /api/model` (los que opencode da por `enabled`): no uses `readConfigInfo()`
+  para esa lista, incluye modelos vetados o deshabilitados (nvidia en lista negra, etc.).
 - El botón de sesión del Explorador lanza tres CLIs (`SESSION_AGENTS` en
   `src/extension.ts`): opencode (`-s <id>` o `-c`), Claude Code (`claude --continue`) y
   Codex (`codex resume --last`), una terminal por agente y sin cerrar las demás. La
@@ -156,7 +158,7 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   cuanto el webview dice `ready` y `display`/`agentList` aún no existirían (TDZ). El
   elegido vive en `opencodeAgents.sessionAgent`; `runningTerminal` casa por nombre exacto
   de terminal, así que adopta también la abierta a mano. Es el **proveedor activo**:
-  Explorador, Modelos y Contexto salen de `src/providers/claude.ts`, `codex.ts` y
+  Explorador y Contexto salen de `src/providers/claude.ts`, `codex.ts` y
   `toml.ts` (TOML quirúrgico, no parser completo). Claude no deja apagar skills (van con
   `toggleable: false`) y Codex tampoco las suyas. Los MCP de Claude se leen de tres
   sitios: usuario (`~/.claude.json` raíz `mcpServers`), locales del proyecto
@@ -167,18 +169,11 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   no escribe `~/.claude.json`: inyecta `/mcp disable|enable <servidor>` en la terminal viva
   (`claudeTerminal()`, con el mismo guard de diálogo abierto que los permisos) y el CLI lo
   persiste por proyecto; sin terminal se avisa. Los `.mcp.json` siguen por
-  `disabledMcpjsonServers` en `.claude/settings.local.json`. Modelos y Contexto de Claude/Codex no
-  cambian la sesión viva: escriben su `model` en la config y miden sus ficheros de
-  sesión. En Claude el modelo efectivo es `ANTHROPIC_MODEL` (entorno o `env` de
-  settings.json) y tapa a `settings.model`; al cambiar de modelo se escribe también
-  `env.ANTHROPIC_MODEL` si estaba puesta (el `env` del fichero gana al del sistema).
-  El panel de Modelos de Claude tiene tres grupos: alias oficiales (`fable`, `opus`,
-  `sonnet`, `haiku`, `opusplan`, con el mapeo `ANTHROPIC_DEFAULT_*_MODEL` como pista), los
-  modelos que publica `GET <base>/v1/models` o `GET <origin>/models` del endpoint
-  configurado (caché de 5 min, timeout 4 s, solo https, sin guardar ni loguear el token) y
-  los vistos en las sesiones. Los chips PRINCIPAL/SUBAGENTES cambian a qué modelo se
-  aplica el clic; `CLAUDE_CODE_SUBAGENT_MODEL` se escribe en `env` y «SIN FIJAR» borra lo
-  del fichero (el entorno del sistema puede seguir mandando: la nota lo dice).
+  `disabledMcpjsonServers` en `.claude/settings.local.json`. El Contexto de Claude/Codex mide
+  sus ficheros de sesión; el panel de modelos para ellos desapareció con la vista Modelos.
+  En Claude el modelo con el que arrancan las sesiones nuevas lo resuelve
+  `src/providers/claude.ts`: `ANTHROPIC_MODEL` (entorno o `env` de settings.json) tapa a
+  `settings.model`.
   Auto-aceptar escribe `permissions.defaultMode: "auto"` y, al apagarlo,
   `"default"` (manual): desde 2.1.283 el CLI arranca en `auto` por su cuenta, así que
   borrar la clave no lo apagaría. `acceptEdits` solo acepta ediciones y no es el modo
@@ -252,7 +247,7 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   `—`): los rótulos y botones normales van en `--text` y lo secundario en un intermedio
   `--text-soft` definido en el CSS de cada panel (no en `tokens.css`). El cian `--neon` de los
   rótulos de grupo no es un color apagado: se conserva.
-- Identificadores de vista: `opencodeAgents.view`, `opencodeAgents.models`,
+- Identificadores de vista: `opencodeAgents.view`,
   `opencodeAgents.context`, `voz.panel`, `voz.dictado`. Comandos: prefijos
   `opencodeAgents.` y `voz.`.
 

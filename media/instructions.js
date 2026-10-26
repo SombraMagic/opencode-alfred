@@ -61,6 +61,9 @@
     }
   });
 
+  // El AGENTS.md es Markdown: se ve coloreado sin dejar de editarse como texto plano.
+  window.MdEditor?.attachTextarea(textarea("f-text"));
+
   wireEvents();
   post({ type: "ready" });
 })();

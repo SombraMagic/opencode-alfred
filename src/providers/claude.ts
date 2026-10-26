@@ -19,7 +19,6 @@ import { writeAtomic } from "../agents/store";
 import type { AgentFrontmatter } from "../agents/types";
 import type { ValidationIssue } from "../agents/validate";
 import type { ExplorerAgent, ExplorerCatalogItem } from "../panels/explorerPanel";
-import type { ModelEntry, ModelGroup } from "../panels/modelsPanel";
 import type { ContextWindowInfo } from "../stats/contextWindow";
 
 export type ClaudeScope = "project" | "global";
@@ -380,17 +379,6 @@ export function claudeExplorer(projectRoot: string | undefined): ClaudeExplorer 
 
 /* --------------------------------- modelos -------------------------------- */
 
-export interface ClaudeModels {
-  models: ModelEntry[];
-  /** Modelo efectivo de las sesiones nuevas como `claude/<modelo>`; vacío si no hay. */
-  currentModel: string;
-  title: string;
-  note: string;
-  groups: ModelGroup[];
-  clearable: boolean;
-  subagent: { model: string; source: string; clearable: boolean };
-}
-
 /** Sufijo de ventana (`[1m]`): no forma parte del nombre, pero decide el límite. */
 const MODEL_SUFFIX = /\[[^\]]*\]$/;
 
@@ -411,15 +399,6 @@ function envModel(settings: JsonObject | undefined, name: string): string {
   }
   const fromProcess = process.env[name];
   return typeof fromProcess === "string" ? fromProcess.trim() : "";
-}
-
-/** Host del endpoint configurado, para la cabecera y el grupo del proveedor. */
-function baseHost(base: string): string {
-  try {
-    return new URL(base).host;
-  } catch {
-    return ""; // Base inválida: se pinta «CLAUDE» a secas.
-  }
 }
 
 /** Modelo con el que arrancan las sesiones nuevas: `ANTHROPIC_MODEL` tapa a `settings.model`. */
@@ -472,215 +451,6 @@ function sessionFiles(dir: string, limit?: number): string[] {
     .sort((a, b) => b.at - a.at)
     .slice(0, limit ?? files.length)
     .map((item) => item.file);
-}
-
-/* ------------------------- catálogo del proveedor ------------------------- */
-
-const PROVIDER_TTL_MS = 5 * 60 * 1000;
-
-/** Última consulta al endpoint configurado; `undefined` si nunca se hizo. */
-let providerCache: { at: number; host: string; models: string[]; base: string } | undefined;
-/** Consulta en vuelo: dos llamadas seguidas comparten la misma promesa. */
-let providerInflight: Promise<void> | undefined;
-
-/** Modelos que ofrece el endpoint configurado en Claude; `undefined` hasta la primera consulta. */
-export function claudeProviderCatalog(): { host: string; models: string[] } | undefined {
-  return providerCache ? { host: providerCache.host, models: providerCache.models } : undefined;
-}
-
-/** Una respuesta 200 con lista de modelos; `undefined` en cualquier otro caso. */
-async function fetchModels(url: string, token: string): Promise<string[] | undefined> {
-  try {
-    const res = await fetch(url, {
-      redirect: "error",
-      signal: AbortSignal.timeout(4000),
-      headers: {
-        authorization: `Bearer ${token}`,
-        "x-api-key": token,
-        "anthropic-version": "2023-06-01",
-      },
-    });
-    if (!res.ok) {
-      return undefined;
-    }
-    const body = (await res.json()) as unknown;
-    const obj = asObject(body);
-    const rows = Array.isArray(body) ? body : Array.isArray(obj?.data) ? obj.data : obj?.models;
-    if (!Array.isArray(rows)) {
-      return undefined;
-    }
-    const seen = new Set<string>();
-    const models: string[] = [];
-    for (const row of rows) {
-      const item = asObject(row);
-      const candidate = typeof row === "string" ? row : (item?.id ?? item?.name);
-      if (typeof candidate !== "string") {
-        continue;
-      }
-      const id = candidate.trim();
-      // `<synthetic>` es un marcador del CLI, no un modelo del catálogo.
-      if (!id || id === "<synthetic>" || seen.has(id)) {
-        continue;
-      }
-      seen.add(id);
-      models.push(id);
-    }
-    return models;
-  } catch {
-    // Red caída, timeout o respuesta ilegible: silencio. El token nunca sale en un mensaje.
-    return undefined;
-  }
-}
-
-async function loadProviderCatalog(): Promise<void> {
-  const settings = readJson(settingsFile());
-  const base = envModel(settings, "ANTHROPIC_BASE_URL");
-  const token = envModel(settings, "ANTHROPIC_AUTH_TOKEN") || envModel(settings, "ANTHROPIC_API_KEY");
-  const host = baseHost(base);
-  // Solo https: no se manda el token a un endpoint en claro. Sin host válido, tampoco.
-  if (!base || !host || !token || !base.startsWith("https://")) {
-    providerCache = { at: Date.now(), host: "", models: [], base };
-    return;
-  }
-  if (providerCache && providerCache.base === base && Date.now() - providerCache.at < PROVIDER_TTL_MS) {
-    return;
-  }
-  const trimmed = base.replace(/\/+$/, "");
-  // El host del endpoint sirve `/models`; el prefijo `anthropic` añade `/v1/models`.
-  for (const url of [`${trimmed}/v1/models`, `${new URL(base).origin}/models`]) {
-    const models = await fetchModels(url, token);
-    if (models) {
-      providerCache = { at: Date.now(), host, models, base };
-      return;
-    }
-  }
-  providerCache = { at: Date.now(), host, models: [], base };
-}
-
-/** Consulta el catálogo si toca (caché de 5 minutos) y nunca lanza. */
-export async function refreshClaudeProvider(): Promise<void> {
-  if (providerInflight) {
-    return providerInflight;
-  }
-  providerInflight = loadProviderCatalog()
-    .catch(() => {
-      // Contrato: esta función nunca lanza; un fallo raro deja el catálogo como esté.
-    })
-    .finally(() => {
-      providerInflight = undefined;
-    });
-  return providerInflight;
-}
-
-/**
- * Claude no publica catálogo local: los modelos salen del alias oficial y su mapeo,
- * del endpoint configurado (si respondió) y de los que ya usaron las sesiones de este
- * proyecto. El efectivo puede no estar en ningún grupo: no se fuerza.
- */
-export function claudeModels(projectRoot: string | undefined): ClaudeModels {
-  const settings = readJson(settingsFile());
-  const current = effectiveModel(settings);
-  const fromFile = fileEnvModel(settings, "ANTHROPIC_MODEL");
-  const fromProcess = (process.env.ANTHROPIC_MODEL ?? "").trim();
-  const configured = typeof settings?.model === "string" ? settings.model.trim() : "";
-  const base = envModel(settings, "ANTHROPIC_BASE_URL");
-  const host = baseHost(base);
-  // Un catálogo de otra base no sirve para esta.
-  const catalog = providerCache && providerCache.base === base ? providerCache : undefined;
-
-  const aliasGroup: ModelGroup = {
-    name: "ALIAS DE CLAUDE",
-    models: CLAUDE_ALIASES.map((alias) => {
-      const mapped = envModel(settings, `ANTHROPIC_DEFAULT_${alias.toUpperCase()}_MODEL`);
-      return {
-        id: `claude/${alias}`,
-        provider: "alias",
-        model: alias,
-        name: alias,
-        free: false,
-        hint: mapped ? `→ ${mapped}` : "alias oficial",
-      };
-    }),
-  };
-  const providerGroup: ModelGroup | undefined = catalog?.models.length
-    ? {
-        name: host,
-        models: catalog.models.map((id) => ({
-          id: `claude/${id}`,
-          provider: "proveedor",
-          model: id,
-          name: id,
-          free: false,
-        })),
-      }
-    : undefined;
-
-  const groups = [aliasGroup, providerGroup].filter((g): g is ModelGroup => !!g);
-  // Sin distinguir caja, como antes: dos sesiones no deben pintar la misma fila dos veces.
-  const seen = new Set(groups.flatMap((g) => g.models.map((m) => m.id.toLowerCase())));
-  const seenModels: ModelEntry[] = [];
-  const dir = projectRoot ? projectSessionsDir(projectRoot) : undefined;
-  for (const file of dir ? sessionFiles(dir, 5) : []) {
-    let text = "";
-    try {
-      text = readFileSync(file, "utf8");
-    } catch {
-      continue;
-    }
-    for (const line of text.split("\n")) {
-      // Filtro barato: solo las líneas del assistant llevan `message.model`.
-      if (!line.includes('"assistant"')) {
-        continue;
-      }
-      let model: unknown;
-      try {
-        const item = JSON.parse(line) as { type?: string; message?: { model?: unknown } };
-        model = item.type === "assistant" ? item.message?.model : undefined;
-      } catch {
-        continue; // Línea a medio escribir de una sesión viva.
-      }
-      if (typeof model !== "string") {
-        continue;
-      }
-      const name = model.trim();
-      const id = `claude/${name}`;
-      // `[1m]` es una variante de ventana, no el mismo modelo: cada forma va aparte.
-      if (!name || name === "<synthetic>" || seen.has(id.toLowerCase())) {
-        continue;
-      }
-      seen.add(id.toLowerCase());
-      seenModels.push({ id, provider: "sesión", model: name, name, free: false });
-    }
-  }
-  if (seenModels.length > 0) {
-    groups.push({ name: "VISTOS EN SESIONES", models: seenModels });
-  }
-
-  const subFile = fileEnvModel(settings, "CLAUDE_CODE_SUBAGENT_MODEL");
-  const subProcess = (process.env.CLAUDE_CODE_SUBAGENT_MODEL ?? "").trim();
-  const note = fromFile
-    ? "ANTHROPIC_MODEL en settings.json · sesiones nuevas; la actual, con /model"
-    : fromProcess
-      ? "ANTHROPIC_MODEL del entorno · sesiones nuevas; la actual, con /model"
-      : configured
-        ? "model en settings.json · sesiones nuevas; la actual, con /model"
-        : envModel(settings, "ANTHROPIC_DEFAULT_MODEL")
-          ? "ANTHROPIC_DEFAULT_MODEL · sesiones nuevas; la actual, con /model"
-          : "heredado del proveedor · sesiones nuevas; la actual, con /model";
-
-  return {
-    models: groups.flatMap((g) => g.models),
-    currentModel: current ? `claude/${current}` : "",
-    title: host ? `CLAUDE · ${host}` : "CLAUDE",
-    note,
-    groups,
-    clearable: !!(fromFile || configured),
-    subagent: {
-      model: envModel(settings, "CLAUDE_CODE_SUBAGENT_MODEL") || current,
-      source: subFile ? "settings" : subProcess ? "entorno" : "principal",
-      clearable: !!subFile,
-    },
-  };
 }
 
 /* -------------------------------- contexto -------------------------------- */
@@ -1227,40 +997,6 @@ export async function setClaudeAutoAccept(on: boolean): Promise<void> {
   // ediciones. Al desactivar se escribe `default` (manual): desde 2.1.283 el CLI arranca
   // en `auto` por su cuenta, así que borrar la clave no apagaría nada.
   await modifyJsonFile(settingsFile(), ["permissions", "defaultMode"], on ? "auto" : "default");
-}
-
-/** Escribe `model` en settings.json: Claude lo lee al arrancar cada sesión. */
-export async function setClaudeModel(id: string): Promise<void> {
-  const prefix = "claude/";
-  if (!id.startsWith(prefix)) {
-    throw new Error("Ese modelo no es de Claude.");
-  }
-  const model = id.slice(prefix.length).trim();
-  if (!model) {
-    throw new Error("Falta el nombre del modelo.");
-  }
-  const file = settingsFile();
-  await modifyJsonFile(file, ["model"], model);
-  // `ANTHROPIC_MODEL` tapa a `model`: si está puesta, se escribe también en `env`
-  // (gana al entorno del sistema) para que la elección llegue a las sesiones nuevas.
-  if (envModel(readJson(file), "ANTHROPIC_MODEL")) {
-    await modifyJsonFile(file, ["env", "ANTHROPIC_MODEL"], model);
-  }
-}
-
-/** Suelta `model` y `env.ANTHROPIC_MODEL`: manda lo que diga el entorno o el proveedor. */
-export async function clearClaudeModel(): Promise<void> {
-  const file = settingsFile();
-  await modifyJsonFile(file, ["env", "ANTHROPIC_MODEL"], undefined);
-  await modifyJsonFile(file, ["model"], undefined);
-}
-
-/** Fija el modelo de los subagentes en `env`; sin valor, heredan del principal. */
-export async function setClaudeSubagentModel(id: string | undefined): Promise<void> {
-  const prefix = "claude/";
-  const raw = (id ?? "").trim();
-  const model = raw.startsWith(prefix) ? raw.slice(prefix.length).trim() : raw;
-  await modifyJsonFile(settingsFile(), ["env", "CLAUDE_CODE_SUBAGENT_MODEL"], model || undefined);
 }
 
 /* ---------------------------- agentes (subagentes) --------------------------- */
