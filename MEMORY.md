@@ -110,10 +110,13 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   tokens entrada/salida, duración y coste real o estimado. Las bases se abren con
   `openSqliteReadOnly()` estricto. `clear()` fija `clearedAt` para impedir que el escáner
   reimporte cierres anteriores al borrado; un prompt vivo al borrar sí se guardará cuando
-  cierre. Revisión final **PASS**; `typecheck`/`compile` verdes. Falta verlo en VS Code real
-  y reempaquetar el `.vsix`.
-- `main` va **un commit por delante** de `origin/main` en `77f2140`; el último empujado sigue
-  siendo `68bf40d`. Queda `idea.md` modificado en el árbol, fuera del encargo.
+  cierre. Revisión final **PASS**; `typecheck`/`compile` verdes. `.vsix` reempaquetado,
+  instalado y probado en VS Code real (2026-10-26): monitor encendido, 7 subagentes en
+  paralelo, prompt vivo con 8 carriles y colores, cerrado y persistido correctamente
+  (74 s, coste estimado, `live:false` en `prompt-stats.json`).
+- `main` va **dos commits por delante** de `origin/main` (`77f2140`, `5ecdc44`); el último
+  empujado es `0f7aa28`. Push pendiente, sin autorización. Queda `idea.md` modificado en el
+  árbol, fuera del encargo.
 - `AGENTS.md` ya no tiene cambios locales pendientes: entraron antes, en `9bdbe7c`.
 
 ## Decisiones
