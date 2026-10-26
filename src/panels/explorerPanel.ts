@@ -216,33 +216,6 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
   </section>
 
   <section class="section">
-    <div class="area-head">
-      <span class="area-cell">
-        <span class="legend legend-global"><span class="area-name">MCP ·</span> GLOBAL <span class="count" id="mcp-global-count">0</span></span>
-      </span>
-      <span class="area-cell">
-        <span class="legend legend-project">PROYECTO <span class="count" id="mcp-project-count">0</span></span>
-      </span>
-    </div>
-    <div class="cols">
-      <div id="mcp-global" class="list"></div>
-      <div id="mcp-project" class="list"></div>
-    </div>
-
-    <div class="area-head">
-      <span class="area-cell">
-        <span class="legend legend-global"><span class="area-name">PLUGINS ·</span> GLOBAL <span class="count" id="plugins-global-count">0</span></span>
-      </span>
-      <span class="area-cell">
-        <span class="legend legend-project">PROYECTO <span class="count" id="plugins-project-count">0</span></span>
-        <button id="btn-add-plugin" class="ghost-btn add-plugin" type="button" title="Añadir plugin" aria-label="Añadir plugin">+<span class="add-plugin-name"> PLUGIN</span></button>
-      </span>
-    </div>
-    <div class="cols">
-      <div id="plugins-global" class="list"></div>
-      <div id="plugins-project" class="list"></div>
-    </div>
-
     <details class="fold">
       <summary>SKILLS GLOBALES <span class="count" id="skills-global-count">0</span></summary>
       <div id="skills-global" class="list"></div>
@@ -250,6 +223,35 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
     <details class="fold">
       <summary>SKILLS PROYECTO <span class="count" id="skills-project-count">0</span></summary>
       <div id="skills-project" class="list"></div>
+    </details>
+    <details class="fold" open>
+      <summary>MCP Y PLUGINS</summary>
+      <div class="area-head">
+        <span class="area-cell">
+          <span class="legend legend-global"><span class="area-name">MCP ·</span> GLOBAL <span class="count" id="mcp-global-count">0</span></span>
+        </span>
+        <span class="area-cell">
+          <span class="legend legend-project">PROYECTO <span class="count" id="mcp-project-count">0</span></span>
+        </span>
+      </div>
+      <div class="cols">
+        <div id="mcp-global" class="list"></div>
+        <div id="mcp-project" class="list"></div>
+      </div>
+
+      <div class="area-head">
+        <span class="area-cell">
+          <span class="legend legend-global"><span class="area-name">PLUGINS ·</span> GLOBAL <span class="count" id="plugins-global-count">0</span></span>
+        </span>
+        <span class="area-cell">
+          <span class="legend legend-project">PROYECTO <span class="count" id="plugins-project-count">0</span></span>
+          <button id="btn-add-plugin" class="ghost-btn add-plugin" type="button" title="Añadir plugin" aria-label="Añadir plugin">+<span class="add-plugin-name"> PLUGIN</span></button>
+        </span>
+      </div>
+      <div class="cols">
+        <div id="plugins-global" class="list"></div>
+        <div id="plugins-project" class="list"></div>
+      </div>
     </details>
   </section>
 </div>

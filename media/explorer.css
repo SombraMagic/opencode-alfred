@@ -489,8 +489,10 @@
   color: inherit;
 }
 
-.cols + .fold {
-  margin-top: 10px;
+/* El primer bloque de un plegable (MCP) no lleva el aire superior del `.area-head`:
+   el summary ya lo separa, igual que en las listas de skills. */
+.fold > summary + .area-head {
+  margin-top: 7px;
 }
 
 .entry {
@@ -561,7 +563,10 @@
 .fold summary {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  /* `flex-start` y no `space-between`: un summary SIN `.count` (MCP Y PLUGINS)
+     mandaría el rótulo al borde derecho. El contador se queda a la derecha por
+     el `margin-left: auto` de abajo. */
+  justify-content: flex-start;
   gap: 6px;
   padding: 3px 0;
   font-size: 10px;

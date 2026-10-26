@@ -115,6 +115,16 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `ses_e872c47c`: 16:37→17:31, 3→5 lanes) y con fixtures sintéticos. Falta verlo en la pestaña.
 - `main` = `origin/main` en `870cc3c`: las estadísticas de prompts y los extras (`idea.md`)
   quedaron commiteados y empujados por orden de la persona (2026-10-26).
+- Explorador (2026-10-26): MCP y PLUGINS ya no son dos filas sueltas de la sección de CONTROL.
+  Van LOS DOS dentro de un único `<details class="fold" open>` con `<summary>MCP Y PLUGINS</summary>`,
+  al final de la sección, debajo de SKILLS PROYECTO (decisión de la persona: un solo contenedor,
+  abierto por defecto, SIN contador combinado en el summary; el `+ PLUGIN` se queda en el
+  `area-head` de PLUGINS, o sea oculto al plegar). `media/explorer.js` no se toca: solo llena por
+  `id`. CSS: `.cols + .fold` sustituida por `.fold > summary + .area-head { margin-top: 7px }`, y
+  `.fold summary` pasa a `justify-content: flex-start` — con `space-between` un summary sin
+  `.count` (`MCP Y PLUGINS`) desplaza el rótulo al borde derecho; los contadores siguen a la
+  derecha por el `margin-left: auto` de `.fold summary .count`. Revisión NEEDS WORK → PASS. Falta
+  verlo en VS Code (reempaquetar `.vsix`).
 - Lote 2026-10-26 (idea.md, revisión **PASS**, typecheck/compile verdes; falta reempaquetar
   `.vsix` y verlo en VS Code): fuera el botón EDIT de las filas del Explorador (VER ya abre
   la pestaña con todo); fuera la vista Modelos entera (`modelsPanel.ts`, `media/models.*`,
