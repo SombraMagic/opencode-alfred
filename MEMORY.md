@@ -138,6 +138,17 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   «Panel de GitHub simplificado» de idea.md: aplazado por la persona, sin alcance.
 - `AGENTS.md` se sincronizó con este lote (vista Modelos fuera, mando con los dos botones,
   `media/mdEditor.*`): viaja en el mismo commit.
+- Pizarra (2026-10-26, commit `85862c1`): pestaña central `PizarraPanel` + `media/pizarra.*` —
+  lienzo 1024×1024 con 4 capas (fondo color/imagen, trazos lápiz+borrador con dureza,
+  imágenes pegadas con mover/escalar/rotar, textos editables), barra [NUEVA EN BLANCO]
+  [NUEVA DESDE PORTAPAPELES] [GUARDAR], snapshot debounced 600 ms al host y copia de trabajo
+  `.alfred/adjuntos/pizarra-ultima.png` (tmp+rename binario, serializada). Comando
+  `opencodeAgents.pizarra`; botón PIZARRA en el mando del Explorador (fila opencode) y dos
+  botones en el pie del bloc: `#abrir-pizarra` y `#subir-pizarra` (flecha: `requestPng()` →
+  `saveAttachment` como `img-pizarra-*.png` → chip en el cursor; `saveAttachment` ahora
+  devuelve `boolean`). Tres rondas de revisión (NEEDS WORK → NEEDS WORK → PASS). Falta ver en
+  VS Code real (F5/reempaquetar): letterbox, pegado del portapapeles y el flujo flecha→bloc.
+  Push pendiente de la persona (con `b706767` sin subir aún).
 
 ## Decisiones
 
@@ -400,6 +411,12 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
 - `esbuild --production` minifica: buscar identificadores (`PLUGIN_MARKERS`) en
   `dist/extension.js` instalado da falsos negativos; buscar literales de string (`server.js","server.ts`).
 - `npm run compile` no valida tipos: esbuild no typechequea.
+- Un panel central nuevo NO debe enlazar `media/panel.css` (es la hoja del panel de voz y
+  trae globales: `textarea { min-height:66px }`, `width:100%` en select/input): contamina el
+  editor. Base real = `tokens.css` + la hoja propia.
+- `capture`/snapshot contra un webview que aún no procesó `init` exporta lienzo EN BLANCO y
+  pisa la copia de trabajo: el host debe esperar su promesa de init (`iniciado`) antes de
+  poster `capture`, y el webview enlazar la carga de `init` (`cargando`) antes de componer.
 
 - VS Code carga la extensión **instalada** (`%USERPROFILE%\.vscode\extensions\…`), no el repo:
   un cambio en `media/*` o `dist/` no se ve hasta reempaquetar el `.vsix`
