@@ -343,7 +343,8 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `assignSearch`/`assignProvidersOff` (debounce de 300 ms en el webview). Clic en un agente
   o en un favorito resalta el cable que los conecta (`hot`/`sel`, estado solo visual del
   webview; otro clic deselecciona).
-- Grupos de favoritos en el tablero (2026-10-26, probado en VS Code, `.vsix` instalado): la lista
+- Grupos de favoritos en el tablero (2026-10-26, commit `372e221` empujado; probado en VS
+  Code, `.vsix` instalado): la lista
   plana pasa a `opencodeAgents.favoriteGroups` (`[{name, ids}]`) con pestañas en
   `media/assign.*` (crear `+`, renombrar a doble clic, borrar con modal) y el grupo activo
   persistido por NOMBRE en `opencodeAgents.assignGroup`. Consecuencias: un modelo puede estar
