@@ -146,9 +146,25 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `opencodeAgents.pizarra`; botón PIZARRA en el mando del Explorador (fila opencode) y dos
   botones en el pie del bloc: `#abrir-pizarra` y `#subir-pizarra` (flecha: `requestPng()` →
   `saveAttachment` como `img-pizarra-*.png` → chip en el cursor; `saveAttachment` ahora
-  devuelve `boolean`). Tres rondas de revisión (NEEDS WORK → NEEDS WORK → PASS). Falta ver en
-  VS Code real (F5/reempaquetar): letterbox, pegado del portapapeles y el flujo flecha→bloc.
-  Push pendiente de la persona (con `b706767` sin subir aún).
+  devuelve `boolean`). Tres rondas de revisión (NEEDS WORK → NEEDS WORK → PASS). Visto en VS
+  Code por la persona (2026-10-26): lápiz, inserción de imágenes y pegado al prompt OK; el
+  texto estaba roto (arreglado en la ronda 2 de abajo) y zoom/paneo eran petición pendiente.
+  Empujado 2026-10-26 por orden de la persona (con `b706767` y las rondas 2-3).
+- Ronda 2 de pizarra (2026-10-26, commit `b2cd108`, vista en VS Code por la persona): tras
+  el visto bueno del usuario (lápiz/imágenes/pegado OK) — texto arreglado (ver trampa),
+  zoom con rueda ×1.15 (z∈[0.15,8]) anclado al cursor y paneo Espacio+arrastrar vía
+  `#world` con CSS transform (exportación intacta 1024², zoom/paneo no ensucian la copia de
+  trabajo), botón ZOOM 100% en el pie. Doble golpe manual fuera: solo `dblclick` nativo
+  (el preventDefault no lo suprime en Chromium). Revisión con Chrome real por CDP: NEEDS
+  WORK (foco) → fixes aplicados tal cual. Ronda 3 (misma fecha, commit `b2cd108`):
+  «NUEVA DESDE PORTAPAPELES» ya hace lo pedido (un clic: limpia + imagen del portapapeles
+  como FONDO vía `resources/pizarra-clipboard.ps1` STA desde el host; Ctrl+V sigue a
+  IMÁGENES), orden de capas corregido a fondo→imágenes→trazos→textos (mi brief inicial estaba
+  mal contra la spec), y lienzo de ASPECTO DINÁMICO: alto interno fijo 1024, ancho
+  `clamp(round(1024*aspect), 256, 4096)` llenando el panel sin letterbox — el PNG exportado y
+  `pizarra-ultima.png` ya NO son 1024²; resize conserva píxeles arriba-izquierda (scratch
+  antes de reasignar width) y mide por `clientWidth/Height` (el borde de 1px falsearía el
+  aspect).
 
 ## Decisiones
 
@@ -417,6 +433,11 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
 - `capture`/snapshot contra un webview que aún no procesó `init` exporta lienzo EN BLANCO y
   pisa la copia de trabajo: el host debe esperar su promesa de init (`iniciado`) antes de
   poster `capture`, y el webview enlazar la carga de `init` (`cargando`) antes de componer.
+- `preventDefault()` en el `pointerdown` del lienzo (necesario para que el foco por defecto
+  no robe un blur→close al textarea de texto) deja el foco en el último control (deslizador,
+  select): hay que soltarlo con `document.activeElement.blur()` salvo editor/body, o el guard
+  de INPUT del keydown mata el paneo con Espacio y el Delete de la selección. Y ojo:
+  `preventDefault` NO suprime `click`/`dblclick` en Chromium — verificado con CDP real.
 
 - VS Code carga la extensión **instalada** (`%USERPROFILE%\.vscode\extensions\…`), no el repo:
   un cambio en `media/*` o `dist/` no se ve hasta reempaquetar el `.vsix`
