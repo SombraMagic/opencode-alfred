@@ -13,11 +13,11 @@
     <header class="pz-head">
       <div class="pz-title">
         <span class="pz-kicker">PIZARRA</span>
-        <span class="pz-sub">Lienzo 1024 × 1024</span>
+        <span class="pz-sub pz-medida">Lienzo 1024 × 1024</span>
       </div>
       <div class="pz-actions">
         <button id="btn-new" class="ghost-btn" type="button" title="Vaciar el lienzo y empezar de cero">NUEVA EN BLANCO</button>
-        <button id="btn-paste" class="ghost-btn" type="button" title="Añadir como imagen la última copia del portapapeles (Ctrl+V)">NUEVA DESDE PORTAPAPELES</button>
+        <button id="btn-paste" class="ghost-btn" type="button" title="Vaciar la pizarra y poner la imagen del portapapeles como fondo (con Ctrl+V se añade como capa IMÁGENES sin tocar lo demás)">NUEVA DESDE PORTAPAPELES</button>
         <button id="btn-save" class="ghost-btn" type="button" title="Guardar el PNG aplanado en un fichero">GUARDAR</button>
       </div>
     </header>
@@ -57,21 +57,28 @@
 
       <div class="pz-group pz-layers" role="group" aria-label="Capas">
         <span class="pz-layer" id="ly-bg" data-layer="bg">FONDO</span>
-        <span class="pz-layer" id="ly-strokes" data-layer="strokes">TRAZOS</span>
         <span class="pz-layer" id="ly-images" data-layer="images">IMÁGENES</span>
+        <span class="pz-layer" id="ly-strokes" data-layer="strokes">TRAZOS</span>
         <span class="pz-layer" id="ly-texts" data-layer="texts">TEXTOS</span>
       </div>
     </div>
 
     <main class="pz-stage" id="stage">
       <div class="pz-frame">
-        <canvas id="board" width="1024" height="1024"></canvas>
-        <canvas id="overlay" width="1024" height="1024"></canvas>
-        <textarea id="text-editor" class="pz-editor" hidden spellcheck="false" aria-label="Editar texto"></textarea>
+        <!-- El mundo lleva el zoom y el paneo; dentro, el lienzo mide 1024 de alto y el ancho
+             que dicta el aspecto del marco (el JS lo ajusta al redimensionar). -->
+        <div class="pz-world" id="world">
+          <canvas id="board" width="1024" height="1024"></canvas>
+          <canvas id="overlay" width="1024" height="1024"></canvas>
+          <textarea id="text-editor" class="pz-editor" hidden spellcheck="false" aria-label="Editar texto"></textarea>
+        </div>
       </div>
     </main>
 
-    <footer class="pz-status" id="status">Listo.</footer>
+    <footer class="pz-foot">
+      <span class="pz-status" id="status">Listo.</span>
+      <button id="btn-zoom" class="pz-zoom" type="button" title="Volver al tamaño normal: zoom al 100 % y lienzo centrado">ZOOM 100%</button>
+    </footer>
 
     <!-- Mini-modal: `window.confirm` no existe en la webview. -->
     <div id="modal" class="pz-modal" role="dialog" aria-modal="true" hidden>

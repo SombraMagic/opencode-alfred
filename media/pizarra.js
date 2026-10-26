@@ -1,9 +1,17 @@
-/* Pizarra — editor de imagen por capas: fondo, trazos, imágenes pegadas y textos.
-   El lienzo interno mide siempre 1024 × 1024; el CSS solo lo escala, así que el PNG
-   que sale de aquí es idéntico a lo que se ve. */
+/* Pizarra — editor de imagen por capas: fondo, imágenes pegadas, trazos y textos
+   (ese es el orden de apilado, de abajo arriba).
+   El alto interno del lienzo es fijo (1024 px) y el ancho sigue el aspecto real del marco
+   (con topes): el lienzo llena el panel en los dos ejes y ese W × H es el PNG exportado.
+   El zoom y el paneo son una transform CSS sobre el mundo: no cambian ni un píxel del aplanado. */
 (function () {
   const vscode = acquireVsCodeApi();
+  /** Alto interno del lienzo: fijo y referencia de la escala. El ancho `W` sigue al marco. */
   const SIZE = 1024;
+  const H = SIZE;
+  /** Topes del ancho del lienzo: fuera no se dibuja, dentro se copia el aspecto del panel. */
+  const ANCHO_MIN = 256;
+  const ANCHO_MAX = 4096;
+  let W = SIZE;
   /** Separación del asa de giro respecto al cuadro, en coordenadas del lienzo. */
   const ROT_OFF = 30;
   /** Tamaño del cuadradito de cada asa. */
@@ -11,14 +19,21 @@
   /** Color del lienzo recién creado. */
   const BG_DEFAULT = "#ffffff";
   const DEG15 = Math.PI / 12;
+  /** Límites y paso de la rueda del zoom. */
+  const MIN_Z = 0.15;
+  const MAX_Z = 8;
+  const ZOOM_PASO = 1.15;
 
   const el = {
     root: document.querySelector(".pz"),
     frame: document.querySelector(".pz-frame"),
+    world: document.getElementById("world"),
     board: document.getElementById("board"),
     overlay: document.getElementById("overlay"),
     editor: document.getElementById("text-editor"),
     status: document.getElementById("status"),
+    medida: document.querySelector(".pz-medida"),
+    btnZoom: document.getElementById("btn-zoom"),
     modal: document.getElementById("modal"),
     modalText: document.getElementById("modal-text"),
     modalOk: document.getElementById("modal-ok"),
@@ -45,11 +60,13 @@
 
   /** Trazos ya confirmados: el borrador actúa aquí con destination-out. */
   const committed = document.createElement("canvas");
-  committed.width = committed.height = SIZE;
+  committed.width = W;
+  committed.height = H;
   const cctx = committed.getContext("2d");
   /** Copia de lo confirmado más el trazo en curso, para verlo sin tocar lo de abajo. */
   const live = document.createElement("canvas");
-  live.width = live.height = SIZE;
+  live.width = W;
+  live.height = H;
   const lctx = live.getContext("2d");
 
   const state = {
@@ -67,6 +84,10 @@
   let drag = null;
   let snapshotTimer = 0;
   let dirty = false;
+  /** Encuadre: escala `z` y desplazamiento en píxeles de pantalla, aplicados por CSS. */
+  const view = { z: 1, tx: 0, ty: 0 };
+  /** Barra espaciadora pulsada: el arrastre panea en vez de dibujar o seleccionar. */
+  let espacio = false;
   /** El cierre del mini-modal abierto, si lo hay: lo usa Escape. */
   let cerrarModal = null;
   /** La carga de la copia de trabajo: `capture` espera a que termine. */
@@ -83,20 +104,60 @@
     return v < lo ? lo : v > hi ? hi : v;
   }
 
-  /** Puntero a coordenadas del lienzo: se mide el canvas; el marco añade 1 px de borde y desalinearía el Y. */
+  /** Puntero a coordenadas del lienzo: mide el rect del canvas, que ya refleja el zoom y el paneo. */
   function toCanvas(event) {
     const rect = el.board.getBoundingClientRect();
-    const k = SIZE / (rect.width || SIZE);
-    return { x: (event.clientX - rect.left) * k, y: (event.clientY - rect.top) * k };
+    return {
+      x: (event.clientX - rect.left) * (W / (rect.width || W)),
+      y: (event.clientY - rect.top) * (H / (rect.height || H)),
+    };
+  }
+
+  /** Factor canvas→píxeles de pantalla ya aplicado (incluye el zoom): sirve para el puntero y las asas. */
+  function pantallaEscala() {
+    const rect = el.board.getBoundingClientRect();
+    return (rect.width || W) / W;
   }
 
   /**
-   * Factor canvas→píxeles. Mide el canvas, como `toCanvas`: el área de edición se coloca con
-   * `left`/`top` dentro del marco, y la caja de padding del marco es justo la esquina del canvas.
+   * Factor canvas→píxeles de LAYOUT, sin el zoom. El área de edición vive dentro del mundo, así
+   * que se dimensiona aquí y la transform se encarga del resto: con la escala de pantalla el
+   * textarea saldría doble de grande al acercar.
    */
-  function scale() {
-    const rect = el.board.getBoundingClientRect();
-    return (rect.width || SIZE) / SIZE;
+  function layoutEscala() {
+    return (el.board.offsetWidth || W) / W;
+  }
+
+  /** Paso de rueda: hacia arriba acerca, hacia abajo aleja. Dentro de los límites. */
+  function pasoZoom(z, deltaY) {
+    return clamp(deltaY < 0 ? z * ZOOM_PASO : z / ZOOM_PASO, MIN_Z, MAX_Z);
+  }
+
+  /**
+   * Nueva vista al escalar a `z2` dejando el punto (mx,my) del marco bajo el cursor.
+   * Orden translate→scale: pantalla = t + z·layout, despejando t' = m - (m - t)·(z2/z).
+   */
+  function zoomEn(z, tx, ty, z2, mx, my) {
+    const k = z2 / z;
+    return { z: z2, tx: mx - (mx - tx) * k, ty: my - (my - ty) * k };
+  }
+
+  /** Se aplica la vista al mundo y al rótulo del botón de zoom. */
+  function aplicaVista() {
+    el.world.style.transform = `translate(${view.tx}px, ${view.ty}px) scale(${view.z})`;
+    el.btnZoom.textContent = `ZOOM ${Math.round(view.z * 100)}%`;
+  }
+
+  /** Origen del layout dentro del marco: su caja de padding, sin el borde de 1 px. */
+  function origenMarco() {
+    const rect = el.frame.getBoundingClientRect();
+    return { x: rect.left + (el.frame.clientLeft || 0), y: rect.top + (el.frame.clientTop || 0) };
+  }
+
+  /** Puntero en píxeles del marco: la referencia que ancla `zoomEn` bajo la rueda. */
+  function marcoPunto(event) {
+    const o = origenMarco();
+    return { x: event.clientX - o.x, y: event.clientY - o.y };
   }
 
   function fontOf(t) {
@@ -113,14 +174,57 @@
     );
   }
 
+  /**
+   * Cambia el mapa de bits de un lienzo conservando lo dibujado arriba-izquierda: se copia a un
+   * transitorio ANTES de asignar `width` (asignarlo borra el contenido) y se devuelve después.
+   */
+  function cambiarTamañoLienzo(node, w, h) {
+    if (node.width === w && node.height === h) return;
+    const scratch = document.createElement("canvas");
+    scratch.width = node.width;
+    scratch.height = node.height;
+    scratch.getContext("2d").drawImage(node, 0, 0);
+    node.width = w;
+    node.height = h;
+    node.getContext("2d").drawImage(scratch, 0, 0);
+  }
+
+  /** El rótulo de la cabecera refleja el tamaño real del lienzo exportado. */
+  function pintaMedida() {
+    el.medida.textContent = `Lienzo ${W} × ${H}`;
+  }
+
+  /**
+   * Alto fijo (H); el ancho se saca del aspecto del marco: así la unidad de lienzo conserva su
+   * tamaño relativo en Y y la escala CSS→lienzo sale uniforme en los dos ejes.
+   * `clientWidth/Height`: caja de contenido sin el borde de 1 px, que falsearía el aspecto.
+   * `sinMarcar`: en el arranque el lienzo aún no tiene nada que conservar en la copia.
+   */
+  function medirMarco(sinMarcar) {
+    const cw = el.frame.clientWidth;
+    const ch = el.frame.clientHeight;
+    if (!cw || !ch) return; // panel oculto: nada que recalcular
+    const w = clamp(Math.round((H * cw) / ch), ANCHO_MIN, ANCHO_MAX);
+    if (w === W) return; // solo cambia el tamaño sin cambiar el aspecto: no se toca nada
+    W = w;
+    for (const node of [el.board, el.overlay, committed, live]) cambiarTamañoLienzo(node, W, H);
+    pintaMedida();
+    if (editing) {
+      colocaEditor(editing);
+      growEditor();
+    }
+    if (sinMarcar) redraw();
+    else changed(); // la copia de trabajo tiene que reflejar el nuevo tamaño
+  }
+
   // ── Imágenes ──────────────────────────────────────────────
 
   /** Encaja dentro del lienzo sin deformarla y centrada. */
   function fitInside(w, h) {
-    const k = Math.min(SIZE / w, SIZE / h, 1);
+    const k = Math.min(W / w, H / h, 1);
     const nw = Math.max(1, Math.round(w * k));
     const nh = Math.max(1, Math.round(h * k));
-    return { w: nw, h: nh, x: Math.round((SIZE - nw) / 2), y: Math.round((SIZE - nh) / 2) };
+    return { w: nw, h: nh, x: Math.round((W - nw) / 2), y: Math.round((H - nh) / 2) };
   }
 
   /** Decodifica una data URL con `Image`: `fetch` de `data:` lo corta la CSP. */
@@ -222,7 +326,7 @@
 
   /** Rehace la capa de trazos desde cero (un clic sin arrastrar es un solo punto). */
   function replayStrokes() {
-    cctx.clearRect(0, 0, SIZE, SIZE);
+    cctx.clearRect(0, 0, W, H);
     for (const stroke of state.strokes) {
       const pts = stroke.pts;
       if (pts.length < 2) {
@@ -287,16 +391,16 @@
   // ── Composición ───────────────────────────────────────────
 
   function compose() {
-    ctx.clearRect(0, 0, SIZE, SIZE);
+    ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = state.bg.color;
-    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillRect(0, 0, W, H);
     const bg = state.bg.image;
     if (bg) {
       const box = fitInside(bg.width, bg.height);
       ctx.drawImage(bg.drawable, box.x, box.y, box.w, box.h);
     }
-    // Mientras se dibuja, `live` ya incluye lo confirmado: no se pinta dos veces.
-    ctx.drawImage(drag && drag.kind === "draw" ? live : committed, 0, 0);
+    // Orden de capas de abajo arriba: FONDO, IMÁGENES, TRAZOS, TEXTOS. El lápiz va encima de
+    // lo pegado: si no, una imagen taparía lo dibujado sobre ella.
     for (const img of state.images) {
       ctx.save();
       ctx.translate(img.x + img.w / 2, img.y + img.h / 2);
@@ -304,6 +408,8 @@
       ctx.drawImage(img.drawable, -img.w / 2, -img.h / 2, img.w, img.h);
       ctx.restore();
     }
+    // Mientras se dibuja, `live` ya incluye lo confirmado: no se pinta dos veces.
+    ctx.drawImage(drag && drag.kind === "draw" ? live : committed, 0, 0);
     for (const t of state.texts) {
       // El bloque en edición lo escribe el `textarea` encima: en pantalla no se pinta (si no,
       // sale doble), pero en el PNG exportado sí tiene que estar.
@@ -376,6 +482,9 @@
     for (const b of el.tools) b.classList.toggle("on", b.dataset.tool === next);
     for (const g of el.opts) g.classList.toggle("show", g.dataset.for === next);
     if (next !== "select") closeEditor();
+    if (next === "text") {
+      setStatus("Clic en el lienzo donde escribir; cierra con Ctrl+Enter o Escape.");
+    }
     paintLayers();
     redraw();
   }
@@ -419,7 +528,7 @@
   }
 
   function hitHandle(o, p) {
-    const radio = Math.max(HANDLE, 9 / scale());
+    const radio = Math.max(HANDLE, 9 / pantallaEscala());
     for (const h of handlesOf(o)) {
       if (Math.abs(p.x - h.p.x) <= radio && Math.abs(p.y - h.p.y) <= radio) return h;
     }
@@ -440,7 +549,7 @@
   }
 
   function drawOverlay() {
-    octx.clearRect(0, 0, SIZE, SIZE);
+    octx.clearRect(0, 0, W, H);
     if (!sel || tool !== "select") return;
     const cs = corners(sel);
     const hs = handlesOf(sel);
@@ -494,13 +603,12 @@
 
   // ── Editor de texto flotante ──────────────────────────────
 
-  function openEditor(t) {
-    layout(t);
-    editing = t;
+  /** Coloca el área sobre el bloque. Sólo geometría: no toca el foco ni la selección. */
+  function colocaEditor(t) {
     const cs = corners(t);
     const xs = cs.map((c) => c.x);
     const ys = cs.map((c) => c.y);
-    const k = scale();
+    const k = layoutEscala();
     const minX = Math.min.apply(null, xs);
     const minY = Math.min.apply(null, ys);
     // El área es el rectángulo envolvente: con el bloque girado es una aproximación,
@@ -512,11 +620,19 @@
     el.editor.style.setProperty("--edit-size", t.size * k + "px");
     el.editor.style.setProperty("--edit-line", Math.round(t.size * 1.25) * k + "px");
     el.editor.style.setProperty("--edit-color", t.color);
+  }
+
+  function openEditor(t) {
+    layout(t);
+    editing = t;
+    colocaEditor(t);
     el.editor.value = t.text;
     el.editor.hidden = false;
     growEditor();
     el.editor.focus();
     el.editor.select();
+    // La guía de la herramienta TEXTO ya no vale: el área está abierta.
+    setStatus("Escribe; cierra con Ctrl+Enter o Escape.");
   }
 
   function growEditor() {
@@ -539,19 +655,47 @@
     changed();
   }
 
+  /** El paneo manda el cursor: 2 se arrastra, 1 Espacio pulsado, nada si no se panea. */
+  function pintaCursorPan() {
+    if (drag && drag.kind === "pan") el.root.dataset.pan = "2";
+    else if (espacio) el.root.dataset.pan = "1";
+    else delete el.root.dataset.pan;
+  }
+
+  function soltarEspacio() {
+    // `pintaCursorPan` mira el arrastre: si sigue un paneo, el cursor no cambia hasta `onUp`.
+    espacio = false;
+    pintaCursorPan();
+  }
+
   // ── Puntero ───────────────────────────────────────────────
 
   function onDown(event) {
     if (event.button !== 0) return;
-    // El área de edición es hija del marco: un clic ahí es suyo, no de la pizarra.
+    // El área de edición es hija del mundo: un clic ahí es suyo, no de la pizarra.
     if (event.target === el.editor) return;
     if (editing) closeEditor();
+    // Sin esto, la acción por defecto del clic mueve el foco al body y el `blur` del área
+    // cerraría el editor que acabamos de abrir. El paneo y el dibujo usan captura explícita
+    // de puntero, que no es una acción por defecto: no se resiente.
+    event.preventDefault();
+    // `preventDefault` deja el foco donde estaba: sin soltarlo, el guard de INPUT del
+    // teclado dejaría el paneo con Espacio muerto tras tocar un deslizador.
+    const activo = document.activeElement;
+    if (activo && activo !== el.editor && activo !== document.body) activo.blur();
     const p = toCanvas(event);
     el.frame.setPointerCapture(event.pointerId);
 
+    // Espacio pulsado: arrastrar panea el encuadre, no toca el dibujo.
+    if (espacio) {
+      drag = { kind: "pan", x: event.clientX, y: event.clientY, tx: view.tx, ty: view.ty };
+      pintaCursorPan();
+      return;
+    }
+
     if (tool === "pen" || tool === "eraser") {
       const stroke = newStroke(tool, p);
-      lctx.clearRect(0, 0, SIZE, SIZE);
+      lctx.clearRect(0, 0, W, H);
       lctx.drawImage(committed, 0, 0);
       // Un clic sin arrastrar deja un punto: se materializa como sello redondo.
       drawSegment(lctx, stroke, p, { x: p.x + 0.01, y: p.y });
@@ -604,6 +748,16 @@
 
   function onMove(event) {
     if (!drag) return;
+
+    // El paneo mueve el encuadre en píxeles de pantalla: ni toca el lienzo ni depende de él.
+    if (drag.kind === "pan") {
+      // El desplazamiento va por delante de la escala: en px de pantalla crudos.
+      view.tx = drag.tx + (event.clientX - drag.x);
+      view.ty = drag.ty + (event.clientY - drag.y);
+      aplicaVista();
+      return;
+    }
+
     const p = toCanvas(event);
 
     if (drag.kind === "draw") {
@@ -645,7 +799,7 @@
     if (drag.kind === "scale") {
       const vx = -Math.sin(o.rot);
       const vy = Math.cos(o.rot);
-      const w = clamp((dx * ux + dy * uy) / drag.sx, 12, SIZE * 2);
+      const w = clamp((dx * ux + dy * uy) / drag.sx, 12, W * 2);
       const h = w / (drag.aspect || 1);
       o.w = w;
       o.h = h;
@@ -657,7 +811,7 @@
     }
 
     if (drag.kind === "width") {
-      const w = clamp((dx * ux + dy * uy) * drag.side, 30, SIZE * 2);
+      const w = clamp((dx * ux + dy * uy) * drag.side, 30, W * 2);
       o.w = w;
       layout(o);
       const cx = drag.anchor.x + (ux * drag.side * w) / 2;
@@ -670,12 +824,18 @@
 
   function onUp() {
     if (!drag) return;
+    if (drag.kind === "pan") {
+      // Mover el encuadre no cambia el lienzo: ni `changed` ni copia de trabajo.
+      drag = null;
+      pintaCursorPan();
+      return;
+    }
     if (drag.kind === "draw") {
       state.strokes.push(drag.stroke);
       // Lo que se vio durante el arrastre pasa a lo confirmado.
-      cctx.clearRect(0, 0, SIZE, SIZE);
+      cctx.clearRect(0, 0, W, H);
       cctx.drawImage(live, 0, 0);
-      lctx.clearRect(0, 0, SIZE, SIZE);
+      lctx.clearRect(0, 0, W, H);
     }
     drag = null;
     changed();
@@ -704,6 +864,20 @@
     });
   }
 
+  /** Tira trazos, imágenes y textos y deja el fondo en blanco. Sin preguntar. */
+  function vaciar() {
+    state.bg = { color: BG_DEFAULT, image: null };
+    state.strokes = [];
+    // Misma razón que en `deleteSelected`: los bitmaps pegados se cierran.
+    for (const img of state.images) img.drawable.close?.();
+    state.images = [];
+    state.texts = [];
+    sel = null;
+    editing = null;
+    el.editor.hidden = true;
+    replayStrokes();
+  }
+
   function nuevaEnBlanco() {
     if (!hasContent()) {
       setStatus("La pizarra ya está vacía.");
@@ -712,25 +886,21 @@
     void preguntar("Se tiran todos los trazos, imágenes y textos. ¿Vaciar la pizarra?", "VACIAR").then(
       (aceptar) => {
         if (!aceptar) return;
-        state.bg = { color: BG_DEFAULT, image: null };
-        state.strokes = [];
-        // Misma razón que en `deleteSelected`: los bitmaps pegados se cierran.
-        for (const img of state.images) img.drawable.close?.();
-        state.images = [];
-        state.texts = [];
-        sel = null;
-        editing = null;
-        el.editor.hidden = true;
-        replayStrokes();
+        vaciar();
         changed();
         setStatus("Pizarra vacía.");
       }
     );
   }
 
-  /** La webview no puede leer el portapapeles con un clic: pide el Ctrl+V. */
+  /**
+   * Un clic = pizarra nueva con la imagen del portapapeles de FONDO. La webview no puede leer
+   * el portapapeles sin gesto del sistema: se lo pide al host, que contesta con `clipboardImage`
+   * o `clipboardEmpty`. El Ctrl+V de siempre sigue añadiendo a la capa IMÁGENES.
+   */
   function desdePortapapeles() {
-    setStatus("Pulsa Ctrl+V para coger la imagen del portapapeles.");
+    setStatus("Cogiendo la imagen del portapapeles…");
+    vscode.postMessage({ type: "clipboardBg" });
   }
 
   function guardar() {
@@ -778,6 +948,36 @@
   el.frame.addEventListener("pointerdown", onDown);
   el.frame.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
+
+  // Rueda: acerca y aleja dejando el cursor sobre el mismo punto del lienzo. `passive:false`
+  // porque hay que cortar el scroll de la página; la transform CSS no cambia el PNG exportado.
+  el.frame.addEventListener(
+    "wheel",
+    (event) => {
+      // Sólo la rueda vertical es zoom: el barrido horizontal del trackpad trae deltaY a 0.
+      if (!event.deltaY) return;
+      event.preventDefault();
+      const m = marcoPunto(event);
+      const z2 = pasoZoom(view.z, event.deltaY);
+      if (z2 === view.z) return; // en el límite: nada que recalcular
+      const nuevo = zoomEn(view.z, view.tx, view.ty, z2, m.x, m.y);
+      view.z = nuevo.z;
+      view.tx = nuevo.tx;
+      view.ty = nuevo.ty;
+      // El área de edición es hija del mundo: la transform se la lleva con el lienzo, así que
+      // el zoom no la recoloca. Reabrirla seleccionaría otra vez todo el texto: no se hace.
+      aplicaVista();
+    },
+    { passive: false }
+  );
+
+  // Botón de escape de perdidos: 100 % y encuadre en su sitio.
+  el.btnZoom.addEventListener("click", () => {
+    view.z = 1;
+    view.tx = 0;
+    view.ty = 0;
+    aplicaVista();
+  });
 
   el.frame.addEventListener("dblclick", (event) => {
     // Doble clic dentro del área: es el del navegador seleccionando una palabra.
@@ -828,6 +1028,16 @@
     // Con el modal en pantalla, nada de lo de detrás responde: sus botones son BUTTON y no
     // los filtra el guard de arriba.
     if (cerrarModal) return;
+    // Espacio: el arrastre pasa a paneo. Se coge también con un botón en el foco (ENTER sigue
+    // activándolo); sin esto, pinchar una herramienta dejaría el paneo inservible.
+    if (event.key === " " || event.code === "Space") {
+      event.preventDefault();
+      if (!espacio) {
+        espacio = true;
+        pintaCursorPan();
+      }
+      return;
+    }
     if (event.key === "Delete" || event.key === "Backspace") {
       if (sel) {
         event.preventDefault();
@@ -838,8 +1048,33 @@
     }
   });
 
+  document.addEventListener("keyup", (event) => {
+    if (event.key === " " || event.code === "Space") soltarEspacio();
+  });
+
+  // Si la ventana pierde el foco con Espacio pulsado no llega el `keyup`: se suelta aquí y el
+  // paneo no se queda enganchado.
+  window.addEventListener("blur", soltarEspacio);
+
+  // El layout del marco sí cambia al redimensionar: hay que recolocar el área (sin reabrirla,
+  // para no perder el cursor ni seleccionar todo el texto) y recalcular el ancho del lienzo.
+  // Con reposo: soltar el divisor del panel dispara muchísimos eventos seguidos.
+  let reposoMarco = 0;
+  const reMedirMarco = () => {
+    clearTimeout(reposoMarco);
+    reposoMarco = setTimeout(medirMarco, 150);
+  };
+  if (typeof ResizeObserver === "function") {
+    // El ancho de la barra lateral o un divisor sin evento `resize` de ventana: el observer
+    // ve la caja real del marco aunque la webview no entere.
+    new ResizeObserver(reMedirMarco).observe(el.frame);
+  }
   window.addEventListener("resize", () => {
-    if (editing) openEditor(editing);
+    medirMarco(); // con el aspecto ya cambiado de golpe: sale barato si W no se mueve
+    if (editing) {
+      colocaEditor(editing);
+      growEditor();
+    }
     redraw();
   });
 
@@ -862,12 +1097,34 @@
             setStatus("La copia de trabajo no se ha podido leer.", "error");
           }
         } else {
-          setStatus("Lienzo listo: 1024 × 1024.");
+          setStatus(`Lienzo listo: ${W} × ${H}.`);
         }
         // `redraw`, no `changed`: restaurar no es un cambio, y reescribir la copia con la misma
         // imagen no aporta nada.
         redraw();
       })();
+      return;
+    }
+    if (m.type === "clipboardImage") {
+      // Como con `capture`: si la copia de trabajo aún se está cargando, se espera; si no, la
+      // carga terminaría pisando el fondo que acabamos de poner.
+      if (cargando) await cargando;
+      // Se decodifica ANTES de limpiar: un PNG ilegible no debe dejar la pizarra en blanco.
+      let img;
+      try {
+        img = await loadImage(m.src);
+      } catch {
+        setStatus("El portapapeles no trae ninguna imagen.", "error");
+        return;
+      }
+      vaciar();
+      state.bg = { color: BG_DEFAULT, image: { drawable: img, width: img.width, height: img.height } };
+      changed();
+      setStatus("Nueva pizarra desde el portapapeles.", "ok");
+      return;
+    }
+    if (m.type === "clipboardEmpty") {
+      setStatus("El portapapeles no trae ninguna imagen.", "error");
       return;
     }
     if (m.type === "capture") {
@@ -884,6 +1141,9 @@
   });
 
   setTool("select");
+  aplicaVista();
+  medirMarco(true); // primer ajuste con el aspecto real del marco antes de pintar nada
+  pintaMedida();
   compose();
   vscode.postMessage({ type: "ready" });
 })();

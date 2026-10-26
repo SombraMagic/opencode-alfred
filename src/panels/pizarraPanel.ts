@@ -1,6 +1,6 @@
 /**
- * Panel de PIZARRA: editor de imagen por capas (fondo, trazos, imágenes pegadas y
- * textos) sobre un lienzo de 1024x1024.
+ * Panel de PIZARRA: editor de imagen por capas (fondo, imágenes pegadas, trazos y
+ * textos) sobre un lienzo de alto fijo 1024 px y ancho según el aspecto del panel.
  *
  * Lo que importa de fuera es el PNG aplanado. Cada cambio se guarda como copia de
  * trabajo en la carpeta de adjuntos (la misma del dictado), de modo que otro panel
@@ -8,8 +8,13 @@
  */
 import * as vscode from "vscode";
 import { readFileSync } from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { tmpdir } from "node:os";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+
+const execFileAsync = promisify(execFile);
 
 /** La misma cota que los adjuntos del dictado. */
 const MAX_SNAPSHOT_BYTES = 20 * 1024 * 1024;
@@ -21,6 +26,8 @@ const KEY_LAST_URI = "opencodeAgents.pizarra.lastUri";
 const CAPTURE_TIMEOUT_MS = 5000;
 /** Cabecera de todo PNG: lo que manda el webview tiene que ser de verdad una imagen. */
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+/** Cuánto espera el puerto del portapapeles antes de darlo por vacío. */
+const CLIPBOARD_TIMEOUT_MS = 5000;
 
 /** Escribe de forma atómica (tmp + rename), como hace agents/store.ts con el texto. */
 async function writeAtomic(file: string, bytes: Buffer): Promise<void> {
@@ -184,12 +191,47 @@ export class PizarraPanel {
     this.post({ type: "init", png });
   }
 
+  /**
+   * Imagen del portapapeles leída con PowerShell: la webview no la puede coger con un clic.
+   * Devuelve la data URL o undefined si no hay imagen. Al webview sólo llega la data URL, ni
+   * la ruta transitoria ni los bytes crudos.
+   */
+  private async readClipboard(): Promise<string | undefined> {
+    const script = join(this.context.extensionUri.fsPath, "resources", "pizarra-clipboard.ps1");
+    const tmp = join(tmpdir(), `pizarra-clipboard-${process.pid}-${Date.now()}.png`);
+    try {
+      // `-STA` lo exige `Clipboard::GetImage`; `-NonInteractive`, que nada pregunte en consola.
+      await execFileAsync(
+        "powershell.exe",
+        ["-NoProfile", "-NonInteractive", "-STA", "-ExecutionPolicy", "Bypass", "-File", script, "-OutPath", tmp],
+        { windowsHide: true, timeout: CLIPBOARD_TIMEOUT_MS }
+      );
+      const bytes = await readFile(tmp);
+      // El PNG_MAGIC corta también el fichero truncado: si PowerShell no escribió, no llega.
+      if (bytes.length < 8 || bytes.length > MAX_SNAPSHOT_BYTES || !bytes.subarray(0, 4).equals(PNG_MAGIC)) {
+        return undefined;
+      }
+      return `data:image/png;base64,${bytes.toString("base64")}`;
+    } catch {
+      // Sin imagen, PowerShell cortado o transitorio ausente: todo vale «portapapeles vacío».
+      return undefined;
+    } finally {
+      // El transitorio no se queda en el disco.
+      await rm(tmp, { force: true }).catch(() => undefined);
+    }
+  }
+
   private async onMessage(message: { type?: string; png?: unknown }): Promise<void> {
     switch (message?.type) {
       case "ready":
         this.ready = true;
         this.flush();
         return;
+      case "clipboardBg": {
+        const src = await this.readClipboard();
+        this.post(src ? { type: "clipboardImage", src } : { type: "clipboardEmpty" });
+        return;
+      }
       case "snapshot": {
         const bytes = decodePng(message.png);
         if (!bytes) {
