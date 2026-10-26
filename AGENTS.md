@@ -45,7 +45,8 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   `catalog.ts` (descubrimiento y activado/desactivado de MCP, skills y plugins), `validate.ts`.
 - `stats/` — lee las bases SQLite de opencode en solo lectura: `baseline.ts` (deltas de
   reinicio), `format.ts`, `contextWindow.ts` (desglose de la ventana de contexto),
-  `opencodeStats.ts` (actividad por agente y sesiones).
+  `opencodeStats.ts` (actividad por agente y sesiones), `promptFlow.ts` (línea de tiempo de
+  prompts por agente) y `promptStats.ts` (historial persistido de prompts y tarifas).
 - `voice/core/` — portado de `voz-core`: motores TTS (`sapi`, `edge`, `openai`,
   `elevenlabs`), PCM/envolvente, reproductor por dispositivo, grabadora, filtro de ruido
   y estado compartido con el MCP. Se importa de forma estática; esbuild lo incluye.
@@ -56,7 +57,8 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   `contextPanel.ts` (ventana de contexto), `editorPanel.ts` (editor de
   agentes), `assignPanel.ts` (pestaña central de asignación agentes↔modelos),
   `connectorsPanel.ts` (pestaña central de conectores de opencode),
-  `statsPanel.ts`, `instructionsPanel.ts` (AGENTS.md global y local),
+  `statsPanel.ts`, `promptStatsPanel.ts` (pestaña de estadísticas de prompts, con su
+  `media/promptStats.*`), `instructionsPanel.ts` (AGENTS.md global y local),
   `voicePanel.ts` (barra lateral derecha: esfera y ecualizador) y `dictadoPanel.ts` (zona
   inferior). Los tres contenedores conservan su sitio en el manifiesto.
 - `extension.ts` — registra comandos, sondeo en vivo, watchers y reparte datos a los paneles.
@@ -106,6 +108,21 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   regla que coincide (reglas amplias primero, específicas después).
 - Las estadísticas son estrictamente de solo lectura sobre `opencode*.db` en
   `~/.local/share/opencode` (configurable). Nunca escribir en esas bases.
+- Estadísticas de prompts (`promptFlow.ts` + `promptStats.ts` + `promptStatsPanel.ts`): el
+  analizador solo entiende el esquema v2 y solo las sesiones raíz del proyecto abierto, con sus
+  hijos recursivos por `parent_id`. Un prompt va del mensaje `user` al `idle` siguiente (o al
+  `user` siguiente si no lo hay) y, sin cierre, sigue vivo hasta 15 min sin actividad. La
+  monitorización (`opencodeAgents.promptMonitor` en `globalState`, apagada por defecto) es lo
+  único que consulta las bases: con ella off, `collect()` solo releé el historial. Los prompts
+  cerrados se guardan por `id` (`sesión:time_created`), tope 500, en
+  `globalStorage/prompt-stats.json` — nunca junto a la config de opencode. El coste es el real
+  de la fila si existe y, si no, estimado con `provider.<id>.models.<modelo>.cost` del
+  `opencode.json(c)` y el `models.json` de la caché. Esas bases se abren con
+  `openSqliteReadOnly()` (readOnly estricto, sin caer al modo escritura de `openSqlite`).
+  `restartPolling()` no crea temporizador si `watchLive` y el monitor están apagados, y un tick
+  solo escanea lo que esté encendido. Los colores del timeline se resuelven en el host
+  (`promptColorOf`): hex del `.md` (proyecto > global), nombre de tema pasado a la paleta Alfred
+  y, si no, relleno por rol.
 - La vista de contexto mide la última petición del mensaje assistant más reciente
   (`session_message.tokens`: `input + cache.read + cache.write`) y estima las partes fijas
   del prompt desde `instruction_state`/`instruction_blob` (`core/instructions`,

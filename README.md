@@ -79,6 +79,29 @@ En el panel puedes ordenar por cualquier columna, filtrar por agente y:
 Todo se guarda en el `globalState` de la extensión, así que reiniciar es
 persistente entre sesiones de VS Code.
 
+## Estadísticas de prompts
+
+Junto al botón **Ver estadísticas de agentes** hay otro **Ver estadísticas de
+prompts** (`$(pulse)`), que abre una pestaña aparte con una **línea de tiempo por
+agente** de cada prompt que lanzaste: qué agentes intervinieron (el de la sesión y
+sus subagentes), cuánto trabajó cada uno, los **tokens** (entrada, salida,
+razonamiento y caché), la **duración** y el **coste** (el real que registra
+opencode o, si no lo guardó, estimado con las tarifas de tu `opencode.json` y del
+registro `models.dev`; los estimados se marcan).
+
+- El escaneo **no arranca solo**: el interruptor **MONITORIZAR** está apagado por
+  defecto y se recuerda entre sesiones (`opencodeAgents.promptMonitor`). Con el
+  monitor encendido se van guardando los prompts que se cierran; con el de
+  `watchLive` apagado y el monitor encendido, el sondeo sigue leyendo solo los
+  prompts. Si los dos están apagados no hay temporizador ni consultas.
+- El historial vive en el **almacén global de la extensión**
+  (`globalStorage/prompt-stats.json`), con tope de 500 registros. Las **bases de
+  datos de opencode se abren siempre en estricta lectura**; no se escribe nada en
+  ellas ni en `opencode.json`.
+- **Borrar** limpia el registro (pide confirmación).
+- Por ahora solo mide opencode (esquema `session_v2`): Claude y Codex quedan para
+  después.
+
 ## Skills y MCP
 
 El árbol incluye dos secciones nuevas, con las de **nivel global (usuario)** y de

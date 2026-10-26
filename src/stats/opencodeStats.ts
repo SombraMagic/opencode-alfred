@@ -131,7 +131,7 @@ function addTokens(target: TokenCounts, src: TokenCounts): void {
   target.total += src.total;
 }
 
-function tokensFromMessage(msg: Record<string, unknown>): TokenCounts {
+export function tokensFromMessage(msg: Record<string, unknown>): TokenCounts {
   const tk = (msg.tokens ?? {}) as Record<string, unknown>;
   const cache = (tk.cache ?? {}) as Record<string, unknown>;
   const input = num(tk.input);
@@ -226,6 +226,28 @@ export function openSqlite(file: string): RawSqlite | undefined {
     } catch {
       return undefined;
     }
+  }
+}
+
+/**
+ * Abre una BD de opencode EN ESTRICTA LECTURA y sin reintento de escritura: si el host no trae
+ * `node:sqlite` o la BD no admite abrirse en solo lectura, devuelve undefined y el llamador la omite.
+ * A diferencia de `openSqlite`, nunca cae al modo escritura: no puede crear una BD vacía donde no la
+ * había ni checkpointar el `-wal` dentro del `.db`. Lo que no evita es que SQLite materialice
+ * `-wal`/`-shm` al leer una BD en modo WAL a la que le faltan; el `.db` no se toca.
+ */
+export function openSqliteReadOnly(file: string): RawSqlite | undefined {
+  let mod: { DatabaseSync: new (file: string, opts?: { readOnly?: boolean }) => RawSqlite };
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    mod = require("node:sqlite");
+  } catch {
+    return undefined;
+  }
+  try {
+    return new mod.DatabaseSync(file, { readOnly: true });
+  } catch {
+    return undefined;
   }
 }
 

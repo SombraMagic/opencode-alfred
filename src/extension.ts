@@ -44,12 +44,15 @@ import {
 import { InstructionsPanel } from "./panels/instructionsPanel";
 import { ClaudeAgentPanel } from "./panels/claudeAgentPanel";
 import { StatsPanel } from "./panels/statsPanel";
+import { PromptStatsPanel } from "./panels/promptStatsPanel";
 import { ContextViewProvider } from "./panels/contextPanel";
 import { VozPanel } from "./panels/voicePanel";
 import { VozDictado } from "./panels/dictadoPanel";
 import { speak, syncSharedConfig } from "./voice/service";
 import { installMcp } from "./voice/mcpInstaller";
 import { ContextWindowService } from "./stats/contextWindow";
+import { PromptStatsService } from "./stats/promptStats";
+import type { PromptStatsSnapshot } from "./stats/promptFlow";
 import {
   emptyActivity,
   latestSessionTokens,
@@ -109,6 +112,41 @@ const SESSION_AGENTS = ["opencode", "claude", "codex"] as const;
 type SessionAgent = (typeof SESSION_AGENTS)[number];
 const SESSION_AGENT_KEY = "opencodeAgents.sessionAgent";
 
+/**
+ * Nombres de tema de `color:` en el frontmatter, pasados a la paleta Alfred. El webview del
+ * timeline solo pinta hex de 6 dígitos, así que aquí se resuelven antes de mandar el snapshot.
+ */
+const PROMPT_THEME_COLORS: Record<string, string> = {
+  primary: "#00e5ff",
+  info: "#4a9eff",
+  secondary: "#a970ff",
+  accent: "#ff2d95",
+  success: "#23d18b",
+  warning: "#ffb000",
+  error: "#e05a5a",
+};
+
+/** Rellenos de las filas del timeline cuando el agente no trae color. */
+const PROMPT_FALLBACK_COLORS = {
+  primary: "#ffb000",
+  subagent: "#23d18b",
+  builtin: "#a970ff",
+};
+
+/** Hex CSS admitido por `color:`: `#rgb`, `#rrggbb` y `#rrggbbaa`. */
+function promptHex(raw: string): string | undefined {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(raw);
+  if (!m) {
+    return undefined;
+  }
+  const hex = m[1].toLowerCase();
+  if (hex.length === 3) {
+    return `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`;
+  }
+  // El alfa se cae: `--c` del panel solo entiende 6 dígitos.
+  return `#${hex.slice(0, 6)}`;
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const explorer = new ExplorerPanel(context.extensionUri, {
     onAction: (action) => handleAction(action),
@@ -129,6 +167,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const ASSIGN_PROVIDERS_OFF = "opencodeAgents.assignProvidersOff";
   const CONNECTORS_SEARCH = "opencodeAgents.connectorsSearch";
   const CONNECTORS_SELECTED = "opencodeAgents.connectorsSelected";
+  const PROMPT_MONITOR = "opencodeAgents.promptMonitor";
 
   // La detección espera procesos del sistema: se lanza sin bloquear el arranque y, cuando
   // termina, repinta el panel. Hasta entonces el selector muestra solo opencode.
@@ -355,6 +394,14 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   const statsService = new StatsService();
+  // Historial de prompts: fichero propio en el almacén global, nunca junto a la config de opencode.
+  const promptStats = new PromptStatsService(
+    path.join(context.globalStorageUri.fsPath, "prompt-stats.json")
+  );
+  let promptMonitor: boolean = context.globalState.get<boolean>(PROMPT_MONITOR, false);
+  let lastPromptSnapshot: PromptStatsSnapshot | undefined;
+  let promptBusy = false;
+  let promptPending = false;
   const contextService = new ContextWindowService();
   const contextView = new ContextViewProvider(
     context.extensionUri,
@@ -409,6 +456,10 @@ export function activate(context: vscode.ExtensionContext): void {
     void refreshModels();
     void refreshStats(true);
     explorer.update(buildExplorerData());
+    // Con el monitor apagado y la pestaña cerrada no hay nada que releer: se ahorra el escaneo.
+    if (promptMonitor || PromptStatsPanel.current) {
+      void refreshPrompts();
+    }
   };
 
   /** Agente en la forma que pinta el explorador, con su actividad en vivo. */
@@ -1367,6 +1418,116 @@ export function activate(context: vscode.ExtensionContext): void {
     void refreshStats(true);
   }
 
+  /**
+   * Color de una fila del timeline de prompts: hex del `.md` (proyecto sobre global), nombre de
+   * tema de opencode pasado a la paleta Alfred o, si no, relleno por rol del agente.
+   */
+  function promptColorOf(name: string): string | undefined {
+    const def =
+      agentList.project.find((x) => x.name === name) ??
+      agentList.global.find((x) => x.name === name);
+    const raw = (def?.frontmatter.color ?? "").trim().toLowerCase();
+    const hex = promptHex(raw);
+    if (hex) {
+      return hex;
+    }
+    const theme = PROMPT_THEME_COLORS[raw];
+    if (theme) {
+      return theme;
+    }
+    // Sin color, con un nombre que no es de tema, o sin fichero: se tiñe por rol.
+    const mode = def?.frontmatter.mode;
+    if (mode === "subagent") {
+      return PROMPT_FALLBACK_COLORS.subagent;
+    }
+    if (mode === "primary" || mode === "all") {
+      return PROMPT_FALLBACK_COLORS.primary;
+    }
+    if (!def || (BUILTIN_AGENTS as readonly string[]).includes(name)) {
+      return PROMPT_FALLBACK_COLORS.builtin;
+    }
+    // Un `.md` sin `mode` se pinta como primary, igual que en el explorador.
+    return PROMPT_FALLBACK_COLORS.primary;
+  }
+
+  /** Snapshot de fallo: conserva lo ya visto y lleva el mensaje al banner del panel. */
+  function promptFailure(detail: string): PromptStatsSnapshot {
+    return {
+      ok: false,
+      error: detail,
+      monitor: promptStats.monitoring,
+      monitorSince: promptStats.monitorSince,
+      project: projectRoot(),
+      scannedAt: Date.now(),
+      prompts: lastPromptSnapshot?.prompts ?? [],
+      savedCount: lastPromptSnapshot?.savedCount ?? 0,
+    };
+  }
+
+  /** Relee el historial (y las bases de opencode si el monitor manda) y lo pinta en la pestaña. */
+  async function refreshPrompts(): Promise<void> {
+    if (promptBusy) {
+      // Un escaneo no se solapa con el anterior: al terminar se repite una sola vez con lo nuevo.
+      promptPending = true;
+      return;
+    }
+    promptBusy = true;
+    try {
+      const snapshot = await promptStats.collect({
+        project: projectRoot(),
+        colorOf: promptColorOf,
+      });
+      lastPromptSnapshot = snapshot;
+      PromptStatsPanel.current?.update(snapshot);
+    } catch (err) {
+      // Leer el almacén no puede tumbar la extensión: el error se va al banner del panel.
+      lastPromptSnapshot = promptFailure(err instanceof Error ? err.message : String(err));
+      PromptStatsPanel.current?.update(lastPromptSnapshot);
+    }
+    const again = promptPending;
+    promptPending = false;
+    promptBusy = false;
+    if (again) {
+      // El pending se consume siempre, haya error o no: sin bucles si el escaneo falla.
+      void refreshPrompts();
+    }
+  }
+
+  async function setPromptMonitor(on: boolean): Promise<void> {
+    promptMonitor = on;
+    await context.globalState.update(PROMPT_MONITOR, on);
+    await promptStats.setMonitor(on);
+    restartPolling();
+    await refreshPrompts();
+  }
+
+  async function clearPromptRecords(): Promise<void> {
+    const yes = "Borrar";
+    const choice = await vscode.window.showWarningMessage(
+      "¿Borrar el registro de prompts guardado? Después no hay forma de recuperarlo.",
+      { modal: true },
+      yes
+    );
+    if (choice !== yes) {
+      return;
+    }
+    await promptStats.clear();
+    await refreshPrompts();
+    void vscode.window.setStatusBarMessage("opencode: registro de prompts borrado.", 4000);
+  }
+
+  function openPromptStatsPanel(): void {
+    PromptStatsPanel.open(context, {
+      refresh: async () => refreshPrompts(),
+      setMonitor: async (on: boolean) => setPromptMonitor(on),
+      clear: async () => clearPromptRecords(),
+    });
+    if (lastPromptSnapshot) {
+      PromptStatsPanel.current?.update(lastPromptSnapshot);
+    }
+    void refreshPrompts();
+  }
+
   let timer: ReturnType<typeof setInterval> | undefined;
   function restartPolling(): void {
     if (timer) {
@@ -1374,11 +1535,21 @@ export function activate(context: vscode.ExtensionContext): void {
       timer = undefined;
     }
     const cfg = vscode.workspace.getConfiguration("opencodeAgents");
-    if (!cfg.get<boolean>("watchLive", true)) {
+    const live = cfg.get<boolean>("watchLive", true);
+    // Con los dos apagados no hay nada que sondear: ni temporizador. El analizador de prompts
+    // puede ir solo aunque `watchLive` esté off, pero con su monitor off no consulta ninguna BD.
+    if (!live && !promptMonitor) {
       return;
     }
     const interval = Math.max(500, cfg.get<number>("liveIntervalMs", 2000));
-    timer = setInterval(() => void refreshStats(), interval);
+    timer = setInterval(() => {
+      if (live) {
+        void refreshStats();
+      }
+      if (promptMonitor) {
+        void refreshPrompts();
+      }
+    }, interval);
   }
   context.subscriptions.push({ dispose: () => timer && clearInterval(timer) });
 
@@ -1406,6 +1577,10 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
 
     vscode.commands.registerCommand("opencodeAgents.showStats", () => openStatsPanel()),
+
+    vscode.commands.registerCommand("opencodeAgents.showPromptStats", () =>
+      openPromptStatsPanel()
+    ),
 
     vscode.commands.registerCommand("opencodeAgents.assignModels", () =>
       void openAssignPanel()
@@ -2221,6 +2396,10 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   restartPolling();
+  if (promptMonitor) {
+    // Viene encendido de la sesión anterior: se arma sin esperar (lee el historial) y pinta.
+    void promptStats.setMonitor(true).then(() => refreshPrompts());
+  }
   void refreshAgents();
   void refreshModels();
   void refreshStats(true);

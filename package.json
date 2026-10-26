@@ -122,6 +122,11 @@
         "icon": "$(graph)"
       },
       {
+        "command": "opencodeAgents.showPromptStats",
+        "title": "opencode: Ver estadísticas de prompts",
+        "icon": "$(pulse)"
+      },
+      {
         "command": "opencodeAgents.assignModels",
         "title": "Asignar agentes a modelos",
         "category": "opencode"
@@ -178,29 +183,34 @@
           "group": "navigation@0"
         },
         {
-          "command": "opencodeAgents.createAgent",
+          "command": "opencodeAgents.showPromptStats",
           "when": "view == opencodeAgents.view",
           "group": "navigation@1"
         },
         {
-          "command": "opencodeAgents.createSubagent",
+          "command": "opencodeAgents.createAgent",
           "when": "view == opencodeAgents.view",
           "group": "navigation@2"
         },
         {
-          "command": "opencodeAgents.newSession",
+          "command": "opencodeAgents.createSubagent",
           "when": "view == opencodeAgents.view",
           "group": "navigation@3"
         },
         {
-          "command": "opencodeAgents.addPlugin",
+          "command": "opencodeAgents.newSession",
           "when": "view == opencodeAgents.view",
           "group": "navigation@4"
         },
         {
-          "command": "opencodeAgents.refresh",
+          "command": "opencodeAgents.addPlugin",
           "when": "view == opencodeAgents.view",
           "group": "navigation@5"
+        },
+        {
+          "command": "opencodeAgents.refresh",
+          "when": "view == opencodeAgents.view",
+          "group": "navigation@6"
         }
       ]
     },
