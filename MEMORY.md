@@ -101,7 +101,7 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `buildExplorerData(claudeData)`). Tiñen el hex de 6 y los 8 nombres de Claude (`PALETTE` en
   `panel.js` casa `claudeAgent.css:363-370`); los nombres de tema de opencode caen al acento,
   como en el explorador.
-- Estadísticas de prompts montadas (2026-10-26, commit local `77f2140`; **no empujado**):
+- Estadísticas de prompts montadas y verificadas (2026-10-26, desde el commit `77f2140`):
   botón nuevo junto al de estadísticas de agentes, pestaña `PromptStatsPanel` y motor
   `promptFlow.ts`/`promptStats.ts`. V1 solo opencode v2. La monitorización
   (`opencodeAgents.promptMonitor`) está apagada por defecto y persiste; apagada no escanea
@@ -114,9 +114,8 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   instalado y probado en VS Code real (2026-10-26): monitor encendido, 7 subagentes en
   paralelo, prompt vivo con 8 carriles y colores, cerrado y persistido correctamente
   (74 s, coste estimado, `live:false` en `prompt-stats.json`).
-- `main` va **dos commits por delante** de `origin/main` (`77f2140`, `5ecdc44`); el último
-  empujado es `0f7aa28`. Push pendiente, sin autorización. Queda `idea.md` modificado en el
-  árbol, fuera del encargo.
+- `main` = `origin/main` en `870cc3c`: las estadísticas de prompts y los extras (`idea.md`)
+  quedaron commiteados y empujados por orden de la persona (2026-10-26). Árbol limpio.
 - `AGENTS.md` ya no tiene cambios locales pendientes: entraron antes, en `9bdbe7c`.
 
 ## Decisiones
