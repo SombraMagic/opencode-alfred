@@ -12,10 +12,15 @@
     agentsCount: document.getElementById("agents-count"),
     favorites: document.getElementById("favorites"),
     favCount: document.getElementById("fav-count"),
+    groups: document.getElementById("groups"),
     models: document.getElementById("models"),
     modelsCount: document.getElementById("models-count"),
     board: document.querySelector(".board"),
     wires: document.getElementById("wires"),
+    modal: document.getElementById("modal"),
+    modalText: document.getElementById("modal-text"),
+    modalOk: document.getElementById("modal-ok"),
+    modalCancel: document.getElementById("modal-cancel"),
   };
 
   const SCOPE = { project: "PROY", global: "GLOBAL", builtin: "INTEGRADO" };
@@ -30,6 +35,21 @@
   let lastData = null;
   let lastKey = "";
   let favIds = new Set();
+  // Grupos de favoritos (pestañas) y el índice activo: los resuelve el host en cada assign.
+  let favoriteGroups = [];
+  let activeGroup = 0;
+  // Pestaña que se está renombrando en línea; mientras exista, la barra no se repinta.
+  let editing = null;
+  // Grupo pendiente de borrar con el modal abierto, o -1.
+  let askDeleteGroup = -1;
+  // Temporizador del clic en una pestaña: espera por si llega el doble clic del renombrado.
+  let tabTimer = 0;
+  // Elemento que abrió el modal: el foco vuelve a él al cerrar.
+  let modalReturn = null;
+  // Ids del catálogo vivo: los grupos pueden traer ids que el host ya no sirve.
+  let catalogIds = new Set();
+  // Nombres previos a un createGroup: el siguiente repintado salta a la pestaña nueva.
+  let pendingNames = null;
   let drag = null;
   // Fila/tarjeta seleccionada ({ kind, id }): resalta su cable. Solo visual: no se persiste ni se envía al host.
   let sel = null;
@@ -61,6 +81,25 @@
   function modelLabel(models, id) {
     const found = models.find((m) => m.id === id);
     return found ? found.name : id;
+  }
+
+  /** Menos de un dólar lleva hasta tres decimales; el resto, dos. */
+  function money(value) {
+    return "$" + (value < 1 ? String(Number(value.toFixed(3))) : value.toFixed(2));
+  }
+
+  /** Tarifa por millón de tokens: `$1.25 in · $5.00 out`; sin datos o gratis, cadena vacía. */
+  function costText(cost) {
+    if (!cost) return "";
+    if (!Number.isFinite(cost.input) || !Number.isFinite(cost.output)) return "";
+    // Gratis ya lo dice el chip FREE: `$0 in · $0 out` solo hace ruido.
+    if (cost.input === 0 && cost.output === 0) return "";
+    return money(cost.input) + " in · " + money(cost.output) + " out";
+  }
+
+  /** Favoritos del grupo que el catálogo vivo conoce: los ids muertos no cuentan. */
+  function liveCount(ids) {
+    return ids.filter((id) => catalogIds.has(id)).length;
   }
 
   function agentKey(agent) {
@@ -184,6 +223,136 @@
     }
   }
 
+  // ── Pestañas de grupos de favoritos ─────────────────────
+  function renderGroups() {
+    // Renombrar en línea: un repintado a media edición borraría el campo.
+    if (editing !== null) return;
+    el.groups.textContent = "";
+
+    favoriteGroups.forEach((group, index) => {
+      const tab = node("div", "group-tab" + (index === activeGroup ? " on" : ""));
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", String(index === activeGroup));
+      tab.tabIndex = 0;
+      tab.addEventListener("keydown", (event) => {
+        if (event.target !== tab || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        tab.click();
+      });
+      const name = node("span", "group-tab-name", group.name);
+      tab.appendChild(name);
+      tab.title = group.name;
+      tab.addEventListener("click", () => {
+        if (editing !== null || index === activeGroup) return;
+        // El repintado del host sustituye la pestaña, así que el clic deja un turno al doble
+        // clic: si llega, se cancela el cambio de pestaña y se renombra en línea.
+        if (tabTimer) clearTimeout(tabTimer);
+        tabTimer = setTimeout(() => {
+          tabTimer = 0;
+          post({ type: "selectGroup", group: index });
+        }, 250);
+      });
+      name.addEventListener("dblclick", (event) => {
+        event.stopPropagation();
+        if (tabTimer) {
+          clearTimeout(tabTimer);
+          tabTimer = 0;
+        }
+        startRename(index, name);
+      });
+
+      // La × solo en la pestaña activa, y nunca si es el único grupo.
+      if (index === activeGroup && favoriteGroups.length > 1) {
+        const del = node("button", "group-x", "×");
+        del.type = "button";
+        del.title = "Borrar grupo";
+        del.setAttribute("aria-label", "Borrar el grupo " + group.name);
+        del.addEventListener("click", (event) => {
+          event.stopPropagation();
+          askDelete(index);
+        });
+        tab.appendChild(del);
+      }
+      el.groups.appendChild(tab);
+    });
+
+    const add = node("button", "group-add", "+");
+    add.type = "button";
+    add.title = "Crear grupo";
+    add.setAttribute("aria-label", "Crear un grupo de favoritos");
+    add.addEventListener("click", () => {
+      // El nombre lo pone el host («Grupo N»); el salto se resuelve con los nombres previos.
+      pendingNames = new Set(favoriteGroups.map((g) => g.name));
+      post({ type: "createGroup" });
+    });
+    el.groups.appendChild(add);
+  }
+
+  /** Renombrado en línea: Enter confirma, Esc o vacío cancelan. */
+  function startRename(index, nameEl) {
+    const group = favoriteGroups[index];
+    if (editing !== null || !group) return;
+    editing = index;
+
+    const input = node("input", "group-rename");
+    input.type = "text";
+    input.maxLength = 60;
+    input.value = group.name;
+    input.setAttribute("aria-label", "Nombre del grupo");
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let done = false;
+    const finish = (commit) => {
+      if (done) return;
+      done = true;
+      editing = null;
+      const value = input.value.trim();
+      if (commit && value && value !== group.name) {
+        post({ type: "renameGroup", group: index, name: value });
+      }
+      renderGroups();
+    };
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finish(true);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finish(false);
+      }
+    });
+    input.addEventListener("blur", () => finish(true));
+    input.addEventListener("click", (event) => event.stopPropagation());
+    input.addEventListener("dblclick", (event) => event.stopPropagation());
+  }
+
+  /** Confirmación de borrado dentro de la webview: `window.confirm` no existe aquí. */
+  function askDelete(index) {
+    const group = favoriteGroups[index];
+    if (!group || favoriteGroups.length <= 1) return;
+    askDeleteGroup = index;
+    // Se anuncia lo que de verdad se borra: los ids muertos no cuentan.
+    el.modalText.textContent =
+      "Se borrará el grupo \"" +
+      group.name +
+      "\" y sus " +
+      plural(liveCount(group.ids || []), "favorito", "favoritos") +
+      ". Los modelos siguen en MODELOS.";
+    modalReturn = document.activeElement;
+    el.modal.hidden = false;
+    el.modalOk.focus();
+  }
+
+  function closeModal() {
+    askDeleteGroup = -1;
+    el.modal.hidden = true;
+    // El foco vuelve a quien abrió el modal; si el repintado ya se lo llevó, no se fuerza.
+    if (modalReturn && modalReturn.isConnected) modalReturn.focus();
+    modalReturn = null;
+  }
+
   // ── Columna FAVORITOS ───────────────────────────────────
   function renderFavorites(models) {
     el.favorites.textContent = "";
@@ -205,6 +374,12 @@
       if (sel && sel.kind === "modelo" && sel.id === model.id) card.classList.add("sel");
       card.appendChild(node("div", "card-line")).appendChild(node("span", "card-name", model.name));
       card.appendChild(node("div", "card-provider", model.provider));
+      const cost = costText(model.cost);
+      if (cost) {
+        const row = node("div", "card-cost", cost);
+        row.title = "USD por millón de tokens";
+        card.appendChild(row);
+      }
 
       // Un agente soltado sobre este favorito queda conectado a él.
       card.addEventListener("dragover", (event) => {
@@ -227,7 +402,7 @@
         post({ type: "assign", agent, scope, model: model.id });
       });
       card.addEventListener("dragstart", (event) =>
-        startDrag(event, { kind: "model", id: model.id })
+        startDrag(event, { kind: "model", id: model.id, group: activeGroup })
       );
       card.addEventListener("dragend", endDrag);
       card.addEventListener("click", () => toggleSel("modelo", model.id));
@@ -276,6 +451,13 @@
       }
       card.appendChild(meta);
 
+      const cost = costText(model.cost);
+      if (cost) {
+        const row = node("div", "card-cost", cost);
+        row.title = "USD por millón de tokens";
+        card.appendChild(row);
+      }
+
       if (model.hint) card.appendChild(node("div", "card-detail", model.hint));
 
       card.addEventListener("dragstart", (event) =>
@@ -305,7 +487,7 @@
       const id = drag.id;
       drag = null;
       clearDrop();
-      post({ type: "toggleFavorite", id, on: true });
+      post({ type: "toggleFavorite", id, on: true, group: activeGroup });
     }
   });
 
@@ -324,9 +506,10 @@
     if (!drag || drag.kind !== "model" || !favIds.has(drag.id)) return;
     event.preventDefault();
     const id = drag.id;
+    const group = drag.group === undefined ? activeGroup : drag.group;
     drag = null;
     clearDrop();
-    post({ type: "toggleFavorite", id, on: false });
+    post({ type: "toggleFavorite", id, on: false, group });
   });
 
   // Sin dragend (drop fuera de la vista) las marcas se quedarían pegadas.
@@ -418,23 +601,44 @@
     lastData = data;
     const agents = data.agents || [];
     const models = data.models || [];
-    const favorites = data.favorites || [];
+    // El host ya no filtra los grupos por catálogo: los ids muertos se quedan fuera de las cuentas.
+    catalogIds = new Set(models.map((m) => m.id));
+    // El host garantiza al menos un grupo; si llega vacío, se pinta uno vacío igualmente.
+    const groups =
+      Array.isArray(data.favoriteGroups) && data.favoriteGroups.length > 0
+        ? data.favoriteGroups
+        : [{ name: "Favoritos", ids: [] }];
+    const active = Math.min(Math.max(0, Number(data.activeGroup) || 0), groups.length - 1);
+    // «N favoritos» cuenta ids únicos de todos los grupos que el catálogo vivo conoce.
+    const total = new Set(groups.flatMap((g) => g.ids || []).filter((id) => catalogIds.has(id)))
+      .size;
 
     // El sondeo puede repetir los mismos datos: sin esta clave, el scroll y el foco saltan.
-    const key = JSON.stringify([agents, models, favorites, query, [...off].sort()]);
+    const key = JSON.stringify([agents, models, groups, active, query, [...off].sort()]);
     if (key === lastKey) return;
     lastKey = key;
 
-    favIds = new Set(favorites);
+    favoriteGroups = groups;
+    activeGroup = active;
+    favIds = new Set(groups[active].ids || []);
     el.sub.textContent =
       plural(agents.length, "agente", "agentes") +
       " · " +
       plural(models.length, "modelo", "modelos") +
       " · " +
-      plural(favorites.length, "favorito", "favoritos");
+      plural(total, "favorito", "favoritos");
+
+    // Tras crear, se salta al grupo nuevo: el que no estaba antes en la barra.
+    if (pendingNames) {
+      const before = pendingNames;
+      pendingNames = null;
+      const index = groups.findIndex((g) => !before.has(g.name));
+      if (index >= 0 && index !== activeGroup) post({ type: "selectGroup", group: index });
+    }
 
     renderProviders(models);
     renderAgents(agents, models);
+    renderGroups();
     renderFavorites(models);
     renderModelsColumn(models);
     scheduleWires();
@@ -453,6 +657,28 @@
   });
 
   el.close.addEventListener("click", () => post({ type: "close" }));
+
+  // ── Modal de borrado de grupo ───────────────────────────
+  el.modalOk.addEventListener("click", () => {
+    const index = askDeleteGroup;
+    closeModal();
+    if (index >= 0) post({ type: "deleteGroup", group: index });
+  });
+  el.modalCancel.addEventListener("click", closeModal);
+  el.modal.addEventListener("click", (event) => {
+    if (event.target === el.modal) closeModal();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (el.modal.hidden) return;
+    if (event.key === "Escape") {
+      closeModal();
+      return;
+    }
+    // Trampa de foco: Tab cicla entre CANCELAR y BORRAR y no escapa al tablero de detrás.
+    if (event.key !== "Tab") return;
+    event.preventDefault();
+    (document.activeElement === el.modalOk ? el.modalCancel : el.modalOk).focus();
+  });
 
   for (const list of [el.board, el.agents, el.favorites, el.models]) {
     list.addEventListener("scroll", scheduleWires, { passive: true });

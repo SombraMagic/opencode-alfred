@@ -81,10 +81,18 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
 - El panel de asignación escribe `model:` en el `.md` con `saveAgent` (no toca la sesión
   viva): es lo que opencode aplica al recargar. Conectar un integrado sin override pide
   scope y crea `<nombre>.md` con solo el frontmatter; el prompt integrado se conserva
-  (verificado con `opencode debug agents`). Los favoritos viven en
-  `opencodeAgents.favoriteModels` (`globalState`); al abrir el tablero se siembran con los
-  modelos que ya tienen los agentes, si están en el catálogo vivo. El buscador y los
-  conectores apagados también persisten (`assignSearch`, `assignProvidersOff`).
+  (verificado con `opencode debug agents`). Los favoritos viven en grupos
+  (`opencodeAgents.favoriteGroups`: `[{ name, ids }]`, con el activo por nombre en
+  `opencodeAgents.assignGroup`); las pestañas se gestionan en el webview (crear, renombrar a
+  doble clic, borrar con modal) y un mismo modelo puede estar en varios grupos. Al abrir el
+  tablero se siembra el PRIMER grupo, solo si está vacío, con los modelos que ya tienen los
+  agentes si están en el catálogo vivo. Cada cambio reescribe la clave vieja
+  `opencodeAgents.favoriteModels` con la unión deduplicada de todos los grupos (compatibilidad
+  de bajón), y el payload lleva los grupos SIN filtrar por catálogo: cables y estrellas sí
+  miran solo el grupo activo. Cada `ModelEntry` trae `cost` (`{ input, output }` en USD por
+  millón, primer tramo de `GET /api/model`): se pinta en MODELOS y FAVORITOS y se omite cuando
+  ambas tarifas son 0 (ahí vale el chip `FREE`). El buscador y los conectores apagados también
+  persisten (`assignSearch`, `assignProvidersOff`).
 - Los botones CONECTORES y ASIGNAR AGENTES del mando del Explorador (fila que solo se ve con
   opencode) abren `ConnectorsPanel` +
   `media/connectors.*`: la izquierda es el catálogo completo (`GET /api/integration` +

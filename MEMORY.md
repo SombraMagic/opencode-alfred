@@ -337,12 +337,23 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   desde el botón ASIGNAR AGENTES del mando del Explorador. Conectar escribe
   `model:` en el `.md` (no cambia la sesión viva, solo las nuevas). Los integrados sin
   override piden scope y crean el `.md` que los sobrescribe; el prompt integrado se conserva
-  (comprobado con `opencode debug agents`). Favoritos en `opencodeAgents.favoriteModels`. El
+  (comprobado con `opencode debug agents`). Favoritos en grupos: ver el punto de abajo. El
   tablero se cierra al cambiar a Claude/Codex. Tres columnas, `media/assign.html` como
   plantilla con marcadores. El buscador y los conectores apagados persisten en
   `assignSearch`/`assignProvidersOff` (debounce de 300 ms en el webview). Clic en un agente
   o en un favorito resalta el cable que los conecta (`hot`/`sel`, estado solo visual del
   webview; otro clic deselecciona).
+- Grupos de favoritos en el tablero (2026-10-26, probado en VS Code, `.vsix` instalado): la lista
+  plana pasa a `opencodeAgents.favoriteGroups` (`[{name, ids}]`) con pestañas en
+  `media/assign.*` (crear `+`, renombrar a doble clic, borrar con modal) y el grupo activo
+  persistido por NOMBRE en `opencodeAgents.assignGroup`. Consecuencias: un modelo puede estar
+  en varios grupos; cables y estrellas solo miran el grupo activo; el host emite
+  `favoriteGroups` SIN filtrar por catálogo vivo (el modal anuncia lo que de verdad se borra)
+  y `opencodeAgents.favoriteModels` se reescribe con la unión deduplicada de todos los grupos
+  (compatibilidad de bajón). `ModelEntry.cost` (`{input, output}`, primer tramo de
+  `GET /api/model`) pinta `$X in · $Y out`; con ambas tarifas a 0 no pinta nada (vale `FREE`).
+  El `click` de pestaña lleva 250 ms de retardo para no comerse el `dblclick` del renombrado.
+  Dos rondas de revisión (la primera `NEEDS WORK`). Visto y aprobado por la persona en VS Code.
 - Conectores de opencode: pestaña central (`ConnectorsPanel` + `media/connectors.*`) abierta
   con el botón CONECTORES del mando, visible solo con opencode. La izquierda une
   `GET /api/integration`, `GET /api/provider`, `GET /api/model` y el catálogo models.dev

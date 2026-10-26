@@ -12,6 +12,8 @@ export interface ModelEntry {
   name: string;
   /** Todas las tarifas a cero: el modelo no cuesta nada. */
   free: boolean;
+  /** Primer tramo de tarifa en USD por millón de tokens; ausente si opencode no publica datos. */
+  cost?: { input: number; output: number };
   /** Texto corto a la derecha de la fila (mapeo de un alias, «visto»…). */
   hint?: string;
 }
@@ -25,11 +27,19 @@ export interface AssignAgent {
   detail?: string;
 }
 
+export interface FavoriteGroup {
+  name: string;
+  ids: string[];
+}
+
 export interface AssignData {
   agents: AssignAgent[];
   /** Catálogo vivo de opencode. */
   models: ModelEntry[];
-  favorites: string[];
+  /** Grupos de favoritos (pestañas): siempre queda al menos uno. */
+  favoriteGroups: FavoriteGroup[];
+  /** Índice del grupo activo, resuelto desde el nombre persistido; 0 si no casa. */
+  activeGroup: number;
   /** Texto del buscador, recordado entre aperturas. */
   search: string;
   /** Ids de conector que el usuario apagó, recordados entre aperturas. */
@@ -37,7 +47,11 @@ export interface AssignData {
 }
 
 export type AssignAction =
-  | { type: "toggleFavorite"; id: string; on: boolean }
+  | { type: "toggleFavorite"; id: string; on: boolean; group: number }
+  | { type: "createGroup"; name?: string }
+  | { type: "deleteGroup"; group: number }
+  | { type: "renameGroup"; group: number; name: string }
+  | { type: "selectGroup"; group: number }
   | { type: "assign"; agent: string; scope: AssignAgent["scope"]; model: string }
   | { type: "clear"; agent: string; scope: AssignAgent["scope"] }
   | { type: "persistView"; search: string; disabledProviders: string[] }
@@ -46,11 +60,21 @@ export type AssignAction =
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
   "toggleFavorite",
+  "createGroup",
+  "deleteGroup",
+  "renameGroup",
+  "selectGroup",
   "assign",
   "clear",
   "persistView",
   "close",
 ]);
+
+/** Nombre de grupo admisible: como mucho 60 caracteres y sin controles (el `maxLength` del
+ * webview no basta: el mensaje puede venir de otro lado). */
+function isGroupName(name: string): boolean {
+  return name.length <= 60 && !/[\u0000-\u001f]/.test(name);
+}
 
 export interface AssignPanelHandlers {
   onAction(action: AssignAction): void | Promise<void>;
@@ -141,7 +165,31 @@ export class AssignPanel {
             return;
           }
         } else if (action.type === "toggleFavorite") {
-          if (typeof action.id !== "string" || !action.id || typeof action.on !== "boolean") {
+          if (
+            typeof action.id !== "string" ||
+            !action.id ||
+            typeof action.on !== "boolean" ||
+            this.groupAt(action.group) < 0
+          ) {
+            return;
+          }
+        } else if (action.type === "createGroup") {
+          if (
+            action.name !== undefined &&
+            (typeof action.name !== "string" || !isGroupName(action.name))
+          ) {
+            return;
+          }
+        } else if (action.type === "deleteGroup" || action.type === "selectGroup") {
+          if (this.groupAt(action.group) < 0) {
+            return;
+          }
+        } else if (action.type === "renameGroup") {
+          if (
+            typeof action.name !== "string" ||
+            !isGroupName(action.name) ||
+            this.groupAt(action.group) < 0
+          ) {
             return;
           }
         } else if (
@@ -162,6 +210,14 @@ export class AssignPanel {
   update(data: AssignData): void {
     this.last = data;
     this.post({ type: "assign", payload: data });
+  }
+
+  /** Índice de grupo válido según los datos ya enviados; -1 si no casa. */
+  private groupAt(group: unknown): number {
+    const n = this.last?.favoriteGroups.length ?? 0;
+    return typeof group === "number" && Number.isInteger(group) && group >= 0 && group < n
+      ? group
+      : -1;
   }
 
   private post(message: unknown): void {

@@ -22,7 +22,7 @@ permission:
     npm run compile*: allow
     git commit*: deny
     git push*: deny
-model: apimart/qwen3.8-flash
+model: opencode-go/qwen3.8-flash
 ---
 
 Eres el agente de reportes de este repositorio: la extensión de VS Code `opencode-alfred`

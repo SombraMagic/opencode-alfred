@@ -33,7 +33,7 @@ import {
   ExplorerData,
   ExplorerPanel,
 } from "./panels/explorerPanel";
-import { AssignAction, AssignAgent, AssignData, AssignPanel, ModelEntry } from "./panels/assignPanel";
+import { AssignAction, AssignAgent, AssignData, AssignPanel, FavoriteGroup, ModelEntry } from "./panels/assignPanel";
 import { ConnectorsPanel, ConnectorAction } from "./panels/connectorsPanel";
 import {
   ConnectorAttempt,
@@ -153,6 +153,8 @@ export function activate(context: vscode.ExtensionContext): void {
   // the config; remember it here so the switch can add it back.
   const DISABLED_PLUGINS = "opencodeAgents.disabledPlugins";
   const FAVORITE_MODELS = "opencodeAgents.favoriteModels";
+  const FAVORITE_GROUPS = "opencodeAgents.favoriteGroups";
+  const ASSIGN_GROUP = "opencodeAgents.assignGroup";
   const ASSIGN_SEARCH = "opencodeAgents.assignSearch";
   const ASSIGN_PROVIDERS_OFF = "opencodeAgents.assignProvidersOff";
   const CONNECTORS_SEARCH = "opencodeAgents.connectorsSearch";
@@ -416,7 +418,67 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   let autoAccept = false;
   let models: ModelEntry[] = [];
-  let favoriteModels: string[] = context.globalState.get<string[]>(FAVORITE_MODELS, []);
+  /** Grupos persistidos; sin ninguno válido se migra la lista plana de favoritos de siempre. */
+  function loadFavoriteGroups(): FavoriteGroup[] {
+    const stored = context.globalState.get<FavoriteGroup[]>(FAVORITE_GROUPS);
+    const groups = Array.isArray(stored)
+      ? stored
+          .filter((g) => g && typeof g.name === "string" && Array.isArray(g.ids))
+          .map((g) => ({
+            name: g.name,
+            ids: g.ids.filter((id): id is string => typeof id === "string"),
+          }))
+      : [];
+    if (groups.length > 0) {
+      return groups;
+    }
+    const flat = context.globalState.get<string[]>(FAVORITE_MODELS, []);
+    return [
+      {
+        name: "Favoritos",
+        ids: Array.isArray(flat) ? flat.filter((id): id is string => typeof id === "string") : [],
+      },
+    ];
+  }
+  // Grupos de favoritos (pestañas del tablero). La clave plana `favoriteModels` se sigue
+  // escribiendo con la unión de todos los grupos, por compatibilidad con versiones anteriores.
+  const favoriteGroups: FavoriteGroup[] = loadFavoriteGroups();
+  /** Índice del grupo activo a partir del nombre persistido; 0 si no casa. */
+  function resolveActiveGroup(): number {
+    const name = context.globalState.get<string>(ASSIGN_GROUP, "");
+    const index = favoriteGroups.findIndex((g) => g.name === name);
+    return index < 0 ? 0 : index;
+  }
+  let activeGroup = resolveActiveGroup();
+  /** Guarda los grupos, refresca la clave plana (unión deduplicada) y el índice activo. */
+  async function saveFavoriteGroups(): Promise<void> {
+    await context.globalState.update(FAVORITE_GROUPS, favoriteGroups);
+    await context.globalState.update(
+      FAVORITE_MODELS,
+      [...new Set(favoriteGroups.flatMap((g) => g.ids))]
+    );
+    activeGroup = resolveActiveGroup();
+  }
+  /** Nombre libre entre los grupos (sin contar el propio índice); repetido, añade sufijo. */
+  function uniqueGroupName(base: string, except = -1): string {
+    const taken = new Set(favoriteGroups.filter((_, i) => i !== except).map((g) => g.name));
+    if (!taken.has(base)) {
+      return base;
+    }
+    let n = 2;
+    while (taken.has(`${base} ${n}`)) {
+      n++;
+    }
+    return `${base} ${n}`;
+  }
+  /** «Grupo N» con el primer número libre. */
+  function nextGroupName(): string {
+    let n = 1;
+    while (favoriteGroups.some((g) => g.name === `Grupo ${n}`)) {
+      n++;
+    }
+    return `Grupo ${n}`;
+  }
   // Vista del tablero de asignación: el buscador y los conectores apagados sobreviven al cierre.
   let assignSearch: string = context.globalState.get<string>(ASSIGN_SEARCH, "");
   let assignProvidersOff: string[] = context.globalState.get<string[]>(ASSIGN_PROVIDERS_OFF, []);
@@ -611,14 +673,22 @@ export function activate(context: vscode.ExtensionContext): void {
           (m): m is ApiModel & { modelID: string; providerID: string } =>
             m.enabled !== false && !!m.providerID && !!m.modelID
         )
-        .map((m) => ({
-          id: `${m.providerID}/${m.modelID}`,
-          provider: m.providerID,
-          model: m.modelID,
-          name: m.name || m.modelID,
-          // Gratis de verdad: la tarifa que publica opencode está a cero en todos los tramos.
-          free: (m.cost ?? []).length > 0 && m.cost!.every((c) => c.input === 0 && c.output === 0),
-        }))
+        .map((m) => {
+          const entry: ModelEntry = {
+            id: `${m.providerID}/${m.modelID}`,
+            provider: m.providerID,
+            model: m.modelID,
+            name: m.name || m.modelID,
+            // Gratis de verdad: la tarifa que publica opencode está a cero en todos los tramos.
+            free: (m.cost ?? []).length > 0 && m.cost!.every((c) => c.input === 0 && c.output === 0),
+          };
+          // Precio del primer tramo en USD por millón: solo si opencode publica los dos números.
+          const tier = m.cost?.[0];
+          if (tier && Number.isFinite(tier.input) && Number.isFinite(tier.output)) {
+            entry.cost = { input: tier.input!, output: tier.output! };
+          }
+          return entry;
+        })
         .sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
     } catch (err) {
       void vscode.window.showErrorMessage(
@@ -687,7 +757,10 @@ export function activate(context: vscode.ExtensionContext): void {
     return {
       agents,
       models,
-      favorites: favoriteModels.filter((id) => models.some((m) => m.id === id)),
+      // Se emite la persistencia intacta, sin filtrar por catálogo vivo: el webview pinta
+      // mirando `models`, así que un id muerto no sale, y el aviso de borrado cuenta los reales.
+      favoriteGroups: favoriteGroups.map((g) => ({ name: g.name, ids: [...g.ids] })),
+      activeGroup,
       search: assignSearch,
       disabledProviders: assignProvidersOff,
     };
@@ -703,15 +776,16 @@ export function activate(context: vscode.ExtensionContext): void {
     if (models.length === 0) {
       await refreshModels();
     }
-    // Los modelos que ya tienen los agentes entran en favoritos: así el tablero dibuja su
-    // línea al abrir y quitarlos es arrastrarlos, sin buscarlos antes.
-    const assigned = new Set(assignData().agents.map((a) => a.model));
-    const added = [...assigned].filter(
-      (id) => id && models.some((m) => m.id === id) && !favoriteModels.includes(id)
-    );
-    if (added.length > 0) {
-      favoriteModels = [...favoriteModels, ...added];
-      await context.globalState.update(FAVORITE_MODELS, favoriteModels);
+    // Los modelos que ya tienen los agentes entran en el primer grupo: así el tablero dibuja su
+    // línea al abrir y quitarlos es arrastrarlos, sin buscarlos antes. Solo si ese grupo está vacío.
+    const first = favoriteGroups[0];
+    if (first && first.ids.length === 0) {
+      const assigned = new Set(assignData().agents.map((a) => a.model));
+      const added = [...assigned].filter((id) => id && models.some((m) => m.id === id));
+      if (added.length > 0) {
+        first.ids = added;
+        await saveFavoriteGroups();
+      }
     }
     AssignPanel.open(context, assignData(), {
       onAction: handleAssignAction,
@@ -721,10 +795,68 @@ export function activate(context: vscode.ExtensionContext): void {
 
   async function handleAssignAction(action: AssignAction): Promise<void> {
     if (action.type === "toggleFavorite") {
-      favoriteModels = action.on
-        ? [...favoriteModels.filter((id) => id !== action.id), action.id]
-        : favoriteModels.filter((id) => id !== action.id);
-      await context.globalState.update(FAVORITE_MODELS, favoriteModels);
+      const group = favoriteGroups[action.group];
+      if (!group) {
+        return;
+      }
+      // on=true añade sin duplicar; on=false quita de ese grupo nada más.
+      group.ids = action.on
+        ? [...new Set([...group.ids, action.id])]
+        : group.ids.filter((id) => id !== action.id);
+      await saveFavoriteGroups();
+      AssignPanel.current?.update(assignData());
+      return;
+    }
+    if (action.type === "createGroup") {
+      const asked = typeof action.name === "string" ? action.name.trim() : "";
+      favoriteGroups.push({
+        name: asked ? uniqueGroupName(asked) : nextGroupName(),
+        ids: [],
+      });
+      await saveFavoriteGroups();
+      AssignPanel.current?.update(assignData());
+      return;
+    }
+    if (action.type === "deleteGroup") {
+      // Nunca se borra el último grupo: el tablero siempre tiene una pestaña.
+      if (favoriteGroups.length <= 1 || !favoriteGroups[action.group]) {
+        return;
+      }
+      const wasActive = action.group === activeGroup;
+      favoriteGroups.splice(action.group, 1);
+      if (wasActive) {
+        // La pestaña activa se persigue por nombre: hay que apuntar al grupo que hereda la
+        // posición antes de guardar, si no el nombre muerto queda libre para un renombre.
+        const next = favoriteGroups[Math.min(action.group, favoriteGroups.length - 1)];
+        await context.globalState.update(ASSIGN_GROUP, next.name);
+      }
+      await saveFavoriteGroups();
+      AssignPanel.current?.update(assignData());
+      return;
+    }
+    if (action.type === "renameGroup") {
+      const group = favoriteGroups[action.group];
+      const name = typeof action.name === "string" ? action.name.trim() : "";
+      if (!group || !name) {
+        return;
+      }
+      const wasActive = action.group === activeGroup;
+      group.name = uniqueGroupName(name, action.group);
+      if (wasActive) {
+        // La pestaña activa se persigue por nombre: se renombra también la clave.
+        await context.globalState.update(ASSIGN_GROUP, group.name);
+      }
+      await saveFavoriteGroups();
+      AssignPanel.current?.update(assignData());
+      return;
+    }
+    if (action.type === "selectGroup") {
+      const group = favoriteGroups[action.group];
+      if (!group) {
+        return;
+      }
+      activeGroup = action.group;
+      await context.globalState.update(ASSIGN_GROUP, group.name);
       AssignPanel.current?.update(assignData());
       return;
     }
