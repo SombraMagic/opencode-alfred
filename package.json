@@ -126,6 +126,11 @@
         "category": "opencode"
       },
       {
+        "command": "opencodeAgents.pizarra",
+        "title": "Pizarra",
+        "category": "opencode"
+      },
+      {
         "command": "opencodeAgents.resetAllStats",
         "title": "opencode: Reiniciar contadores de todos los agentes"
       },

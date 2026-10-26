@@ -637,6 +637,8 @@
   // Soltar exige Mayús: el diálogo nativo es la vía que siempre funciona.
   $("attach").addEventListener("click", () => post({ type: "pickFiles" }));
   $("idea").addEventListener("click", () => post({ type: "idea" }));
+  $("abrir-pizarra").addEventListener("click", () => post({ type: "pizarra" }));
+  $("subir-pizarra").addEventListener("click", () => post({ type: "subirPizarra" }));
 
   /** Texto que viaja al terminal: cada token se vuelve la ruta entrecomillada. Los saltos de línea viajan reales. */
   function promptText() {
@@ -736,6 +738,15 @@
           if (src) chip.replaceWith(imageChip(chip.dataset.path, src));
         }
         updateCount();
+        break;
+      }
+      case "pizarraImage": {
+        // La extensión ya escribió el PNG: aquí solo se pinta el chip, como al pegar.
+        // Sin path o src no hay nada que insertar (el host avisa por su lado).
+        if (!msg.path || !msg.src) break;
+        insertNodeAtCaret(imageChip(String(msg.path), String(msg.src)));
+        updateCount();
+        saveNoteSoon();
         break;
       }
       case "files": {

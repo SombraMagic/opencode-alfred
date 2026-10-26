@@ -63,6 +63,8 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   `connectorsPanel.ts` (pestaña central de conectores de opencode),
   `statsPanel.ts`, `promptStatsPanel.ts` (pestaña de estadísticas de prompts, con su
   `media/promptStats.*`), `instructionsPanel.ts` (AGENTS.md global y local),
+  `pizarraPanel.ts` (pestaña central de pizarra: editor de imagen por capas, con su
+  `media/pizarra.*`),
   `voicePanel.ts` (barra lateral derecha: esfera y ecualizador) y `dictadoPanel.ts` (zona
   inferior). Los tres contenedores conservan su sitio en el manifiesto. La antigua vista
   `modelsPanel.ts` (bloque MODELOS) fue eliminada: no hay vista de modelos en la barra.

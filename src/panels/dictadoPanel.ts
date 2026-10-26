@@ -30,6 +30,7 @@ import {
   voiceMs,
   type Recorder,
 } from "../voice/core/index.js";
+import { PizarraPanel } from "./pizarraPanel.js";
 
 /** Idiomas ofrecidos. SAPI sólo tiene instalado el que tenga Windows. */
 const LANGUAGES = [
@@ -264,6 +265,29 @@ export class VozDictado {
       case "idea":
         await this.onIdea();
         break;
+      case "pizarra":
+        await vscode.commands.executeCommand("opencodeAgents.pizarra");
+        break;
+      case "subirPizarra": {
+        // requestPng no lanza: null = pestaña cerrada sin copia de trabajo (pizarra vacía).
+        const png = await PizarraPanel.requestPng(this.context);
+        if (!png || !png.length) {
+          this.state("error", "La pizarra está vacía: dibuja algo primero.");
+          break;
+        }
+        const base64 = png.toString("base64");
+        const name = `img-pizarra-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}.png`;
+        // Se reutiliza saveAttachment: valida nombre y tope de 20 MiB y avisa el fallo
+        // por attachmentError. Ahora devuelve si escribió; sin éxito no se pinta el chip.
+        if (!(await this.saveAttachment(name, base64))) break;
+        this.post({
+          type: "pizarraImage",
+          path: join(this.attachmentsDir(), name),
+          src: `data:image/png;base64,${base64}`,
+        });
+        this.state("idle", "Pizarra pegada en el bloc.");
+        break;
+      }
       case "sendPrompt":
         await this.sendPrompt(String(msg.text ?? ""));
         break;
@@ -523,12 +547,12 @@ export class VozDictado {
   private queueAttachment(msg: any) {
     const name = String(msg?.name ?? "");
     const data = String(msg?.data ?? "");
-    const work = () => this.saveAttachment(name, data);
+    const work = () => this.saveAttachment(name, data).then(() => undefined);
     this.attachChain = this.attachChain.then(work, work);
   }
 
-  /** Valida y guarda un adjunto que el webview acaba de pegar o soltar. */
-  private async saveAttachment(name: string, data: string) {
+  /** Valida y guarda un adjunto que el webview acaba de pegar o soltar. Dice si escribió. */
+  private async saveAttachment(name: string, data: string): Promise<boolean> {
     try {
       if (!/^(?:img|file)-[a-z0-9-]+(?:\.[a-z0-9]{1,8})?$/i.test(name)) throw new Error("Nombre de adjunto no válido.");
       const bytes = Buffer.from(data, "base64");
@@ -537,12 +561,14 @@ export class VozDictado {
       const dir = this.attachmentsDir();
       await mkdir(dir, { recursive: true });
       await writeFile(join(dir, name), bytes);
+      return true;
     } catch (err) {
       this.post({
         type: "attachmentError",
         name,
         message: err instanceof Error ? err.message : String(err),
       });
+      return false;
     }
   }
 

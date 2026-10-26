@@ -274,8 +274,10 @@ body {
   color: var(--text-dim);
 }
 
-/* Bombilla: solo icono, cuadrado y centrado como los botones del pie. */
-#idea {
+/* Bombilla, subir y pizarra: solo icono, cuadrado y centrado como los botones del pie. */
+#idea,
+#subir-pizarra,
+#abrir-pizarra {
   display: inline-flex;
   align-items: center;
   justify-content: center;

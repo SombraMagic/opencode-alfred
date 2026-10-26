@@ -181,6 +181,25 @@
   outline: none;
 }
 
+/* PIZARRA es el único de los tres con icono: flex solo aquí, para no mover a los vecinos. */
+.pizarra-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.pizarra-btn svg {
+  flex: none;
+}
+
+/* Con el contenedor en flex, el recorte lo necesita el texto: si no, pisa al icono. */
+.pizarra-btn span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Secciones ─────────────────────────────────────────── */
 .section {
   margin-bottom: 16px;

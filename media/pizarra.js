@@ -1,0 +1,889 @@
+/* Pizarra — editor de imagen por capas: fondo, trazos, imágenes pegadas y textos.
+   El lienzo interno mide siempre 1024 × 1024; el CSS solo lo escala, así que el PNG
+   que sale de aquí es idéntico a lo que se ve. */
+(function () {
+  const vscode = acquireVsCodeApi();
+  const SIZE = 1024;
+  /** Separación del asa de giro respecto al cuadro, en coordenadas del lienzo. */
+  const ROT_OFF = 30;
+  /** Tamaño del cuadradito de cada asa. */
+  const HANDLE = 15;
+  /** Color del lienzo recién creado. */
+  const BG_DEFAULT = "#ffffff";
+  const DEG15 = Math.PI / 12;
+
+  const el = {
+    root: document.querySelector(".pz"),
+    frame: document.querySelector(".pz-frame"),
+    board: document.getElementById("board"),
+    overlay: document.getElementById("overlay"),
+    editor: document.getElementById("text-editor"),
+    status: document.getElementById("status"),
+    modal: document.getElementById("modal"),
+    modalText: document.getElementById("modal-text"),
+    modalOk: document.getElementById("modal-ok"),
+    modalCancel: document.getElementById("modal-cancel"),
+    btnNew: document.getElementById("btn-new"),
+    btnPaste: document.getElementById("btn-paste"),
+    btnSave: document.getElementById("btn-save"),
+    penColor: document.getElementById("pen-color"),
+    penSize: document.getElementById("pen-size"),
+    erSize: document.getElementById("er-size"),
+    erHard: document.getElementById("er-hard"),
+    txtColor: document.getElementById("txt-color"),
+    txtFamily: document.getElementById("txt-family"),
+    txtSize: document.getElementById("txt-size"),
+    tools: Array.from(document.querySelectorAll(".tool")),
+    opts: Array.from(document.querySelectorAll(".pz-group.opt")),
+    layers: Array.from(document.querySelectorAll(".pz-layer")),
+  };
+
+  const ctx = el.board.getContext("2d");
+  const octx = el.overlay.getContext("2d");
+  // Medidor aparte: no pisa el pincel del lienzo.
+  const measure = document.createElement("canvas").getContext("2d");
+
+  /** Trazos ya confirmados: el borrador actúa aquí con destination-out. */
+  const committed = document.createElement("canvas");
+  committed.width = committed.height = SIZE;
+  const cctx = committed.getContext("2d");
+  /** Copia de lo confirmado más el trazo en curso, para verlo sin tocar lo de abajo. */
+  const live = document.createElement("canvas");
+  live.width = live.height = SIZE;
+  const lctx = live.getContext("2d");
+
+  const state = {
+    bg: { color: BG_DEFAULT, image: null },
+    strokes: [],
+    images: [],
+    texts: [],
+  };
+
+  let tool = "select";
+  let sel = null;
+  /** Bloque de texto que se está escribiendo en el área flotante. */
+  let editing = null;
+  /** Trazo o manipulación en curso. */
+  let drag = null;
+  let snapshotTimer = 0;
+  let dirty = false;
+  /** El cierre del mini-modal abierto, si lo hay: lo usa Escape. */
+  let cerrarModal = null;
+  /** La carga de la copia de trabajo: `capture` espera a que termine. */
+  let cargando = null;
+
+  // ── Utilidades ────────────────────────────────────────────
+
+  function setStatus(text, kind) {
+    el.status.textContent = text;
+    el.status.className = "pz-status" + (kind ? " " + kind : "");
+  }
+
+  function clamp(v, lo, hi) {
+    return v < lo ? lo : v > hi ? hi : v;
+  }
+
+  /** Puntero a coordenadas del lienzo: se mide el canvas; el marco añade 1 px de borde y desalinearía el Y. */
+  function toCanvas(event) {
+    const rect = el.board.getBoundingClientRect();
+    const k = SIZE / (rect.width || SIZE);
+    return { x: (event.clientX - rect.left) * k, y: (event.clientY - rect.top) * k };
+  }
+
+  /**
+   * Factor canvas→píxeles. Mide el canvas, como `toCanvas`: el área de edición se coloca con
+   * `left`/`top` dentro del marco, y la caja de padding del marco es justo la esquina del canvas.
+   */
+  function scale() {
+    const rect = el.board.getBoundingClientRect();
+    return (rect.width || SIZE) / SIZE;
+  }
+
+  function fontOf(t) {
+    return `${t.size}px ${t.family}`;
+  }
+
+  function hasContent() {
+    return Boolean(
+      state.strokes.length ||
+        state.images.length ||
+        state.texts.length ||
+        state.bg.image ||
+        state.bg.color !== BG_DEFAULT
+    );
+  }
+
+  // ── Imágenes ──────────────────────────────────────────────
+
+  /** Encaja dentro del lienzo sin deformarla y centrada. */
+  function fitInside(w, h) {
+    const k = Math.min(SIZE / w, SIZE / h, 1);
+    const nw = Math.max(1, Math.round(w * k));
+    const nh = Math.max(1, Math.round(h * k));
+    return { w: nw, h: nh, x: Math.round((SIZE - nw) / 2), y: Math.round((SIZE - nh) / 2) };
+  }
+
+  /** Decodifica una data URL con `Image`: `fetch` de `data:` lo corta la CSP. */
+  function loadImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("No se pudo leer la imagen."));
+      img.src = dataUrl;
+    });
+  }
+
+  /** Añade una imagen decodificada como objeto de la capa IMÁGENES, centrada y ajustada. */
+  function addImage(drawable, w, h) {
+    const box = fitInside(w, h);
+    const obj = { type: "image", drawable, w: box.w, h: box.h, x: box.x, y: box.y, rot: 0 };
+    state.images.push(obj);
+    setTool("select");
+    select(obj);
+    changed();
+    setStatus(`Imagen añadida: ${w} × ${h}.`, "ok");
+  }
+
+  /** Saca la imagen del portapapeles del evento `paste` (la API de clipboard está bloqueada). */
+  async function pasteImage(clipboard) {
+    if (!clipboard) return false;
+    let blob = null;
+    for (const item of clipboard.items || []) {
+      if (item.kind === "file" && String(item.type).indexOf("image/") === 0) {
+        blob = item.getAsFile();
+        break;
+      }
+    }
+    if (!blob) return false;
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(blob);
+    } catch {
+      setStatus("El portapapeles trae una imagen que no se puede leer.", "error");
+      return true;
+    }
+    addImage(bitmap, bitmap.width, bitmap.height);
+    return true;
+  }
+
+  // ── Trazos ────────────────────────────────────────────────
+
+  function newStroke(kind, p) {
+    if (kind === "pen") {
+      return { erase: false, color: el.penColor.value, size: Number(el.penSize.value), hard: 1, pts: [p] };
+    }
+    return {
+      erase: true,
+      color: "#000",
+      size: Number(el.erSize.value),
+      hard: clamp(Number(el.erHard.value) / 100, 0, 0.95),
+      pts: [p],
+    };
+  }
+
+  /** Sellitos con degradado radial: así la dureza se nota en el borde del borrador. */
+  function eraseSegment(target, stroke, from, to) {
+    const r = stroke.size / 2;
+    const dist = Math.hypot(to.x - from.x, to.y - from.y);
+    const steps = Math.max(1, Math.ceil(dist / Math.max(1, r / 3)));
+    target.save();
+    target.globalCompositeOperation = "destination-out";
+    for (let i = 0; i <= steps; i++) {
+      const k = i / steps;
+      const x = from.x + (to.x - from.x) * k;
+      const y = from.y + (to.y - from.y) * k;
+      const grad = target.createRadialGradient(x, y, r * stroke.hard, x, y, r);
+      grad.addColorStop(0, "rgba(0,0,0,1)");
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      target.fillStyle = grad;
+      target.beginPath();
+      target.arc(x, y, r, 0, Math.PI * 2);
+      target.fill();
+    }
+    target.restore();
+  }
+
+  function drawSegment(target, stroke, from, to) {
+    if (stroke.erase) {
+      eraseSegment(target, stroke, from, to);
+      return;
+    }
+    target.save();
+    target.strokeStyle = stroke.color;
+    target.lineWidth = stroke.size;
+    target.lineCap = "round";
+    target.lineJoin = "round";
+    target.beginPath();
+    target.moveTo(from.x, from.y);
+    target.lineTo(to.x, to.y);
+    target.stroke();
+    target.restore();
+  }
+
+  /** Rehace la capa de trazos desde cero (un clic sin arrastrar es un solo punto). */
+  function replayStrokes() {
+    cctx.clearRect(0, 0, SIZE, SIZE);
+    for (const stroke of state.strokes) {
+      const pts = stroke.pts;
+      if (pts.length < 2) {
+        if (pts.length) drawSegment(cctx, stroke, pts[0], { x: pts[0].x + 0.01, y: pts[0].y });
+        continue;
+      }
+      for (let i = 1; i < pts.length; i++) drawSegment(cctx, stroke, pts[i - 1], pts[i]);
+    }
+  }
+
+  // ── Textos ────────────────────────────────────────────────
+
+  /** Reparte el texto en líneas cabiendo en el ancho; conserva los saltos de línea. */
+  function layout(t) {
+    measure.font = fontOf(t);
+    const lineH = Math.max(1, Math.round(t.size * 1.25));
+    const lines = [];
+    for (const para of String(t.text).split("\n")) {
+      if (para === "") {
+        lines.push("");
+        continue;
+      }
+      let cur = "";
+      for (const word of para.split(" ")) {
+        const trial = cur ? cur + " " + word : word;
+        if (!cur || measure.measureText(trial).width <= t.w) {
+          cur = trial;
+        } else {
+          lines.push(cur);
+          cur = word;
+        }
+        // Una palabra más ancha que el cuadro se parte para no desbordar.
+        while (cur.length > 1 && measure.measureText(cur).width > t.w) {
+          let cut = cur.length - 1;
+          while (cut > 1 && measure.measureText(cur.slice(0, cut)).width > t.w) cut--;
+          lines.push(cur.slice(0, cut));
+          cur = cur.slice(cut);
+        }
+      }
+      lines.push(cur);
+    }
+    t.h = Math.max(lineH, lines.length * lineH);
+    return { lines, lineH };
+  }
+
+  function drawText(t) {
+    const m = layout(t);
+    ctx.save();
+    ctx.translate(t.x + t.w / 2, t.y + t.h / 2);
+    ctx.rotate(t.rot);
+    ctx.font = fontOf(t);
+    ctx.fillStyle = t.color;
+    ctx.textBaseline = "top";
+    let y = -t.h / 2;
+    for (const line of m.lines) {
+      ctx.fillText(line, -t.w / 2, y);
+      y += m.lineH;
+    }
+    ctx.restore();
+  }
+
+  // ── Composición ───────────────────────────────────────────
+
+  function compose() {
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    ctx.fillStyle = state.bg.color;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    const bg = state.bg.image;
+    if (bg) {
+      const box = fitInside(bg.width, bg.height);
+      ctx.drawImage(bg.drawable, box.x, box.y, box.w, box.h);
+    }
+    // Mientras se dibuja, `live` ya incluye lo confirmado: no se pinta dos veces.
+    ctx.drawImage(drag && drag.kind === "draw" ? live : committed, 0, 0);
+    for (const img of state.images) {
+      ctx.save();
+      ctx.translate(img.x + img.w / 2, img.y + img.h / 2);
+      ctx.rotate(img.rot);
+      ctx.drawImage(img.drawable, -img.w / 2, -img.h / 2, img.w, img.h);
+      ctx.restore();
+    }
+    for (const t of state.texts) {
+      // El bloque en edición lo escribe el `textarea` encima: en pantalla no se pinta (si no,
+      // sale doble), pero en el PNG exportado sí tiene que estar.
+      if (t !== editing || exportando) drawText(t);
+    }
+    drawOverlay();
+  }
+
+  let framePedida = false;
+  /** Durante la exportación se pinta también el texto que se está escribiendo. */
+  let exportando = false;
+  function redraw() {
+    if (framePedida) return;
+    framePedida = true;
+    requestAnimationFrame(() => {
+      framePedida = false;
+      compose();
+    });
+  }
+
+  function pngBase64() {
+    // Con el panel oculto no llega el requestAnimationFrame: se compone aquí, con lo que haya
+    // pendiente incluido, para no exportar un fotograma viejo.
+    framePedida = false;
+    exportando = true;
+    try {
+      compose();
+      const url = el.board.toDataURL("image/png");
+      return url.slice(url.indexOf(",") + 1);
+    } finally {
+      // Se vuelve a componer para la pantalla, donde el textarea pisa el bloque en edición,
+      // y el flag se suelta también si `toDataURL` falla.
+      exportando = false;
+      compose();
+    }
+  }
+
+  function changed() {
+    redraw();
+    dirty = true;
+    clearTimeout(snapshotTimer);
+    snapshotTimer = setTimeout(flushSnapshot, 600);
+  }
+
+  /** `capture` contesta al momento; el resto va con reposo de 600 ms. */
+  function flushSnapshot() {
+    if (!dirty) return;
+    dirty = false;
+    vscode.postMessage({ type: "snapshot", png: pngBase64() });
+  }
+
+  // ── Capas y herramientas ──────────────────────────────────
+
+  /** Qué capa manda ahora mismo: eso pintan los indicadores. */
+  function activeLayer() {
+    if (tool === "pen" || tool === "eraser") return "strokes";
+    if (tool === "text") return "texts";
+    if (!sel) return "";
+    return sel.type === "image" ? "images" : "texts";
+  }
+
+  function paintLayers() {
+    const activa = activeLayer();
+    for (const l of el.layers) l.classList.toggle("on", l.dataset.layer === activa);
+  }
+
+  function setTool(next) {
+    tool = next;
+    el.root.dataset.tool = next;
+    for (const b of el.tools) b.classList.toggle("on", b.dataset.tool === next);
+    for (const g of el.opts) g.classList.toggle("show", g.dataset.for === next);
+    if (next !== "select") closeEditor();
+    paintLayers();
+    redraw();
+  }
+
+  // ── Selección: asas, golpe y giro ─────────────────────────
+
+  function world(o, lx, ly) {
+    const c = Math.cos(o.rot);
+    const s = Math.sin(o.rot);
+    return { x: o.x + o.w / 2 + lx * c - ly * s, y: o.y + o.h / 2 + lx * s + ly * c };
+  }
+
+  function local(o, p) {
+    const c = Math.cos(-o.rot);
+    const s = Math.sin(-o.rot);
+    const dx = p.x - (o.x + o.w / 2);
+    const dy = p.y - (o.y + o.h / 2);
+    return { x: dx * c - dy * s, y: dx * s + dy * c };
+  }
+
+  function corners(o) {
+    const hw = o.w / 2;
+    const hh = o.h / 2;
+    return [world(o, -hw, -hh), world(o, hw, -hh), world(o, hw, hh), world(o, -hw, hh)];
+  }
+
+  function handlesOf(o) {
+    const hw = o.w / 2;
+    const hh = o.h / 2;
+    const hs = [];
+    if (o.type === "image") {
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach((sign, i) => {
+        hs.push({ kind: "scale", corner: i, sx: sign[0], sy: sign[1], p: world(o, (sign[0] * hw), sign[1] * hh) });
+      });
+    } else {
+      hs.push({ kind: "width", side: -1, p: world(o, -hw, 0) });
+      hs.push({ kind: "width", side: 1, p: world(o, hw, 0) });
+    }
+    hs.push({ kind: "rotate", p: world(o, 0, -hh - ROT_OFF) });
+    return hs;
+  }
+
+  function hitHandle(o, p) {
+    const radio = Math.max(HANDLE, 9 / scale());
+    for (const h of handlesOf(o)) {
+      if (Math.abs(p.x - h.p.x) <= radio && Math.abs(p.y - h.p.y) <= radio) return h;
+    }
+    return null;
+  }
+
+  function hitObject(p) {
+    // De arriba abajo: TEXTOS es la capa más alta.
+    for (const list of [state.texts, state.images]) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const o = list[i];
+        if (o.type === "text") layout(o);
+        const l = local(o, p);
+        if (Math.abs(l.x) <= o.w / 2 && Math.abs(l.y) <= o.h / 2) return o;
+      }
+    }
+    return null;
+  }
+
+  function drawOverlay() {
+    octx.clearRect(0, 0, SIZE, SIZE);
+    if (!sel || tool !== "select") return;
+    const cs = corners(sel);
+    const hs = handlesOf(sel);
+    const rot = hs[hs.length - 1];
+    octx.save();
+    octx.strokeStyle = "#00e5ff";
+    octx.fillStyle = "#00e5ff";
+    octx.lineWidth = 2;
+    octx.beginPath();
+    octx.moveTo(cs[0].x, cs[0].y);
+    for (let i = 1; i < 4; i++) octx.lineTo(cs[i].x, cs[i].y);
+    octx.closePath();
+    octx.setLineDash([8, 6]);
+    octx.stroke();
+    octx.setLineDash([]);
+    octx.beginPath();
+    octx.moveTo(sel.x + sel.w / 2, sel.y + sel.h / 2);
+    octx.lineTo(rot.p.x, rot.p.y);
+    octx.stroke();
+    for (const h of hs) octx.fillRect(h.p.x - HANDLE / 2, h.p.y - HANDLE / 2, HANDLE, HANDLE);
+    octx.restore();
+  }
+
+  /** Al elegir un texto, los controles muestran sus valores. */
+  function syncTextControls(t) {
+    if (!t || t.type !== "text") return;
+    el.txtColor.value = t.color;
+    el.txtSize.value = t.size;
+    document.getElementById("txt-size-out").textContent = String(t.size);
+    const opcion = Array.from(el.txtFamily.options).some((o) => o.value === t.family);
+    if (opcion) el.txtFamily.value = t.family;
+  }
+
+  function select(o) {
+    sel = o;
+    syncTextControls(o);
+    paintLayers();
+    redraw();
+  }
+
+  function deleteSelected() {
+    if (!sel) return;
+    const list = sel.type === "image" ? state.images : state.texts;
+    const i = list.indexOf(sel);
+    if (i >= 0) list.splice(i, 1);
+    // Un ImageBitmap pegado ocupa memoria por su cuenta: se cierra antes de soltarlo.
+    if (sel.type === "image") sel.drawable.close?.();
+    sel = null;
+    changed();
+  }
+
+  // ── Editor de texto flotante ──────────────────────────────
+
+  function openEditor(t) {
+    layout(t);
+    editing = t;
+    const cs = corners(t);
+    const xs = cs.map((c) => c.x);
+    const ys = cs.map((c) => c.y);
+    const k = scale();
+    const minX = Math.min.apply(null, xs);
+    const minY = Math.min.apply(null, ys);
+    // El área es el rectángulo envolvente: con el bloque girado es una aproximación,
+    // y se ve igual porque la fuente y el alto van escalados con el mismo factor.
+    el.editor.style.left = minX * k + "px";
+    el.editor.style.top = minY * k + "px";
+    el.editor.style.width = Math.max(24, (Math.max.apply(null, xs) - minX) * k) + "px";
+    el.editor.style.setProperty("--edit-font", t.family);
+    el.editor.style.setProperty("--edit-size", t.size * k + "px");
+    el.editor.style.setProperty("--edit-line", Math.round(t.size * 1.25) * k + "px");
+    el.editor.style.setProperty("--edit-color", t.color);
+    el.editor.value = t.text;
+    el.editor.hidden = false;
+    growEditor();
+    el.editor.focus();
+    el.editor.select();
+  }
+
+  function growEditor() {
+    el.editor.style.height = "auto";
+    el.editor.style.height = el.editor.scrollHeight + "px";
+  }
+
+  function closeEditor() {
+    if (!editing) return;
+    const t = editing;
+    editing = null;
+    el.editor.hidden = true;
+    t.text = el.editor.value;
+    if (!t.text.trim()) {
+      const i = state.texts.indexOf(t);
+      if (i >= 0) state.texts.splice(i, 1);
+      if (sel === t) sel = null;
+    }
+    paintLayers();
+    changed();
+  }
+
+  // ── Puntero ───────────────────────────────────────────────
+
+  function onDown(event) {
+    if (event.button !== 0) return;
+    // El área de edición es hija del marco: un clic ahí es suyo, no de la pizarra.
+    if (event.target === el.editor) return;
+    if (editing) closeEditor();
+    const p = toCanvas(event);
+    el.frame.setPointerCapture(event.pointerId);
+
+    if (tool === "pen" || tool === "eraser") {
+      const stroke = newStroke(tool, p);
+      lctx.clearRect(0, 0, SIZE, SIZE);
+      lctx.drawImage(committed, 0, 0);
+      // Un clic sin arrastrar deja un punto: se materializa como sello redondo.
+      drawSegment(lctx, stroke, p, { x: p.x + 0.01, y: p.y });
+      drag = { kind: "draw", stroke };
+      redraw();
+      return;
+    }
+
+    if (tool === "text") {
+      const t = {
+        type: "text",
+        text: "",
+        x: p.x,
+        y: p.y,
+        w: 420,
+        h: 50,
+        rot: 0,
+        color: el.txtColor.value,
+        size: Number(el.txtSize.value),
+        family: el.txtFamily.value,
+      };
+      state.texts.push(t);
+      setTool("select");
+      select(t);
+      changed();
+      openEditor(t);
+      return;
+    }
+
+    // SELECCIONAR: asas primero, objeto después, nada si se da en el fondo.
+    if (sel) {
+      const h = hitHandle(sel, p);
+      if (h) {
+        if (sel.type === "text") layout(sel);
+        if (h.kind === "rotate") {
+          drag = { kind: "rotate", center: { x: sel.x + sel.w / 2, y: sel.y + sel.h / 2 } };
+        } else if (h.kind === "width") {
+          // El asa mueve el ancho dejando fijo el borde de enfrente.
+          drag = { kind: "width", side: h.side, anchor: h.side < 0 ? world(sel, sel.w / 2, 0) : world(sel, -sel.w / 2, 0) };
+        } else {
+          drag = { kind: "scale", sx: h.sx, sy: h.sy, anchor: corners(sel)[(h.corner + 2) % 4], aspect: sel.w / sel.h };
+        }
+        return;
+      }
+    }
+    const o = hitObject(p);
+    select(o);
+    if (o) drag = { kind: "move", last: p };
+  }
+
+  function onMove(event) {
+    if (!drag) return;
+    const p = toCanvas(event);
+
+    if (drag.kind === "draw") {
+      const pts = drag.stroke.pts;
+      const prev = pts[pts.length - 1];
+      if (Math.hypot(p.x - prev.x, p.y - prev.y) < 1) return;
+      pts.push(p);
+      drawSegment(lctx, drag.stroke, prev, p);
+      redraw();
+      return;
+    }
+
+    const o = sel;
+    if (!o) return;
+    if (o.type === "text") layout(o);
+
+    if (drag.kind === "move") {
+      o.x += p.x - drag.last.x;
+      o.y += p.y - drag.last.y;
+      drag.last = p;
+      redraw();
+      return;
+    }
+
+    if (drag.kind === "rotate") {
+      let rot = Math.atan2(p.y - drag.center.y, p.x - drag.center.x) + Math.PI / 2;
+      if (event.shiftKey) rot = Math.round(rot / DEG15) * DEG15;
+      o.rot = rot;
+      redraw();
+      return;
+    }
+
+    // Ejes del objeto en el mundo.
+    const ux = Math.cos(o.rot);
+    const uy = Math.sin(o.rot);
+    const dx = p.x - drag.anchor.x;
+    const dy = p.y - drag.anchor.y;
+
+    if (drag.kind === "scale") {
+      const vx = -Math.sin(o.rot);
+      const vy = Math.cos(o.rot);
+      const w = clamp((dx * ux + dy * uy) / drag.sx, 12, SIZE * 2);
+      const h = w / (drag.aspect || 1);
+      o.w = w;
+      o.h = h;
+      // El asa de en frente no se mueve: el centro se recomputa desde ella.
+      o.x = drag.anchor.x + (ux * drag.sx * w) / 2 + (vx * drag.sy * h) / 2 - w / 2;
+      o.y = drag.anchor.y + (uy * drag.sx * w) / 2 + (vy * drag.sy * h) / 2 - h / 2;
+      redraw();
+      return;
+    }
+
+    if (drag.kind === "width") {
+      const w = clamp((dx * ux + dy * uy) * drag.side, 30, SIZE * 2);
+      o.w = w;
+      layout(o);
+      const cx = drag.anchor.x + (ux * drag.side * w) / 2;
+      const cy = drag.anchor.y + (uy * drag.side * w) / 2;
+      o.x = cx - w / 2;
+      o.y = cy - o.h / 2;
+      redraw();
+    }
+  }
+
+  function onUp() {
+    if (!drag) return;
+    if (drag.kind === "draw") {
+      state.strokes.push(drag.stroke);
+      // Lo que se vio durante el arrastre pasa a lo confirmado.
+      cctx.clearRect(0, 0, SIZE, SIZE);
+      cctx.drawImage(live, 0, 0);
+      lctx.clearRect(0, 0, SIZE, SIZE);
+    }
+    drag = null;
+    changed();
+  }
+
+  // ── Acciones de la barra ──────────────────────────────────
+
+  function preguntar(texto, okLabel) {
+    return new Promise((resolve) => {
+      el.modalText.textContent = texto;
+      el.modalOk.textContent = okLabel;
+      el.modal.hidden = false;
+      el.modalOk.focus();
+      const cerrar = (value) => {
+        el.modal.hidden = true;
+        cerrarModal = null;
+        el.modalOk.removeEventListener("click", aceptar);
+        el.modalCancel.removeEventListener("click", cancelar);
+        resolve(value);
+      };
+      const aceptar = () => cerrar(true);
+      const cancelar = () => cerrar(false);
+      el.modalOk.addEventListener("click", aceptar);
+      el.modalCancel.addEventListener("click", cancelar);
+      cerrarModal = cerrar;
+    });
+  }
+
+  function nuevaEnBlanco() {
+    if (!hasContent()) {
+      setStatus("La pizarra ya está vacía.");
+      return;
+    }
+    void preguntar("Se tiran todos los trazos, imágenes y textos. ¿Vaciar la pizarra?", "VACIAR").then(
+      (aceptar) => {
+        if (!aceptar) return;
+        state.bg = { color: BG_DEFAULT, image: null };
+        state.strokes = [];
+        // Misma razón que en `deleteSelected`: los bitmaps pegados se cierran.
+        for (const img of state.images) img.drawable.close?.();
+        state.images = [];
+        state.texts = [];
+        sel = null;
+        editing = null;
+        el.editor.hidden = true;
+        replayStrokes();
+        changed();
+        setStatus("Pizarra vacía.");
+      }
+    );
+  }
+
+  /** La webview no puede leer el portapapeles con un clic: pide el Ctrl+V. */
+  function desdePortapapeles() {
+    setStatus("Pulsa Ctrl+V para coger la imagen del portapapeles.");
+  }
+
+  function guardar() {
+    // La extensión escribe el fichero y refresca la copia de trabajo con ese PNG.
+    vscode.postMessage({ type: "save", png: pngBase64() });
+  }
+
+  // ── Enlaces de interfaz ───────────────────────────────────
+
+  el.tools.forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
+  el.btnNew.addEventListener("click", nuevaEnBlanco);
+  el.btnPaste.addEventListener("click", desdePortapapeles);
+  el.btnSave.addEventListener("click", guardar);
+
+  // Cada deslizizador pinta su número al moverlo (el `<output>` de al lado).
+  [el.penSize, el.erSize, el.erHard, el.txtSize].forEach((input) => {
+    const out = document.getElementById(input.id + "-out");
+    const pinta = () => {
+      if (out) out.textContent = input.value;
+    };
+    input.addEventListener("input", pinta);
+    pinta();
+  });
+
+  // Los controles de texto también sirven sobre lo seleccionado.
+  el.txtColor.addEventListener("input", () => {
+    if (sel && sel.type === "text") {
+      sel.color = el.txtColor.value;
+      changed();
+    }
+  });
+  el.txtFamily.addEventListener("input", () => {
+    if (sel && sel.type === "text") {
+      sel.family = el.txtFamily.value;
+      changed();
+    }
+  });
+  el.txtSize.addEventListener("input", () => {
+    if (sel && sel.type === "text") {
+      sel.size = Number(el.txtSize.value);
+      changed();
+    }
+  });
+
+  el.frame.addEventListener("pointerdown", onDown);
+  el.frame.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+
+  el.frame.addEventListener("dblclick", (event) => {
+    // Doble clic dentro del área: es el del navegador seleccionando una palabra.
+    if (event.target === el.editor) return;
+    const o = hitObject(toCanvas(event));
+    if (o && o.type === "text") {
+      setTool("select");
+      select(o);
+      openEditor(o);
+    }
+  });
+
+  el.editor.addEventListener("input", () => {
+    if (!editing) return;
+    editing.text = el.editor.value;
+    growEditor();
+    changed();
+  });
+  el.editor.addEventListener("blur", closeEditor);
+  el.editor.addEventListener("keydown", (event) => {
+    event.stopPropagation();
+    if (event.key === "Escape" || (event.key === "Enter" && (event.ctrlKey || event.metaKey))) {
+      event.preventDefault();
+      closeEditor();
+    }
+  });
+
+  window.addEventListener("paste", (event) => {
+    // Dentro del bloque de texto se pega el texto, no la imagen.
+    if (editing) return;
+    event.preventDefault();
+    void pasteImage(event.clipboardData).then((habia) => {
+      if (!habia) setStatus("El portapapeles no trae ninguna imagen.", "error");
+    });
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (editing) return;
+    // Con el foco en un control (color, fuente, deslizadores) las teclas son suyas.
+    const objetivo = event.target;
+    if (objetivo && /^(?:INPUT|SELECT|TEXTAREA)$/.test(String(objetivo.tagName))) return;
+    if (event.key === "Escape" && cerrarModal) {
+      // El mini-modal abierto manda: Escape lo descarta sin tocar la selección.
+      event.preventDefault();
+      cerrarModal(false);
+      return;
+    }
+    // Con el modal en pantalla, nada de lo de detrás responde: sus botones son BUTTON y no
+    // los filtra el guard de arriba.
+    if (cerrarModal) return;
+    if (event.key === "Delete" || event.key === "Backspace") {
+      if (sel) {
+        event.preventDefault();
+        deleteSelected();
+      }
+    } else if (event.key === "Escape") {
+      select(null);
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (editing) openEditor(editing);
+    redraw();
+  });
+
+  // ── Mensajes con la extensión ─────────────────────────────
+
+  window.addEventListener("message", async (event) => {
+    const m = event.data;
+    if (!m) return;
+    if (m.type === "init") {
+      // Se guarda la promesa: una `capture` que llegue antes de terminar exportaría un lienzo en
+      // blanco y la extensión lo escribiría encima de la copia de trabajo.
+      cargando = (async () => {
+        // Criterio simple: si la copia existe y el lienzo está vacío, se carga.
+        if (m.png && !hasContent()) {
+          try {
+            const img = await loadImage(m.png);
+            state.bg = { color: BG_DEFAULT, image: { drawable: img, width: img.width, height: img.height } };
+            setStatus("Pizarra anterior restaurada desde la copia de trabajo.");
+          } catch {
+            setStatus("La copia de trabajo no se ha podido leer.", "error");
+          }
+        } else {
+          setStatus("Lienzo listo: 1024 × 1024.");
+        }
+        // `redraw`, no `changed`: restaurar no es un cambio, y reescribir la copia con la misma
+        // imagen no aporta nada.
+        redraw();
+      })();
+      return;
+    }
+    if (m.type === "capture") {
+      if (cargando) await cargando;
+      // Respuesta inmediata: se anula el reposo del debounce para no mandar dos veces.
+      clearTimeout(snapshotTimer);
+      dirty = false;
+      vscode.postMessage({ type: "snapshot", png: pngBase64() });
+      return;
+    }
+    if (m.type === "saved") {
+      setStatus(`Guardado en ${m.path}`, "ok");
+    }
+  });
+
+  setTool("select");
+  compose();
+  vscode.postMessage({ type: "ready" });
+})();

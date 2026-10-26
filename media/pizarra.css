@@ -1,0 +1,306 @@
+/* Pizarra — editor de imagen por capas. La base vive en tokens.css. */
+
+/* La vista ocupa el alto justo: scrollea nada, el lienzo se ajusta (letterbox). */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+.pz {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 0 12px 6px;
+  /* Regla del HUD: `--text-dim` SOLO para lo apagado; lo secundario, aquí. */
+  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
+}
+
+/* ── Cabecera ──────────────────────────────────────────── */
+.pz-head {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pz-title {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pz-kicker {
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  color: var(--neon);
+  text-shadow: 0 0 10px var(--neon-dim);
+}
+
+.pz-sub {
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.pz-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* ── Barra de herramientas ─────────────────────────────── */
+.pz-tools {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.pz-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pz-group.opt {
+  display: none;
+}
+
+.pz-group.opt.show {
+  display: flex;
+}
+
+.tool {
+  background: color-mix(in srgb, var(--neon) 6%, transparent);
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  padding: 5px 8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.tool:hover,
+.tool:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+.tool.on {
+  background: color-mix(in srgb, var(--neon) 26%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+}
+
+.pz-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 8.5px;
+  letter-spacing: 1.2px;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pz-field input[type="range"] {
+  width: 74px;
+  accent-color: var(--neon);
+}
+
+.pz-field input[type="color"] {
+  width: 26px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: transparent;
+}
+
+.pz-field select {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 9.5px;
+  padding: 2px 4px;
+}
+
+/* El anillo de foco lo daba panel.css: sin ese enlace, se mantiene aquí. */
+.pz-field select:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.pz-field output {
+  min-width: 22px;
+  color: var(--neon);
+  font-size: 9px;
+}
+
+/* Indicador de qué capa toca lo que está activo. */
+.pz-layers {
+  margin-left: auto;
+  gap: 3px;
+}
+
+.pz-layer {
+  font-size: 8px;
+  letter-spacing: 1.1px;
+  color: var(--text-dim);
+  border: 1px solid var(--line-soft);
+  padding: 2px 5px;
+}
+
+.pz-layer.on {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 55%, transparent);
+}
+
+/* ── Lienzo ────────────────────────────────────────────── */
+.pz-stage {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0 6px;
+  /* Contenedor de tamaño: da la medida justa del alto y del ancho a la vez. */
+  container-type: size;
+}
+
+/* Cuadrado que cabe en el alto y en el ancho: letterbox en los dos ejes.
+   Con `height: 100%` + `aspect-ratio` el `max-width` recortaba el ancho sin tocar el alto
+   y el lienzo quedaba estirado: el puntero se desalineaba en Y. */
+.pz-frame {
+  position: relative;
+  width: min(100cqw, 100cqh);
+  height: min(100cqw, 100cqh);
+  border: 1px solid var(--line);
+  box-shadow: 0 0 22px rgba(0, 0, 0, 0.45);
+}
+
+.pz-frame canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#overlay {
+  pointer-events: none;
+}
+
+.pz[data-tool="pen"] .pz-frame,
+.pz[data-tool="eraser"] .pz-frame,
+.pz[data-tool="text"] .pz-frame {
+  cursor: crosshair;
+}
+
+/* El área de edición flota sobre el bloque de texto que se esté escribiendo. */
+.pz-editor {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px dashed var(--neon);
+  background: transparent;
+  resize: none;
+  font-family: var(--edit-font, sans-serif);
+  font-size: var(--edit-size, 24px);
+  line-height: var(--edit-line, 1.25);
+  color: var(--edit-color, #000);
+  caret-color: var(--neon);
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  z-index: 3;
+}
+
+/* ── Estado ────────────────────────────────────────────── */
+.pz-status {
+  flex: none;
+  padding: 5px 0;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--text-soft);
+  border-top: 1px solid var(--line-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pz-status.error {
+  color: var(--magenta);
+}
+
+.pz-status.ok {
+  color: var(--green);
+}
+
+/* ── Mini-modal de confirmación ────────────────────────── */
+.pz-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.pz-modal[hidden] {
+  display: none;
+}
+
+.pz-modal-box {
+  width: min(360px, 100%);
+  padding: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+}
+
+.pz-modal-title {
+  font-size: 10.5px;
+  letter-spacing: 2px;
+  color: var(--neon);
+}
+
+.pz-modal-text {
+  margin: 10px 0 14px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.pz-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pz-modal-actions .danger:hover,
+.pz-modal-actions .danger:focus-visible {
+  color: var(--magenta);
+  border-color: var(--magenta);
+}

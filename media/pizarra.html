@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data: blob:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="%%TOKENS%%" rel="stylesheet" />
+<link href="%%STYLE%%" rel="stylesheet" />
+<title>Pizarra</title>
+</head>
+<body>
+  <div class="pz">
+    <header class="pz-head">
+      <div class="pz-title">
+        <span class="pz-kicker">PIZARRA</span>
+        <span class="pz-sub">Lienzo 1024 × 1024</span>
+      </div>
+      <div class="pz-actions">
+        <button id="btn-new" class="ghost-btn" type="button" title="Vaciar el lienzo y empezar de cero">NUEVA EN BLANCO</button>
+        <button id="btn-paste" class="ghost-btn" type="button" title="Añadir como imagen la última copia del portapapeles (Ctrl+V)">NUEVA DESDE PORTAPAPELES</button>
+        <button id="btn-save" class="ghost-btn" type="button" title="Guardar el PNG aplanado en un fichero">GUARDAR</button>
+      </div>
+    </header>
+
+    <div class="pz-tools">
+      <div class="pz-group" role="group" aria-label="Herramientas">
+        <button id="tool-select" class="tool on" type="button" data-tool="select" title="Mover, escalar y seleccionar">SELECCIONAR</button>
+        <button id="tool-pen" class="tool" type="button" data-tool="pen" title="Dibujar a mano alzada">LÁPIZ</button>
+        <button id="tool-eraser" class="tool" type="button" data-tool="eraser" title="Borrar trazos">BORRADOR</button>
+        <button id="tool-text" class="tool" type="button" data-tool="text" title="Añadir un bloque de texto">TEXTO</button>
+      </div>
+
+      <div class="pz-group opt" data-for="pen">
+        <label class="pz-field">COLOR <input id="pen-color" type="color" value="#12303f" /></label>
+        <label class="pz-field">GROSOR <input id="pen-size" type="range" min="1" max="80" value="6" /><output id="pen-size-out">6</output></label>
+      </div>
+
+      <div class="pz-group opt" data-for="eraser">
+        <label class="pz-field">TAMAÑO <input id="er-size" type="range" min="4" max="200" value="36" /><output id="er-size-out">36</output></label>
+        <label class="pz-field">DUREZA <input id="er-hard" type="range" min="0" max="100" value="80" /><output id="er-hard-out">80</output></label>
+      </div>
+
+      <div class="pz-group opt" data-for="text">
+        <label class="pz-field">COLOR <input id="txt-color" type="color" value="#12303f" /></label>
+        <label class="pz-field">FUENTE <select id="txt-family">
+          <option value="sans-serif">Sans-serif</option>
+          <option value="serif">Serif</option>
+          <option value="monospace">Monospace</option>
+          <option value="Georgia, serif">Georgia</option>
+          <option value="'Palatino Linotype', Palatino, serif">Palatino</option>
+          <option value="'Segoe UI', sans-serif">Segoe UI</option>
+          <option value="'Times New Roman', serif">Times New Roman</option>
+          <option value="'Courier New', monospace">Courier New</option>
+        </select></label>
+        <label class="pz-field">TAMAÑO <input id="txt-size" type="range" min="10" max="200" value="40" /><output id="txt-size-out">40</output></label>
+      </div>
+
+      <div class="pz-group pz-layers" role="group" aria-label="Capas">
+        <span class="pz-layer" id="ly-bg" data-layer="bg">FONDO</span>
+        <span class="pz-layer" id="ly-strokes" data-layer="strokes">TRAZOS</span>
+        <span class="pz-layer" id="ly-images" data-layer="images">IMÁGENES</span>
+        <span class="pz-layer" id="ly-texts" data-layer="texts">TEXTOS</span>
+      </div>
+    </div>
+
+    <main class="pz-stage" id="stage">
+      <div class="pz-frame">
+        <canvas id="board" width="1024" height="1024"></canvas>
+        <canvas id="overlay" width="1024" height="1024"></canvas>
+        <textarea id="text-editor" class="pz-editor" hidden spellcheck="false" aria-label="Editar texto"></textarea>
+      </div>
+    </main>
+
+    <footer class="pz-status" id="status">Listo.</footer>
+
+    <!-- Mini-modal: `window.confirm` no existe en la webview. -->
+    <div id="modal" class="pz-modal" role="dialog" aria-modal="true" hidden>
+      <div class="pz-modal-box">
+        <div class="pz-modal-title" id="modal-title">Vaciar la pizarra</div>
+        <p class="pz-modal-text" id="modal-text"></p>
+        <div class="pz-modal-actions">
+          <button id="modal-cancel" class="ghost-btn" type="button">CANCELAR</button>
+          <button id="modal-ok" class="ghost-btn danger" type="button">VACIAR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+<script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
+</body>
+</html>

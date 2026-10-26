@@ -60,7 +60,8 @@ export type ExplorerAction =
   | { type: "setAutoAccept"; on: boolean }
   | { type: "cycleAgent"; delta: 1 | -1 }
   | { type: "openAssign" }
-  | { type: "openConnectors" };
+  | { type: "openConnectors" }
+  | { type: "openPizarra" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
@@ -76,6 +77,7 @@ const ACTION_TYPES = new Set<string>([
   "cycleAgent",
   "openAssign",
   "openConnectors",
+  "openPizarra",
 ]);
 
 export class ExplorerPanel implements vscode.WebviewViewProvider {
@@ -162,6 +164,9 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
     // Un solo cerebro para los dos botones: ahorra HTML duplicado.
     const brain = `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6.3 2.3a2 2 0 0 0-2 1.9 2 2 0 0 0-1.1 3.6 2 2 0 0 0 1.4 3.4 2 2 0 0 0 3.3 1.4V3.2a1.7 1.7 0 0 0-1.6-.9Z"/><path d="M9.7 2.3a2 2 0 0 1 2 1.9 2 2 0 0 1 1.1 3.6 2 2 0 0 1-1.4 3.4 2 2 0 0 1-3.3 1.4V3.2a1.7 1.7 0 0 1 1.6-.9Z"/><path d="M4.7 5.4h1.5M4.3 9.1h1.7M11.3 5.4H9.8M11.7 9.1H10"/></svg>`;
 
+    // Tablero con la esquina plegada y un trazo: la PIZARRA, en el mismo tamaño que el cerebro.
+    const board = `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 2.4h10.8v8.3l-2.5 2.9H2.6z"/><path d="M13.4 10.7h-2.5v2.9"/><path d="M4.7 9.3c1.5-3.7 2.9-1.2 4.5-4.4"/></svg>`;
+
     return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -188,6 +193,7 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
     <div class="mando-row off" id="row-opencode">
       <button id="btn-connectors" class="assign-btn" type="button" title="Gestionar los conectores de opencode">CONECTORES</button>
       <button id="btn-assign" class="assign-btn" type="button" title="Asignar agentes a modelos">ASIGNAR AGENTES</button>
+      <button id="btn-pizarra" class="assign-btn pizarra-btn" type="button" title="Abrir la pizarra: editor de imagen por capas">${board}<span>PIZARRA</span></button>
     </div>
     <div class="mando-row">
       <button id="btn-auto-accept" class="switch perm-switch" type="button" aria-pressed="false" title="Aceptar sin preguntar lo que el agente pida. Las reglas «deny» siguen bloqueando; se aplica al momento.">

@@ -35,6 +35,7 @@ import {
 } from "./panels/explorerPanel";
 import { AssignAction, AssignAgent, AssignData, AssignPanel, FavoriteGroup, ModelEntry } from "./panels/assignPanel";
 import { ConnectorsPanel, ConnectorAction } from "./panels/connectorsPanel";
+import { PizarraPanel } from "./panels/pizarraPanel";
 import {
   ConnectorAttempt,
   ConnectorService,
@@ -1601,6 +1602,10 @@ export function activate(context: vscode.ExtensionContext): void {
       void openAssignPanel()
     ),
 
+    vscode.commands.registerCommand("opencodeAgents.pizarra", () =>
+      void PizarraPanel.open(context)
+    ),
+
     vscode.commands.registerCommand("opencodeAgents.resetAllStats", () => resetAllAgents()),
 
     vscode.commands.registerCommand("opencodeAgents.clearAllStats", () => clearAllAgents()),
@@ -2217,6 +2222,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
       case "openConnectors":
         await openConnectorsPanel();
+        return;
+
+      case "openPizarra":
+        await PizarraPanel.open(context);
         return;
     }
   }

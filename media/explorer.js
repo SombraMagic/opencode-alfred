@@ -14,6 +14,7 @@
     rowOpencode: document.getElementById("row-opencode"),
     connectors: document.getElementById("btn-connectors"),
     assign: document.getElementById("btn-assign"),
+    pizarra: document.getElementById("btn-pizarra"),
     agentsProject: document.getElementById("agents-project"),
     agentsGlobal: document.getElementById("agents-global"),
     agentsProjectCount: document.getElementById("agents-project-count"),
@@ -386,6 +387,7 @@
   el.addPlugin.addEventListener("click", () => act({ type: "addPlugin" }));
   el.connectors.addEventListener("click", () => act({ type: "openConnectors" }));
   el.assign.addEventListener("click", () => act({ type: "openAssign" }));
+  el.pizarra.addEventListener("click", () => act({ type: "openPizarra" }));
   // Se engancha una sola vez: el HTML es estático y solo cambia de clase.
   el.autoAcceptBtn.addEventListener("click", () => {
     const on = el.autoAcceptBtn.classList.contains("on");
