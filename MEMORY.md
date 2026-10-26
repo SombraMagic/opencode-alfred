@@ -101,9 +101,19 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `buildExplorerData(claudeData)`). Tiñen el hex de 6 y los 8 nombres de Claude (`PALETTE` en
   `panel.js` casa `claudeAgent.css:363-370`); los nombres de tema de opencode caen al acento,
   como en el explorador.
-- `main` = `origin/main` en `68bf40d` (commiteado y empujado por orden de la persona: el botón
-  BORRAR de los formularios en `d997c36` y los extras pendientes —reordenado del Explorador en
-  `media/explorer.*` y notas de `idea.md`— en `68bf40d`). Árbol limpio.
+- Estadísticas de prompts montadas (2026-10-26, commit local `77f2140`; **no empujado**):
+  botón nuevo junto al de estadísticas de agentes, pestaña `PromptStatsPanel` y motor
+  `promptFlow.ts`/`promptStats.ts`. V1 solo opencode v2. La monitorización
+  (`opencodeAgents.promptMonitor`) está apagada por defecto y persiste; apagada no escanea
+  las bases. Cada prompt terminado se guarda por `sesión:time_created` en
+  `globalStorage/prompt-stats.json` (tope 500), con una fila por agente, segmentos de trabajo,
+  tokens entrada/salida, duración y coste real o estimado. Las bases se abren con
+  `openSqliteReadOnly()` estricto. `clear()` fija `clearedAt` para impedir que el escáner
+  reimporte cierres anteriores al borrado; un prompt vivo al borrar sí se guardará cuando
+  cierre. Revisión final **PASS**; `typecheck`/`compile` verdes. Falta verlo en VS Code real
+  y reempaquetar el `.vsix`.
+- `main` va **un commit por delante** de `origin/main` en `77f2140`; el último empujado sigue
+  siendo `68bf40d`. Queda `idea.md` modificado en el árbol, fuera del encargo.
 - `AGENTS.md` ya no tiene cambios locales pendientes: entraron antes, en `9bdbe7c`.
 
 ## Decisiones
@@ -377,6 +387,9 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   opencode v2.1.4, pero `opencode debug agents` no conserva el color (el hex `#rrggbb`
   sí). La doc oficial (oct-2026) documenta los nombres de tema; en la práctica actual
   pulsar un chip de tema es un no-op silencioso. Comprobar con `opencode debug agents`.
+- El analizador de prompts usa `openSqliteReadOnly()`, pero `StatsService` y `contextWindow.ts`
+  siguen usando `openSqlite()`, que si la apertura readonly falla reintenta en modo escritura.
+  No extender ese fallback a ninguna lectura nueva.
 - El tool de delegación en opencode v2 se llama `subagent` y su parámetro es `agent`.
 - Los `.js` de `src/voice/core` son specifiers de TypeScript (`.js` en el import, `.ts`
   en disco): esbuild los resuelve, `tsc` también con `moduleResolution: Node16`. No los
