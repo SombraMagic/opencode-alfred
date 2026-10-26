@@ -101,11 +101,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `buildExplorerData(claudeData)`). Tiñen el hex de 6 y los 8 nombres de Claude (`PALETTE` en
   `panel.js` casa `claudeAgent.css:363-370`); los nombres de tema de opencode caen al acento,
   como en el explorador.
-- `main` = `origin/main` en `e2dffb5` (commiteado y empujado por orden de la persona: plugins
-  autodescubiertos + los cambios pendientes de otros encargos). Sin commitear ahora:
-  el reordenado del Explorador (`media/explorer.*`) y este fichero.
-- Cambios locales de la persona sin commitear: `AGENTS.md` (nota sobre idea.md) e
-  `idea.md` (esquemas nuevos al final). No commitearlos salvo orden.
+- `main` = `origin/main` en `68bf40d` (commiteado y empujado por orden de la persona: el botón
+  BORRAR de los formularios en `d997c36` y los extras pendientes —reordenado del Explorador en
+  `media/explorer.*` y notas de `idea.md`— en `68bf40d`). Árbol limpio.
+- `AGENTS.md` ya no tiene cambios locales pendientes: entraron antes, en `9bdbe7c`.
 
 ## Decisiones
 
