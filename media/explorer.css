@@ -241,6 +241,14 @@
   clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
 }
 
+/* Integrado con override propio en el proyecto: mismo hexágono, con un punto ámbar de aviso.
+   La marca va en `background-image`, no en un `::after` ni en un borde, porque el `clip-path`
+   los recortaría; y tampoco en el color de fondo, que el `color` del frontmatter pisa desde JS.
+   El punto cae dentro del hexágono: la arista derecha pasa por x = 75% + (y/50%)*25%. */
+.agent-icon.mode-builtin-project {
+  background-image: radial-gradient(circle at 64% 22%, var(--amber) 0 1.1px, transparent 1.3px);
+}
+
 .agent.disabled .agent-icon {
   background: transparent;
   border: 1px dashed var(--text-dim);

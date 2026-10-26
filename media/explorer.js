@@ -91,14 +91,20 @@
     return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
   }
 
-  /** Tarjeta de una línea: icono, nombre, modelo, trabajo, tokens, VER y EDIT. */
-  function agentRow(agent) {
+  /** Tarjeta de una línea: icono, nombre, modelo, trabajo, tokens, VER y EDIT.
+   * `extraClass` (opcional) añade la clase del icono según la fila: el integrado con
+   * override en el proyecto lleva su marca. No se toca `agent.mode`, que va en el title del VER. */
+  function agentRow(agent, extraClass) {
     const card = node("div", "agent");
     if (agent.working) card.classList.add("working");
     if (agent.streaming) card.classList.add("streaming");
     if (agent.disabled) card.classList.add("disabled");
 
-    const icon = node("span", "agent-icon mode-" + (agent.mode || "primary"));
+    const extra = extraClass ? extraClass(agent) : "";
+    const icon = node(
+      "span",
+      "agent-icon mode-" + (agent.mode || "primary") + (extra ? " " + extra : "")
+    );
     icon.setAttribute("aria-hidden", "true");
     if (isHex(agent.color)) icon.style.setProperty("--agent-color", agent.color);
     card.appendChild(icon);
@@ -165,29 +171,57 @@
     return card;
   }
 
-  function fillAgents(box, list, emptyText) {
+  function fillAgents(box, list, emptyText, extraClass) {
     box.textContent = "";
     if (list.length === 0) {
       box.appendChild(node("div", "empty", emptyText));
       return;
     }
-    for (const agent of list) box.appendChild(agentRow(agent));
+    for (const agent of list) box.appendChild(agentRow(agent, extraClass));
   }
 
   function renderAgents(data) {
     const agents = data.agents || {};
-    // Primarios primero, subagentes después e integrados cerrando; dentro de cada grupo el host ya manda alfabético.
-    const rank = { primary: 0, subagent: 1, builtin: 2 };
-    const pick = (list) => list.slice().sort((a, b) => rank[a.mode] - rank[b.mode]);
-    const project = pick(agents.project || []);
-    // Los integrados van con los globales: cambia de dónde salen, no su sitio en la lista.
-    const global = pick((agents.global || []).concat(agents.builtin || []));
+    const builtin = agents.builtin || [];
+
+    // Los integrados salen del mismo array en los dos bloques, según dónde tengan su override:
+    // con `.md` en el proyecto van con los de proyecto; los demás (override global o ninguno), con los globales.
+    const projectBuiltins = builtin.filter((a) => (a.overriddenBy || []).includes("project"));
+    const globalBuiltins = builtin.filter((a) => !projectBuiltins.includes(a));
+    // El `.md` que sobrescribe un integrado ya sale en su fila INTEGRADO: la fila de fichero no se repite.
+    const sinIntegrados = (list, builtins) => {
+      const names = new Set(builtins.map((a) => a.name));
+      return list.filter((a) => !names.has(a.name));
+    };
+
+    // Orden de cada bloque. El host manda las filas de fichero alfabéticas, pero los integrados
+    // llegan en su orden fijo: el desempate por nombre los deja alfabéticos dentro de su grupo.
+    // Proyecto: integrados sobrescritos, primarios y subagentes.
+    // Globales: primarios, integrados (los que no son de proyecto) y subagentes.
+    const rankProject = { builtin: 0, primary: 1, subagent: 2 };
+    const rankGlobal = { primary: 0, builtin: 1, subagent: 2 };
+    const pick = (list, rank) =>
+      list.slice().sort((a, b) => {
+        const byRank = (rank[a.mode] ?? rank.primary) - (rank[b.mode] ?? rank.primary);
+        return byRank || a.name.localeCompare(b.name);
+      });
+    const project = pick(
+      projectBuiltins.concat(sinIntegrados(agents.project || [], projectBuiltins)),
+      rankProject
+    );
+    const global = pick(
+      sinIntegrados(agents.global || [], globalBuiltins).concat(globalBuiltins),
+      rankGlobal
+    );
+
     el.agentsProjectCount.textContent = String(project.length);
     el.agentsGlobalCount.textContent = String(global.length);
     fillAgents(
       el.agentsProject,
       project,
-      data.hasProject ? "Sin agentes de proyecto." : "Sin proyecto abierto."
+      data.hasProject ? "Sin agentes de proyecto." : "Sin proyecto abierto.",
+      // Solo el integrado del bloque de proyecto lleva la marca ámbar de override propio.
+      (a) => (a.mode === "builtin" ? "mode-builtin-project" : "")
     );
     fillAgents(el.agentsGlobal, global, "Sin agentes globales.");
   }
