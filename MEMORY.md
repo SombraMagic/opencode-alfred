@@ -105,6 +105,13 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   instalado y probado en VS Code real (2026-10-26): monitor encendido, 7 subagentes en
   paralelo, prompt vivo con 8 carriles y colores, cerrado y persistido correctamente
   (74 s, coste estimado, `live:false` en `prompt-stats.json`).
+- Reporte «timeline congelada» (2026-10-26, **sin commitear**: `promptFlow.ts` + `AGENTS.md`):
+  el orquestador se reanuda tras un `idle` sin prompt nuevo, y el cierre en el PRIMER `idle`
+  dejaba fuera todo el trabajo posterior. `buildPrompt` cierra ahora en el último `idle` del
+  tramo antes del siguiente `user`. Trampas: un turno reanudado que pierde su `idle` final
+  queda vivo hasta el siguiente `user`; los registros ya persistidos con cierre errado solo se
+  corrigen por upsert si vuelven a escanearse. Verificado contra la BD real (registro 16:28 de
+  `ses_e872c47c`: 16:37→17:31, 3→5 lanes) y con fixtures sintéticos. Falta verlo en la pestaña.
 - `main` = `origin/main` en `870cc3c`: las estadísticas de prompts y los extras (`idea.md`)
   quedaron commiteados y empujados por orden de la persona (2026-10-26).
 - Lote 2026-10-26 (idea.md, revisión **PASS**, typecheck/compile verdes; falta reempaquetar

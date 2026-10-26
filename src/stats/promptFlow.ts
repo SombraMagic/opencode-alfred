@@ -474,15 +474,25 @@ function buildPrompt(
   const { now } = options;
   const root = bySession.get(rootId) ?? [];
 
-  // Cierre natural: el primer `idle` posterior o, si no, el siguiente mensaje user.
-  let naturalEnd: number | undefined;
+  // Cierre natural: el `idle` que de verdad cierra el turno. Un turno puede reanudarse después
+  // de un `idle` (auto-reanudación, subagentes tardíos) y volver a trabajar: si el último mensaje
+  // de raíz del tramo es un `idle`, ése es el cierre, aunque hubiera idles anteriores. Si no,
+  // cierra el siguiente mensaje user (interrupción) y, si tampoco lo hay, el turno sigue abierto.
+  let nextUser: Msg | undefined;
+  let ultimo: Msg | undefined;
+  let ultimoIdle: number | undefined;
   for (let j = userIndex + 1; j < root.length; j++) {
     const next = root[j];
-    if (next.type === "idle" || next.type === "user") {
-      naturalEnd = next.created;
+    if (next.type === "user") {
+      nextUser = next;
       break;
     }
+    ultimo = next;
+    if (next.type === "idle") {
+      ultimoIdle = next.created;
+    }
   }
+  const naturalEnd = ultimo?.type === "idle" ? ultimoIdle : nextUser?.created;
 
   const pool: Msg[] = [];
   for (const id of tree) {
@@ -498,8 +508,9 @@ function buildPrompt(
   let lastActivity = user.created;
   const taken: Msg[] = [];
   for (const msg of pool) {
-    // Admite sólo lo anterior al cierre natural (`idle` o siguiente user), raíz o hijo:
-    // un hijo creado después pertenece al siguiente turno, aunque termine antes de su fin.
+    // Admite sólo lo anterior al cierre natural (el `idle` final del turno o el siguiente user),
+    // raíz o hijo: un hijo creado después pertenece al siguiente turno, aunque termine antes de
+    // su fin.
     if (naturalEnd !== undefined && msg.created > naturalEnd) {
       break;
     }

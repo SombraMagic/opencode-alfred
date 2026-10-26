@@ -116,8 +116,10 @@ No hay tests, linter, formatter ni CI. No inventes comandos para ello.
   `~/.local/share/opencode` (configurable). Nunca escribir en esas bases.
 - Estadísticas de prompts (`promptFlow.ts` + `promptStats.ts` + `promptStatsPanel.ts`): el
   analizador solo entiende el esquema v2 y solo las sesiones raíz del proyecto abierto, con sus
-  hijos recursivos por `parent_id`. Un prompt va del mensaje `user` al `idle` siguiente (o al
-  `user` siguiente si no lo hay) y, sin cierre, sigue vivo hasta 15 min sin actividad. La
+  hijos recursivos por `parent_id`. Un prompt va del mensaje `user` al `idle` que cierra el turno
+  — el último `idle` antes del siguiente `user`, porque el orquestador puede reanudarse tras un
+  `idle` y seguir trabajando sin prompt nuevo —, o al `user` siguiente si no queda `idle` de
+  cierre y, sin ninguno de los dos, sigue vivo hasta 15 min sin actividad. La
   monitorización (`opencodeAgents.promptMonitor` en `globalState`, apagada por defecto) es lo
   único que consulta las bases: con ella off, `collect()` solo releé el historial. Los prompts
   cerrados se guardan por `id` (`sesión:time_created`), tope 500, en
