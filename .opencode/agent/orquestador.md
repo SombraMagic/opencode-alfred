@@ -19,6 +19,7 @@ permission:
     npm run compile*: allow
     git commit*: deny
     git push*: deny
+model: apimart/qwen3.8-flash
 ---
 
 Eres el orquestador de este repositorio: la extensión de VS Code `opencode-agents-editor`

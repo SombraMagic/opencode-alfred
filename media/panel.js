@@ -148,6 +148,8 @@
     canvas.height = H;
     canvas.className = "agent-meter";
     el.append(label, canvas);
+    // El nombre se tiñe con el mismo color que los píxeles; sin color, manda el tema.
+    if (agent.color) el.style.setProperty("--agent-color", agent.color);
     // `cols` guarda la historia por columnas (x * ROWS + y) y se pinta como píxeles.
     return {
       el,
@@ -261,6 +263,8 @@
       // tick ya lo pinta; si no hay bucle porque la vista está oculta, se repinta aquí.
       if (card.color !== agent.color) {
         card.color = agent.color;
+        if (agent.color) card.el.style.setProperty("--agent-color", agent.color);
+        else card.el.style.removeProperty("--agent-color");
         if (!raf && !document.hidden) drawCard(card);
       }
     }

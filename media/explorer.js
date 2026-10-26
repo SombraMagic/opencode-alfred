@@ -176,9 +176,12 @@
 
   function renderAgents(data) {
     const agents = data.agents || {};
-    const project = agents.project || [];
+    // Primarios primero, subagentes después e integrados cerrando; dentro de cada grupo el host ya manda alfabético.
+    const rank = { primary: 0, subagent: 1, builtin: 2 };
+    const pick = (list) => list.slice().sort((a, b) => rank[a.mode] - rank[b.mode]);
+    const project = pick(agents.project || []);
     // Los integrados van con los globales: cambia de dónde salen, no su sitio en la lista.
-    const global = (agents.global || []).concat(agents.builtin || []);
+    const global = pick((agents.global || []).concat(agents.builtin || []));
     el.agentsProjectCount.textContent = String(project.length);
     el.agentsGlobalCount.textContent = String(global.length);
     fillAgents(

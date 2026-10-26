@@ -40,6 +40,8 @@ export interface SessionInfo {
   workMs: number;
   created: number;
   updated: number;
+  /** `time_viewed` del TUI: cuándo el usuario miró la sesión por última vez. */
+  viewed: number;
   working: boolean;
   streaming: boolean;
 }
@@ -384,7 +386,7 @@ export class StatsService {
 
     const sessionRows = db
       .prepare(
-        "SELECT id, parent_id, agent, model, title, directory, time_created, time_updated FROM session_v2"
+        "SELECT id, parent_id, agent, model, title, directory, time_created, time_updated, time_viewed FROM session_v2"
       )
       .all() as Array<Record<string, unknown>>;
     if (sessionRows.length === 0) {
@@ -405,6 +407,7 @@ export class StatsService {
         workMs: 0,
         created: num(row.time_created),
         updated: num(row.time_updated),
+        viewed: num(row.time_viewed),
         working: false,
         streaming: false,
       });
@@ -498,6 +501,7 @@ export class StatsService {
         workMs: 0,
         created: num(row.time_created),
         updated: num(row.time_updated),
+        viewed: 0,
         working: false,
         streaming: false,
       });

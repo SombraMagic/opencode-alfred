@@ -101,13 +101,25 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `buildExplorerData(claudeData)`). Tiñen el hex de 6 y los 8 nombres de Claude (`PALETTE` en
   `panel.js` casa `claudeAgent.css:363-370`); los nombres de tema de opencode caen al acento,
   como en el explorador.
-- `main` va 5 commits por delante de `origin/main` (`6cde908`, `e4cdba6`, `79c7789`,
-  `f14fde4`, `a2af1f9`), pendientes de push (el usuario quiere aprobarlo; nada tocado en
-  GitHub). Los anteriores ya los subió él.
+- `main` está a la altura de `origin/main` (0 commits por delante, HEAD `238321c`): la nota vieja
+  de «5 commits pendientes de push» quedó superada cuando la persona los subió. Cambios locales
+  sin commitear: `media/explorer.js`, `media/panel.*`, `MEMORY.md`, `src/extension.ts`,
+  `src/stats/opencodeStats.ts` y los `.md` de `reportes`.
 - Cambios locales de la persona sin commitear: `AGENTS.md` (nota sobre idea.md) e
   `idea.md` (esquemas nuevos al final). No commitearlos salvo orden.
 
 ## Decisiones
+
+- Plugins auto-cargados (reporte 2026-10-26, sin commitear): opencode v2 carga lo inmediato de
+  `<globalOpencodeDir()>/plugins/` y `<raíz>/.opencode/plugins/` sin aparecer en la config
+  (ficheros `.js`/`.ts` directos y carpetas con `package.json`/`index.*`/`server.*`).
+  `loadPlugins` (`catalog.ts`) los descubre con `discovered: true`; las entradas `"-<nombre>"`
+  del array son control de apagado (no fila) y `{package:…}` ya se entiende. La fila descubierta
+  se casa por nombre de fichero/carpeta, no por el `id` de `Plugin.define` (coinciden en la
+  práctica); comodines `*`/`.*` no se evalúan (`shortcut:` en el código). Apagar/encender una fila
+  descubierta escribe/quita `"-<nombre>"` en la config del scope (`setDiscoveredPluginEnabled`);
+  el globalState `disabledPlugins` solo sigue aplicando a los de config. Faltó comprobar el
+  apagado en vivo: `.vsix` reempaquetado e instalado, a la espera del visto bueno.
 
 - Un solo paquete y un solo `extension.ts`; nada de monorepo ni de paquete compartido.
 - Se conservan los namespaces de ajustes `opencodeAgents.*` y `voz.*` para no invalidar
@@ -164,11 +176,21 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
 - El bloque MODELOS es vista propia (`opencodeAgents.models`, `src/panels/modelsPanel.ts` +
   `media/models.*`), entre Explorador y Contexto. Orden (2026-10-25): los dos botones, ACTUAL,
   RECIENTES y BUSCADOR como `<details>` plegables (dentro del segundo: input, `#all` o
-  `#groups` en Claude, y `#total`). No toca la config: cambia la sesión viva
-  con `opencode api` (ver `AGENTS.md`) y guarda los 5 últimos elegidos en
-  `opencodeAgents.recentModels` (`globalState`). El modelo en uso sale de la última sesión
-  raíz del proyecto en `session_v2`, no del TUI; si se cambia desde el TUI, la vista lo
-  sigue porque `keyOf()` incluye id y modelo de esa sesión.
+  `#groups` en Claude, y `#total`). Guarda los 5 últimos elegidos en
+  `opencodeAgents.recentModels` (`globalState`).
+- Modelo ACTUAL del bloque (2026-10-26): el **efectivo**, no el de la sesión — `model:` del
+  `.md` del agente de la sesión viva (project > global, sin `#variant`) y, si el agente no fija,
+  `session.model`; el origen se dice en `note`. Elegir un modelo hace `POST /api/session/<id>/model`
+  **y**, si ese agente fija `model:` en su `.md`, reescribe también el `.md` con `setAgentModel`
+  (decisión de la persona: prefiere que el TUI lo aplique de verdad a que respete la asignación;
+  con los agentes que no fijan modelo solo se toca la sesión, sin crear la clave).
+- Trampa medida en opencode v2.1.4: `POST /api/session/<id>/agent` (lo que hace Shift+Tab) cambia
+  `agent` en API y BD pero **no toca `model`**, y el `.md` del agente no se escribe: por eso leer
+  `session_v2.model` no sigue al TUI. La BD coincide con la API (comprobado en 300 sesiones), así
+  que el retraso no era de la BD. `keyOf()` lleva `id`, `agent` y `model` de esa sesión.
+- La sesión viva la elige `pickSession()` por `max(time_viewed, time_updated)` de las raíces del
+  proyecto (`time_viewed` existe en `session_v2`; en el esquema v1 vale 0): con dos terminales
+  abiertas gana la que el usuario tiene delante, antes se fallaba y el POST se iba a otra sesión.
 - La lista del bloque sale de `GET /api/model` (688 aquí), no del catálogo models.dev:
   `readConfigInfo` devuelve 822 y cuela vetados (nvidia en `blacklist`) que opencode no
   puede ejecutar. Coste del spawn: ~120 ms; solo en el arranque y al guardar config, nunca
@@ -238,6 +260,17 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (`hooks`, `mcpServers`…) se conservan. El nombre solo admite `[a-z0-9._-]`; la
   descripción es obligatoria. Reiniciar Claude solo si la carpeta `agents` del destino no
   existía al arrancar.
+- Orden del Explorador (2026-10-25): las filas se pintan por `mode` — primarios, luego
+  subagentes, e integrados cerrando la lista (decisión del usuario, «al final, como están»).
+  El reordenado vive en `renderAgents` de `media/explorer.js` (sort estable); el host sigue
+  mandando las listas alfabéticas, así que dentro de cada bloque se conserva el alfabético.
+- Ecualizador del panel de voz (2026-10-25): el `color:` del `.md` tiñe también el NOMBRE de
+  la tarjeta (variable `--agent-color` puesta en la tarjeta en `makeCard`/`renderAgents` de
+  `media/panel.js`; los CSS solo leen `var(--agent-color, ...)` en `media/panel.css`). Antes
+  el color solo llegaba al canvas y `.agent.streaming .agent-name` pintaba `--neon` fijo: por
+  eso la primera fila (el agente principal, siempre en streaming) se veía celeste. Un agente
+  SIN `color:` (p. ej. `orquestador`) o con nombre de tema sigue cayendo al acento: es el
+  comportamiento elegido, no un fallo.
 - El panel de dictado se rediseñó: bloc a la izquierda, configuración en medio (plegable)
   y controles a la derecha; al plegar, el bloc gana el ancho y el estado se recuerda en
   `globalState` (`voz.dictado.configCollapsed`). El micrófono es cuadrado redondeado, con
@@ -294,7 +327,14 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   la línea rompe el JSONC; hay que insertar antes del `]`.
 - `cancelAttempt` distingue OAuth y comando: el `DELETE` de comando va a
   `/connect/command/<attempt>`, no a `/connect/oauth/<attempt>`.
+- Verificar `catalog.ts`/`paths.ts` con stubs fuera de la extensión es peligroso: si el stub no
+  aplica el ajuste `globalConfigDir`, las escrituras van a la config global REAL de opencode (un
+  subagente dejó ahí `"plugin": ["./plugins/caveman"]`; limpiada a mano). Usar `globalConfigDir`
+  apuntado a temp en el stub, o no ejercitar rutas de escritura.
+- `esbuild --production` minifica: buscar identificadores (`PLUGIN_MARKERS`) en
+  `dist/extension.js` instalado da falsos negativos; buscar literales de string (`server.js","server.ts`).
 - `npm run compile` no valida tipos: esbuild no typechequea.
+
 - VS Code carga la extensión **instalada** (`%USERPROFILE%\.vscode\extensions\…`), no el repo:
   un cambio en `media/*` o `dist/` no se ve hasta reempaquetar el `.vsix`
   (`npx @vscode/vsce package`), reinstalar (`code --install-extension … --force`) y

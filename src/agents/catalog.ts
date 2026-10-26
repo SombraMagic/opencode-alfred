@@ -1,5 +1,5 @@
 import * as fs from "fs/promises";
-import { existsSync } from "fs";
+import { existsSync, type Dirent } from "fs";
 import * as os from "os";
 import * as path from "path";
 import { applyEdits, FormattingOptions, modify, parse as parseJsonc, ParseError } from "jsonc-parser";
@@ -490,6 +490,8 @@ export interface PluginInfo {
   scope: ConfigScope;
   filePath: string;
   enabled: boolean;
+  /** Cargado por opencode solo por estar en el directorio plugins/, sin aparecer en la config. */
+  discovered: boolean;
 }
 
 /** A plugin removed from the config but remembered so it can be re-enabled. */
@@ -510,15 +512,38 @@ function pluginArrayKey(obj: JsonObject | undefined): "plugins" | "plugin" | und
   return undefined;
 }
 
-/** An entry is a spec string or a `[spec, options]` tuple. */
+/** Una entrada es una spec, una tupla `[spec, options]` o un objeto `{ package, options }`. */
 function pluginSpec(entry: unknown): string | undefined {
   const spec = Array.isArray(entry) ? entry[0] : entry;
-  return typeof spec === "string" && spec.trim() ? spec : undefined;
+  if (typeof spec === "string") {
+    return spec.trim() ? spec : undefined;
+  }
+  const pkg = asObject(spec)?.package;
+  return typeof pkg === "string" && pkg.trim() ? pkg : undefined;
+}
+
+/** Ficheros que hacen que una carpeta dentro de plugins/ sea un paquete de plugin. */
+const PLUGIN_MARKERS = ["package.json", "index.js", "index.ts", "server.js", "server.ts"];
+
+/** Directorios de descubrimiento automático de plugins: el global y, si hay, el del proyecto. */
+function pluginSearchDirs(): Array<{ dir: string; scope: ConfigScope }> {
+  const out: Array<{ dir: string; scope: ConfigScope }> = [
+    { dir: path.join(globalOpencodeDir(), "plugins"), scope: "global" },
+  ];
+  const root = projectRoot();
+  if (root) {
+    out.push({ dir: path.join(root, ".opencode", "plugins"), scope: "project" });
+  }
+  return out;
 }
 
 export async function loadPlugins(disabled: DisabledPlugin[]): Promise<PluginInfo[]> {
   const configs = await readAllConfigs();
   const map = new Map<string, PluginInfo>();
+  // Nombres desactivados por la config con el prefijo "-".
+  const denied = new Set<string>();
+  // Specs de ruta ("./plugins/x") ya listadas, por ámbito: apuntan a la carpeta de abajo.
+  const listedPaths = new Set<string>();
   for (const c of configs) {
     const key = pluginArrayKey(c.obj);
     if (!key || !c.obj) {
@@ -526,13 +551,63 @@ export async function loadPlugins(disabled: DisabledPlugin[]): Promise<PluginInf
     }
     for (const entry of c.obj[key] as unknown[]) {
       const spec = pluginSpec(entry);
-      if (spec) {
-        map.set(`${c.scope}|${spec}`, {
-          name: spec,
-          spec,
-          scope: c.scope,
-          filePath: c.path,
-          enabled: true,
+      if (!spec) {
+        continue;
+      }
+      if (spec.startsWith("-")) {
+        // shortcut: "-<nombre>" es coincidencia exacta; "*" y ".*" de opencode no se evalúan.
+        denied.add(spec.slice(1));
+        continue;
+      }
+      if (spec.startsWith(".")) {
+        listedPaths.add(`${c.scope}|${path.basename(spec.replace(/[\\/]+$/, ""))}`);
+      }
+      map.set(`${c.scope}|${spec}`, {
+        name: spec,
+        spec,
+        scope: c.scope,
+        filePath: c.path,
+        enabled: true,
+        discovered: false,
+      });
+    }
+  }
+  // opencode carga también lo inmediato de <config>/plugins/: ficheros .js/.ts y carpetas de paquete.
+  for (const dir of pluginSearchDirs()) {
+    let items: Dirent[];
+    try {
+      items = await fs.readdir(dir.dir, { withFileTypes: true });
+    } catch {
+      continue; // sin carpeta plugins/ en este ámbito
+    }
+    for (const item of items) {
+      if (!item.name || item.name.startsWith(".")) {
+        continue;
+      }
+      const full = path.join(dir.dir, item.name);
+      let name: string | undefined;
+      if (item.isFile()) {
+        const ext = path.extname(item.name);
+        if (ext === ".js" || ext === ".ts") {
+          name = path.basename(item.name, ext);
+        }
+      } else if (item.isDirectory()) {
+        for (const marker of PLUGIN_MARKERS) {
+          if (await pathExists(path.join(full, marker))) {
+            name = item.name;
+            break;
+          }
+        }
+      }
+      // La config manda: ni lo ya listado por spec se pisa, ni lo listado por ruta se repite.
+      if (name && !map.has(`${dir.scope}|${name}`) && !listedPaths.has(`${dir.scope}|${name}`)) {
+        map.set(`${dir.scope}|${name}`, {
+          name,
+          spec: name,
+          scope: dir.scope,
+          filePath: full,
+          enabled: !denied.has(name),
+          discovered: true,
         });
       }
     }
@@ -540,7 +615,14 @@ export async function loadPlugins(disabled: DisabledPlugin[]): Promise<PluginInf
   for (const d of disabled) {
     const key = `${d.scope}|${d.spec}`;
     if (!map.has(key)) {
-      map.set(key, { name: d.spec, spec: d.spec, scope: d.scope, filePath: d.filePath, enabled: false });
+      map.set(key, {
+        name: d.spec,
+        spec: d.spec,
+        scope: d.scope,
+        filePath: d.filePath,
+        enabled: false,
+        discovered: false,
+      });
     }
   }
   return [...map.values()].sort(
@@ -576,6 +658,42 @@ export async function setPluginEnabled(
   const next = entries.filter((entry) => pluginSpec(entry) !== spec);
   if (enabled) {
     next.push(spec);
+  }
+  await modifyJson(file, [key], next);
+  return file;
+}
+
+/**
+ * opencode carga lo que hay en plugins/ sin estar listado: para apagar un plugin descubierto se
+ * añade "-<nombre>" al array de la config, y al encenderlo se quita esa entrada.
+ */
+export async function setDiscoveredPluginEnabled(
+  name: string,
+  scope: ConfigScope,
+  enabled: boolean
+): Promise<string> {
+  const file = await ensureScopeConfig(scope);
+  let key: "plugins" | "plugin" = "plugins";
+  let entries: unknown[] = [];
+  try {
+    const obj = asObject(
+      parseJsonc(await fs.readFile(file, "utf8"), [], {
+        allowTrailingComma: true,
+        disallowComments: false,
+      })
+    );
+    key = pluginArrayKey(obj) ?? "plugins";
+    const current = obj?.[key];
+    if (Array.isArray(current)) {
+      entries = current;
+    }
+  } catch {
+    /* fichero sin crear o ilegible: se parte de una lista vacía */
+  }
+  const deny = `-${name}`;
+  const next = entries.filter((entry) => pluginSpec(entry) !== deny);
+  if (!enabled) {
+    next.push(deny);
   }
   await modifyJson(file, [key], next);
   return file;

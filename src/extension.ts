@@ -19,6 +19,7 @@ import {
   PluginInfo,
   SkillInfo,
   setAutoAccept,
+  setDiscoveredPluginEnabled,
   setMcpEnabled,
   setPluginEnabled,
   setSkillEnabled,
@@ -439,12 +440,50 @@ export function activate(context: vscode.ExtensionContext): void {
     };
   }
 
-  /** Última sesión del proyecto abierto; sin carpeta abierta, ninguna. */
+  /** Sesión más reciente del proyecto abierto; sin carpeta abierta, ninguna. */
   function pickSession(snapshot: StatsSnapshot): SessionInfo | undefined {
     const root = projectRoot();
     return (snapshot.sessions ?? [])
       .filter((s) => !s.parentId && !!root && isSamePath(s.directory, root))
-      .sort((a, b) => b.updated - a.updated)[0];
+      // `time_viewed` es la que pisa el TUI al mirar la sesión: con dos terminales gana la
+      // que el usuario tiene delante; si no hay viewing (esquema viejo), vale `updated`.
+      .sort((a, b) => Math.max(b.viewed, b.updated) - Math.max(a.viewed, a.updated))[0];
+  }
+
+  /** El `.md` del agente de una sesión (project > global); sin distinguir mayúsculas: la BD guarda `reportes`. */
+  function agentFileFor(name: string): Agent | undefined {
+    if (!name) {
+      return undefined;
+    }
+    const lower = name.toLowerCase();
+    const match = (a: Agent) => a.name.toLowerCase() === lower;
+    return agentList.project.find(match) ?? agentList.global.find(match);
+  }
+
+  /** Modelo que el agente fija en su `.md` (`proveedor/modelo`, sin `#variant`); "" si no fija ninguno. */
+  function agentFixedModel(agent: Agent | undefined): string {
+    const raw = (agent?.frontmatter.model ?? "").trim();
+    const cut = raw.indexOf("#");
+    return (cut >= 0 ? raw.slice(0, cut) : raw).trim();
+  }
+
+  /**
+   * Modelo efectivo de la sesión: el que fija el agente en su `.md` si lo tiene; si no,
+   * el de la sesión (los integrados sin override no fijan → manda `session.model`).
+   * El origen va en `note`, una línea; vacío si no hay modelo.
+   */
+  function effectiveModel(session: SessionInfo | undefined): { model: string; note: string } {
+    if (!session) {
+      return { model: "", note: "" };
+    }
+    const fixed = agentFixedModel(agentFileFor(session.agent));
+    if (fixed) {
+      return { model: fixed, note: `«${session.agent}» fija su modelo en el .md` };
+    }
+    if (session.model) {
+      return { model: session.model, note: "modelo de la sesión" };
+    }
+    return { model: "", note: "" };
   }
 
   /** Compacta la conversación de la sesión medida en el panel: el equivalente a `/compact` del TUI. */
@@ -508,9 +547,11 @@ export function activate(context: vscode.ExtensionContext): void {
       return { ...codexModels(), recentModels: [], canAssign: false };
     }
     const snapshot = display ?? lastRaw;
+    const eff = snapshot ? effectiveModel(pickSession(snapshot)) : { model: "", note: "" };
     return {
       models,
-      currentModel: snapshot ? (pickSession(snapshot)?.model ?? "") : "",
+      currentModel: eff.model,
+      note: eff.note,
       recentModels: recentModelIds(),
       canAssign: sessionAgent === "opencode",
     };
@@ -1201,9 +1242,9 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   function keyOf(snapshot: StatsSnapshot): string {
-    // El modelo entra en la clave: si se cambia desde el TUI, el bloque tiene que seguirlo.
+    // El agente y el modelo de la sesión entran en la clave: si se cambia desde el TUI, el bloque tiene que seguirlo.
     const session = pickSession(snapshot);
-    const head = `${snapshot.ok}|${snapshot.error ?? ""}|${snapshot.dbs.length}|${session?.id ?? ""}|${session?.model ?? ""}`;
+    const head = `${snapshot.ok}|${snapshot.error ?? ""}|${snapshot.dbs.length}|${session?.id ?? ""}|${session?.agent ?? ""}|${session?.model ?? ""}`;
     const body = snapshot.agents
       .map(
         (a) =>
@@ -1952,6 +1993,11 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
         return catalogEdit(async () => {
+          if (plugin.discovered) {
+            // No está en la config: se apaga con la entrada "-<nombre>", sin globalState de apagados.
+            await setDiscoveredPluginEnabled(plugin.name, plugin.scope, !plugin.enabled);
+            return;
+          }
           const file = await setPluginEnabled(
             plugin.spec,
             plugin.scope,
@@ -2032,20 +2078,27 @@ export function activate(context: vscode.ExtensionContext): void {
           );
           return;
         }
-        if (session.model === model.id) {
+        if (effectiveModel(session).model === model.id) {
           return; // ya está en uso: no se toca
         }
+        // Si el agente fija `model:` en su .md, ese valor tapa al de la sesión: hay que
+        // reescribir el .md además del POST; si no lo fija, el POST de la sesión manda.
+        const agent = agentFileFor(session.agent);
+        const fixed = agentFixedModel(agent);
         try {
           await opencodeApi("POST", `/api/session/${session.id}/model`, {
             model: { id: model.model, providerID: model.provider },
           });
           recentModels = [model.id, ...recentModels.filter((id) => id !== model.id)].slice(0, 5);
           await context.globalState.update(RECENT_MODELS, recentModels);
+          let notice = `opencode: modelo «${model.name}» en uso.`;
+          if (agent && fixed) {
+            await setAgentModel(agent, model.id);
+            await refreshAgents();
+            notice = `opencode: «${model.name}» en el agente «${agent.name}» y en la sesión.`;
+          }
           await refreshStats(true);
-          void vscode.window.setStatusBarMessage(
-            `opencode: modelo «${model.name}» en uso.`,
-            4000
-          );
+          void vscode.window.setStatusBarMessage(notice, 4000);
         } catch (err) {
           void vscode.window.showErrorMessage(
             `No se pudo cambiar el modelo: ${err instanceof Error ? err.message : String(err)}`
