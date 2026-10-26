@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { AgentFrontmatter } from "../agents/types";
+import { deleteAgent } from "../agents/store";
 import { ValidationIssue } from "../agents/validate";
 import {
   CLAUDE_AGENT_COLORS,
@@ -190,6 +191,9 @@ export class ClaudeAgentPanel {
           case "cancel":
             this.panel.dispose();
             break;
+          case "delete":
+            await this.handleDelete();
+            break;
           case "openRaw":
             await this.openRaw();
             break;
@@ -294,6 +298,45 @@ export class ClaudeAgentPanel {
     }
   }
 
+  /** Borra el .md del disco, avisa al resto de componentes y cierra el panel. */
+  private async handleDelete(): Promise<void> {
+    const file = this.filePath;
+    const name = this.init.name || this.currentName || "nuevo subagente";
+    if (!file) {
+      void vscode.window.showInformationMessage(
+        `Nada que borrar: aún no existe el fichero del subagente "${name}".`
+      );
+      return;
+    }
+
+    const choice = await vscode.window.showWarningMessage(
+      `¿Borrar el subagente "${name}"? Se elimina ${file} del disco y el subagente deja de existir.` +
+        (this.dirty ? " Se pierden los cambios sin guardar." : ""),
+      { modal: true },
+      "Borrar"
+    );
+    if (choice !== "Borrar") {
+      return;
+    }
+
+    try {
+      await deleteAgent(file);
+    } catch (err) {
+      const text = err instanceof Error ? err.message : String(err);
+      this.post({ type: "saved", ok: false, message: `Error al borrar: ${text}` });
+      void vscode.window.showErrorMessage(`No se pudo borrar ${file}: ${text}`);
+      return;
+    }
+
+    this.dirty = false;
+    this.onSaved?.();
+    void vscode.window.setStatusBarMessage(
+      `Claude: borrado ${name}. Claude vigila la carpeta agents y recarga solo.`,
+      6000
+    );
+    this.panel.dispose();
+  }
+
   private async openRaw(): Promise<void> {
     if (this.filePath) {
       const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(this.filePath));
@@ -343,6 +386,7 @@ export class ClaudeAgentPanel {
     </div>
     <div class="head-actions">
       <button id="btn-open-raw" class="secondary" type="button" title="Abrir el .md">Abrir .md</button>
+      <button id="btn-delete" class="secondary danger" type="button" title="Borrar el fichero del subagente">Borrar</button>
       <button id="btn-cancel" class="secondary" type="button">Cerrar</button>
       <button id="btn-save" class="primary" type="button">Guardar</button>
     </div>

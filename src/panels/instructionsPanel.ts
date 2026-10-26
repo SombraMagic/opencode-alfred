@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { AgentsMdFile, readAgentsMd, saveAgentsMd } from "../agents/store";
+import { AgentsMdFile, deleteAgentsMd, readAgentsMd, saveAgentsMd } from "../agents/store";
 import { Scope } from "../agents/types";
 
 /**
@@ -96,6 +96,9 @@ export class InstructionsPanel {
           case "openRaw":
             await this.openRaw();
             break;
+          case "delete":
+            await this.handleDelete();
+            break;
           case "cancel":
             this.panel.dispose();
             break;
@@ -132,6 +135,44 @@ export class InstructionsPanel {
         message: `Error al guardar: ${err instanceof Error ? err.message : String(err)}`,
       });
     }
+  }
+
+  /** Borra el AGENTS.md del disco, avisa al resto de componentes y cierra el panel. */
+  private async handleDelete(): Promise<void> {
+    const label = this.scope === "global" ? "global" : "proyecto";
+    if (!this.data.exists) {
+      void vscode.window.showInformationMessage(
+        `Nada que borrar: aún no existe el fichero ${this.data.file}.`
+      );
+      return;
+    }
+
+    const choice = await vscode.window.showWarningMessage(
+      `¿Borrar el AGENTS.md (${label})? Se elimina ${this.data.file} del disco y se pierde todo su contenido.` +
+        (this.dirty ? " Se pierden los cambios sin guardar." : ""),
+      { modal: true },
+      "Borrar"
+    );
+    if (choice !== "Borrar") {
+      return;
+    }
+
+    try {
+      await deleteAgentsMd(this.scope);
+    } catch (err) {
+      const text = err instanceof Error ? err.message : String(err);
+      this.post({ type: "saved", ok: false, message: `Error al borrar: ${text}` });
+      void vscode.window.showErrorMessage(`No se pudo borrar ${this.data.file}: ${text}`);
+      return;
+    }
+
+    this.dirty = false;
+    this.onSaved?.();
+    void vscode.window.setStatusBarMessage(
+      `opencode: AGENTS.md (${label}) borrado. Reinicia opencode para aplicarlo.`,
+      6000
+    );
+    this.panel.dispose();
   }
 
   private async openRaw(): Promise<void> {
@@ -194,6 +235,7 @@ export class InstructionsPanel {
     </div>
     <div class="head-actions">
       <button id="btn-open-raw" class="secondary" type="button" title="Abrir el AGENTS.md en el editor">Abrir .md</button>
+      <button id="btn-delete" class="secondary danger" type="button" title="Borrar el AGENTS.md">Borrar</button>
       <button id="btn-cancel" class="secondary" type="button">Cerrar</button>
       <button id="btn-save" class="primary" type="button">Guardar</button>
     </div>

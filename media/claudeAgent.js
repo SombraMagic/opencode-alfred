@@ -37,6 +37,7 @@
     issues: $("issues"),
     save: $("btn-save"),
     openRaw: $("btn-open-raw"),
+    delete: $("btn-delete"),
     cancel: $("btn-cancel"),
   };
 
@@ -83,6 +84,8 @@
     el.title.textContent = create ? "Nuevo subagente" : "Editar " + (state.name || "subagente");
     el.subtitle.textContent =
       baseScope() + (!create && state.filePath ? " · " + state.filePath : "");
+    // Sin fichero en disco no hay nada que borrar.
+    el.delete.hidden = !state.filePath;
   }
 
   function baseScope() {
@@ -482,6 +485,7 @@
 
   el.cancel.addEventListener("click", () => vscode.postMessage({ type: "cancel" }));
   el.openRaw.addEventListener("click", () => vscode.postMessage({ type: "openRaw" }));
+  el.delete.addEventListener("click", () => vscode.postMessage({ type: "delete" }));
 
   el.banner.setAttribute("aria-live", "polite");
   el.issues.setAttribute("aria-live", "polite");

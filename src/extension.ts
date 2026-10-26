@@ -1451,7 +1451,13 @@ export function activate(context: vscode.ExtensionContext): void {
   /** Agente de la última carga; sin scope busca primero en el proyecto y luego en el global. */
   function findLoadedAgent(name: string, scope?: Scope | "builtin"): Agent | undefined {
     if (scope === "builtin") {
-      return agentList.builtins.find((a) => a.name === name);
+      // La fila del integrado es SU SOBRESCRITURA cuando existe (project > global): el formulario
+      // edita ese .md y ofrece borrarla. Sin .md, el integrado, que no tiene fichero.
+      return (
+        agentList.project.find((a) => a.name === name) ??
+        agentList.global.find((a) => a.name === name) ??
+        agentList.builtins.find((a) => a.name === name)
+      );
     }
     const groups =
       scope === "global"

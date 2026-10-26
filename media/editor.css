@@ -43,7 +43,11 @@ body {
 .head-actions {
   display: flex;
   gap: 8px;
-  flex-shrink: 0;
+  /* Cuatro botones: hay que dejarles reducirse y comverse, si no desbordan la cabecera en
+     grupos de pestañas estrechos (el `flex-shrink: 0` de antes lo provocaba). */
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* ── Botones ───────────────────────────────────────────── */
@@ -89,6 +93,29 @@ button.secondary {
 button.secondary:hover:not(:disabled) {
   color: var(--neon);
   border-color: var(--neon);
+}
+
+/* Va después de button.secondary: con la misma especificidad gana el orden. */
+button.danger {
+  color: #e05a5a;
+  border-color: #e05a5a;
+}
+
+button.danger:hover:not(:disabled) {
+  color: #ff7b7b;
+  border-color: #ff7b7b;
+  box-shadow: 0 0 8px rgba(224, 90, 90, 0.35);
+}
+
+/* Tema claro: el rojo claro del HUD no contrasta sobre blanco (mismo criterio que .banner.error). */
+body.vscode-light button.danger {
+  color: #b3261e;
+  border-color: #b3261e;
+}
+
+body.vscode-light button.danger:hover:not(:disabled) {
+  color: #8f1d16;
+  border-color: #8f1d16;
 }
 
 button.small {

@@ -824,6 +824,7 @@
     wireModelCombo();
 
     $("btn-open-raw").hidden = !d.filePath;
+    $("btn-delete").hidden = !d.filePath;
     runValidate();
   }
 
@@ -884,6 +885,7 @@
 
     $("btn-cancel").addEventListener("click", () => post({ type: "cancel" }));
     $("btn-open-raw").addEventListener("click", () => post({ type: "openRaw" }));
+    $("btn-delete").addEventListener("click", () => post({ type: "delete" }));
 
     document.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
@@ -920,6 +922,7 @@
             source = "file";
             agentName = input("f-name").value.trim() || agentName;
             $("btn-open-raw").hidden = false;
+            $("btn-delete").hidden = false;
             renderHead();
           }
           runValidate();

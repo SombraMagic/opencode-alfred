@@ -3,13 +3,14 @@ import {
   Agent,
   AgentFrontmatter,
   ALL_PERMISSION_TOOLS,
+  BUILTIN_AGENTS,
   FLAT_PERMISSION_TOOLS,
   OPENCODE_AGENT_COLORS,
   PATTERN_PERMISSION_TOOLS,
   Scope,
 } from "../agents/types";
 import { serializeAgentFile } from "../agents/parser";
-import { findAgent, readConfigInfo, saveAgent } from "../agents/store";
+import { deleteAgent, findAgent, readConfigInfo, saveAgent } from "../agents/store";
 import { validateAgentName, validateFrontmatter, ValidationIssue } from "../agents/validate";
 import { projectRoot } from "../agents/paths";
 
@@ -148,6 +149,9 @@ export class EditorPanel {
           case "cancel":
             this.panel.dispose();
             break;
+          case "delete":
+            await this.handleDelete();
+            break;
           case "openRaw":
             await this.openRaw();
             break;
@@ -243,6 +247,51 @@ export class EditorPanel {
     }
   }
 
+  /** Borra el .md del disco, avisa al resto de componentes y cierra el panel. */
+  private async handleDelete(): Promise<void> {
+    const file = this.init.filePath;
+    const name = this.init.name;
+    if (!file) {
+      void vscode.window.showInformationMessage(
+        `Nada que borrar: aún no existe el fichero del agente "${name}".`
+      );
+      return;
+    }
+
+    // Si el nombre es integrado, el .md era la sobrescritura: al borrarlo vuelve el integrado.
+    const override = (BUILTIN_AGENTS as readonly string[]).includes(name);
+    const question = override
+      ? `¿Borrar la sobrescritura del agente integrado "${name}"? Se elimina ${file} del disco: "${name}" volverá al integrado y conservará su prompt.`
+      : `¿Borrar el agente "${name}"? Se elimina ${file} del disco y el agente deja de existir.`;
+    const choice = await vscode.window.showWarningMessage(
+      question + (this.dirty ? " Se pierden los cambios sin guardar." : ""),
+      { modal: true },
+      "Borrar"
+    );
+    if (choice !== "Borrar") {
+      return;
+    }
+
+    try {
+      await deleteAgent(file);
+    } catch (err) {
+      const text = err instanceof Error ? err.message : String(err);
+      this.post({ type: "saved", ok: false, message: `Error al borrar: ${text}` });
+      void vscode.window.showErrorMessage(`No se pudo borrar ${file}: ${text}`);
+      return;
+    }
+
+    this.dirty = false;
+    this.onSaved?.();
+    void vscode.window.setStatusBarMessage(
+      override
+        ? `opencode agents: borrada la sobrescritura de ${name}; vuelve al integrado y conserva su prompt. opencode v2 recarga los agentes al guardar; si no, /reload.`
+        : `opencode agents: borrado ${name}. opencode v2 recarga los agentes al guardar; si no, /reload.`,
+      6000
+    );
+    this.panel.dispose();
+  }
+
   private async openRaw(): Promise<void> {
     if (this.init.filePath) {
       const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(this.init.filePath));
@@ -290,6 +339,7 @@ export class EditorPanel {
     </div>
     <div class="head-actions">
       <button id="btn-open-raw" class="secondary" type="button" title="Abrir el .md">Abrir .md</button>
+      <button id="btn-delete" class="secondary danger" type="button" title="Borrar el .md del agente">Borrar</button>
       <button id="btn-cancel" class="secondary" type="button">Cerrar</button>
       <button id="btn-save" class="primary" type="button">Guardar</button>
     </div>

@@ -234,6 +234,16 @@ export async function saveAgentsMd(scope: Scope, text: string, eol: "\r\n" | "\n
   return file;
 }
 
+/** Borra el AGENTS.md del scope (el fichero entero, no su contenido). */
+export async function deleteAgentsMd(scope: Scope): Promise<string> {
+  const file = scope === "project" ? projectAgentsMdPath() : globalAgentsMdPath();
+  if (!file) {
+    throw new Error("No hay carpeta de proyecto abierta.");
+  }
+  await fs.rm(file, { force: true });
+  return file;
+}
+
 export async function readConfigInfo(): Promise<OpencodeConfigInfo> {
   const candidates = configFileCandidates();
   const globalDir = globalAgentDirs()[0];

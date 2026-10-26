@@ -101,16 +101,43 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `buildExplorerData(claudeData)`). Tiñen el hex de 6 y los 8 nombres de Claude (`PALETTE` en
   `panel.js` casa `claudeAgent.css:363-370`); los nombres de tema de opencode caen al acento,
   como en el explorador.
-- `main` está a la altura de `origin/main` (0 commits por delante, HEAD `238321c`): la nota vieja
-  de «5 commits pendientes de push» quedó superada cuando la persona los subió. Cambios locales
-  sin commitear: `media/explorer.js`, `media/panel.*`, `MEMORY.md`, `src/extension.ts`,
-  `src/stats/opencodeStats.ts` y los `.md` de `reportes`.
+- `main` = `origin/main` en `e2dffb5` (commiteado y empujado por orden de la persona: plugins
+  autodescubiertos + los cambios pendientes de otros encargos). Sin commitear ahora:
+  el reordenado del Explorador (`media/explorer.*`) y este fichero.
 - Cambios locales de la persona sin commitear: `AGENTS.md` (nota sobre idea.md) e
   `idea.md` (esquemas nuevos al final). No commitearlos salvo orden.
 
 ## Decisiones
 
-- Plugins auto-cargados (reporte 2026-10-26, sin commitear): opencode v2 carga lo inmediato de
+- Botón **BORRAR** en la cabecera de los tres formularios que tienen `Abrir .md / Cerrar / Guardar`
+  (reporte 2026-10-26): `EditorPanel` (agentes opencode), `ClaudeAgentPanel` (subagentes) e
+  `InstructionsPanel` (AGENTS.md global/proyecto). Borra el fichero del disco, llama a `onSaved`
+  (en `extension.ts` es `refresh`: repinta árbol, modelos, stats y panel de voz) y cierra la pestaña.
+  Confirmación modal siempre. Oculto mientras no hay fichero (`filePath` / `data.exists`); sale tras
+  el primer guardado. Un `.md` de nombre integrado borrado = quitar la sobrescritura (el mensaje lo
+  dice). Reutiliza `deleteAgent` de `store.ts`; `deleteAgentsMd(scope)` es nuevo ahí. Rojo `#e05a5a`
+  con variante `body.vscode-light` a `#b3261e` (el criterio de `.banner.error`). **Sin botón** en las
+  instrucciones de Claude/Codex y en los agentes de Codex: abren el editor de texto nativo o son
+  tablas del `config.toml`, no tienen formulario. La cabecera pasa a 4 botones: sin `flex-wrap` por
+  defecto (solo bajo 720 px), así que en un grupo de pestañas estrecho `Borrar` y `Guardar` se
+  salen. Arreglado en la 2ª ronda con `flex-wrap: wrap` en `.head-actions` de `editor.css` y
+  `claudeAgent.css`.
+- **Solo el override, no el sistema** (2ª ronda del mismo reporte, 2026-10-26): `plan`, `build`,
+  `general` y `explore` son integrados SIN fichero: no hay nada que borrar y el botón sigue oculto.
+  Lo que sí se borra es su `.md` de proyecto o global (la sobrescritura). Antes no había forma de
+  llegar a él: `renderAgents` (`media/explorer.js`) mete al integrado con override en la fila del
+  INTEGRADO y `sinIntegrados` descarta la fila de fichero del mismo scope, así que el `.md`
+  **no salía en ningún sitio**. Resuelto en `findLoadedAgent` (`src/extension.ts`): con
+  `scope === "builtin"` devuelve primero el `.md` del proyecto, luego el global y solo si no hay
+  ninguno el integrado. Con esto VER/EDIT del integrado con override abre su `.md` (con `Borrar`)
+  y la sobrescritura puede eliminarse desde la propia fila. Los nombres se casan **exactos**: un
+  `Plan.md` en el proyecto no cases con `plan` (igual que `listAgents`) y su fila queda como fichero
+  normal.
+- Cabecera de los formularios a **4 botones**: `.head-actions` tenía `flex-shrink: 0`, así que en un
+  grupo de pestañas estrecho `Borrar` y `Guardar` desbordaban el contenedor. Ahora `min-width: 0` +
+  `flex-wrap: wrap` + `justify-content: flex-end` en `media/editor.css` y `media/claudeAgent.css`
+  (se comen a una segunda fila en vez de salirse).
+- Plugins auto-cargados (reporte 2026-10-26, commiteado en `e2dffb5`): opencode v2 carga lo inmediato de
   `<globalOpencodeDir()>/plugins/` y `<raíz>/.opencode/plugins/` sin aparecer en la config
   (ficheros `.js`/`.ts` directos y carpetas con `package.json`/`index.*`/`server.*`).
   `loadPlugins` (`catalog.ts`) los descubre con `discovered: true`; las entradas `"-<nombre>"`
@@ -260,10 +287,18 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   (`hooks`, `mcpServers`…) se conservan. El nombre solo admite `[a-z0-9._-]`; la
   descripción es obligatoria. Reiniciar Claude solo si la carpeta `agents` del destino no
   existía al arrancar.
-- Orden del Explorador (2026-10-25): las filas se pintan por `mode` — primarios, luego
-  subagentes, e integrados cerrando la lista (decisión del usuario, «al final, como están»).
-  El reordenado vive en `renderAgents` de `media/explorer.js` (sort estable); el host sigue
-  mandando las listas alfabéticas, así que dentro de cada bloque se conserva el alfabético.
+- Orden del Explorador (2026-10-26, sustituye al de 2026-10-25): cada bloque `<details>` va
+  por su cuenta, SIN subencabezados. PROYECTO: integrados con override en el proyecto →
+  primarios → subagentes. GLOBALES: primarios → integrados (los que no son de proyecto) →
+  subagentes. El reparto y el orden viven en `renderAgents` de `media/explorer.js`
+  (`rankProject`/`rankGlobal`, sort estable con desempate por nombre: el host manda los
+  integrados en orden fijo `build, plan, general, explore`). Con `.md` del integrado en el
+  proyecto, SU FILA es la del integrado (badge ámbar, clase `mode-builtin-project` en
+  `explorer.css`) y la fila de fichero del mismo scope se descarta: antes se pintaban las
+  dos duplicadas. Un integrado sobrescrito en proyecto y global sale una vez en PROYECTO y,
+  en GLOBALES, solo la fila de fichero global con su chip SOMBRA. `agent.mode` NO se toca
+  (va en el `title` del VER): la marca se pasa como `extraClass` a `agentRow`/`fillAgents`.
+  Claude/Codex no se enteran: su fila `CLAUDE` (o `builtin: []`) cae en GLOBALES sin badge.
 - Ecualizador del panel de voz (2026-10-25): el `color:` del `.md` tiñe también el NOMBRE de
   la tarjeta (variable `--agent-color` puesta en la tarjeta en `makeCard`/`renderAgents` de
   `media/panel.js`; los CSS solo leen `var(--agent-color, ...)` en `media/panel.css`). Antes
@@ -369,7 +404,8 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   lee `session_v2`/`session_message`.
 - `README.md` todavía describe solo la extensión de agentes.
 - Desde el explorador ya no se renombran agentes ni se abre la config de un MCP/skill
-  (antes, desde el árbol). `store.ts` conserva `deleteAgent`/`duplicateAgent` sin UI.
+  (antes, desde el árbol). `deleteAgent` volvió a tener UI (botón BORRAR de los formularios);
+  `duplicateAgent` y `renameAgentFile` siguen sin UI.
 - `openAgentFile` resuelve por nombre+scope, así que el `.md` del global sombreado se abre
   desde su fila.
 - Conectores: los formularios con varias condiciones `when` solo usan la primera (hoy no hay

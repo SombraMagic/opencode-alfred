@@ -29,6 +29,7 @@
     );
     $("btn-cancel").addEventListener("click", () => post({ type: "cancel" }));
     $("btn-open-raw").addEventListener("click", () => post({ type: "openRaw" }));
+    $("btn-delete").addEventListener("click", () => post({ type: "delete" }));
 
     document.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
@@ -46,11 +47,16 @@
         $("subtitle").textContent = d.exists
           ? d.file
           : `${d.file} (aún no existe; se creará al guardar)`;
+        $("btn-delete").hidden = !d.exists;
         textarea("f-text").value = d.text || "";
         break;
       }
       case "saved":
         setBanner(message.message, !message.ok);
+        // Tras guardar ya hay fichero en disco: "Borrar" pasa a tener sentido.
+        if (message.ok) {
+          $("btn-delete").hidden = false;
+        }
         break;
     }
   });
