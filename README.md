@@ -1,174 +1,66 @@
-# opencode Agents Editor
+# OpenCode Alfred
 
-Extensión de VS Code para **crear, editar y gestionar agentes y subagentes de
-[opencode](https://opencode.ai)** a nivel **usuario (global)** y a nivel
-**proyecto**, desde una interfaz con formulario en lugar de editar YAML a mano.
+**Tu centro de control de agentes de IA, dentro de VS Code.**
+Gestiona opencode, Claude Code y Codex desde un mismo panel: agentes, MCP, skills,
+plugins, contexto, consumo… y háblale al ordenador, o dítale lo que quieres pedir.
 
-## Características
+Sin editar YAML a mano. Sin cambiar de ventana.
 
-- **Árbol lateral** con tres grupos: `Proyecto`, `Usuario` e `Integrados`
-  (build, plan, general, explore).
-- **Formulario completo**: nombre, `description`, `mode` (primary / subagent /
-  all), `model` (con autocompletado que combina los modelos declarados en tus
-  `opencode.json`, los proveedores autenticados en `auth.json` y el registro
-  `models.dev` que cachea opencode — así aparecen DeepSeek, GitHub Copilot,
-  etc.), `variant`, `temperature`, `top_p`, `steps`, `color` (con selector de
-  color; el icono del agente en el árbol se pinta con él),
-  `hidden`, `disable` y el **prompt**.
-- **Editor de permisos** por herramienta y por patrón (`allow` / `ask` /
-  `deny`), con vista previa del YAML resultante.
-- **Validación** en vivo (nombre, `mode`, `model`, rangos de `temperature`,
-  `top_p`, `steps`, formato de `permission`, campos desconocidos…).
-- **CRUD**: crear, editar, duplicar (entre scopes), renombrar y eliminar.
-- **Overrides de integrados**: crea un `build.md`, etc. para sobreescribir un
-  agente integrado.
-- **Skills y MCP en el árbol**: lista las skills y los servidores MCP globales y
-  de proyecto, con una casilla para **activar/desactivar** cada uno.
-- Detecta **shadowing**: un agente de proyecto con el mismo nombre que uno de
-  usuario se marca como sombreado (gana el de proyecto, por el _deep-merge_ de
-  opencode).
-- Guardado **atómico** de los `.md`.
+---
 
-## Dónde escribe
+## Qué hace
 
-| Scope   | Ruta                                                     |
-| ------- | -------------------------------------------------------- |
-| Usuario | `~/.config/opencode/agent/<nombre>.md`                   |
-| Proyecto| `<proyecto>/.opencode/agent/<nombre>.md`                 |
+- **Agentes con formulario.** Crea, edita, duplica y borra agentes y subagentes de
+  opencode (global o proyecto) sin tocar frontmatter. Permisos por herramienta y por
+  patrón, con vista previa del YAML.
+- **Un explorador para tres CLIs.** opencode, Claude Code y Codex en la misma barra:
+  agentes, MCP, skills y plugins de cada uno, con interruptores para activar y
+  desactivar. Y una terminal por agente, con la sesión que toca.
+- **Contexto bajo control.** Cuánto has gastado de la ventana del modelo, qué parte es
+  prompt fijo, y un botón para compactar antes de que reviente.
+- **Estadísticas de verdad.** Tokens, coste, tiempo y sesiones por agente, leídos en
+  solo lectura de la base de opencode. Y una línea de tiempo por prompt, con sus
+  subagentes en paralelo.
+- **Consumo de proveedores.** Saldo y topes de DeepSeek, OpenAI, GitHub Copilot y
+  OpenCode Go, sin salir del editor.
+- **Voz.** Lee en voz alta lo que selecciones y dicta en un bloc con adjuntos,
+  imágenes, pegar y arrastrar. Cuatro motores de voz y tres de dictado; funciona sin
+  conexión con lo que ya trae Windows.
+- **Pizarra.** Dibuja, pega imágenes y mándalo al prompt como si fuera un adjunto.
 
-(opencode también acepta la carpeta en plural `agents/`; la extensión usa la que
-ya exista y, si no existe, crea `agent/`.)
+Todo en español, en una sola extensión.
 
-El formato es Markdown con **frontmatter YAML**; el **cuerpo del fichero es el
-`prompt`**. No se escribe `prompt:` en el frontmatter.
+## Instalación
 
-## Uso
+Descarga el `.vsix` de [`Instalable/`](Instalable/) y sigue la
+[guía de instalación](Instalable/README.md). Tarda menos de un minuto y no necesita
+compilar nada.
 
-1. Pulsa el icono **opencode Agents** en la barra de actividad.
-2. Usa los botones de la cabecera para **+ agente (primary)** o **+ subagente**,
-   o el menú contextual de cada nodo para editar / duplicar / renombrar /
-   eliminar.
-3. En el formulario, guarda con el botón **Guardar** o `Ctrl/Cmd + S`.
+## Documentación
 
-> opencode **no recarga en caliente** la configuración: tras guardar, **reinicia
-> opencode** para que los cambios surtan efecto.
+| Documento | Qué cuenta |
+| --- | --- |
+| [`Documentacion/ESTADO.md`](Documentacion/ESTADO.md) | En qué punto está el proyecto y qué viene después |
+| [`Documentacion/DESARROLLO.md`](Documentacion/DESARROLLO.md) | Estructura de carpetas, compilar, depurar y empaquetar |
+| [`Codigo_Fuente/README.md`](Codigo_Fuente/README.md) | Guía completa: cada panel, cada ajuste, con detalle |
+| [`Instalable/README.md`](Instalable/README.md) | Instalar el `.vsix` paso a paso |
 
-## Estadísticas de agentes (en vivo)
+## Requisitos
 
-La extensión lee las **bases de datos de opencode** (SQLite, solo lectura: no
-escribe nada) para mostrar, por agente, en el **árbol** y en un **panel**
-dedicado (`opencode: Ver estadísticas de agentes`):
+- VS Code 1.90 o superior.
+- [opencode](https://opencode.ai) instalado si quieres usar el centro de control de
+  agentes (la voz y el dictado funcionan sin él).
+- Windows para la voz y el dictado sin conexión (SAPI). En otros sistemas, los motores
+  en la nube y Whisper siguen disponibles.
 
-- **Qué agente está trabajando ahora mismo**: el nodo del agente gira
-  (icono `sync~spin`) y muestra la etiqueta `working`. Aparece también un grupo
-  **⟳ Trabajando ahora** al principio del árbol. Se detecta a partir de las
-  partes de herramienta en estado `running`/`pending` y de mensajes del
-  asistente sin terminar.
-- **Tokens** (entrada, salida, razonamiento y caché lectura/escritura),
-  **coste**, **tiempo de trabajo** (suma de las duraciones de generación),
-  número de **sesiones** y **mensajes**, y **última actividad**.
-- **Subtotales** por scope (Proyecto / Usuario / Integrados).
+## Invítame a un café
 
-En el panel puedes ordenar por cualquier columna, filtrar por agente y:
+Si esto te ahorra tiempo, puedes invitarme a un café por PayPal. Se agradece, y se
+invierte en seguir puliéndolo.
 
-- **Reiniciar**: guarda un *punto de partida* por agente; el contador vuelve a
-  `0` y sigue sumando a partir de ahí.
-- **Ver histórico**: borra ese punto de partida y muestra el total completo.
-- **Reiniciar todo** / **Ver histórico** (global) para todos los agentes.
+**PayPal:** [sombramagic@gmail.com](https://www.paypal.com/donate/?business=sombramagic%40gmail.com&currency_code=EUR)
 
-Todo se guarda en el `globalState` de la extensión, así que reiniciar es
-persistente entre sesiones de VS Code.
+## Licencia
 
-## Estadísticas de prompts
-
-Junto al botón **Ver estadísticas de agentes** hay otro **Ver estadísticas de
-prompts** (`$(pulse)`), que abre una pestaña aparte con una **línea de tiempo por
-agente** de cada prompt que lanzaste: qué agentes intervinieron (el de la sesión y
-sus subagentes), cuánto trabajó cada uno, los **tokens** (entrada, salida,
-razonamiento y caché), la **duración** y el **coste** (el real que registra
-opencode o, si no lo guardó, estimado con las tarifas de tu `opencode.json` y del
-registro `models.dev`; los estimados se marcan).
-
-- El escaneo **no arranca solo**: el interruptor **MONITORIZAR** está apagado por
-  defecto y se recuerda entre sesiones (`opencodeAgents.promptMonitor`). Con el
-  monitor encendido se van guardando los prompts que se cierran; con el de
-  `watchLive` apagado y el monitor encendido, el sondeo sigue leyendo solo los
-  prompts. Si los dos están apagados no hay temporizador ni consultas.
-- El historial vive en el **almacén global de la extensión**
-  (`globalStorage/prompt-stats.json`), con tope de 500 registros. Las **bases de
-  datos de opencode se abren siempre en estricta lectura**; no se escribe nada en
-  ellas ni en `opencode.json`.
-- **Borrar** limpia el registro (pide confirmación).
-- Por ahora solo mide opencode (esquema `session_v2`): Claude y Codex quedan para
-  después.
-
-## Skills y MCP
-
-El árbol incluye dos secciones nuevas, con las de **nivel global (usuario)** y de
-**proyecto**, y cada elemento tiene una **casilla para activar/desactivar**:
-
-- **MCP**: lee los servidores de `opencode.json`/`.jsonc` (global y de proyecto).
-  Acepta las dos formas (`mcp.<nombre>` y `mcp.servers.<nombre>`). Activar/
-  desactivar escribe `enabled: true/false` en el fichero donde está definido el
-  servidor. Clic en el elemento abre ese fichero.
-- **Skills**: descubre `SKILL.md` en `~/.config/opencode/skills`,
-  `~/.claude/skills`, `~/.agents/skills` y sus equivalentes del proyecto
-  (subiendo hasta la raíz del repo), además de las rutas de `skills.paths` y de
-  las que traen los **plugins** del caché de opencode. Activar/desactivar escribe
-  `permission.skill.<nombre>` (`allow`/`deny`) en el config del scope
-  correspondiente. Clic en el elemento abre el `SKILL.md`.
-
-Las ediciones preservan comentarios y formato (se hacen con `jsonc-parser`). Tras
-cambiar algo, **reinicia opencode** para que surta efecto.
-
-## Ajustes
-
-- `opencodeAgents.globalConfigDir`: ruta al directorio global de opencode
-  (por defecto `~/.config/opencode`).
-- `opencodeAgents.defaultModel`: modelo con el que se pre-rellenan los agentes
-  nuevos (`provider/model-id`).
-- `opencodeAgents.showBuiltins`: mostrar/ocultar los integrados.
-- `opencodeAgents.schemaUrl`: URL del JSON Schema de referencia.
-- `opencodeAgents.dataDir`: directorio de datos de opencode donde están
-  `opencode.db` / `opencode-dev.db` (por defecto `~/.local/share/opencode`).
-- `opencodeAgents.watchLive`: activar el seguimiento en vivo (por defecto `true`).
-- `opencodeAgents.liveIntervalMs`: intervalo de sondeo en ms (por defecto `2000`).
-- `opencodeAgents.modelsCachePath`: ruta al registro de modelos de opencode
-  (por defecto `~/.cache/opencode/models.json`).
-- `opencodeAgents.showAllProviders`: incluir también el resto de proveedores del
-  registro `models.dev` en el selector de modelos (por defecto `false`: solo los
-  configurados en `opencode.json` y los autenticados en `auth.json`). El selector
-  es buscable y muestra los configurados primero.
-
-## Desarrollo
-
-```bash
-npm install
-npm run compile     # build único
-npm run watch       # build continuo
-npm run typecheck   # tsc --noEmit
-```
-
-Pulsa `F5` en VS Code (configuración **Run Extension** de `.vscode/launch.json`)
-para abrir una ventana *Extension Development Host*.
-
-## Empaquetar
-
-```bash
-npx @vscode/vsce package
-```
-
-Genera un `.vsix` instalable con `code --install-extension opencode-agents-editor-*.vsix`.
-
-## Instalación desde el .vsix (para pruebas)
-
-Consigue el fichero `opencode-agents-editor-0.1.2.vsix` e instálalo de una de estas dos formas:
-
-- En VS Code, abre el panel **Extensiones** → menú `...` → **Install from VSIX...** y elige el fichero.
-- O desde una terminal: `code --install-extension opencode-agents-editor-0.1.2.vsix`.
-
-Después **recarga la ventana** de VS Code (paleta de comandos → *Developer: Reload Window*).
-
-Requisitos: tener **opencode** instalado. Las estadísticas en vivo necesitan un VS Code con Node 22.5+; en hosts más antiguos la extensión funciona igual, pero las estadísticas degradan solas sin romper nada.
-
-
+MIT. Haz lo que quieras con ello; solo pido que conserves el aviso de copyright.
+Ver [LICENSE](LICENSE).

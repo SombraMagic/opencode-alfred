@@ -1,5 +1,18 @@
+# Dependencias y build
 node_modules/
 dist/
 *.vsix
+# el paquete que se publica para instalar sí viaja
+!Instalable/*.vsix
 .vscode-test/
+
+# Datos de trabajo de la extensión (adjuntos del dictado, pizarra)
 .alfred/
+
+# Herramientas y notas internas: no se publican
+.vscode/
+.opencode/
+.claude/
+AGENTS.md
+CLAUDE.md
+MEMORY.md
