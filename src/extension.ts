@@ -2365,23 +2365,26 @@ export function deactivate(): void {
 }
 
 /**
- * Abre `idea.md` de la raíz del proyecto en un editor normal. Si no existe, se
- * pide confirmación y se crea vacío: aquí no se le inventa contenido.
+ * Abre `.alfred/idea.md` del proyecto en un editor normal. Si no existe, se
+ * pide confirmación y se crea vacío: aquí no se le inventa contenido. El
+ * `idea.md` de la raíz se ignora por completo: no se lee, ni migra, ni borra.
  */
 async function openIdea(): Promise<void> {
   const root = projectRoot();
   if (!root) {
-    await vscode.window.showWarningMessage("No hay ningún proyecto abierto: no hay idea.md que abrir.");
+    await vscode.window.showWarningMessage(
+      "No hay ningún proyecto abierto: no hay .alfred/idea.md que abrir."
+    );
     return;
   }
-  const file = path.join(root, "idea.md");
+  const file = path.join(root, ".alfred", "idea.md");
   if (existsSync(file)) {
     await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(file));
     return;
   }
   const crear = "Crear idea.md";
   const choice = await vscode.window.showWarningMessage(
-    "El proyecto no tiene idea.md.",
+    "El proyecto no tiene .alfred/idea.md.",
     { modal: true },
     crear
   );
@@ -2393,7 +2396,7 @@ async function openIdea(): Promise<void> {
     if (!existsSync(file)) await writeAtomic(file, "");
   } catch (err) {
     void vscode.window.showErrorMessage(
-      `No se pudo crear idea.md: ${err instanceof Error ? err.message : String(err)}`
+      `No se pudo crear .alfred/idea.md: ${err instanceof Error ? err.message : String(err)}`
     );
     return;
   }
