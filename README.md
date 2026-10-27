@@ -58,7 +58,7 @@ compilar nada.
 Si esto te ahorra tiempo, puedes invitarme a un café por PayPal. Se agradece, y se
 invierte en seguir puliéndolo.
 
-**PayPal:** [sombramagic@gmail.com](https://www.paypal.com/donate/?business=sombramagic%40gmail.com&currency_code=EUR)
+**PayPal:** [paypal.me/sombrawandax](https://www.paypal.com/paypalme/sombrawandax)
 
 ## Licencia
 

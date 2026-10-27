@@ -62,6 +62,6 @@ bases de datos.
 
 ## ¿Te ha servido?
 
-Invítame a un café por PayPal: [sombramagic@gmail.com](https://www.paypal.com/donate/?business=sombramagic%40gmail.com&currency_code=EUR)
+Invítame a un café por PayPal: [paypal.me/sombrawandax](https://www.paypal.com/paypalme/sombrawandax)
 
 Licencia MIT. Ver [../LICENSE](../LICENSE).
