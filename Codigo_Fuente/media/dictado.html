@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%';" />
+<!--CSS-->
+</head>
+<body>
+  <div class="dict">
+    <section class="col note">
+      <div class="col-title">BLOC DE NOTAS</div>
+      <div id="nota" contenteditable="true" role="textbox" aria-label="Bloc de notas" aria-multiline="true" spellcheck="false" data-placeholder="Pulsa y mantén el micrófono, o escribe aquí…"></div>
+      <div class="note-foot">
+        <span id="count">0 palabras · 0 caracteres</span>
+        <span class="note-tip">Ctrl+V imágenes · arrastra con Mayús</span>
+        <button class="ghost-btn" id="subir-pizarra" type="button" title="Pegar la pizarra en el bloc" aria-label="Pegar la pizarra en el bloc">
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+            <path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button class="ghost-btn" id="abrir-pizarra" type="button" title="Abrir la pizarra" aria-label="Abrir la pizarra">
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+            <rect x="4" y="4.5" width="16" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.6" />
+            <path d="M12 15.5v4M8.5 19.5h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button class="ghost-btn" id="idea" type="button" title="Abrir idea.md del proyecto" aria-label="Abrir idea.md del proyecto">
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+            <path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6V17h5.4v-1.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3ZM9.5 20h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button class="ghost-btn" id="attach" type="button" title="Elegir ficheros para adjuntar">ADJUNTAR</button>
+        <button class="ghost-btn" id="clear">LIMPIAR</button>
+      </div>
+    </section>
+
+    <section class="col config" id="config">
+      <button class="col-title config-toggle" id="config-toggle" type="button" aria-expanded="true" title="Plegar configuración">CONFIGURACIÓN<span class="chev" aria-hidden="true">‹</span></button>
+      <div class="config-body">
+
+      <label class="field"><span class="field-label">MOTOR</span><select id="engine"></select></label>
+      <div class="hint" id="engine-hint"></div>
+
+      <label class="field"><span class="field-label">IDIOMA</span><select id="language"></select></label>
+
+      <div class="row2">
+        <button class="ghost-btn noise" id="denoise" aria-pressed="true" title="Quita retumbe y siseo del micrófono antes de transcribir">
+          <span class="hf-dot"></span>FILTRAR
+        </button>
+        <button class="ghost-btn noise" id="lock-floor" aria-pressed="false" title="Fija el fondo medido para que no se mueva solo">
+          <span class="hf-dot"></span><span id="lock-label">FIJAR</span>
+        </button>
+      </div>
+      <label class="field">
+        <span class="field-label">TOLERANCIA <i id="tolerance-value">+6 dB</i></span>
+        <input id="tolerance" type="range" min="0" max="18" step="1" value="6" />
+      </label>
+      <div class="hint" id="floor">Fondo sin medir todavía.</div>
+
+      <div class="field" id="whisper-row">
+        <span class="field-label">MODELO WHISPER
+          <button class="mini" id="install-whisper" type="button" title="Descarga e instala Whisper (una sola vez)">PREPARAR</button>
+        </span>
+        <select id="whisper-model"></select>
+      </div>
+
+      <label class="field" id="cloud-url-row"><span class="field-label">URL DE LA API</span><input id="cloud-url" type="text" spellcheck="false" title="Cualquier API compatible con OpenAI" placeholder="https://api.openai.com/v1/audio/transcriptions" /></label>
+      <label class="field" id="cloud-row"><span class="field-label">MODELO NUBE</span><input id="cloud-model" type="text" /></label>
+      <div class="field" id="key-row">
+        <span class="field-label">CLAVE API <i id="key-state"></i></span>
+        <div class="inline">
+          <input id="key" type="password" placeholder="sk-…" />
+          <button class="ghost-btn" id="save-key" type="button">GUARDAR</button>
+        </div>
+      </div>
+      </div>
+    </section>
+
+    <section class="col controls">
+      <div class="col-title">CONTROLES</div>
+      <div class="mic-row">
+        <button id="mic" class="mic" title="Mantén pulsado para dictar" aria-label="Mantener pulsado para dictar">
+          <svg viewBox="0 0 24 24" width="32" height="32" aria-hidden="true">
+            <rect x="9" y="2.5" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6" />
+            <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+          <span class="mic-ring"></span>
+        </button>
+        <button class="hf-switch" id="hands-free" type="button" role="switch" aria-checked="false" title="Un clic para escuchar; otro para parar">
+          <span class="hf-label">MANOS LIBRES</span>
+          <span class="hf-track" aria-hidden="true"><span class="hf-knob"></span></span>
+        </button>
+      </div>
+      <div class="level"><i id="level-bar"></i></div>
+      <div class="state" id="state">EN ESPERA</div>
+      <div class="state-hint" id="state-hint">Mantén el micrófono, o activa MANOS LIBRES</div>
+      <button class="speak-btn" id="send"><span class="speak-glyph">▶</span>ENVIAR PROMPT</button>
+      <div class="hint" id="send-hint">Al terminal activo, con Enter</div>
+    </section>
+  </div>
+  <!--SCRIPT-->
+</body>
+</html>

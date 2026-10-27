@@ -1,0 +1,504 @@
+import * as vscode from "vscode";
+import {
+  Agent,
+  AgentFrontmatter,
+  ALL_PERMISSION_TOOLS,
+  BUILTIN_AGENTS,
+  FLAT_PERMISSION_TOOLS,
+  OPENCODE_AGENT_COLORS,
+  PATTERN_PERMISSION_TOOLS,
+  Scope,
+} from "../agents/types";
+import { serializeAgentFile } from "../agents/parser";
+import { deleteAgent, findAgent, readConfigInfo, saveAgent } from "../agents/store";
+import { validateAgentName, validateFrontmatter, ValidationIssue } from "../agents/validate";
+import { projectRoot } from "../agents/paths";
+
+interface EditorInit {
+  mode: "create" | "edit";
+  name: string;
+  scope: Scope;
+  targetScope: Scope;
+  canRename: boolean;
+  source: string;
+  filePath?: string;
+  frontmatter: AgentFrontmatter;
+  prompt: string;
+  /** Vista previa del .md calculada con el mismo serializador que usa saveAgent. */
+  preview: string;
+  models: { id: string; name: string }[];
+  allTools: readonly string[];
+  flatTools: readonly string[];
+  patternTools: readonly string[];
+  themeColors: readonly string[];
+  schemaUrl: string;
+  hasProject: boolean;
+}
+
+/** Preview del fichero tal como lo escribiría saveAgent; vacío si el YAML falla. */
+function previewOf(frontmatter: AgentFrontmatter): string {
+  try {
+    return serializeAgentFile(frontmatter, "");
+  } catch {
+    return "";
+  }
+}
+
+export class EditorPanel {
+  public static current: EditorPanel | undefined;
+  private static readonly viewType = "opencodeAgents.editor";
+
+  private readonly panel: vscode.WebviewPanel;
+  private readonly extensionUri: vscode.Uri;
+  private readonly disposables: vscode.Disposable[] = [];
+  private init: EditorInit;
+  private onSaved?: () => void;
+  /** Ids de modelo conocidos; se calcula aquí para no recibirlos del webview en cada tecla. */
+  private readonly knownModels: Set<string>;
+  dirty = false;
+
+  static async open(
+    context: vscode.ExtensionContext,
+    agent: Agent,
+    opts: { mode: "create" | "edit"; onSaved?: () => void }
+  ): Promise<void> {
+    const column = vscode.ViewColumn.Beside;
+
+    if (EditorPanel.current?.dirty) {
+      const choice = await vscode.window.showWarningMessage(
+        `Hay cambios sin guardar en "${EditorPanel.current.init.name}". ¿Descartarlos?`,
+        { modal: true },
+        "Descartar"
+      );
+      if (choice !== "Descartar") {
+        return;
+      }
+    }
+    if (EditorPanel.current) {
+      EditorPanel.current.panel.dispose();
+    }
+
+    const config = await readConfigInfo();
+    const targetScope: Scope = agent.scope;
+    const hasProject = !!projectRoot();
+
+    const init: EditorInit = {
+      mode: opts.mode,
+      name: agent.name,
+      scope: agent.scope,
+      targetScope,
+      canRename: opts.mode === "edit" && agent.source === "file",
+      source: agent.source,
+      filePath: agent.filePath,
+      frontmatter: agent.frontmatter,
+      prompt: agent.prompt,
+      preview: previewOf(agent.frontmatter),
+      models: config.models.map((m) => ({ id: m.id, name: m.name })),
+      allTools: ALL_PERMISSION_TOOLS,
+      flatTools: FLAT_PERMISSION_TOOLS,
+      patternTools: PATTERN_PERMISSION_TOOLS,
+      themeColors: OPENCODE_AGENT_COLORS,
+      schemaUrl: vscode.workspace
+        .getConfiguration("opencodeAgents")
+        .get<string>("schemaUrl", "https://opencode.ai/config.json"),
+      hasProject,
+    };
+
+    const panel = vscode.window.createWebviewPanel(
+      EditorPanel.viewType,
+      opts.mode === "create" ? `Nuevo agente: ${agent.name}` : `Editar: ${agent.name}`,
+      column,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media")],
+      }
+    );
+
+    EditorPanel.current = new EditorPanel(panel, context.extensionUri, init, opts.onSaved);
+  }
+
+  private constructor(
+    panel: vscode.WebviewPanel,
+    extensionUri: vscode.Uri,
+    init: EditorInit,
+    onSaved?: () => void
+  ) {
+    this.panel = panel;
+    this.extensionUri = extensionUri;
+    this.init = init;
+    this.onSaved = onSaved;
+    this.knownModels = new Set(init.models.map((m) => m.id));
+
+    this.panel.webview.html = this.getHtml(this.panel.webview, init.name);
+
+    this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
+
+    this.panel.webview.onDidReceiveMessage(
+      async (message) => {
+        switch (message.type) {
+          case "ready":
+            this.post({ type: "init", payload: this.init });
+            break;
+          case "validate":
+            this.handleValidate(message.payload);
+            break;
+          case "save":
+            await this.handleSave(message.payload);
+            break;
+          case "cancel":
+            this.panel.dispose();
+            break;
+          case "delete":
+            await this.handleDelete();
+            break;
+          case "openRaw":
+            await this.openRaw();
+            break;
+          case "dirty":
+            this.dirty = !!message.value;
+            break;
+        }
+      },
+      null,
+      this.disposables
+    );
+  }
+
+  private post(message: unknown): void {
+    void this.panel.webview.postMessage(message);
+  }
+
+  private computeIssues(payload: {
+    name: string;
+    frontmatter: AgentFrontmatter;
+  }): ValidationIssue[] {
+    const issues: ValidationIssue[] = [];
+    if (this.init.mode === "create" || this.init.canRename) {
+      issues.push(...validateAgentName(payload.name));
+    }
+    issues.push(...validateFrontmatter(payload.frontmatter, this.knownModels));
+    return issues;
+  }
+
+  private handleValidate(payload: { name: string; frontmatter: AgentFrontmatter }): void {
+    const issues = this.computeIssues(payload);
+    this.post({ type: "validation", issues, preview: previewOf(payload.frontmatter) });
+  }
+
+  private async handleSave(payload: {
+    name: string;
+    targetScope: Scope;
+    frontmatter: AgentFrontmatter;
+    prompt: string;
+  }): Promise<void> {
+    const issues = this.computeIssues(payload).filter((i) => i.level === "error");
+    if (issues.length > 0) {
+      this.post({
+        type: "saved",
+        ok: false,
+        message: `No se puede guardar: ${issues.map((i) => i.message).join(" ")}`,
+      });
+      return;
+    }
+
+    // Renombrar escribe un fichero nuevo: no debe machacar el de otro agente.
+    if (payload.name !== this.init.name) {
+      const clash = await findAgent(payload.name, payload.targetScope);
+      if (clash && clash.filePath !== this.init.filePath) {
+        this.post({
+          type: "saved",
+          ok: false,
+          message: `Ya existe un agente "${payload.name}" en ese scope.`,
+        });
+        return;
+      }
+    }
+
+    try {
+      const file = await saveAgent(
+        payload.targetScope,
+        payload.name,
+        payload.frontmatter,
+        payload.prompt,
+        this.init.filePath
+      );
+      this.init.filePath = file;
+      this.init.name = payload.name;
+      this.init.source = "file";
+      this.dirty = false;
+      this.post({
+        type: "saved",
+        ok: true,
+        message: `Guardado: ${file}`,
+        file,
+      });
+      this.onSaved?.();
+      void vscode.window.setStatusBarMessage(
+        `opencode agents: guardado ${payload.name}. opencode v2 recarga los agentes al guardar; si no, /reload.`,
+        6000
+      );
+    } catch (err) {
+      this.post({
+        type: "saved",
+        ok: false,
+        message: `Error al guardar: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
+
+  /** Borra el .md del disco, avisa al resto de componentes y cierra el panel. */
+  private async handleDelete(): Promise<void> {
+    const file = this.init.filePath;
+    const name = this.init.name;
+    if (!file) {
+      void vscode.window.showInformationMessage(
+        `Nada que borrar: aún no existe el fichero del agente "${name}".`
+      );
+      return;
+    }
+
+    // Si el nombre es integrado, el .md era la sobrescritura: al borrarlo vuelve el integrado.
+    const override = (BUILTIN_AGENTS as readonly string[]).includes(name);
+    const question = override
+      ? `¿Borrar la sobrescritura del agente integrado "${name}"? Se elimina ${file} del disco: "${name}" volverá al integrado y conservará su prompt.`
+      : `¿Borrar el agente "${name}"? Se elimina ${file} del disco y el agente deja de existir.`;
+    const choice = await vscode.window.showWarningMessage(
+      question + (this.dirty ? " Se pierden los cambios sin guardar." : ""),
+      { modal: true },
+      "Borrar"
+    );
+    if (choice !== "Borrar") {
+      return;
+    }
+
+    try {
+      await deleteAgent(file);
+    } catch (err) {
+      const text = err instanceof Error ? err.message : String(err);
+      this.post({ type: "saved", ok: false, message: `Error al borrar: ${text}` });
+      void vscode.window.showErrorMessage(`No se pudo borrar ${file}: ${text}`);
+      return;
+    }
+
+    this.dirty = false;
+    this.onSaved?.();
+    void vscode.window.setStatusBarMessage(
+      override
+        ? `opencode agents: borrada la sobrescritura de ${name}; vuelve al integrado y conserva su prompt. opencode v2 recarga los agentes al guardar; si no, /reload.`
+        : `opencode agents: borrado ${name}. opencode v2 recarga los agentes al guardar; si no, /reload.`,
+      6000
+    );
+    this.panel.dispose();
+  }
+
+  private async openRaw(): Promise<void> {
+    if (this.init.filePath) {
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(this.init.filePath));
+      await vscode.window.showTextDocument(doc, { preview: false });
+      return;
+    }
+    void vscode.window.showInformationMessage("Guarda primero el agente para ver el fichero .md.");
+  }
+
+  private getHtml(webview: vscode.Webview, name: string): string {
+    const nonce = getNonce();
+    const tokensUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
+    );
+    const styleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "editor.css")
+    );
+    const mdStyleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "mdEditor.css")
+    );
+    const mdScriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "mdEditor.js")
+    );
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "editor.js")
+    );
+    const csp = [
+      `default-src 'none'`,
+      `img-src ${webview.cspSource} data:`,
+      `style-src ${webview.cspSource}`,
+      `script-src 'nonce-${nonce}'`,
+      `font-src ${webview.cspSource}`,
+    ].join("; ");
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="${csp}" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="${tokensUri}" rel="stylesheet" />
+<link href="${styleUri}" rel="stylesheet" />
+<link href="${mdStyleUri}" rel="stylesheet" />
+<title>Editor de agente</title>
+</head>
+<body>
+<div id="app" data-name="${escapeHtml(name)}">
+  <header class="head">
+    <div>
+      <h1 id="title">Editor de agente</h1>
+      <p class="sub" id="subtitle"></p>
+    </div>
+    <div class="head-actions">
+      <button id="btn-open-raw" class="secondary" type="button" title="Abrir el .md">Abrir .md</button>
+      <button id="btn-delete" class="secondary danger" type="button" title="Borrar el .md del agente">Borrar</button>
+      <button id="btn-cancel" class="secondary" type="button">Cerrar</button>
+      <button id="btn-save" class="primary" type="button">Guardar</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main class="grid">
+    <section class="card span-2">
+      <h2>Identidad</h2>
+      <div class="row">
+        <label>Nombre (fichero)
+          <input id="f-name" type="text" placeholder="mi-agente" spellcheck="false" autocomplete="off" />
+        </label>
+        <label>Scope de destino
+          <select id="f-scope">
+            <option value="project">PROYECTO (.opencode/agent)</option>
+            <option value="global">USUARIO (~/.config/opencode/agent)</option>
+          </select>
+        </label>
+        <label>Tipo (mode)
+          <select id="f-mode">
+            <option value="">(por defecto)</option>
+            <option value="primary">primary</option>
+            <option value="subagent">subagent</option>
+            <option value="all">all</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">Tipo (mode) omitido = all.</p>
+      <label class="block">Descripción
+        <textarea id="f-description" rows="2" placeholder="Qué hace y cuándo usarlo."></textarea>
+      </label>
+      <p class="hint">Un subagente sin description es difícil de descubrir.</p>
+    </section>
+
+    <section class="card span-2">
+      <h2>Modelo</h2>
+      <div class="row">
+        <div class="model-col">
+          <label class="model-label" for="f-model">Modelo (provider/model-id)</label>
+          <!-- El popup no puede colgar de un <label>: ver el comentario de .combo en editor.css. -->
+          <div class="combo">
+            <input id="f-model" type="text" autocomplete="off" spellcheck="false" placeholder="busca provider/model-id…" role="combobox" aria-expanded="false" aria-controls="model-popup" aria-autocomplete="list" />
+            <div id="model-popup" class="combo-popup" role="listbox" aria-label="Modelos disponibles" hidden></div>
+          </div>
+        </div>
+        <label>variant
+          <input id="f-variant" type="text" spellcheck="false" placeholder="(opcional)" />
+        </label>
+      </div>
+      <p class="hint" id="model-hint"></p>
+    </section>
+
+    <section class="card span-2">
+      <h2>Permisos</h2>
+      <p class="hint">En los mapas con patrón gana la <strong>ÚLTIMA</strong> regla que coincide: pon lo amplio (*) primero y lo concreto después.</p>
+      <div id="perm-tools"></div>
+      <h3>Otras reglas</h3>
+      <p class="hint">Las claves de permission se casan como comodines contra el nombre de la tool: vale para MCP (<code>mymcp_*</code>) y tools propias.</p>
+      <div id="perm-extra"></div>
+      <button id="btn-add-perm" class="secondary small" type="button">+ Añadir</button>
+    </section>
+
+    <section class="card span-2">
+      <h2>Apariencia</h2>
+      <div id="colors" class="chips"></div>
+      <div class="row">
+        <label class="color-pick">Color personalizado
+          <input id="f-color" type="color" />
+        </label>
+        <button id="btn-clear-color" class="secondary small" type="button">Quitar color</button>
+      </div>
+      <p class="hint" id="color-hint"></p>
+      <div class="row">
+        <label class="check"><input id="f-hidden" type="checkbox" /> hidden</label>
+        <label class="check"><input id="f-disable" type="checkbox" /> disable</label>
+      </div>
+      <p class="hint">hidden: solo afecta al autocompletado @ de subagentes. disable: desactiva el agente.</p>
+    </section>
+
+    <section class="card span-2">
+      <details class="advanced">
+        <summary>Avanzado</summary>
+        <div class="row">
+          <label>temperature
+            <input id="f-temperature" type="number" step="0.05" min="0" max="2" placeholder="(opcional)" />
+          </label>
+          <label>top_p
+            <input id="f-top_p" type="number" step="0.05" min="0" max="1" placeholder="(opcional)" />
+          </label>
+          <label>steps
+            <input id="f-steps" type="number" step="1" min="1" placeholder="(opcional)" />
+          </label>
+        </div>
+        <p class="hint">steps sustituye al deprecado maxSteps.</p>
+        <h3>Opciones del proveedor</h3>
+        <p class="hint">Las claves del frontmatter que no están en la lista conocida se pasan al proveedor del modelo tal cual (reasoningEffort, textVerbosity…). <code>options</code> viaja intacto.</p>
+        <div id="option-rows"></div>
+        <button id="btn-add-option" class="secondary small" type="button">+ Añadir opción</button>
+      </details>
+    </section>
+
+    <section class="card span-2">
+      <h2>Prompt (system prompt)</h2>
+      <p class="hint">El cuerpo del fichero ES el prompt: no se escribe ninguna clave <code>prompt:</code>.</p>
+      <textarea id="f-prompt" class="prompt" rows="18" spellcheck="false" placeholder="Eres un..."></textarea>
+      <p class="hint" id="prompt-count"></p>
+    </section>
+
+    <section class="card span-2">
+      <h2>Vista previa</h2>
+      <p class="hint">Tal cual se escribirá el frontmatter.</p>
+      <pre id="preview" class="preview"></pre>
+    </section>
+
+    <section class="card span-2">
+      <h2>Validación</h2>
+      <ul id="issues" class="issues"><li class="ok">Sin problemas.</li></ul>
+      <p class="hint">Esquema de referencia: <a href="${escapeHtml(this.init.schemaUrl)}" id="schema-link">${escapeHtml(this.init.schemaUrl)}</a>. opencode v2 recarga los agentes al guardar; si no lo ves, usa <code>/reload</code> o reinicia opencode.</p>
+    </section>
+  </main>
+</div>
+<script nonce="${nonce}" src="${mdScriptUri}"></script>
+<script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+  }
+
+  private dispose(): void {
+    EditorPanel.current = undefined;
+    this.panel.dispose();
+    while (this.disposables.length) {
+      const d = this.disposables.pop();
+      d?.dispose();
+    }
+  }
+}
+
+function getNonce(): string {
+  let text = "";
+  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}

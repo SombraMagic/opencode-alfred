@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
+<link href="%%TOKENS%%" rel="stylesheet" />
+<link href="%%STYLE%%" rel="stylesheet" />
+<title>Asignar agentes a modelos</title>
+</head>
+<body>
+  <div class="assign">
+    <header class="assign-head">
+      <div class="assign-title">
+        <span class="assign-kicker">ASIGNACIÓN</span>
+        <span class="assign-sub" id="sub">Agentes a modelos</span>
+      </div>
+      <input id="search" class="assign-search" type="search" placeholder="Buscar modelo…" autocomplete="off" spellcheck="false" aria-label="Buscar modelo" />
+      <div id="providers" class="providers" role="group" aria-label="Filtrar por conector"></div>
+      <button id="close" class="ghost-btn" type="button">CERRAR</button>
+    </header>
+
+    <main class="board">
+      <section class="col col-agents">
+        <h2 class="col-title">AGENTES <span class="count" id="agents-count"></span></h2>
+        <div id="agents" class="cards scroll"></div>
+      </section>
+
+      <section class="col col-fav">
+        <h2 class="col-title">FAVORITOS <span class="count" id="fav-count"></span></h2>
+        <div id="groups" class="groups" role="tablist" aria-label="Grupos de favoritos"></div>
+        <div id="favorites" class="cards scroll"></div>
+      </section>
+
+      <section class="col col-all">
+        <h2 class="col-title">MODELOS <span class="count" id="models-count"></span></h2>
+        <div id="models" class="cards scroll"></div>
+      </section>
+    </main>
+
+    <svg id="wires" class="wires" aria-hidden="true"></svg>
+
+    <div id="hint" class="hint">Arrastra un modelo a FAVORITOS; arrastra un agente hasta un favorito para conectarlo. Doble clic en una pestaña para renombrarla.</div>
+
+    <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
+      <div class="modal-box">
+        <div class="modal-title" id="modal-title">Borrar grupo</div>
+        <p class="modal-text" id="modal-text"></p>
+        <div class="modal-actions">
+          <button id="modal-cancel" class="ghost-btn" type="button">CANCELAR</button>
+          <button id="modal-ok" class="ghost-btn danger" type="button">BORRAR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+<script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
+</body>
+</html>

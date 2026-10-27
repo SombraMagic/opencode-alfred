@@ -1,0 +1,581 @@
+/* Editor de agentes de opencode — mismo lenguaje visual que claudeAgent.css.
+   Usa media/tokens.css (los paneles lo enlazan antes que esta hoja). */
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  padding: 0 16px 32px;
+}
+
+/* ── Cabecera ──────────────────────────────────────────── */
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.head h1 {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--neon);
+  text-shadow: 0 0 10px var(--neon-dim);
+}
+
+.sub {
+  margin: 4px 0 0;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.head-actions {
+  display: flex;
+  gap: 8px;
+  /* Cuatro botones: hay que dejarles reducirse y comverse, si no desbordan la cabecera en
+     grupos de pestañas estrechos (el `flex-shrink: 0` de antes lo provocaba). */
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ── Botones ───────────────────────────────────────────── */
+button {
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+button:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
+}
+
+button.primary {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--bg);
+}
+
+button.primary:hover:not(:disabled) {
+  background: transparent;
+  color: var(--neon);
+  box-shadow: 0 0 10px var(--neon-dim);
+}
+
+button.secondary {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+}
+
+button.secondary:hover:not(:disabled) {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+/* Va después de button.secondary: con la misma especificidad gana el orden. */
+button.danger {
+  color: #e05a5a;
+  border-color: #e05a5a;
+}
+
+button.danger:hover:not(:disabled) {
+  color: #ff7b7b;
+  border-color: #ff7b7b;
+  box-shadow: 0 0 8px rgba(224, 90, 90, 0.35);
+}
+
+/* Tema claro: el rojo claro del HUD no contrasta sobre blanco (mismo criterio que .banner.error). */
+body.vscode-light button.danger {
+  color: #b3261e;
+  border-color: #b3261e;
+}
+
+body.vscode-light button.danger:hover:not(:disabled) {
+  color: #8f1d16;
+  border-color: #8f1d16;
+}
+
+button.small {
+  padding: 4px 8px;
+  font-size: 9px;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Banner ────────────────────────────────────────────── */
+.banner {
+  margin: 12px 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line-soft);
+  border-left-width: 3px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.banner[hidden] {
+  display: none;
+}
+
+.banner.ok {
+  border-left-color: var(--green);
+  color: var(--green);
+  background: var(--line-soft);
+}
+
+.banner.error {
+  border-left-color: #e05a5a;
+  color: #e05a5a;
+  background: var(--line-soft);
+}
+
+/* ── Rejilla y tarjetas ────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.card {
+  border: 1px solid var(--line-soft);
+  background: var(--bg-soft);
+  padding: 11px 13px;
+}
+
+.span-2 {
+  grid-column: 1 / -1;
+}
+
+.card h2 {
+  margin: 0 0 9px;
+  font-size: 9.5px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.card h3 {
+  margin: 14px 0 6px;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ── Campos ────────────────────────────────────────────── */
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+}
+
+label.block {
+  margin-top: 9px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.row > label {
+  flex: 1 1 160px;
+  min-width: 140px;
+}
+
+.row > label.check,
+.row > label.color-pick {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin-top: 6px;
+}
+
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 11px;
+}
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid var(--line-soft);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 1px solid var(--neon);
+  outline-offset: -1px;
+  border-color: var(--neon-dim);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--neon);
+  margin: 0;
+}
+
+input[type="color"] {
+  height: 30px;
+  width: 56px;
+  padding: 2px;
+  cursor: pointer;
+  border: 1px solid var(--line-soft);
+  background: var(--bg);
+}
+
+input:disabled,
+select:disabled {
+  opacity: 0.5;
+}
+
+.hint {
+  margin: 4px 0 10px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.hint code {
+  padding: 1px 4px;
+  background: var(--line-soft);
+  color: var(--text);
+}
+
+.hint a {
+  color: var(--neon);
+}
+
+#prompt-count {
+  margin: 4px 0 0;
+}
+
+/* ── Combo de modelos ──────────────────────────────────── */
+/* El popup NO puede colgar de un elemento con opacity < 1: crea contexto de
+   apilamiento y el desplegable queda semitransparente y por debajo. Por eso el
+   combo va fuera del <label> y con z-index propio, bajo la cabecera sticky (6). */
+.row > .model-col {
+  flex: 2 1 260px;
+  min-width: 180px;
+}
+
+.model-label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+}
+
+.combo {
+  position: relative;
+  z-index: 5;
+  margin-top: 4px;
+}
+
+.combo-popup {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: block;
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.combo-popup[hidden] {
+  display: none;
+}
+
+.combo-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.combo-item.active,
+.combo-item:hover {
+  background: var(--line-soft);
+  color: var(--neon);
+}
+
+.combo-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.combo-id {
+  flex: 0 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+/* ── Permisos ──────────────────────────────────────────── */
+.perm-tool {
+  display: grid;
+  grid-template-columns: 170px 220px auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.perm-name {
+  font-size: 11px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.perm-patterns {
+  margin: 0 0 8px 22px;
+  padding: 7px 0 2px 12px;
+  border-left: 1px solid var(--line);
+}
+
+.perm-rule {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.perm-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) 160px auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.perm-row input.flat-disabled {
+  opacity: 0.4;
+}
+
+/* ── Opciones del proveedor ────────────────────────────── */
+.opt-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+/* ── Colores ───────────────────────────────────────────── */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.color {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.color .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.color[aria-pressed="true"] {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 1px var(--neon);
+  color: var(--text);
+}
+
+/* Colores de tema de opencode: el punto es una pista aproximada. */
+.c-primary .dot { background: var(--neon); }
+.c-secondary .dot { background: var(--violet); }
+.c-accent .dot { background: var(--magenta); }
+.c-success .dot { background: var(--green); }
+.c-warning .dot { background: var(--amber); }
+.c-error .dot { background: #e05a5a; }
+.c-info .dot { background: #4a9eff; }
+
+/* ── Avanzado ──────────────────────────────────────────── */
+details.advanced > summary {
+  padding: 2px 0;
+  font-size: 9.5px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+}
+
+details.advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.advanced > summary::before {
+  content: "▸ ";
+  color: var(--neon);
+}
+
+details.advanced[open] > summary::before {
+  content: "▾ ";
+}
+
+details.advanced > summary:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
+}
+
+/* ── Prompt y vista previa ─────────────────────────────── */
+#f-prompt,
+.prompt {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  min-height: 220px;
+  resize: vertical;
+}
+
+.preview {
+  margin: 0;
+  padding: 9px 11px;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  background: var(--line-soft);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+/* ── Validación ────────────────────────────────────────── */
+.issues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.issues li {
+  margin-bottom: 5px;
+  padding: 5px 9px;
+  border-left: 3px solid var(--line);
+  background: var(--line-soft);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.issues li.error {
+  border-left-color: #e05a5a;
+  color: #e05a5a;
+}
+
+.issues li.warning {
+  border-left-color: var(--amber);
+  color: var(--amber);
+}
+
+.issues li.info {
+  border-left-color: var(--line);
+  color: var(--text-dim);
+}
+
+.issues li.ok {
+  border-left-color: var(--green);
+  color: var(--green);
+}
+
+/* Contraste en tema claro: el rojo de la paleta no llega. */
+body.vscode-light .issues li.error,
+body.vscode-light .banner.error {
+  border-left-color: #b3261e;
+  color: #b3261e;
+}
+
+body.vscode-light .combo-popup {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Estrecho ──────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .span-2 {
+    grid-column: auto;
+  }
+  .head {
+    flex-direction: column;
+  }
+  .head-actions {
+    flex-wrap: wrap;
+  }
+  .perm-tool {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+  .perm-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}

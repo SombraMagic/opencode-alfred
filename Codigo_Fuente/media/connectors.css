@@ -1,0 +1,865 @@
+/* Conectores — alta y estado de los proveedores de opencode. La base vive en tokens.css. */
+
+/* Scrollean las columnas, nunca la página. */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+.conn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  padding: 0 12px 8px;
+}
+
+/* ── Cabecera ──────────────────────────────────────────── */
+.conn-head {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.conn-title {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conn-kicker {
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  color: var(--neon);
+  text-shadow: 0 0 10px var(--neon-dim);
+}
+
+.conn-sub {
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.conn-search {
+  flex: 1 1 160px;
+  min-width: 120px;
+  max-width: 320px;
+  padding: 5px 7px;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.conn-search:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.conn-search::placeholder {
+  color: var(--text-dim);
+}
+
+/* ── Tablero ───────────────────────────────────────────── */
+/* La derecha es lo más relevante: se lleva el ancho. */
+.board {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(190px, 0.75fr) minmax(260px, 1fr) minmax(420px, 2.2fr);
+  gap: 14px;
+  min-height: 0;
+  overflow-x: auto;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.col-title {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 2px 6px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 10.5px;
+  font-weight: normal;
+  letter-spacing: 2px;
+  color: var(--neon);
+}
+
+.count {
+  font-size: 9.5px;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.cards {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  margin-top: 6px;
+  padding: 2px;
+  overflow-y: auto;
+}
+
+/* ── Lista de todos los conectores ─────────────────────── */
+.conn-row {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.conn-row:hover,
+.conn-row:focus-visible {
+  background: var(--line-soft);
+  outline: none;
+}
+
+.conn-row.sel {
+  border-color: var(--neon-dim);
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+}
+
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.dot.on {
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+}
+
+.dot.off {
+  background: var(--amber);
+  box-shadow: 0 0 6px var(--amber);
+}
+
+.dot.idle {
+  background: var(--text-dim);
+  opacity: 0.55;
+}
+
+.conn-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conn-row.sel .conn-name {
+  color: var(--neon);
+}
+
+.conn-count {
+  flex: none;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ── Configurados ──────────────────────────────────────── */
+.conf-list {
+  flex: 0 1 auto;
+  max-height: 40%;
+  min-height: 0;
+}
+
+.conf-row {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid var(--line-soft);
+  background: var(--bg-soft);
+}
+
+.conf-name {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.conf-name:hover,
+.conf-name:focus-visible {
+  color: var(--neon);
+  outline: none;
+}
+
+.remove {
+  flex: none;
+  padding: 0 3px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.remove:hover,
+.remove:focus-visible {
+  color: var(--magenta);
+  outline: none;
+}
+
+/* Casilla de límites de consumo: mismo idioma que el interruptor, forma de cuadro ámbar. */
+.switch.limits {
+  flex: none;
+}
+
+.switch.limits .limits-box {
+  width: 11px;
+  height: 11px;
+  border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  background: var(--bg-soft);
+}
+
+.switch.limits:hover .limits-box,
+.switch.limits:focus-visible .limits-box {
+  border-color: var(--amber);
+}
+
+.switch.limits.on .limits-box {
+  background: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 70%, transparent);
+}
+
+.switch.limits:focus-visible {
+  outline: 1px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* ── Detalle ───────────────────────────────────────────── */
+.detail {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 8px;
+  padding: 8px 2px 2px;
+  border-top: 1px solid var(--line-soft);
+  overflow-y: auto;
+}
+
+.detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+
+.detail-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  letter-spacing: 0.6px;
+  color: var(--neon);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-state {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.sect {
+  margin-top: 10px;
+}
+
+.sect-title {
+  margin: 0 0 4px;
+  font-size: 9px;
+  font-weight: normal;
+  letter-spacing: 1.8px;
+  color: var(--text-dim);
+}
+
+.conn-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  padding: 3px 0;
+  font-size: 10.5px;
+  overflow-wrap: anywhere;
+}
+
+.conn-label {
+  color: var(--text);
+}
+
+.conn-status {
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+}
+
+.conn-msg {
+  flex-basis: 100%;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.files code {
+  display: block;
+  padding: 1px 0;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+/* ── Alta ──────────────────────────────────────────────── */
+.methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.method {
+  display: flex;
+  flex: 1 1 120px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 5px 7px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.method:hover,
+.method:focus-visible {
+  border-color: var(--neon);
+  color: var(--neon);
+  outline: none;
+}
+
+.method.on {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 10%, transparent);
+  color: var(--neon);
+}
+
+.method-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.method-sub {
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-box {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--line-soft);
+  background: var(--bg-soft);
+}
+
+.form-box > .method-sub {
+  margin-bottom: 6px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.field-desc,
+.form-note {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.field-label {
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.field-label .req {
+  color: var(--amber);
+}
+
+.field input[type="text"],
+.field input[type="password"],
+.field input[type="number"],
+.field select {
+  width: 100%;
+  padding: 5px 7px;
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.field input:focus-visible,
+.field select:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.field input::placeholder {
+  color: var(--text-dim);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.check input {
+  accent-color: var(--neon);
+  margin: 0;
+}
+
+.opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.opt input {
+  accent-color: var(--neon);
+  margin: 0;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.btn {
+  padding: 5px 9px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.btn:hover,
+.btn:focus-visible {
+  border-color: var(--neon);
+  color: var(--neon);
+  outline: none;
+}
+
+.btn.primary {
+  border-color: var(--neon-dim);
+  background: color-mix(in srgb, var(--neon) 12%, transparent);
+  color: var(--neon);
+}
+
+/* ── Intento de autorización ───────────────────────────── */
+.attempt {
+  margin-top: 10px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  background: var(--bg-soft);
+}
+
+.attempt.pending {
+  border-left-color: var(--amber);
+}
+
+.attempt.complete {
+  border-left-color: var(--green);
+}
+
+.attempt.failed,
+.attempt.expired {
+  border-left-color: var(--magenta);
+}
+
+.attempt.cancelled {
+  border-left-color: var(--text-dim);
+}
+
+.attempt-status {
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  color: var(--amber);
+  text-transform: uppercase;
+}
+
+.attempt.complete .attempt-status {
+  color: var(--green);
+}
+
+.attempt.failed .attempt-status,
+.attempt.expired .attempt-status {
+  color: var(--magenta);
+}
+
+.attempt.cancelled .attempt-status {
+  color: var(--text-dim);
+}
+
+.attempt-msg {
+  margin-top: 4px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.attempt-url {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 5px;
+  min-width: 0;
+}
+
+.attempt-url-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--neon);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attempt-instructions {
+  margin: 5px 0 0;
+  padding: 5px 7px;
+  background: var(--line-soft);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.attempt-code {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.attempt-code input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 7px;
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.attempt-code input:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+/* ── Modelos ───────────────────────────────────────────── */
+.model-cards {
+  gap: 7px;
+}
+
+.model-card {
+  flex: none;
+  min-width: 0;
+  padding: 9px 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+}
+
+.model-card:hover {
+  border-color: var(--line);
+}
+
+.model-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 8px;
+  min-width: 0;
+}
+
+.model-name {
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.model-id {
+  min-width: 0;
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-desc {
+  display: -webkit-box;
+  margin-top: 4px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+
+.model-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 6px;
+  font-size: 10px;
+}
+
+.price {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.price-l {
+  font-size: 8.5px;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+}
+
+.price-v {
+  color: var(--text);
+}
+
+.price-none {
+  color: var(--text-dim);
+}
+
+.price-free {
+  color: var(--green);
+  letter-spacing: 1px;
+}
+
+.model-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 5px;
+  font-size: 9.5px;
+  color: var(--text-dim);
+}
+
+.model-meta .val {
+  color: var(--text);
+}
+
+.model-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.model-chips .chip {
+  font-size: 8.5px;
+}
+
+.chip.warn {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+}
+
+.chip.bad {
+  color: var(--magenta);
+  border-color: color-mix(in srgb, var(--magenta) 45%, transparent);
+}
+
+/* ── Estados vacíos y aviso ────────────────────────────── */
+.empty {
+  padding: 12px 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.empty .hint,
+.hint {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.notice {
+  position: fixed;
+  right: 14px;
+  bottom: 12px;
+  left: 14px;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 9px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.notice.info {
+  border-left-color: var(--neon);
+}
+
+.notice.error {
+  border-left-color: var(--magenta);
+}
+
+.notice-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.notice.error .notice-text {
+  color: var(--magenta);
+}
+
+.notice-x {
+  flex: none;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.notice-x:hover,
+.notice-x:focus-visible {
+  color: var(--neon);
+  outline: none;
+}
+
+/* Los display de autor (flex) tapan el [hidden] del navegador: esta regla va al final. */
+[hidden] {
+  display: none;
+}

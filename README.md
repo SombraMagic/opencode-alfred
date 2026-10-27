@@ -1,0 +1,92 @@
+# OpenCode Alfred
+
+**Tu centro de control de agentes de IA, dentro de VS Code.**
+Gestiona opencode, Claude Code y Codex desde un mismo panel: agentes, MCP, skills,
+plugins, contexto, consumo… y háblale al ordenador, o dítale lo que quieres pedir.
+
+Sin editar YAML a mano. Sin cambiar de ventana.
+
+> **opencode es el centro.** La extensión está pensada y orientada a opencode: ahí funciona
+> todo. Claude Code y Codex son **experimentales**: se pueden explorar y manejar en parte,
+> pero su soporte todavía no funciona del todo bien y puede cambiar.
+
+---
+
+## Qué hace
+
+- **Agentes con formulario.** Crea, edita, duplica y borra agentes y subagentes de
+  opencode (global o proyecto) sin tocar frontmatter. Permisos por herramienta y por
+  patrón, con vista previa del YAML.
+- **Un explorador para tres CLIs.** opencode, Claude Code y Codex en la misma barra:
+  agentes, MCP, skills y plugins de cada uno, con interruptores para activar y
+  desactivar. Y una terminal por agente, con la sesión que toca.
+- **Contexto bajo control.** Cuánto has gastado de la ventana del modelo, qué parte es
+  prompt fijo, y un botón para compactar antes de que reviente.
+- **Estadísticas de verdad.** Tokens, coste, tiempo y sesiones por agente, leídos en
+  solo lectura de la base de opencode. Y una línea de tiempo por prompt, con sus
+  subagentes en paralelo.
+- **Consumo de proveedores.** Saldo y topes de DeepSeek, OpenAI, GitHub Copilot y
+  OpenCode Go, sin salir del editor.
+- **Voz.** Lee en voz alta lo que selecciones y dicta en un bloc con adjuntos,
+  imágenes, pegar y arrastrar. Cuatro motores de voz y tres de dictado; funciona sin
+  conexión con lo que ya trae Windows.
+- **Pizarra.** Dibuja, pega imágenes y mándalo al prompt como si fuera un adjunto.
+
+Todo en español, en una sola extensión.
+
+## Qué toca y qué no
+
+Las bases de opencode se abren en **solo lectura**. Todo lo demás se escribe con el
+formato que el CLI espera, sin pisar comentarios ni claves que no gestiona la extensión.
+
+| Dónde | Qué hace |
+| --- | --- |
+| `~/.local/share/opencode/*.db` | Solo lectura: sesiones, mensajes y tokens |
+| `~/.cache/opencode/models.json` y el catálogo de models.dev | Solo lectura: límites de contexto y precios |
+| `~/.config/opencode/agent/*.md`, `<proyecto>/.opencode/agent/*.md` | Crea y edita agentes y subagentes |
+| `opencode.json` / `opencode.jsonc` | MCP, skills, plugins, permisos y políticas de conectores |
+| `AGENTS.md` global y de proyecto | Instrucciones |
+| `~/.claude/agents`, `.claude/agents`, `.claude/settings.local.json`, `.mcp.json` | Solo si usas Claude Code (experimental) |
+| `config.toml` de Codex | Solo si usas Codex (experimental) |
+| `%APPDATA%\voz\config.json` | Ajustes de voz para que el MCP los vea |
+| `<raíz>/.alfred/adjuntos` | Adjuntos del dictado; sin proyecto, en el almacenamiento global |
+
+No escribe `~/.claude.json` (las conmutaciones de MCP pasan por el propio CLI) y nunca
+manda credenciales al webview: las claves viven en `secrets` de VS Code. Solo sale a la
+red si lo pides, al consultar límites de consumo o al elegir un motor de voz o dictado en
+la nube.
+
+## Instalación
+
+Descarga el `.vsix` de [`Instalable/`](Instalable/) y sigue la
+[guía de instalación](Instalable/README.md). Tarda menos de un minuto y no necesita
+compilar nada.
+
+## Documentación
+
+| Documento | Qué cuenta |
+| --- | --- |
+| [`Documentacion/ESTADO.md`](Documentacion/ESTADO.md) | En qué punto está el proyecto y qué viene después |
+| [`Documentacion/DESARROLLO.md`](Documentacion/DESARROLLO.md) | Estructura de carpetas, compilar, depurar y empaquetar |
+| [`Codigo_Fuente/README.md`](Codigo_Fuente/README.md) | Guía completa: cada panel, cada ajuste, con detalle |
+| [`Instalable/README.md`](Instalable/README.md) | Instalar el `.vsix` paso a paso |
+
+## Requisitos
+
+- VS Code 1.90 o superior.
+- [opencode](https://opencode.ai) instalado si quieres usar el centro de control de
+  agentes (la voz y el dictado funcionan sin él).
+- Windows para la voz y el dictado sin conexión (SAPI). En otros sistemas, los motores
+  en la nube y Whisper siguen disponibles.
+
+## Invítame a un café
+
+Si esto te ahorra tiempo, puedes invitarme a un café por PayPal. Se agradece, y se
+invierte en seguir puliéndolo.
+
+**PayPal:** [paypal.me/sombrawandax](https://www.paypal.com/paypalme/sombrawandax)
+
+## Licencia
+
+MIT. Haz lo que quieras con ello; solo pido que conserves el aviso de copyright.
+Ver [LICENSE](LICENSE).

@@ -1,0 +1,553 @@
+/* Asignación — tablero de agentes, favoritos y modelos. La base vive en tokens.css. */
+
+/* La vista ocupa el alto justo: scrollean las columnas, nunca la página. */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+.assign {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  padding: 0 12px 8px;
+  /* Regla de color del panel: `--text-dim` SOLO para lo apagado (`:disabled`, vacíos,
+     placeholder); de lo secundario, solo el precio usa este intermedio. */
+  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
+}
+
+/* ── Cabecera ──────────────────────────────────────────── */
+.assign-head {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.assign-title {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.assign-kicker {
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  color: var(--neon);
+  text-shadow: 0 0 10px var(--neon-dim);
+}
+
+.assign-sub {
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.assign-search {
+  flex: 1 1 160px;
+  min-width: 120px;
+  max-width: 300px;
+  padding: 5px 7px;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.assign-search:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.assign-search::placeholder {
+  color: var(--text-dim);
+}
+
+/* Un chip por conector: activo = neón, apagado = apagado. */
+.providers {
+  display: flex;
+  flex: 1 1 180px;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.providers .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid var(--neon-dim);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+
+.providers .chip:hover,
+.providers .chip:focus-visible {
+  border-color: var(--neon);
+  color: var(--neon);
+  outline: none;
+}
+
+.providers .chip.off {
+  opacity: 0.4;
+  border-color: var(--line-soft);
+  color: var(--text-dim);
+}
+
+.prov-count {
+  color: var(--text-dim);
+}
+
+.providers .chip:hover .prov-count {
+  color: var(--neon-dim);
+}
+
+/* ── Tablero ───────────────────────────────────────────── */
+.board {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(240px, 1.1fr) minmax(300px, 1.4fr);
+  gap: 14px;
+  overflow-x: auto;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Favoritos es el destino del flujo: se marca más que las otras dos. */
+.col-fav {
+  padding: 0 8px 8px;
+  background: color-mix(in srgb, var(--neon) 5%, transparent);
+  border: 1px solid var(--line);
+}
+
+.col-title {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 2px 6px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 10.5px;
+  font-weight: normal;
+  letter-spacing: 2px;
+  color: var(--neon);
+}
+
+.col-fav .col-title {
+  margin: 0 2px;
+  padding-top: 9px;
+}
+
+.count {
+  font-size: 9.5px;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+}
+
+/* ── Pestañas de grupos ────────────────────────────────── */
+.groups {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  gap: 2px;
+  margin: 5px 2px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.group-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  max-width: 150px;
+  padding: 3px 7px;
+  border: 1px solid var(--line-soft);
+  color: var(--text-soft);
+  font-size: 9.5px;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.group-tab:hover {
+  color: var(--text);
+  border-color: var(--neon-dim);
+}
+
+.group-tab:focus-visible {
+  border-color: var(--neon);
+  outline: 1px solid var(--neon);
+  outline-offset: 1px;
+}
+
+.group-tab.on {
+  color: var(--neon);
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+}
+
+.group-tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Renombrado en línea: ocupa el sitio del nombre dentro de la pestaña. */
+.group-rename {
+  width: 96px;
+  padding: 0 2px;
+  background: var(--bg);
+  border: 1px solid var(--neon);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 9.5px;
+  outline: none;
+}
+
+.group-x,
+.group-add {
+  flex: none;
+  background: none;
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.group-x {
+  padding: 0 2px;
+  border: none;
+}
+
+.group-x:hover,
+.group-x:focus-visible {
+  color: var(--magenta);
+  outline: none;
+}
+
+.group-add {
+  padding: 3px 8px;
+  border: 1px dashed var(--line-soft);
+}
+
+.group-add:hover,
+.group-add:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+/* ── Listas ────────────────────────────────────────────── */
+.cards {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  margin-top: 6px;
+  padding: 2px;
+  border: 1px dashed transparent;
+  overflow-y: auto;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+/* Zona de drop válida. El borde es transparente en reposo: no hay salto de layout. */
+.cards.drop {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 7%, transparent);
+}
+
+/* ── Tarjetas ──────────────────────────────────────────── */
+.card {
+  flex: none;
+  min-width: 0;
+  padding: 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  cursor: grab;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.card:hover {
+  border-color: var(--neon-dim);
+}
+
+.card:active {
+  cursor: grabbing;
+}
+
+.card-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.card-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Scope del agente: PROY / GLOBAL / INTEGRADO. */
+.card .scope {
+  flex: none;
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
+}
+
+.scope-project {
+  color: var(--green);
+}
+
+.scope-global {
+  color: var(--amber);
+}
+
+.scope-builtin {
+  color: var(--violet);
+}
+
+.card-model-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  min-width: 0;
+}
+
+.card-model {
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  color: var(--neon);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-x {
+  flex: none;
+  padding: 0 3px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.card-x:hover,
+.card-x:focus-visible {
+  color: var(--magenta);
+  outline: none;
+}
+
+.card-detail {
+  margin-top: 3px;
+  font-size: 9.5px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  min-width: 0;
+}
+
+.card-provider {
+  min-width: 0;
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tarifa en USD por millón de tokens: `$1.25 in · $5.00 out`. */
+.card-cost {
+  margin-top: 3px;
+  font-size: 9.5px;
+  letter-spacing: 0.3px;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.card-meta .chip {
+  flex: none;
+  font-size: 8.5px;
+}
+
+.card-meta .chip.free {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
+}
+
+.card-star {
+  flex: none;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--amber);
+}
+
+/* Ya está en favoritos: se ve de un vistazo sin dejar de poder arrastrarse. */
+.card.is-fav {
+  border-color: var(--amber);
+}
+
+/* Objetivo del agente que se arrastra. */
+.card.target,
+.card.target:hover {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 10%, transparent);
+}
+
+.card.drop,
+.card.drop:hover {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 18%, transparent);
+}
+
+/* Fila de agente o tarjeta de favorito seleccionada: realce sutil y persistente. */
+.card.sel,
+.card.sel:hover {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 12%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--neon) 35%, transparent);
+}
+
+.empty {
+  padding: 12px 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* ── Líneas de conexión ────────────────────────────────── */
+/* Cubre el tablero entero; las coordenadas se calculan con el rect del propio svg. */
+.wires {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.wires path {
+  fill: none;
+  stroke: var(--neon);
+  stroke-width: 1.5;
+  opacity: 0.85;
+}
+
+/* Cable de la fila/tarjeta seleccionada: más grueso, más brillante y con resplandor. */
+.wires path.hot {
+  stroke: color-mix(in srgb, var(--neon) 65%, #fff);
+  stroke-width: 3;
+  opacity: 1;
+  filter: drop-shadow(0 0 5px var(--neon));
+}
+
+/* ── Modal de confirmación ─────────────────────────────── */
+/* Reemplaza a `window.confirm`, que no existe en la webview. */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.modal[hidden] {
+  display: none;
+}
+
+.modal-box {
+  width: min(360px, 100%);
+  padding: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+}
+
+.modal-title {
+  font-size: 10.5px;
+  letter-spacing: 2px;
+  color: var(--neon);
+}
+
+.modal-text {
+  margin: 10px 0 14px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modal-actions .danger:hover,
+.modal-actions .danger:focus-visible {
+  color: var(--magenta);
+  border-color: var(--magenta);
+}
+
+/* ── Pie ───────────────────────────────────────────────── */
+.hint {
+  flex: none;
+  padding-bottom: 2px;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  text-align: center;
+}

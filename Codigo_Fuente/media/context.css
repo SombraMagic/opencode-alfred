@@ -1,0 +1,221 @@
+/* Contexto — HUD de la ventana de contexto (rejilla de celdas + leyenda) */
+
+:root {
+  --k-env: #2bd9b0;
+  --k-date: #ffd166;
+  --k-unattr: #6b8ba3;
+}
+
+/* Un color por slice, mapeado por la clave que llega del backend. */
+.k-core-instructions { --k: var(--neon); }
+.k-core-skill-guidance { --k: var(--violet); }
+.k-core-codemode { --k: var(--amber); }
+.k-core-reference-guidance { --k: var(--green); }
+.k-core-environment { --k: var(--k-env); }
+.k-core-date { --k: var(--k-date); }
+.k-conversation { --k: var(--magenta); }
+.k-unattributed { --k: var(--k-unattr); }
+
+/* tokens.css no oscurece el violeta en tema claro: aquí sí. */
+body.vscode-light {
+  --k-env: #0b7d68;
+  --k-date: #8a6100;
+  --k-unattr: #6b7f8d;
+  --violet: #6b3fd4;
+}
+
+.hud {
+  padding: 0 10px 14px;
+}
+
+/* ── Cabecera ─────────────────────────────────────────── */
+.hud-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Lectura en una línea: porcentaje, cifras y compactar ── */
+.usage-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pct {
+  flex: none;
+  font-size: 17px;
+  line-height: 1;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.pct.ok {
+  color: var(--neon);
+  text-shadow: 0 0 12px var(--neon-dim);
+}
+
+.pct.busy {
+  color: var(--amber);
+}
+
+.pct.error {
+  color: var(--magenta);
+}
+
+.tokens {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  letter-spacing: 0.8px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-btn {
+  flex: none;
+  margin-left: auto;
+  background: color-mix(in srgb, var(--neon) 14%, transparent);
+  border: 1px solid var(--neon-dim);
+  color: var(--neon);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 4px 7px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.compact-btn:hover,
+.compact-btn:focus-visible {
+  background: color-mix(in srgb, var(--neon) 26%, transparent);
+  border-color: var(--neon);
+  outline: none;
+}
+
+.compact-btn:focus-visible {
+  background: color-mix(in srgb, var(--neon) 38%, transparent);
+}
+
+/* ── Rejilla de celdas (20 × 8 = 160, igual que TOTAL en context.js) ── */
+.cells {
+  display: grid;
+  grid-template-columns: repeat(20, minmax(0, 1fr));
+  gap: 2px;
+  margin: 10px 0 8px;
+}
+
+.cell {
+  aspect-ratio: 1 / 1;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+}
+
+.cell.on {
+  background: var(--k, var(--neon));
+  border-color: var(--k, var(--neon));
+  box-shadow: 0 0 3px var(--k, var(--neon));
+}
+
+/* ── Leyenda colapsable (una columna, para leerla sin forzar la vista) ── */
+.legend-box {
+  border-top: 1px solid var(--line);
+}
+
+.legend-box > summary {
+  padding: 4px 0 2px;
+  font-size: 9.5px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+}
+
+.legend-box > summary::-webkit-details-marker {
+  display: none;
+}
+
+.legend-box > summary::before {
+  content: "▸ ";
+  color: var(--neon);
+}
+
+.legend-box[open] > summary::before {
+  content: "▾ ";
+}
+
+.legend-box > summary:hover,
+.legend-box > summary:focus-visible {
+  color: var(--neon);
+  outline: none;
+}
+
+.legend {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 3px 0;
+}
+
+.legend li + li {
+  border-top: 1px solid var(--line-soft);
+}
+
+.sw {
+  flex: none;
+  width: 10px;
+  height: 12px;
+  background: var(--k, var(--neon));
+  box-shadow: 0 0 6px var(--k, var(--neon));
+  border-radius: 1px;
+}
+
+.lg-name {
+  flex: 1;
+  font-size: 11px;
+  line-height: 1.3;
+  letter-spacing: 0.4px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.lg-num {
+  flex: none;
+  font-size: 10px;
+  line-height: 1.3;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+abbr {
+  text-decoration: none;
+  cursor: help;
+}
+
+/* ── Error ────────────────────────────────────────────── */
+.banner {
+  margin: 10px 0 0;
+  padding: 8px;
+  border-left: 3px solid var(--magenta);
+  background: rgba(255, 45, 149, 0.1);
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}

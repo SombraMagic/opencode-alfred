@@ -1,0 +1,92 @@
+/* Resaltado de Markdown compartido (media/mdEditor.js).
+   Cada panel enlaza tokens.css, su hoja y ESTA después: los colores salen de
+   las variables de tokens.css (tema claro incluido), sin definir ninguna aquí. */
+
+/* ── Overlay de las textarea ───────────────────────────── */
+/* El envoltorio no pinta nada: solo da el contexto de posición. */
+.md-wrap {
+  position: relative;
+  display: block;
+}
+
+/* Capa de color. Mismo box que la textarea (media/mdEditor.js copia fuente,
+   padding y borde): una línea del <pre> cae sobre la misma línea del texto real. */
+.md-hl {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* La textarea conserva el texto real: solo se ve el caret. */
+.md-input {
+  position: relative;
+  z-index: 1;
+  display: block;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+  resize: vertical;
+}
+
+.md-input::placeholder {
+  color: var(--text-dim);
+}
+
+/* ── Tokens ────────────────────────────────────────────── */
+/* Nada de tamaño: el ancho de avance de una monoespaciada no cambia con el peso
+   ni la cursiva, así que el caret de la textarea sigue cayendo donde se ve.
+   Los marcadores se atenúan con opacidad: --text-dim es solo para estado apagado. */
+.md-mark {
+  opacity: 0.45;
+}
+
+.md-head {
+  color: var(--neon);
+  font-weight: 700;
+}
+
+.md-bold {
+  font-weight: 700;
+}
+
+.md-it {
+  font-style: italic;
+}
+
+.md-code {
+  color: var(--amber);
+}
+
+.md-codeblock {
+  color: var(--green);
+}
+
+.md-li {
+  color: var(--magenta);
+}
+
+.md-quote {
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.md-link {
+  color: var(--neon);
+}
+
+.md-url {
+  opacity: 0.6;
+}
+
+.md-fm-key {
+  color: var(--violet);
+}
+
+.md-fm-val {
+  opacity: 0.8;
+}

@@ -1,0 +1,413 @@
+{
+  "name": "opencode-alfred",
+  "displayName": "OpenCode Alfred",
+  "description": "Centro de control de opencode (agentes, MCP, skills, plugins y contexto) con voz y dictado.",
+  "version": "0.1.0",
+  "publisher": "SombraMagic",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SombraMagic/opencode-alfred.git"
+  },
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "opencode",
+    "agents",
+    "mcp",
+    "skills",
+    "tts",
+    "voice",
+    "dictado"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onView:opencodeAgents.view",
+    "onView:opencodeAgents.context",
+    "onView:opencodeAgents.limits",
+    "onView:voz.panel",
+    "onView:voz.dictado"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "opencodeAgents",
+          "title": "ALFRED",
+          "icon": "media/icon.svg"
+        }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "vozPanel",
+          "title": "VOZ",
+          "icon": "media/voz-icon.svg"
+        }
+      ],
+      "panel": [
+        {
+          "id": "vozDictado",
+          "title": "DICTADO",
+          "icon": "media/voz-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "opencodeAgents": [
+        {
+          "id": "opencodeAgents.view",
+          "name": "Explorador",
+          "type": "webview",
+          "icon": "media/icon.svg"
+        },
+        {
+          "id": "opencodeAgents.context",
+          "name": "Contexto",
+          "type": "webview"
+        },
+        {
+          "id": "opencodeAgents.limits",
+          "name": "Límites de consumo",
+          "type": "webview"
+        }
+      ],
+      "vozPanel": [
+        {
+          "type": "webview",
+          "id": "voz.panel",
+          "name": "Voz",
+          "icon": "media/voz-icon.svg"
+        }
+      ],
+      "vozDictado": [
+        {
+          "type": "webview",
+          "id": "voz.dictado",
+          "name": "Dictado",
+          "icon": "media/voz-icon.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "opencodeAgents.refresh",
+        "title": "opencode: Refrescar agentes",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "opencodeAgents.createAgent",
+        "title": "opencode: Nuevo agente (primary)",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opencodeAgents.createSubagent",
+        "title": "opencode: Nuevo subagente",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opencodeAgents.editInstructions",
+        "title": "opencode: Editar AGENTS.md (global)",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "opencodeAgents.editProjectInstructions",
+        "title": "opencode: Editar AGENTS.md (local)",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "opencodeAgents.showStats",
+        "title": "opencode: Ver estadísticas de agentes",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "opencodeAgents.showPromptStats",
+        "title": "opencode: Ver estadísticas de prompts",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "opencodeAgents.assignModels",
+        "title": "Asignar agentes a modelos",
+        "category": "opencode"
+      },
+      {
+        "command": "opencodeAgents.pizarra",
+        "title": "Pizarra",
+        "category": "opencode"
+      },
+      {
+        "command": "opencodeAgents.resetAllStats",
+        "title": "opencode: Reiniciar contadores de todos los agentes"
+      },
+      {
+        "command": "opencodeAgents.clearAllStats",
+        "title": "opencode: Restaurar histórico completo de todos los agentes"
+      },
+      {
+        "command": "opencodeAgents.addPlugin",
+        "title": "opencode: Añadir plugin",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opencodeAgents.newSession",
+        "title": "opencode: Nueva sesión",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "voz.focus",
+        "title": "VOZ: Abrir panel de voz",
+        "category": "VOZ"
+      },
+      {
+        "command": "voz.reveal",
+        "title": "VOZ: Mostrar panel en la barra lateral derecha",
+        "category": "VOZ"
+      },
+      {
+        "command": "voz.speak",
+        "title": "VOZ: Leer texto seleccionado",
+        "category": "VOZ"
+      },
+      {
+        "command": "voz.installMcp",
+        "title": "VOZ: Instalar servidor MCP en agentes de IA",
+        "category": "VOZ"
+      },
+      {
+        "command": "voz.dictado",
+        "title": "VOZ: Abrir dictado (voz a texto)",
+        "category": "VOZ"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "opencodeAgents.showStats",
+          "when": "view == opencodeAgents.view",
+          "group": "navigation@0"
+        },
+        {
+          "command": "opencodeAgents.showPromptStats",
+          "when": "view == opencodeAgents.view",
+          "group": "navigation@1"
+        },
+        {
+          "command": "opencodeAgents.createAgent",
+          "when": "view == opencodeAgents.view",
+          "group": "navigation@2"
+        },
+        {
+          "command": "opencodeAgents.createSubagent",
+          "when": "view == opencodeAgents.view",
+          "group": "navigation@3"
+        },
+        {
+          "command": "opencodeAgents.newSession",
+          "when": "view == opencodeAgents.view",
+          "group": "navigation@4"
+        },
+        {
+          "command": "opencodeAgents.addPlugin",
+          "when": "view == opencodeAgents.view",
+          "group": "navigation@5"
+        },
+        {
+          "command": "opencodeAgents.refresh",
+          "when": "view == opencodeAgents.view",
+          "group": "navigation@6"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "voz.speak",
+        "key": "ctrl+alt+v",
+        "mac": "cmd+alt+v"
+      }
+    ],
+    "configuration": {
+      "title": "OpenCode Alfred",
+      "properties": {
+        "opencodeAgents.globalConfigDir": {
+          "type": "string",
+          "default": "",
+          "description": "Ruta al directorio de configuración global de opencode. Vacío = ~/.config/opencode"
+        },
+        "opencodeAgents.defaultModel": {
+          "type": "string",
+          "default": "",
+          "description": "Modelo por defecto (provider/model-id) con el que se pre-rellenan los agentes nuevos."
+        },
+        "opencodeAgents.showBuiltins": {
+          "type": "boolean",
+          "default": true,
+          "description": "Mostrar los agentes integrados de opencode (build, plan, general, explore) en el explorador."
+        },
+        "opencodeAgents.schemaUrl": {
+          "type": "string",
+          "default": "https://opencode.ai/config.json",
+          "description": "URL del JSON Schema de opencode usado como referencia en la validación."
+        },
+        "opencodeAgents.dataDir": {
+          "type": "string",
+          "default": "",
+          "description": "Directorio de datos de opencode (donde están opencode.db / opencode-dev.db). Vacío = ~/.local/share/opencode"
+        },
+        "opencodeAgents.watchLive": {
+          "type": "boolean",
+          "default": true,
+          "description": "Vigilar en vivo la actividad de opencode (agente trabajando, tokens y tiempos)."
+        },
+        "opencodeAgents.liveIntervalMs": {
+          "type": "number",
+          "default": 2000,
+          "minimum": 500,
+          "description": "Intervalo de sondeo en milisegundos para el estado en vivo (mínimo 500)."
+        },
+        "opencodeAgents.modelsCachePath": {
+          "type": "string",
+          "default": "",
+          "description": "Ruta al registro de modelos de opencode (models.dev). Vacío = ~/.cache/opencode/models.json"
+        },
+        "opencodeAgents.showAllProviders": {
+          "type": "boolean",
+          "default": false,
+          "description": "Incluir también el resto de proveedores del registro (models.dev) en el selector de modelos. Por defecto solo salen los proveedores configurados en opencode.json y los autenticados en auth.json."
+        },
+        "opencodeAgents.limitsProviders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Ids de proveedor cuyo consumo se sigue en el panel «Límites de consumo». Se marcan desde la fila de cada conector."
+        },
+        "opencodeAgents.goPlan": {
+          "type": "string",
+          "enum": [
+            "go",
+            "go-plus"
+          ],
+          "default": "go",
+          "description": "Plan de OpenCode Go usado para estimar sus topes de gasto: Go (12/30/60 USD) o Go Plus (48/120/240 USD)."
+        },
+        "voz.engine": {
+          "type": "string",
+          "default": "sapi",
+          "enum": [
+            "sapi",
+            "edge",
+            "openai",
+            "elevenlabs"
+          ],
+          "description": "Motor de texto a voz. 'sapi' usa las voces de Windows sin conexión."
+        },
+        "voz.voice": {
+          "type": "string",
+          "default": "",
+          "description": "Identificador de la voz. Si está vacío se usa la primera del motor."
+        },
+        "voz.rate": {
+          "type": "number",
+          "default": 0,
+          "minimum": -50,
+          "maximum": 100,
+          "description": "Velocidad de la voz en porcentaje."
+        },
+        "voz.pitch": {
+          "type": "number",
+          "default": 0,
+          "minimum": -50,
+          "maximum": 50,
+          "description": "Tono de la voz en Hz."
+        },
+        "voz.volume": {
+          "type": "number",
+          "default": 100,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Volumen de la voz en porcentaje."
+        },
+        "voz.outputDevice": {
+          "type": "number",
+          "default": -1,
+          "description": "Índice del dispositivo de salida de audio. -1 usa el dispositivo predeterminado del sistema."
+        },
+        "voz.dictado.engine": {
+          "type": "string",
+          "default": "sapi",
+          "enum": [
+            "sapi",
+            "whisper",
+            "nube"
+          ],
+          "description": "Motor de voz a texto. 'sapi' usa el reconocedor de Windows sin conexión."
+        },
+        "voz.dictado.language": {
+          "type": "string",
+          "default": "es-ES",
+          "description": "Idioma del dictado (es-ES, en-US…). SAPI necesita el reconocedor de ese idioma instalado."
+        },
+        "voz.dictado.whisperModel": {
+          "type": "string",
+          "default": "onnx-community/whisper-small",
+          "description": "Modelo de Whisper local. Se descarga la primera vez."
+        },
+        "voz.dictado.cloudUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1/audio/transcriptions",
+          "description": "URL de la API de transcripción (compatible con OpenAI)."
+        },
+        "voz.dictado.cloudModel": {
+          "type": "string",
+          "default": "whisper-1",
+          "description": "Modelo de la API de transcripción."
+        },
+        "voz.dictado.denoise": {
+          "type": "boolean",
+          "default": true,
+          "description": "Filtra el ruido del micrófono (retumbe y siseo) antes de transcribir con Whisper o la nube. SAPI ya lo filtra Windows."
+        },
+        "voz.dictado.noiseTolerance": {
+          "type": "number",
+          "default": 6,
+          "minimum": 0,
+          "maximum": 18,
+          "description": "Cuántos dB por encima del ruido de fondo abre la puerta del filtro. Más alto quita más ruido y arriesga cortar voz."
+        },
+        "voz.dictado.noiseFloor": {
+          "type": "number",
+          "default": 0,
+          "description": "Ruido de fondo fijado en dBFS (0 = medirlo en cada fragmento). Lo fija el botón FIJAR FONDO del panel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "package": "node esbuild.js --production",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "jsonc-parser": "^3.3.1",
+    "koffi": "^3.3.3",
+    "mpg123-decoder": "^1.0.3",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.90.0",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.2"
+  }
+}
