@@ -6,6 +6,10 @@ plugins, contexto, consumo… y háblale al ordenador, o dítale lo que quieres 
 
 Sin editar YAML a mano. Sin cambiar de ventana.
 
+> **opencode es el centro.** La extensión está pensada y orientada a opencode: ahí funciona
+> todo. Claude Code y Codex son **experimentales**: se pueden explorar y manejar en parte,
+> pero su soporte todavía no funciona del todo bien y puede cambiar.
+
 ---
 
 ## Qué hace

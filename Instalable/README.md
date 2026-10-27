@@ -11,6 +11,9 @@ No hace falta compilar nada ni instalar Node.
 | opencode | opcional, pero sin él no hay explorador de agentes ni estadísticas |
 | Windows | necesario para la voz y el dictado sin conexión (SAPI) |
 
+La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
+**experimentales**: su soporte todavía no funciona del todo bien.
+
 ## Instalar
 
 **Desde VS Code**

@@ -9,6 +9,10 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
+**opencode es el centro del producto.** La extensión está pensada y orientada a opencode.
+Claude Code y Codex son **experimentales**: se exploran y se manejan en parte, pero su
+soporte todavía no funciona del todo bien y puede cambiar sin aviso.
+
 ## Qué está hecho
 
 - **Explorador** de agentes, MCP, skills y plugins para opencode, Claude Code y Codex,
@@ -40,6 +44,7 @@ estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
 ## Alcance
 
+- **opencode es el objetivo principal**; Claude Code y Codex están en fase experimental.
 - Las estadísticas leen las bases de opencode **en estricta solo lectura**.
 - La extensión no cambia el modelo de una sesión en marcha: escribe el `model:` del
   fichero del agente, que opencode aplica a las sesiones nuevas.

@@ -5,6 +5,10 @@ y **Codex**: agentes, MCP, skills, plugins, contexto, consumo, estadísticas, vo
 El cuerpo de cada fichero de agente es su prompt; la extensión escribe el frontmatter YAML
 por ti.
 
+> **opencode es el centro.** La extensión está pensada y orientada a opencode: ahí funciona
+> todo. Claude Code y Codex son **experimentales**: su soporte todavía no funciona del todo
+> bien y puede cambiar. Cuando el documento dice «los tres CLIs», se refiere a eso.
+
 ## Paneles
 
 ### ALFRED — Explorador (barra de actividad)

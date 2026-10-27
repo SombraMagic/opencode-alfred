@@ -2,6 +2,9 @@
 
 Documentos del proyecto OpenCode Alfred.
 
+La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
+**experimentales**: su soporte todavía no funciona del todo bien.
+
 | Documento | Contenido |
 | --- | --- |
 | [ESTADO.md](ESTADO.md) | Estado actual, qué está probado y próximos pasos |
