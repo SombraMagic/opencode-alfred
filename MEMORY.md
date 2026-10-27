@@ -19,7 +19,8 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   `AgentesControl_opencode` y añadir `voz` (`src/voice/`,
   `media/{panel,dictado,sphere}.*`, `resources/stt-sapi.ps1`).
 - Versión `0.1.0`, VS Code `^1.90.0`, tres contenedores: activitybar `opencodeAgents`
-  (Explorador + Modelos + Contexto), secondary sidebar `vozPanel`, panel `vozDictado`.
+  (Explorador + Contexto + Límites de consumo), secondary sidebar `vozPanel`, panel
+  `vozDictado`.
 - Fusionado, compilando y empaquetado: `.vsix` `opencode-alfred-0.1.0.vsix` (raíz,
   gitignorado) instalado como `sombra.opencode-alfred@0.1.0`. Las dos extensiones viejas
   (`local.opencode-agents-editor@0.1.7` y `sombra.voz@0.1.0`) están desinstaladas.
@@ -150,6 +151,29 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   Code por la persona (2026-10-26): lápiz, inserción de imágenes y pegado al prompt OK; el
   texto estaba roto (arreglado en la ronda 2 de abajo) y zoom/paneo eran petición pendiente.
   Empujado 2026-10-26 por orden de la persona (con `b706767` y las rondas 2-3).
+- Panel «Límites de consumo» (2026-10-27, instalado, sin commit): tercera vista del
+  contenedor izquierdo (`opencodeAgents.limits`), capa `src/limits/limits.ts`, check ámbar en
+  CONECTORES solo si `limitsSupported` (sonda real con la clave, cacheada 10 min; el
+  interruptor persiste en `opencodeAgents.limitsProviders`). Sondeo cada 10 min solo con la
+  vista abierta y proveedores activos. Datos verificados: DeepSeek `GET /user/balance` (saldo
+  USD); OpenAI costes del mes (`/v1/organization/costs`, pide clave admin) con respaldo de
+  cabeceras rate-limit; GitHub Copilot: el endpoint personal de billing **no existe (404)** y
+  el canje `copilot_internal/v2/token` está **muerto (403 con HTML de ToS)**; lo que funciona
+  es lo que hace opencode: `GET /copilot_internal/user` directo con `Bearer <access>` del
+  OAuth (scope `read:user`) y leer `quota_snapshots` (`entitlement`, `credits_used`,
+  `unlimited`, `quota_reset_date`). Verificado: 2521 de 1500 premium (sobrepasado), chat y
+  autocompletado ilimitados → solo se pinta `premium_interactions`. Cualquier cuerpo que
+  empiece por `<` se trata como error, nunca como JSON. OpenCode Go **no tiene API con la clave** (el endpoint
+  de la consola es interno): límites del plan sacados del bundle de la consola (Go 12/30/60
+  USD en 5 h/semana/mes; Go Plus 48/120/240) y consumo **estimado por tokens × tarifa del
+  catálogo `kv:models-dev:v2:catalog`**, porque la BD de opencode anota `cost = 0` para
+  `opencode-go`.
+- Trampas de la capa de límites: el temporizador debe morir con `onDispose` de la vista (y
+  el dispose tardío de una vista vieja no debe apagar el de la nueva); el repintado
+  asíncrono de Conectores necesita comparar identidad de `data` o pisa formularios abiertos
+  con catálogo viejo; `supportsLimits` no puede ir en la ruta del primer pintado (la sonda de
+  Copilot tarda hasta 8 s) — se pinta con la caché y se repinta al resolver. Ventanas Go:
+  5 h rodante, semana UTC desde el lunes 00:00, mes UTC.
 - Ronda 2 de pizarra (2026-10-26, commit `b2cd108`, vista en VS Code por la persona): tras
   el visto bueno del usuario (lápiz/imágenes/pegado OK) — texto arreglado (ver trampa),
   zoom con rueda ×1.15 (z∈[0.15,8]) anclado al cursor y paneo Espacio+arrastrar vía
@@ -438,6 +462,10 @@ Aquí va solo lo que cambia con el trabajo y no cabe allí.
   select): hay que soltarlo con `document.activeElement.blur()` salvo editor/body, o el guard
   de INPUT del keydown mata el paneo con Espacio y el Delete de la selección. Y ojo:
   `preventDefault` NO suprime `click`/`dblclick` en Chromium — verificado con CDP real.
+- Lápiz digital / dedo: sin `touch-action: none` en el marco, Chromium se queda el arrastre
+  como gesto de scroll y suelta `pointercancel` (que NO dispara `pointerup`): el `drag` queda
+  clavado y el trazo persigue al lápiz en el aire (hover). Enlazar `pointercancel` al `onUp`
+  además del CSS. Pendiente de confirmar con el lápiz real de la persona.
 
 - VS Code carga la extensión **instalada** (`%USERPROFILE%\.vscode\extensions\…`), no el repo:
   un cambio en `media/*` o `dist/` no se ve hasta reempaquetar el `.vsix`
