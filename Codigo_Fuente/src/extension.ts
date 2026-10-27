@@ -33,7 +33,7 @@ import {
   ExplorerData,
   ExplorerPanel,
 } from "./panels/explorerPanel";
-import { AssignAction, AssignAgent, AssignData, AssignPanel, FavoriteGroup, ModelEntry } from "./panels/assignPanel";
+import { AssignAction, AssignAgent, AssignData, AssignPanel, AssignProfile, FavoriteGroup, ModelEntry } from "./panels/assignPanel";
 import { ConnectorsPanel, ConnectorAction } from "./panels/connectorsPanel";
 import { PizarraPanel } from "./panels/pizarraPanel";
 import {
@@ -166,6 +166,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const FAVORITE_MODELS = "opencodeAgents.favoriteModels";
   const FAVORITE_GROUPS = "opencodeAgents.favoriteGroups";
   const ASSIGN_GROUP = "opencodeAgents.assignGroup";
+  const ASSIGN_PROFILES = "opencodeAgents.assignProfiles";
+  const ASSIGN_PROFILE = "opencodeAgents.assignProfile";
   const ASSIGN_SEARCH = "opencodeAgents.assignSearch";
   const ASSIGN_PROVIDERS_OFF = "opencodeAgents.assignProvidersOff";
   const CONNECTORS_SEARCH = "opencodeAgents.connectorsSearch";
@@ -598,6 +600,68 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     return `Grupo ${n}`;
   }
+  // Configuraciones de asignación (pestañas del tablero): cada una guarda el mapa completo
+  // agente→modelo y, al cambiar de activa, se escribe en los `.md`.
+  /** Perfiles persistidos; caen los sin nombre, se deduplican con sufijo y se descartan modelos que no sean texto. */
+  function loadAssignProfiles(): AssignProfile[] {
+    const stored = context.globalState.get<AssignProfile[]>(ASSIGN_PROFILES);
+    const profiles: AssignProfile[] = [];
+    for (const p of Array.isArray(stored) ? stored : []) {
+      if (!p || typeof p.name !== "string" || p.name.trim() === "") {
+        continue;
+      }
+      // El activo se persigue por nombre: dos iguales dejarían el primero ganador al casar.
+      const taken = new Set(profiles.map((q) => q.name));
+      let name = p.name;
+      for (let n = 2; taken.has(name); n++) {
+        name = `${p.name} ${n}`;
+      }
+      profiles.push({
+        name,
+        assignments: Object.fromEntries(
+          p.assignments && typeof p.assignments === "object"
+            ? Object.entries(p.assignments).filter(([, v]) => typeof v === "string")
+            : []
+        ),
+      });
+    }
+    return profiles;
+  }
+  const assignProfiles: AssignProfile[] = loadAssignProfiles();
+  /** Índice del perfil activo a partir del nombre persistido; 0 si no casa. */
+  function resolveActiveProfile(): number {
+    const name = context.globalState.get<string>(ASSIGN_PROFILE, "");
+    const index = assignProfiles.findIndex((p) => p.name === name);
+    return index < 0 ? 0 : index;
+  }
+  let activeProfile = resolveActiveProfile();
+  // Cadena de escrituras en masa: dos `selectProfile` seguidos no entrelazan sus aplicaciones.
+  let profileWrite: Promise<void> = Promise.resolve();
+  /** Guarda los perfiles y vuelve a resolver el índice activo por nombre. */
+  async function saveAssignProfiles(): Promise<void> {
+    await context.globalState.update(ASSIGN_PROFILES, assignProfiles);
+    activeProfile = resolveActiveProfile();
+  }
+  /** Nombre libre entre los perfiles (sin contar el propio índice); repetido, añade sufijo. */
+  function uniqueProfileName(base: string, except = -1): string {
+    const taken = new Set(assignProfiles.filter((_, i) => i !== except).map((p) => p.name));
+    if (!taken.has(base)) {
+      return base;
+    }
+    let n = 2;
+    while (taken.has(`${base} ${n}`)) {
+      n++;
+    }
+    return `${base} ${n}`;
+  }
+  /** «Configuración N» con el primer número libre. */
+  function nextProfileName(): string {
+    let n = 1;
+    while (assignProfiles.some((p) => p.name === `Configuración ${n}`)) {
+      n++;
+    }
+    return `Configuración ${n}`;
+  }
   // Vista del tablero de asignación: el buscador y los conectores apagados sobreviven al cierre.
   let assignSearch: string = context.globalState.get<string>(ASSIGN_SEARCH, "");
   let assignProvidersOff: string[] = context.globalState.get<string[]>(ASSIGN_PROVIDERS_OFF, []);
@@ -880,6 +944,9 @@ export function activate(context: vscode.ExtensionContext): void {
       // mirando `models`, así que un id muerto no sale, y el aviso de borrado cuenta los reales.
       favoriteGroups: favoriteGroups.map((g) => ({ name: g.name, ids: [...g.ids] })),
       activeGroup,
+      // Los perfiles salen intactos: el tablero pinta el activo y gestiona las pestañas.
+      profiles: assignProfiles.map((p) => ({ name: p.name, assignments: { ...p.assignments } })),
+      activeProfile,
       search: assignSearch,
       disabledProviders: assignProvidersOff,
     };
@@ -905,6 +972,23 @@ export function activate(context: vscode.ExtensionContext): void {
         first.ids = added;
         await saveFavoriteGroups();
       }
+    }
+    // Sin perfiles guardados no se crea nada al arrancar: la primera apertura siembra uno
+    // con las asignaciones que ya hay en el disco y lo pone como activo.
+    if (assignProfiles.length === 0) {
+      // Primero se lee el disco: con `agentList` aún vacío la siembra dejaría un mapa sin modelos para siempre.
+      await refreshAgents();
+      const assignments: Record<string, string> = {};
+      for (const agent of assignData().agents) {
+        if (agent.model) {
+          assignments[`${agent.scope}:${agent.name}`] = agent.model;
+        }
+      }
+      const seed: AssignProfile = { name: "Configuración 1", assignments };
+      assignProfiles.push(seed);
+      activeProfile = 0;
+      await context.globalState.update(ASSIGN_PROFILES, assignProfiles);
+      await context.globalState.update(ASSIGN_PROFILE, seed.name);
     }
     AssignPanel.open(context, assignData(), {
       onAction: handleAssignAction,
@@ -979,6 +1063,76 @@ export function activate(context: vscode.ExtensionContext): void {
       AssignPanel.current?.update(assignData());
       return;
     }
+    if (action.type === "createProfile") {
+      await profileWrite;
+      // Copia del activo (o del primero, si el índice quedó viejo): el tablero arranca lleno.
+      const source = assignProfiles[activeProfile] ?? assignProfiles[0];
+      const asked = typeof action.name === "string" ? action.name.trim() : "";
+      assignProfiles.push({
+        name: asked ? uniqueProfileName(asked) : nextProfileName(),
+        assignments: { ...(source?.assignments ?? {}) },
+      });
+      await saveAssignProfiles();
+      AssignPanel.current?.update(assignData());
+      return;
+    }
+    if (action.type === "deleteProfile") {
+      // Espera a la aplicación en curso: borrar el perfil cuyo mapa aún se está escribiendo
+      // dejaría en disco una configuración que ya no existe.
+      await profileWrite;
+      // Nunca se borra el último perfil: el tablero siempre tiene una pestaña.
+      if (assignProfiles.length <= 1 || !assignProfiles[action.profile]) {
+        return;
+      }
+      const wasActive = action.profile === activeProfile;
+      assignProfiles.splice(action.profile, 1);
+      if (wasActive) {
+        // La pestaña activa se persigue por nombre: se apunta al perfil que hereda la
+        // posición antes de guardar, si no el nombre muerto queda libre para un renombre.
+        const next = assignProfiles[Math.min(action.profile, assignProfiles.length - 1)];
+        await context.globalState.update(ASSIGN_PROFILE, next.name);
+      }
+      await saveAssignProfiles();
+      AssignPanel.current?.update(assignData());
+      return;
+    }
+    if (action.type === "renameProfile") {
+      await profileWrite;
+      const profile = assignProfiles[action.profile];
+      const name = typeof action.name === "string" ? action.name.trim() : "";
+      if (!profile || !name) {
+        return;
+      }
+      const wasActive = action.profile === activeProfile;
+      profile.name = uniqueProfileName(name, action.profile);
+      if (wasActive) {
+        // La pestaña activa se persigue por nombre: se renombra también la clave.
+        await context.globalState.update(ASSIGN_PROFILE, profile.name);
+      }
+      await saveAssignProfiles();
+      AssignPanel.current?.update(assignData());
+      return;
+    }
+    if (action.type === "selectProfile") {
+      const profile = assignProfiles[action.profile];
+      if (!profile) {
+        return;
+      }
+      activeProfile = action.profile;
+      await context.globalState.update(ASSIGN_PROFILE, profile.name);
+      // Cambiar de configuración sí toca los `.md`: escribe el mapa en el disco. En cadena:
+      // dos selects seguidos no entrelazan escrituras; gana el turno, no el último clic.
+      profileWrite = profileWrite
+        .then(() => applyProfileToDisk(profile))
+        .catch((err) => {
+          void vscode.window.showErrorMessage(
+            `No se pudo aplicar la configuración: ${err instanceof Error ? err.message : String(err)}`
+          );
+        });
+      await profileWrite;
+      AssignPanel.current?.update(assignData());
+      return;
+    }
     if (action.type === "persistView") {
       if (
         typeof action.search !== "string" ||
@@ -1009,34 +1163,23 @@ export function activate(context: vscode.ExtensionContext): void {
     if (model !== "" && !models.some((m) => m.id === model)) {
       return;
     }
-    const modelLabel = models.find((m) => m.id === model)?.name ?? model;
     try {
-      const target =
-        action.scope === "builtin" ? builtinOverrideScope(action.agent) : action.scope;
-      let notice: string;
-      if (!target) {
-        // Integrado sin override: no hay modelo que borrar.
-        if (!model) {
-          return;
+      const written = await applyAgentModel(action.agent, action.scope, model, false);
+      if (!written) {
+        // Nada escrito: sin agente, integrado sin override, o scope del override cancelado.
+        return;
+      }
+      let notice = written;
+      // El perfil activo sigue lo que hay en el disco: se guarda el modelo recién fijado.
+      const profile = assignProfiles[activeProfile];
+      if (profile) {
+        const key = `${action.scope}:${action.agent}`;
+        if (model) {
+          profile.assignments[key] = model;
+        } else {
+          delete profile.assignments[key];
         }
-        const scope = await pickScope("¿Dónde crear el override del integrado?");
-        if (!scope) {
-          return;
-        }
-        await saveAgent(scope, action.agent, { model }, "", undefined);
-        notice = `opencode: «${action.agent}.md» sobrescribe al integrado con «${modelLabel}»; opencode lo recarga al guardar.`;
-      } else {
-        const agent = await findAgent(action.agent, target);
-        if (!agent) {
-          void vscode.window.showWarningMessage(
-            `No hay ningún agente "${action.agent}" en ese scope.`
-          );
-          return;
-        }
-        await setAgentModel(agent, model);
-        notice = model
-          ? `opencode: «${agent.name}» usará «${modelLabel}».`
-          : `opencode: «${agent.name}» sin modelo fijado.`;
+        await saveAssignProfiles();
       }
       // Sesión viva medida trabajando con este agente: fijar también el modelo activo.
       // Borrar el modelo no admite POST, así que solo con modelo no vacío. La comparación
@@ -1058,6 +1201,89 @@ export function activate(context: vscode.ExtensionContext): void {
         `No se pudo asignar el modelo: ${err instanceof Error ? err.message : String(err)}`
       );
     }
+  }
+
+  /**
+   * Escribe `model` ("" lo quita) en el `.md` de `agentName`, como lo hace el tablero al
+   * conectar. `mass` (apply en masa de un perfil): no pregunta el scope del override del
+   * integrado ni avisa: si falta el fichero o el override, ese agente se ignora. Devuelve
+   * el aviso para el llamador interactivo, o `undefined` si no se ha escrito nada.
+   */
+  async function applyAgentModel(
+    agentName: string,
+    scope: AssignAgent["scope"],
+    model: string,
+    mass: boolean
+  ): Promise<string | undefined> {
+    const target = scope === "builtin" ? builtinOverrideScope(agentName) : scope;
+    const modelLabel = models.find((m) => m.id === model)?.name ?? model;
+    if (!target) {
+      // Integrado sin override: no hay modelo que borrar y en masa tampoco se crea el fichero.
+      if (!model || mass) {
+        return undefined;
+      }
+      const pick = await pickScope("¿Dónde crear el override del integrado?");
+      if (!pick) {
+        return undefined;
+      }
+      await saveAgent(pick, agentName, { model }, "", undefined);
+      return `opencode: «${agentName}.md» sobrescribe al integrado con «${modelLabel}»; opencode lo recarga al guardar.`;
+    }
+    const agent = await findAgent(agentName, target);
+    if (!agent) {
+      if (!mass) {
+        void vscode.window.showWarningMessage(
+          `No hay ningún agente "${agentName}" en ese scope.`
+        );
+      }
+      return undefined;
+    }
+    await setAgentModel(agent, model);
+    return model
+      ? `opencode: «${agent.name}» usará «${modelLabel}».`
+      : `opencode: «${agent.name}» sin modelo fijado.`;
+  }
+
+  /**
+   * Escribe en disco el mapa completo de un perfil, agente por agente, sin avisos ni
+   * preguntas: lo que no casa con el disco se ignora. El modelo activo de la sesión
+   * medida solo se toca para el agente de esa sesión, como en la conexión individual.
+   * Un fallo al escribir un agente no corta el resto del mapa: se acumulan y se avisa una sola vez.
+   */
+  async function applyProfileToDisk(profile: AssignProfile): Promise<void> {
+    await refreshAgents(); // lectura fresca del disco: así solo se escribe lo que cambia
+    const sessionId = contextView.currentSessionId();
+    const measuredAgent = contextView.currentAgent();
+    let sessionModel: string | undefined;
+    const fallos: string[] = [];
+    for (const row of assignData().agents) {
+      const wanted = profile.assignments[`${row.scope}:${row.name}`] ?? "";
+      if (wanted === row.model) {
+        continue;
+      }
+      // Modelo ya muerto en el catálogo: no se escribe. Sin cargar el catálogo aún, vale todo.
+      if (wanted && models.length > 0 && !models.some((m) => m.id === wanted)) {
+        continue;
+      }
+      try {
+        const written = await applyAgentModel(row.name, row.scope, wanted, true);
+        if (written && wanted && row.name === measuredAgent) {
+          sessionModel = wanted;
+        }
+      } catch (err) {
+        fallos.push(`${row.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    // La sesión medida se pone al modelo escrito, aunque algún otro agente haya fallado.
+    if (sessionId && sessionModel) {
+      await applySessionModel(sessionId, sessionModel);
+    }
+    if (fallos.length > 0) {
+      void vscode.window.showErrorMessage(
+        `No se pudo aplicar la configuración a ${fallos.length} agente(s): ${fallos.join("; ")}`
+      );
+    }
+    await refreshAgents(); // el tablero pinta el disco resultante al terminar este tramo de la cadena
   }
 
   /** Último catálogo de conectores, con la selección y la búsqueda recordadas. */

@@ -32,6 +32,13 @@ export interface FavoriteGroup {
   ids: string[];
 }
 
+/** Configuración (perfil) de asignaciones: mapa completo agente → modelo, guardada junto al resto. */
+export interface AssignProfile {
+  name: string;
+  /** Clave `${scope}:${name}` del agente (scope: "project" | "global" | "builtin") → id `proveedor/modelo`. */
+  assignments: Record<string, string>;
+}
+
 export interface AssignData {
   agents: AssignAgent[];
   /** Catálogo vivo de opencode. */
@@ -40,6 +47,10 @@ export interface AssignData {
   favoriteGroups: FavoriteGroup[];
   /** Índice del grupo activo, resuelto desde el nombre persistido; 0 si no casa. */
   activeGroup: number;
+  /** Configuraciones de asignación (pestañas): siempre queda al menos una. */
+  profiles: AssignProfile[];
+  /** Índice del perfil activo, resuelto desde el nombre persistido; 0 si no casa. */
+  activeProfile: number;
   /** Texto del buscador, recordado entre aperturas. */
   search: string;
   /** Ids de conector que el usuario apagó, recordados entre aperturas. */
@@ -52,6 +63,10 @@ export type AssignAction =
   | { type: "deleteGroup"; group: number }
   | { type: "renameGroup"; group: number; name: string }
   | { type: "selectGroup"; group: number }
+  | { type: "createProfile"; name?: string }
+  | { type: "deleteProfile"; profile: number }
+  | { type: "renameProfile"; profile: number; name: string }
+  | { type: "selectProfile"; profile: number }
   | { type: "assign"; agent: string; scope: AssignAgent["scope"]; model: string }
   | { type: "clear"; agent: string; scope: AssignAgent["scope"] }
   | { type: "persistView"; search: string; disabledProviders: string[] }
@@ -64,13 +79,17 @@ const ACTION_TYPES = new Set<string>([
   "deleteGroup",
   "renameGroup",
   "selectGroup",
+  "createProfile",
+  "deleteProfile",
+  "renameProfile",
+  "selectProfile",
   "assign",
   "clear",
   "persistView",
   "close",
 ]);
 
-/** Nombre de grupo admisible: como mucho 60 caracteres y sin controles (el `maxLength` del
+/** Nombre de grupo o de configuración admisible: como mucho 60 caracteres y sin controles (el `maxLength` del
  * webview no basta: el mensaje puede venir de otro lado). */
 function isGroupName(name: string): boolean {
   return name.length <= 60 && !/[\u0000-\u001f]/.test(name);
@@ -192,6 +211,25 @@ export class AssignPanel {
           ) {
             return;
           }
+        } else if (action.type === "createProfile") {
+          if (
+            action.name !== undefined &&
+            (typeof action.name !== "string" || !isGroupName(action.name))
+          ) {
+            return;
+          }
+        } else if (action.type === "deleteProfile" || action.type === "selectProfile") {
+          if (this.profileAt(action.profile) < 0) {
+            return;
+          }
+        } else if (action.type === "renameProfile") {
+          if (
+            typeof action.name !== "string" ||
+            !isGroupName(action.name) ||
+            this.profileAt(action.profile) < 0
+          ) {
+            return;
+          }
         } else if (
           typeof action.agent !== "string" ||
           !action.agent ||
@@ -217,6 +255,14 @@ export class AssignPanel {
     const n = this.last?.favoriteGroups.length ?? 0;
     return typeof group === "number" && Number.isInteger(group) && group >= 0 && group < n
       ? group
+      : -1;
+  }
+
+  /** Índice de perfil válido según los datos ya enviados; -1 si no casa. */
+  private profileAt(profile: unknown): number {
+    const n = this.last?.profiles.length ?? 0;
+    return typeof profile === "number" && Number.isInteger(profile) && profile >= 0 && profile < n
+      ? profile
       : -1;
   }
 

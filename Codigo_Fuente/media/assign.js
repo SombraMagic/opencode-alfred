@@ -4,7 +4,7 @@
   const SVG = "http://www.w3.org/2000/svg";
 
   const el = {
-    sub: document.getElementById("sub"),
+    profiles: document.getElementById("profiles"),
     search: document.getElementById("search"),
     providers: document.getElementById("providers"),
     close: document.getElementById("close"),
@@ -18,6 +18,7 @@
     board: document.querySelector(".board"),
     wires: document.getElementById("wires"),
     modal: document.getElementById("modal"),
+    modalTitle: document.getElementById("modal-title"),
     modalText: document.getElementById("modal-text"),
     modalOk: document.getElementById("modal-ok"),
     modalCancel: document.getElementById("modal-cancel"),
@@ -35,21 +36,12 @@
   let lastData = null;
   let lastKey = "";
   let favIds = new Set();
-  // Grupos de favoritos (pestañas) y el índice activo: los resuelve el host en cada assign.
-  let favoriteGroups = [];
-  let activeGroup = 0;
-  // Pestaña que se está renombrando en línea; mientras exista, la barra no se repinta.
-  let editing = null;
-  // Grupo pendiente de borrar con el modal abierto, o -1.
-  let askDeleteGroup = -1;
-  // Temporizador del clic en una pestaña: espera por si llega el doble clic del renombrado.
-  let tabTimer = 0;
+  // Borrado pendiente con el modal abierto ({ bar, index }) o null.
+  let pendingDelete = null;
   // Elemento que abrió el modal: el foco vuelve a él al cerrar.
   let modalReturn = null;
   // Ids del catálogo vivo: los grupos pueden traer ids que el host ya no sirve.
   let catalogIds = new Set();
-  // Nombres previos a un createGroup: el siguiente repintado salta a la pestaña nueva.
-  let pendingNames = null;
   let drag = null;
   // Fila/tarjeta seleccionada ({ kind, id }): resalta su cable. Solo visual: no se persiste ni se envía al host.
   let sel = null;
@@ -110,7 +102,7 @@
     return node("div", "empty", text);
   }
 
-  /** «1 agente», «3 agentes»: el subtítulo se lee en español. */
+  /** «1 favorito», «3 favoritos»: el modal se lee en español. */
   function plural(count, one, many) {
     return count + " " + (count === 1 ? one : many);
   }
@@ -223,82 +215,162 @@
     }
   }
 
-  // ── Pestañas de grupos de favoritos ─────────────────────
-  function renderGroups() {
-    // Renombrar en línea: un repintado a media edición borraría el campo.
-    if (editing !== null) return;
-    el.groups.textContent = "";
+  // ── Pestañas: grupos de favoritos y configuraciones ─────
+  // Misma mecánica en las dos barras: clic para activar, doble clic para renombrar, × para
+  // borrar la activa y + para crear. `msg` nombra los mensajes que entiende el host.
+  const GROUP_TABS = {
+    select: "selectGroup",
+    create: "createGroup",
+    rename: "renameGroup",
+    remove: "deleteGroup",
+    key: "group",
+    createTitle: "Crear grupo",
+    createAria: "Crear un grupo de favoritos",
+    renameAria: "Nombre del grupo",
+    deleteTitle: "Borrar grupo",
+    deleteAria: "Borrar el grupo",
+    modalTitle: "Borrar grupo",
+    // Al crear, el host devuelve el grupo nuevo y la barra salta a él.
+    jumpOnCreate: true,
+    // Se anuncia lo que de verdad se borra: los ids muertos no cuentan.
+    modalText: (group) =>
+      "Se borrará el grupo \"" +
+      group.name +
+      "\" y sus " +
+      plural(liveCount(group.ids || []), "favorito", "favoritos") +
+      ". Los modelos siguen en MODELOS.",
+  };
 
-    favoriteGroups.forEach((group, index) => {
-      const tab = node("div", "group-tab" + (index === activeGroup ? " on" : ""));
+  const PROFILE_TABS = {
+    select: "selectProfile",
+    create: "createProfile",
+    rename: "renameProfile",
+    remove: "deleteProfile",
+    key: "profile",
+    createTitle: "Crear configuración",
+    createAria: "Crear una configuración de asignaciones",
+    renameAria: "Nombre de la configuración",
+    deleteTitle: "Borrar configuración",
+    deleteAria: "Borrar la configuración",
+    modalTitle: "Borrar configuración",
+    modalText: (profile) =>
+      "¿Borrar la configuración «" +
+      profile.name +
+      "»? Se pierden sus asignaciones guardadas. Los ficheros de agente no se tocan.",
+  };
+
+  const groupBar = {
+    box: el.groups,
+    msg: GROUP_TABS,
+    tabs: [],
+    active: 0,
+    // Pestaña en renombrado en línea; mientras exista, la barra no se repinta.
+    editing: null,
+    // Temporizador del clic: espera por si llega el doble clic del renombrado.
+    timer: 0,
+    // Nombres previos a un alta: el siguiente repintado salta a la pestaña nueva.
+    pending: null,
+  };
+
+  // Configuraciones guardadas agente→modelo: solo el nombre y el índice activo. Las
+  // asignaciones las aplica el host escribiendo el `model:` de los .md; aquí no se pintan.
+  const profileBar = {
+    box: el.profiles,
+    msg: PROFILE_TABS,
+    tabs: [],
+    active: 0,
+    editing: null,
+    timer: 0,
+  };
+
+  function renderTabbar(bar) {
+    // Renombrar en línea: un repintado a media edición borraría el campo.
+    if (bar.editing !== null) return;
+    const msg = bar.msg;
+    bar.box.textContent = "";
+
+    bar.tabs.forEach((item, index) => {
+      const tab = node("div", "group-tab" + (index === bar.active ? " on" : ""));
       tab.setAttribute("role", "tab");
-      tab.setAttribute("aria-selected", String(index === activeGroup));
+      tab.setAttribute("aria-selected", String(index === bar.active));
       tab.tabIndex = 0;
       tab.addEventListener("keydown", (event) => {
         if (event.target !== tab || (event.key !== "Enter" && event.key !== " ")) return;
         event.preventDefault();
         tab.click();
       });
-      const name = node("span", "group-tab-name", group.name);
+      const name = node("span", "group-tab-name", item.name);
       tab.appendChild(name);
-      tab.title = group.name;
+      tab.title = item.name;
       tab.addEventListener("click", () => {
-        if (editing !== null || index === activeGroup) return;
+        if (bar.editing !== null || index === bar.active) return;
         // El repintado del host sustituye la pestaña, así que el clic deja un turno al doble
         // clic: si llega, se cancela el cambio de pestaña y se renombra en línea.
-        if (tabTimer) clearTimeout(tabTimer);
-        tabTimer = setTimeout(() => {
-          tabTimer = 0;
-          post({ type: "selectGroup", group: index });
+        if (bar.timer) clearTimeout(bar.timer);
+        bar.timer = setTimeout(() => {
+          bar.timer = 0;
+          post({ type: msg.select, [msg.key]: index });
         }, 250);
       });
       name.addEventListener("dblclick", (event) => {
         event.stopPropagation();
-        if (tabTimer) {
-          clearTimeout(tabTimer);
-          tabTimer = 0;
+        if (bar.timer) {
+          clearTimeout(bar.timer);
+          bar.timer = 0;
         }
-        startRename(index, name);
+        startRename(bar, index, name);
       });
 
-      // La × solo en la pestaña activa, y nunca si es el único grupo.
-      if (index === activeGroup && favoriteGroups.length > 1) {
+      // La × solo en la pestaña activa, y nunca si es la única.
+      if (index === bar.active && bar.tabs.length > 1) {
         const del = node("button", "group-x", "×");
         del.type = "button";
-        del.title = "Borrar grupo";
-        del.setAttribute("aria-label", "Borrar el grupo " + group.name);
+        del.title = msg.deleteTitle;
+        del.setAttribute("aria-label", msg.deleteAria + " " + item.name);
         del.addEventListener("click", (event) => {
           event.stopPropagation();
-          askDelete(index);
+          askDelete(bar, index);
         });
         tab.appendChild(del);
       }
-      el.groups.appendChild(tab);
+      bar.box.appendChild(tab);
     });
 
     const add = node("button", "group-add", "+");
     add.type = "button";
-    add.title = "Crear grupo";
-    add.setAttribute("aria-label", "Crear un grupo de favoritos");
+    add.title = msg.createTitle;
+    add.setAttribute("aria-label", msg.createAria);
     add.addEventListener("click", () => {
-      // El nombre lo pone el host («Grupo N»); el salto se resuelve con los nombres previos.
-      pendingNames = new Set(favoriteGroups.map((g) => g.name));
-      post({ type: "createGroup" });
+      // El nombre lo pone el host; el salto a la pestaña nueva se resuelve con los previos.
+      // Las configuraciones no saltan: «+» crea una copia sin cambiar la activa.
+      if (msg.jumpOnCreate) bar.pending = new Set(bar.tabs.map((tab) => tab.name));
+      post({ type: msg.create });
     });
-    el.groups.appendChild(add);
+    bar.box.appendChild(add);
+  }
+
+  /** Tras crear, salta a la pestaña que no estaba antes en la barra. */
+  function jumpToNew(bar) {
+    if (!bar.pending) return;
+    const before = bar.pending;
+    bar.pending = null;
+    const index = bar.tabs.findIndex((tab) => !before.has(tab.name));
+    if (index >= 0 && index !== bar.active) {
+      post({ type: bar.msg.select, [bar.msg.key]: index });
+    }
   }
 
   /** Renombrado en línea: Enter confirma, Esc o vacío cancelan. */
-  function startRename(index, nameEl) {
-    const group = favoriteGroups[index];
-    if (editing !== null || !group) return;
-    editing = index;
+  function startRename(bar, index, nameEl) {
+    const item = bar.tabs[index];
+    if (bar.editing !== null || !item) return;
+    bar.editing = index;
 
     const input = node("input", "group-rename");
     input.type = "text";
     input.maxLength = 60;
-    input.value = group.name;
-    input.setAttribute("aria-label", "Nombre del grupo");
+    input.value = item.name;
+    input.setAttribute("aria-label", bar.msg.renameAria);
     nameEl.replaceWith(input);
     input.focus();
     input.select();
@@ -307,12 +379,12 @@
     const finish = (commit) => {
       if (done) return;
       done = true;
-      editing = null;
+      bar.editing = null;
       const value = input.value.trim();
-      if (commit && value && value !== group.name) {
-        post({ type: "renameGroup", group: index, name: value });
+      if (commit && value && value !== item.name) {
+        post({ type: bar.msg.rename, [bar.msg.key]: index, name: value });
       }
-      renderGroups();
+      renderTabbar(bar);
     };
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -329,24 +401,19 @@
   }
 
   /** Confirmación de borrado dentro de la webview: `window.confirm` no existe aquí. */
-  function askDelete(index) {
-    const group = favoriteGroups[index];
-    if (!group || favoriteGroups.length <= 1) return;
-    askDeleteGroup = index;
-    // Se anuncia lo que de verdad se borra: los ids muertos no cuentan.
-    el.modalText.textContent =
-      "Se borrará el grupo \"" +
-      group.name +
-      "\" y sus " +
-      plural(liveCount(group.ids || []), "favorito", "favoritos") +
-      ". Los modelos siguen en MODELOS.";
+  function askDelete(bar, index) {
+    const item = bar.tabs[index];
+    if (!item || bar.tabs.length <= 1) return;
+    pendingDelete = { bar, index };
+    el.modalTitle.textContent = bar.msg.modalTitle;
+    el.modalText.textContent = bar.msg.modalText(item);
     modalReturn = document.activeElement;
     el.modal.hidden = false;
     el.modalOk.focus();
   }
 
   function closeModal() {
-    askDeleteGroup = -1;
+    pendingDelete = null;
     el.modal.hidden = true;
     // El foco vuelve a quien abrió el modal; si el repintado ya se lo llevó, no se fuerza.
     if (modalReturn && modalReturn.isConnected) modalReturn.focus();
@@ -402,7 +469,7 @@
         post({ type: "assign", agent, scope, model: model.id });
       });
       card.addEventListener("dragstart", (event) =>
-        startDrag(event, { kind: "model", id: model.id, group: activeGroup })
+        startDrag(event, { kind: "model", id: model.id, group: groupBar.active })
       );
       card.addEventListener("dragend", endDrag);
       card.addEventListener("click", () => toggleSel("modelo", model.id));
@@ -487,7 +554,7 @@
       const id = drag.id;
       drag = null;
       clearDrop();
-      post({ type: "toggleFavorite", id, on: true, group: activeGroup });
+      post({ type: "toggleFavorite", id, on: true, group: groupBar.active });
     }
   });
 
@@ -506,7 +573,7 @@
     if (!drag || drag.kind !== "model" || !favIds.has(drag.id)) return;
     event.preventDefault();
     const id = drag.id;
-    const group = drag.group === undefined ? activeGroup : drag.group;
+    const group = drag.group === undefined ? groupBar.active : drag.group;
     drag = null;
     clearDrop();
     post({ type: "toggleFavorite", id, on: false, group });
@@ -609,36 +676,43 @@
         ? data.favoriteGroups
         : [{ name: "Favoritos", ids: [] }];
     const active = Math.min(Math.max(0, Number(data.activeGroup) || 0), groups.length - 1);
-    // «N favoritos» cuenta ids únicos de todos los grupos que el catálogo vivo conoce.
-    const total = new Set(groups.flatMap((g) => g.ids || []).filter((id) => catalogIds.has(id)))
-      .size;
+    // Igual con las configuraciones: el host manda siempre al menos una.
+    const profiles =
+      Array.isArray(data.profiles) && data.profiles.length > 0
+        ? data.profiles
+        : [{ name: "Configuración 1", assignments: {} }];
+    const activeProfile = Math.min(
+      Math.max(0, Number(data.activeProfile) || 0),
+      profiles.length - 1
+    );
 
     // El sondeo puede repetir los mismos datos: sin esta clave, el scroll y el foco saltan.
-    const key = JSON.stringify([agents, models, groups, active, query, [...off].sort()]);
+    const key = JSON.stringify([
+      agents,
+      models,
+      groups,
+      active,
+      profiles,
+      activeProfile,
+      query,
+      [...off].sort(),
+    ]);
     if (key === lastKey) return;
     lastKey = key;
 
-    favoriteGroups = groups;
-    activeGroup = active;
+    groupBar.tabs = groups;
+    groupBar.active = active;
+    profileBar.tabs = profiles;
+    profileBar.active = activeProfile;
     favIds = new Set(groups[active].ids || []);
-    el.sub.textContent =
-      plural(agents.length, "agente", "agentes") +
-      " · " +
-      plural(models.length, "modelo", "modelos") +
-      " · " +
-      plural(total, "favorito", "favoritos");
 
-    // Tras crear, se salta al grupo nuevo: el que no estaba antes en la barra.
-    if (pendingNames) {
-      const before = pendingNames;
-      pendingNames = null;
-      const index = groups.findIndex((g) => !before.has(g.name));
-      if (index >= 0 && index !== activeGroup) post({ type: "selectGroup", group: index });
-    }
+    // Tras crear, se salta a la pestaña nueva: la que no estaba antes en la barra.
+    jumpToNew(groupBar);
 
     renderProviders(models);
     renderAgents(agents, models);
-    renderGroups();
+    renderTabbar(profileBar);
+    renderTabbar(groupBar);
     renderFavorites(models);
     renderModelsColumn(models);
     scheduleWires();
@@ -658,11 +732,12 @@
 
   el.close.addEventListener("click", () => post({ type: "close" }));
 
-  // ── Modal de borrado de grupo ───────────────────────────
+  // ── Modal de borrado (grupo o configuración) ────────────
   el.modalOk.addEventListener("click", () => {
-    const index = askDeleteGroup;
+    const pending = pendingDelete;
     closeModal();
-    if (index >= 0) post({ type: "deleteGroup", group: index });
+    if (!pending) return;
+    post({ type: pending.bar.msg.remove, [pending.bar.msg.key]: pending.index });
   });
   el.modalCancel.addEventListener("click", closeModal);
   el.modal.addEventListener("click", (event) => {

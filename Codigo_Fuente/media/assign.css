@@ -48,23 +48,19 @@ body {
   text-shadow: 0 0 10px var(--neon-dim);
 }
 
-.assign-sub {
-  font-size: 9.5px;
-  letter-spacing: 1.2px;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
+/* Vive en la fila de MODELOS: estrecho, pero usable. Sin el letter-spacing que hereda del h2. */
 .assign-search {
-  flex: 1 1 160px;
-  min-width: 120px;
-  max-width: 300px;
-  padding: 5px 7px;
+  flex: 1 1 auto;
+  align-self: center;
+  min-width: 0;
+  max-width: none;
+  padding: 0 6px;
   background: transparent;
   border: 1px solid var(--line-soft);
   color: var(--text);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 10.5px;
+  letter-spacing: normal;
 }
 
 .assign-search:focus-visible {
@@ -263,6 +259,23 @@ body {
   color: var(--neon);
   border-color: var(--neon);
   outline: none;
+}
+
+/* ── Pestañas de configuraciones ───────────────────────── */
+/* La misma barra de los grupos, más compacta para caber bajo el kicker de ASIGNACIÓN. */
+.profiles {
+  max-width: min(46vw, 420px);
+  margin: 1px 0 0;
+  padding-bottom: 1px;
+}
+
+.profiles .group-tab {
+  max-width: 130px;
+  padding: 2px 6px;
+}
+
+.profiles .group-add {
+  padding: 2px 7px;
 }
 
 /* ── Listas ────────────────────────────────────────────── */

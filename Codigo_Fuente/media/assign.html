@@ -12,9 +12,8 @@
     <header class="assign-head">
       <div class="assign-title">
         <span class="assign-kicker">ASIGNACIÓN</span>
-        <span class="assign-sub" id="sub">Agentes a modelos</span>
+        <div id="profiles" class="groups profiles" role="tablist" aria-label="Configuraciones guardadas"></div>
       </div>
-      <input id="search" class="assign-search" type="search" placeholder="Buscar modelo…" autocomplete="off" spellcheck="false" aria-label="Buscar modelo" />
       <div id="providers" class="providers" role="group" aria-label="Filtrar por conector"></div>
       <button id="close" class="ghost-btn" type="button">CERRAR</button>
     </header>
@@ -32,14 +31,17 @@
       </section>
 
       <section class="col col-all">
-        <h2 class="col-title">MODELOS <span class="count" id="models-count"></span></h2>
+        <h2 class="col-title">MODELOS
+          <input id="search" class="assign-search" type="search" placeholder="Buscar modelo…" autocomplete="off" spellcheck="false" aria-label="Buscar modelo" />
+          <span class="count" id="models-count"></span>
+        </h2>
         <div id="models" class="cards scroll"></div>
       </section>
     </main>
 
     <svg id="wires" class="wires" aria-hidden="true"></svg>
 
-    <div id="hint" class="hint">Arrastra un modelo a FAVORITOS; arrastra un agente hasta un favorito para conectarlo. Doble clic en una pestaña para renombrarla.</div>
+    <div id="hint" class="hint">Arrastra un modelo a FAVORITOS; arrastra un agente hasta un favorito para conectarlo. Doble clic en una pestaña o en una configuración para renombrarla.</div>
 
     <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
       <div class="modal-box">
