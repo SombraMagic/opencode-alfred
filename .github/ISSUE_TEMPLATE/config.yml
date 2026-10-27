@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Seguridad
+    url: https://github.com/SombraMagic/opencode-alfred/blob/main/.github/SECURITY.md
+    about: No abras un issue público con un fallo de seguridad. Escribe al correo que indica este documento.

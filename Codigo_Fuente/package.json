@@ -3,11 +3,11 @@
   "displayName": "OpenCode Alfred",
   "description": "Centro de control de opencode (agentes, MCP, skills, plugins y contexto) con voz y dictado.",
   "version": "0.1.0",
-  "publisher": "sombra",
+  "publisher": "SombraMagic",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SombraMagic/Alfred_VS.git"
+    "url": "https://github.com/SombraMagic/opencode-alfred.git"
   },
   "engines": {
     "vscode": "^1.90.0",

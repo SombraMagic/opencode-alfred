@@ -16,3 +16,12 @@ dist/
 AGENTS.md
 CLAUDE.md
 MEMORY.md
+
+# Configuración local de los CLIs y credenciales: nunca se publica
+opencode.json
+opencode.jsonc
+.mcp.json
+config.toml
+.env
+.env.*
+*.pem

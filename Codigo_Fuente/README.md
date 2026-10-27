@@ -9,6 +9,12 @@ por ti.
 > todo. Claude Code y Codex son **experimentales**: su soporte todavía no funciona del todo
 > bien y puede cambiar. Cuando el documento dice «los tres CLIs», se refiere a eso.
 
+Antes de instalar, conviene saber dónde escribe: agentes `.md` en
+`~/.config/opencode/agent` y `<proyecto>/.opencode/agent`, `opencode.json(c)`,
+`AGENTS.md`, los agentes y ajustes de Claude Code, `config.toml` de Codex y el bloc de
+adjuntos. Las bases de opencode se abren **en solo lectura** y `~/.claude.json` no se toca
+nunca. El detalle está en la tabla del [README principal](../README.md#qué-toca-y-qué-no).
+
 ## Paneles
 
 ### ALFRED — Explorador (barra de actividad)

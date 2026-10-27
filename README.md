@@ -34,6 +34,28 @@ Sin editar YAML a mano. Sin cambiar de ventana.
 
 Todo en español, en una sola extensión.
 
+## Qué toca y qué no
+
+Las bases de opencode se abren en **solo lectura**. Todo lo demás se escribe con el
+formato que el CLI espera, sin pisar comentarios ni claves que no gestiona la extensión.
+
+| Dónde | Qué hace |
+| --- | --- |
+| `~/.local/share/opencode/*.db` | Solo lectura: sesiones, mensajes y tokens |
+| `~/.cache/opencode/models.json` y el catálogo de models.dev | Solo lectura: límites de contexto y precios |
+| `~/.config/opencode/agent/*.md`, `<proyecto>/.opencode/agent/*.md` | Crea y edita agentes y subagentes |
+| `opencode.json` / `opencode.jsonc` | MCP, skills, plugins, permisos y políticas de conectores |
+| `AGENTS.md` global y de proyecto | Instrucciones |
+| `~/.claude/agents`, `.claude/agents`, `.claude/settings.local.json`, `.mcp.json` | Solo si usas Claude Code (experimental) |
+| `config.toml` de Codex | Solo si usas Codex (experimental) |
+| `%APPDATA%\voz\config.json` | Ajustes de voz para que el MCP los vea |
+| `<raíz>/.alfred/adjuntos` | Adjuntos del dictado; sin proyecto, en el almacenamiento global |
+
+No escribe `~/.claude.json` (las conmutaciones de MCP pasan por el propio CLI) y nunca
+manda credenciales al webview: las claves viven en `secrets` de VS Code. Solo sale a la
+red si lo pides, al consultar límites de consumo o al elegir un motor de voz o dictado en
+la nube.
+
 ## Instalación
 
 Descarga el `.vsix` de [`Instalable/`](Instalable/) y sigue la
