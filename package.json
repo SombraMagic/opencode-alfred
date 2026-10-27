@@ -26,6 +26,7 @@
   "activationEvents": [
     "onView:opencodeAgents.view",
     "onView:opencodeAgents.context",
+    "onView:opencodeAgents.limits",
     "onView:voz.panel",
     "onView:voz.dictado"
   ],
@@ -64,6 +65,11 @@
         {
           "id": "opencodeAgents.context",
           "name": "Contexto",
+          "type": "webview"
+        },
+        {
+          "id": "opencodeAgents.limits",
+          "name": "Límites de consumo",
           "type": "webview"
         }
       ],
@@ -268,6 +274,20 @@
           "type": "boolean",
           "default": false,
           "description": "Incluir también el resto de proveedores del registro (models.dev) en el selector de modelos. Por defecto solo salen los proveedores configurados en opencode.json y los autenticados en auth.json."
+        },
+        "opencodeAgents.limitsProviders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Ids de proveedor cuyo consumo se sigue en el panel «Límites de consumo». Se marcan desde la fila de cada conector."
+        },
+        "opencodeAgents.goPlan": {
+          "type": "string",
+          "enum": ["go", "go-plus"],
+          "default": "go",
+          "description": "Plan de OpenCode Go usado para estimar sus topes de gasto: Go (12/30/60 USD) o Go Plus (48/120/240 USD)."
         },
         "voz.engine": {
           "type": "string",

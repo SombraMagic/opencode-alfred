@@ -68,6 +68,10 @@ export interface ConnectorEntry {
   connections: ConnectorConnection[];
   methods: ConnectorMethod[];
   configFiles: string[];
+  /** El proveedor tiene adaptador de límites; lo resuelve el host con `supportsLimits`. */
+  limitsSupported: boolean;
+  /** Está marcado en el panel «Límites de consumo» (ajuste `opencodeAgents.limitsProviders`). */
+  limitsOn: boolean;
 }
 
 export interface ConnectorModel {
@@ -1243,6 +1247,9 @@ export class ConnectorService {
         connections: mapConnections(integration),
         methods: mapMethods(integration),
         configFiles,
+        // El host (extension.ts) rellena estos dos al decorar el catálogo: aquí no se sonda.
+        limitsSupported: false,
+        limitsOn: false,
       });
     }
 

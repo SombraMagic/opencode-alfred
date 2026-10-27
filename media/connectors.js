@@ -200,6 +200,21 @@
         row.appendChild(sw);
       }
 
+      // Límites de consumo: casilla aparte, solo para los conectores que los exponen.
+      if (connector.limitsSupported === true) {
+        const limits = node("button", "switch limits" + (connector.limitsOn ? " on" : ""));
+        limits.type = "button";
+        limits.setAttribute("aria-pressed", String(!!connector.limitsOn));
+        const ayuda = "Mostrar límites de consumo de " + connector.name;
+        limits.setAttribute("aria-label", ayuda);
+        limits.title = ayuda;
+        limits.appendChild(node("span", "limits-box"));
+        limits.addEventListener("click", () =>
+          post({ type: "toggleLimits", id: connector.id, on: !connector.limitsOn })
+        );
+        row.appendChild(limits);
+      }
+
       const remove = node("button", "remove", "✕");
       remove.type = "button";
       remove.title = "Eliminar configuración";

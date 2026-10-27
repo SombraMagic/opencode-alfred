@@ -46,6 +46,16 @@ import { ClaudeAgentPanel } from "./panels/claudeAgentPanel";
 import { StatsPanel } from "./panels/statsPanel";
 import { PromptStatsPanel } from "./panels/promptStatsPanel";
 import { ContextViewProvider } from "./panels/contextPanel";
+import { LimitsViewProvider } from "./panels/limitsPanel";
+import {
+  collectLimits,
+  LIMITS_ADAPTER_IDS,
+  repaintIfLatest,
+  sanitizeLimitsIds,
+  supportsLimits,
+  supportsLimitsCached,
+  withLimitsProvider,
+} from "./limits/limits";
 import { VozPanel } from "./panels/voicePanel";
 import { VozDictado } from "./panels/dictadoPanel";
 import { speak, syncSharedConfig } from "./voice/service";
@@ -407,6 +417,114 @@ export function activate(context: vscode.ExtensionContext): void {
       webviewOptions: { retainContextWhenHidden: true },
     })
   );
+
+  // ── Límites de consumo ───────────────────────────────────────────────────
+  // El temporizador vive lo que la vista: se arma al ready y se apaga al cerrarla.
+  let limitsViewOpen = false;
+  const limitsView = new LimitsViewProvider(
+    context.extensionUri,
+    () => {
+      limitsViewOpen = true;
+      armLimitsTimer();
+      void refreshLimits();
+    },
+    () => void refreshLimits(true),
+    (plan) => void setGoPlan(plan),
+    () => {
+      limitsViewOpen = false;
+      stopLimitsTimer();
+    }
+  );
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(LimitsViewProvider.viewType, limitsView, {
+      webviewOptions: { retainContextWhenHidden: true },
+    })
+  );
+
+  /** Ids de proveedor activados en el panel: saneados y solo con adaptador conocido. */
+  function limitsProviderIds(): string[] {
+    return sanitizeLimitsIds(
+      vscode.workspace.getConfiguration("opencodeAgents").get<unknown>("limitsProviders", [])
+    );
+  }
+
+  function goPlanSetting(): "go" | "go-plus" {
+    return vscode.workspace.getConfiguration("opencodeAgents").get<string>("goPlan") === "go-plus"
+      ? "go-plus"
+      : "go";
+  }
+
+  let limitsTimer: ReturnType<typeof setInterval> | undefined;
+  function stopLimitsTimer(): void {
+    if (limitsTimer) {
+      clearInterval(limitsTimer);
+      limitsTimer = undefined;
+    }
+  }
+  /** Sondeo de 10 min: solo con la vista abierta y lista de proveedores no vacía. */
+  function armLimitsTimer(): void {
+    stopLimitsTimer();
+    if (!limitsViewOpen || limitsProviderIds().length === 0) {
+      return;
+    }
+    limitsTimer = setInterval(() => {
+      // Doble seguro: si la vista se cerró sin evento, este tick no hace nada.
+      if (!limitsViewOpen) {
+        stopLimitsTimer();
+        return;
+      }
+      void refreshLimits();
+    }, 10 * 60 * 1000);
+  }
+  context.subscriptions.push({ dispose: () => limitsTimer && clearInterval(limitsTimer) });
+
+  async function refreshLimits(force = false): Promise<void> {
+    const providers = await collectLimits(limitsProviderIds(), {
+      goPlan: goPlanSetting(),
+      force,
+    });
+    limitsView.update(providers);
+  }
+
+  async function setGoPlan(plan: "go" | "go-plus"): Promise<void> {
+    // La caché de `collectLimits` incluye el plan: cambiarlo ya fuerza la recolección.
+    await vscode.workspace
+      .getConfiguration("opencodeAgents")
+      .update("goPlan", plan, vscode.ConfigurationTarget.Global);
+    void refreshLimits();
+  }
+
+  /** Pinta Conectores ya con lo sondeado (caché de 10 min) o `false`: sin esperar a la red. */
+  function applyCachedLimits(data: ConnectorsData): void {
+    const on = new Set(limitsProviderIds());
+    for (const entry of data.connectors) {
+      const pid = entry.providerId || entry.id;
+      entry.limitsOn = on.has(pid);
+      entry.limitsSupported = entry.configured ? supportsLimitsCached(pid) : false;
+    }
+  }
+
+  /**
+   * Sondas reales (Copilot canjea token: segundos). Devuelve si algo cambió; el
+   * panel se repinta entonces por encima del pintado inmediato de `applyCachedLimits`.
+   */
+  async function decorateConnectorLimits(data: ConnectorsData): Promise<boolean> {
+    const on = new Set(limitsProviderIds());
+    let changed = false;
+    await Promise.all(
+      data.connectors.map(async (entry) => {
+        const pid = entry.providerId || entry.id;
+        entry.limitsOn = on.has(pid);
+        const next = entry.configured ? await supportsLimits(pid) : false;
+        if (next !== entry.limitsSupported) {
+          entry.limitsSupported = next;
+          changed = true;
+        }
+      })
+    );
+    return changed;
+  }
+
   let baselines: BaselineMap = loadBaselines(context);
   let display: StatsSnapshot | undefined;
   let lastKey = "";
@@ -941,6 +1059,16 @@ export function activate(context: vscode.ExtensionContext): void {
       await context.globalState.update(CONNECTORS_SELECTED, connectorsSelected);
     }
     connectorsData = data;
+    applyCachedLimits(data);
+    // La sonda no bloquea el pintado: al terminar, repinta solo si este catálogo sigue
+    // siendo el vigente (identidad). Un repintado viejo cerraría el formulario de alta
+    // abierto entre tanto o resucitaría un conector ya borrado.
+    void repaintIfLatest(
+      data,
+      () => connectorsData,
+      decorateConnectorLimits(data),
+      (d) => void ConnectorsPanel.current?.update(d)
+    );
     return data;
   }
 
@@ -1031,6 +1159,36 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
+      case "toggleLimits": {
+        const data = connectorsData;
+        const entry = data?.connectors.find((c) => c.id === action.id);
+        if (!data || !entry) {
+          return;
+        }
+        const pid = entry.providerId || entry.id;
+        // Nada entra en el ajuste que no sea conector conocido con adaptador y sonda buena.
+        if (!(LIMITS_ADAPTER_IDS as readonly string[]).includes(pid)) {
+          return;
+        }
+        if (action.on && entry.limitsSupported !== true) {
+          return;
+        }
+        try {
+          const next = withLimitsProvider(limitsProviderIds(), pid, action.on);
+          await vscode.workspace
+            .getConfiguration("opencodeAgents")
+            .update("limitsProviders", next, vscode.ConfigurationTarget.Global);
+          applyCachedLimits(data);
+          panel?.update(data);
+          // Al encender se sondea ya: la primera tarjeta no espera al temporizador.
+          void refreshLimits(action.on);
+          armLimitsTimer();
+        } catch (err) {
+          fail(err);
+        }
+        return;
+      }
+
       case "remove": {
         const entry = connectorsData?.connectors.find((c) => c.id === action.id);
         if (!entry) {
@@ -1072,6 +1230,18 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         try {
           const result = await connectorsService.remove(action.id);
+          // Un conector que desaparece no puede dejar su marca de límites huérfana.
+          const purgeId = entry.providerId || entry.id;
+          if (limitsProviderIds().includes(purgeId)) {
+            await vscode.workspace
+              .getConfiguration("opencodeAgents")
+              .update(
+                "limitsProviders",
+                withLimitsProvider(limitsProviderIds(), purgeId, false),
+                vscode.ConfigurationTarget.Global
+              );
+            void refreshLimits();
+          }
           panel?.update(await collectConnectors(true));
           const done: string[] = [];
           if (result.credentialsRemoved > 0) {
@@ -2263,6 +2433,18 @@ export function activate(context: vscode.ExtensionContext): void {
       if (e.affectsConfiguration("opencodeAgents")) {
         restartPolling();
         refresh();
+        if (
+          e.affectsConfiguration("opencodeAgents.limitsProviders") ||
+          e.affectsConfiguration("opencodeAgents.goPlan")
+        ) {
+          // Proveedor añadido/editado desde Ajustes con la vista abierta y el temporizador
+          // apagado (lista vacía): se rearma y se repinta. La caché y la deduplicación en
+          // vuelo de `collectLimits` evitan el doble sondeo con el alta del panel.
+          armLimitsTimer();
+          if (limitsViewOpen) {
+            void refreshLimits();
+          }
+        }
       }
     }),
     vscode.workspace.onDidSaveTextDocument((doc) => {

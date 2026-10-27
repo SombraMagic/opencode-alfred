@@ -1,0 +1,240 @@
+/* Límites de consumo — tarjetas por proveedor con barras de porcentaje */
+
+:root {
+  /* Secundario que no es estado apagado: rótulos de ventana, pie y aviso. */
+  --text-soft: #8fb4c9;
+}
+
+body.vscode-light {
+  --text-soft: #42606f;
+}
+
+.hud {
+  padding: 0 10px 14px;
+}
+
+.hud-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-header .ghost-btn {
+  flex: none;
+}
+
+/* ── Sello del último sondeo ───────────────────────────── */
+.stamp {
+  margin: -6px 0 8px;
+  font-size: 9px;
+  letter-spacing: 1.1px;
+  color: var(--text-soft);
+  text-align: right;
+}
+
+/* ── Avisos ────────────────────────────────────────────── */
+.hint {
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+/* ── Tarjetas ──────────────────────────────────────────── */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  border: 1px solid var(--line-soft);
+  background: var(--bg-soft);
+}
+
+.card.error {
+  border-color: color-mix(in srgb, var(--magenta) 55%, transparent);
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.card-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-toggle:hover .card-name,
+.card-toggle:focus-visible .card-name {
+  color: var(--neon);
+}
+
+.card-toggle:focus-visible {
+  outline: none;
+}
+
+.chev {
+  flex: none;
+  width: 8px;
+  font-size: 9px;
+  color: var(--neon);
+}
+
+.card-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip.plan {
+  flex: none;
+  color: var(--text-soft);
+  text-transform: uppercase;
+}
+
+/* El plan de opencode-go se alterna desde el propio chip. */
+.chip.plan.act {
+  background: none;
+  font-family: inherit;
+  color: var(--neon);
+  border-color: var(--neon-dim);
+  cursor: pointer;
+}
+
+.chip.plan.act:hover,
+.chip.plan.act:focus-visible {
+  background: var(--neon);
+  color: var(--bg);
+  outline: none;
+}
+
+.chip.est {
+  flex: none;
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 55%, transparent);
+}
+
+.card-body {
+  padding: 6px 6px 8px;
+}
+
+.card-body[hidden] {
+  display: none;
+}
+
+.card-error,
+.win-empty {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-error {
+  color: var(--magenta);
+}
+
+.win-empty {
+  color: var(--text-soft);
+}
+
+/* ── Ventanas ──────────────────────────────────────────── */
+.win + .win {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.win-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.win-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  color: var(--text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.win-num {
+  flex: none;
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.bar {
+  height: 6px;
+  margin: 4px 0 3px;
+  padding: 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--line-soft);
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--neon);
+  box-shadow: 0 0 6px var(--neon-dim);
+  transition: width 0.18s ease;
+}
+
+.bar-fill.aviso {
+  background: var(--amber);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 60%, transparent);
+}
+
+.bar-fill.peligro {
+  background: var(--magenta);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--magenta) 60%, transparent);
+}
+
+.win-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--text-soft);
+}
+
+.win-rest,
+.win-reset {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.win-reset {
+  margin-left: auto;
+  text-align: right;
+}

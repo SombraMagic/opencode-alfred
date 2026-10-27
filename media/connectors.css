@@ -254,6 +254,34 @@ body {
   outline: none;
 }
 
+/* Casilla de límites de consumo: mismo idioma que el interruptor, forma de cuadro ámbar. */
+.switch.limits {
+  flex: none;
+}
+
+.switch.limits .limits-box {
+  width: 11px;
+  height: 11px;
+  border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  background: var(--bg-soft);
+}
+
+.switch.limits:hover .limits-box,
+.switch.limits:focus-visible .limits-box {
+  border-color: var(--amber);
+}
+
+.switch.limits.on .limits-box {
+  background: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 70%, transparent);
+}
+
+.switch.limits:focus-visible {
+  outline: 1px solid var(--amber);
+  outline-offset: 2px;
+}
+
 /* ── Detalle ───────────────────────────────────────────── */
 .detail {
   flex: 1 1 auto;

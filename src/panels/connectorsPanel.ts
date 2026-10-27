@@ -13,6 +13,7 @@ export type ConnectorAction =
   | { type: "persistView"; search: string }
   | { type: "refresh" }
   | { type: "toggle"; id: string; on: boolean }
+  | { type: "toggleLimits"; id: string; on: boolean }
   | { type: "remove"; id: string }
   | { type: "connectKey"; id: string; key: string; answer?: FormAnswer }
   | { type: "connectExternal"; id: string; methodID: string; answer?: FormAnswer }
@@ -29,6 +30,7 @@ const ACTION_TYPES = new Set<string>([
   "persistView",
   "refresh",
   "toggle",
+  "toggleLimits",
   "remove",
   "connectKey",
   "connectExternal",
@@ -100,6 +102,10 @@ function parseAction(raw: unknown): ConnectorAction | undefined {
     case "toggle":
       return id && typeof action.on === "boolean"
         ? { type: "toggle", id, on: action.on }
+        : undefined;
+    case "toggleLimits":
+      return id && typeof action.on === "boolean"
+        ? { type: "toggleLimits", id, on: action.on }
         : undefined;
     case "connectKey": {
       const key = action.key;

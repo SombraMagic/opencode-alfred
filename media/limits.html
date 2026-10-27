@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="%%TOKENS%%" rel="stylesheet" />
+<link href="%%STYLE%%" rel="stylesheet" />
+<title>Límites de consumo</title>
+</head>
+<body>
+<div class="hud">
+  <div class="hud-header">
+    <span class="hud-dot"></span>
+    <span class="hud-title" id="title" title="Límites de consumo">LÍMITES DE CONSUMO</span>
+    <button id="refresh" class="ghost-btn" type="button" title="Volver a sondear los límites de consumo">REFRESCAR</button>
+  </div>
+
+  <div id="stamp" class="stamp" hidden></div>
+  <div id="list" class="cards"></div>
+  <p id="hint" class="hint">Leyendo límites…</p>
+</div>
+<script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
+</body>
+</html>
