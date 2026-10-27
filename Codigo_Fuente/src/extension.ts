@@ -61,6 +61,8 @@ import { VozDictado } from "./panels/dictadoPanel";
 import { speak, syncSharedConfig } from "./voice/service";
 import { installMcp } from "./voice/mcpInstaller";
 import { ContextWindowService } from "./stats/contextWindow";
+import { formatRelative } from "./stats/format";
+import { readTuiTabs } from "./stats/tuiTabs";
 import { PromptStatsService } from "./stats/promptStats";
 import type { PromptStatsSnapshot } from "./stats/promptFlow";
 import {
@@ -726,6 +728,89 @@ export function activate(context: vscode.ExtensionContext): void {
       // `time_viewed` es la que pisa el TUI al mirar la sesión: con dos terminales gana la
       // que el usuario tiene delante; si no hay viewing (esquema viejo), vale `updated`.
       .sort((a, b) => Math.max(b.viewed, b.updated) - Math.max(a.viewed, a.updated))[0];
+  }
+
+  /**
+   * Sesión de la TUI sobre la que actuar: las pestañas abiertas de esta carpeta, no la
+   * primera fila por `time_updated` de la BD. Sin `tabs.json`, cae a la sesión medida.
+   * Cancelar el selector no avisa; «no hay sesión» sí.
+   */
+  async function liveSession(): Promise<{ id: string; title: string } | undefined> {
+    const root = projectRoot();
+    if (!root) {
+      void vscode.window.showWarningMessage(
+        "opencode: abre una carpeta del proyecto para activar un agente en la sesión."
+      );
+      return undefined;
+    }
+    let snapshot = lastRaw ?? (await statsService.collect());
+    const rootSessionsOf = (raw: StatsSnapshot) =>
+      (raw.sessions ?? []).filter((s) => !s.parentId && isSamePath(s.directory, root));
+    const { found, ids } = readTuiTabs(root);
+    const abiertas = new Set(ids);
+    let rootSessions = rootSessionsOf(snapshot);
+    // `lastRaw` puede ir un sondeo por detrás: si una pestaña abierta no está en el
+    // snapshot, se relee la BD antes de decidir (nunca actuar sobre la pestaña vieja).
+    if (abiertas.size && [...abiertas].some((id) => !rootSessions.some((s) => s.id === id))) {
+      snapshot = await statsService.collect();
+      rootSessions = rootSessionsOf(snapshot);
+    }
+    const candidates = rootSessions.filter((s) => abiertas.has(s.id));
+    if (candidates.length === 1) {
+      return { id: candidates[0].id, title: candidates[0].title };
+    }
+    if (candidates.length > 1) {
+      const running = await runningSessionIds();
+      const enMarcha = candidates.filter((s) => running.has(s.id));
+      if (enMarcha.length === 1) {
+        return { id: enMarcha[0].id, title: enMarcha[0].title };
+      }
+      const items = [...candidates]
+        .sort((a, b) => b.updated - a.updated)
+        .map((s) => ({
+          label: s.title || s.id,
+          description: `${s.agent} · ${s.model || "—"} · ${formatRelative(s.updated)}${
+            running.has(s.id) ? " · en marcha" : ""
+          }`,
+          session: s,
+        }));
+      const picked = await vscode.window.showQuickPick(items, {
+        title: "SESIÓN",
+        placeHolder: "¿En qué sesión de la TUI?",
+      });
+      return picked ? { id: picked.session.id, title: picked.session.title } : undefined;
+    }
+    // Hay `tabs.json` pero ninguna pestaña de esta carpeta: la TUI no tiene sesión abierta aquí.
+    if (!found) {
+      const medida = contextView.currentSessionId();
+      if (medida) {
+        return { id: medida, title: rootSessions.find((s) => s.id === medida)?.title ?? "" };
+      }
+    }
+    return sinSesion();
+  }
+
+  /** Aviso único de «no hay sesión»; devuelve undefined para el llamador. */
+  function sinSesion(): undefined {
+    void vscode.window.showWarningMessage(
+      "opencode: no hay ninguna sesión abierta en la TUI de esta carpeta; en la pantalla inicial no hay sesión que activar."
+    );
+    return undefined;
+  }
+
+  /** Sesiones con ejecución en marcha según `/api/session/active`; vacío si no responde. */
+  async function runningSessionIds(): Promise<Set<string>> {
+    try {
+      const raw = await opencodeApi("GET", "/api/session/active");
+      const body = JSON.parse(raw) as { data?: Record<string, { type?: string }> };
+      return new Set(
+        Object.entries(body.data ?? {})
+          .filter(([, value]) => value?.type === "running")
+          .map(([id]) => id)
+      );
+    } catch {
+      return new Set();
+    }
   }
 
   /** Compacta la conversación de la sesión medida en el panel: el equivalente a `/compact` del TUI. */
@@ -2548,17 +2633,16 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       case "activateAgent": {
-        // Cambia el agente de la sesión medida, lo mismo que hace Shift+Tab del TUI: no toca el modelo ni el .md.
+        // Cambia el agente de la sesión viva de la TUI, como Shift+Tab: no toca el modelo ni el .md.
         if (sessionAgent !== "opencode") {
           return;
         }
-        const id = contextView.currentSessionId();
-        if (!id) {
-          void vscode.window.showWarningMessage(
-            "opencode: todavía no hay una sesión medida que activar."
-          );
+        const session = await liveSession();
+        if (!session) {
           return;
         }
+        const id = session.id;
+        const label = session.title || id;
         try {
           // El cuerpo solo admite la clave `agent`: el OpenAPI la declara con `additionalProperties: false`.
           await opencodeApi("POST", `/api/session/${id}/agent`, { agent: action.name });
@@ -2567,19 +2651,19 @@ export function activate(context: vscode.ExtensionContext): void {
           const model = findLoadedAgent(action.name)?.frontmatter.model ?? "";
           if (!model) {
             void vscode.window.setStatusBarMessage(
-              `opencode: agente "${action.name}" activado en la sesión.`,
+              `opencode: agente «${action.name}» activado en «${label}».`,
               4000
             );
             return;
           }
           if (await applySessionModel(id, model)) {
             void vscode.window.setStatusBarMessage(
-              `opencode: agente «${action.name}» activado en la sesión con su modelo «${model}».`,
+              `opencode: agente «${action.name}» activado en «${label}» con su modelo «${model}».`,
               4000
             );
           } else {
             void vscode.window.showWarningMessage(
-              `opencode: agente «${action.name}» activado, pero el modelo «${model}» no se pudo aplicar a la sesión.`
+              `opencode: agente «${action.name}» activado en «${label}», pero el modelo «${model}» no se pudo aplicar a la sesión.`
             );
           }
         } catch (err) {

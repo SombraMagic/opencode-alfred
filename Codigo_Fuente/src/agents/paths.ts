@@ -44,6 +44,13 @@ export function opencodeDataDir(): string {
   return path.join(os.homedir(), ".local", "share", "opencode");
 }
 
+/** Estado que opencode guarda fuera de la config (pestañas de la TUI). Solo lectura. */
+export function opencodeStateDir(): string {
+  const xdg = process.env.XDG_STATE_HOME;
+  const base = xdg && xdg.trim() ? xdg : path.join(os.homedir(), ".local", "state");
+  return path.join(base, "opencode");
+}
+
 export function opencodeAuthPath(): string {
   return path.join(opencodeDataDir(), "auth.json");
 }
