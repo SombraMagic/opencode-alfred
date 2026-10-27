@@ -193,6 +193,9 @@ body {
   position: relative;
   width: 100cqw;
   height: 100cqh;
+  /* Sin esto Chromium se queda el arrastre del lápiz o del dedo como gesto de scroll/paneo:
+     suelta `pointercancel`, el trazo se corta y el dibujo persigue al lápiz en el aire. */
+  touch-action: none;
   /* Fuera del encuadre no se pinta: el zoom y el paneo recortan aquí. */
   overflow: hidden;
   border: 1px solid var(--line);

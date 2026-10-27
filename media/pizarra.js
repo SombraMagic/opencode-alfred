@@ -948,6 +948,10 @@
   el.frame.addEventListener("pointerdown", onDown);
   el.frame.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
+  // El SO o Chromium pueden quitar el gesto al lápiz (ink/manejo de Windows): llega
+  // `pointercancel` y NUNCA `pointerup`. Sin esto el `drag` queda clavado y el trazo persigue
+  // al lápiz cuando solo planea sobre la pantalla.
+  el.frame.addEventListener("pointercancel", onUp);
 
   // Rueda: acerca y aleja dejando el cursor sobre el mismo punto del lienzo. `passive:false`
   // porque hay que cortar el scroll de la página; la transform CSS no cambia el PNG exportado.
