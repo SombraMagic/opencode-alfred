@@ -72,7 +72,10 @@ bloc del dictado como adjunto.
   y borrado con confirmación. Los secretos nunca viajan al webview.
 - **Asignar agentes**: tablero de tres columnas con cables agente ↔ modelo, grupos de
   favoritos y precios. Conectar escribe `model:` en el `.md` del agente: se aplica a las
-  sesiones **nuevas**.
+  sesiones **nuevas**. Bajo el título hay pestañas de **configuraciones**: cada una guarda
+  el mapa completo agente → modelo, y cambiar de pestaña lo vuelca en todos los `.md` (doble
+  clic para renombrar, `×` para borrar, `+` para duplicar la activa). El buscador de modelos
+  vive en la fila del título MODELOS.
 
 ## Los tres proveedores
 

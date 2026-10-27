@@ -19,7 +19,8 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   con selector de proveedor activo y una terminal por agente.
 - **Editor de agentes** de opencode (permisos por herramienta y patrón) y **editor de
   subagentes** de Claude con su propio formulario.
-- **Tablero de asignación** agentes ↔ modelos, con grupos de favoritos y precios.
+- **Tablero de asignación** agentes ↔ modelos, con grupos de favoritos, precios y
+  configuraciones guardadas (cambiar de pestaña vuelca el mapa en los `.md`).
 - **Panel de conectores** de opencode: catálogo, configurados, alta (clave, externa,
   OAuth, comando), apagado por política y borrado.
 - **Contexto** con desglose de la ventana, compactación y medición para los tres CLIs.
@@ -38,14 +39,14 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
    (depende del driver; el manejo de `pointercancel` ya está puesto).
 3. **Publicación**: repositorio público, README de presentación y `.vsix` en
    `Instalable/`. El paso a público se hace a mano.
-4. **Limpieza menor**: textos que aún dicen `opencode-agents-editor`, y el `.vsix`
-   arrastra ~1.6 MB de fuentes C++ de `koffi` que no se usan en ejecución.
+4. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
+   usan en ejecución.
 5. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
 
 ## Alcance
 
 - **opencode es el objetivo principal**; Claude Code y Codex están en fase experimental.
 - Las estadísticas leen las bases de opencode **en estricta solo lectura**.
-- La extensión no cambia el modelo de una sesión en marcha: escribe el `model:` del
-  fichero del agente, que opencode aplica a las sesiones nuevas.
+- La extensión escribe el `model:` del fichero del agente, que opencode aplica a las
+  sesiones nuevas; si el agente tocado es el de la sesión viva, también lo activa ahí.
 - Las conexiones `env` de opencode no se borran desde el panel de conectores.
