@@ -396,6 +396,6 @@
     "@types/vscode": "^1.90.0",
     "@types/ws": "^8.18.1",
     "esbuild": "^0.24.0",
-    "typescript": "^5.7.2"
+    "typescript": "^7.0.2"
   }
 }
