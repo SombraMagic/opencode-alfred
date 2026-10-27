@@ -168,7 +168,9 @@
     // VER va pegado al borde derecho: el contenedor es el que lleva `margin-left: auto`.
     const acciones = node("div", "agent-actions");
     // Activar en la sesión viva de opencode (la TUI); va antes de VER y solo con ese proveedor.
-    if (esOpencode && !NO_ACTIVABLES.has(agent.name)) {
+    // Un subagente no puede ser el agente de la sesión: sin botón (los integrados subagentes
+    // vienen sin `mode` y caen en NO_ACTIVABLES).
+    if (esOpencode && agent.mode !== "subagent" && !NO_ACTIVABLES.has(agent.name)) {
       const activar = node("button", "mini", "❯");
       activar.type = "button";
       activar.title = "Activar " + agent.name + " en la sesión de opencode";
