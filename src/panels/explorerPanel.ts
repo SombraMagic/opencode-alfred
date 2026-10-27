@@ -53,6 +53,7 @@ export type ExplorerAction =
   | { type: "openLastSession" }
   | { type: "createAgent"; mode: "primary" | "subagent" }
   | { type: "editAgent"; name: string; scope: ExplorerScope | "builtin" }
+  | { type: "activateAgent"; name: string }
   | { type: "toggleMcp"; name: string; scope: ExplorerScope }
   | { type: "toggleSkill"; name: string; scope: ExplorerScope }
   | { type: "togglePlugin"; name: string; scope: ExplorerScope }
@@ -69,6 +70,7 @@ const ACTION_TYPES = new Set<string>([
   "openLastSession",
   "createAgent",
   "editAgent",
+  "activateAgent",
   "toggleMcp",
   "toggleSkill",
   "togglePlugin",

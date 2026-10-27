@@ -2138,6 +2138,33 @@ export function activate(context: vscode.ExtensionContext): void {
         });
       }
 
+      case "activateAgent": {
+        // Cambia el agente de la sesión medida, lo mismo que hace Shift+Tab del TUI: no toca el modelo ni el .md.
+        if (sessionAgent !== "opencode") {
+          return;
+        }
+        const id = contextView.currentSessionId();
+        if (!id) {
+          void vscode.window.showWarningMessage(
+            "opencode: todavía no hay una sesión medida que activar."
+          );
+          return;
+        }
+        try {
+          // El cuerpo solo admite la clave `agent`: el OpenAPI la declara con `additionalProperties: false`.
+          await opencodeApi("POST", `/api/session/${id}/agent`, { agent: action.name });
+          void vscode.window.setStatusBarMessage(
+            `opencode: agente "${action.name}" activado en la sesión.`,
+            4000
+          );
+        } catch (err) {
+          void vscode.window.showErrorMessage(
+            `No se pudo activar el agente: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+        return;
+      }
+
       case "toggleMcp": {
         const server = catalogData.mcp.find(
           (s) => s.name === action.name && s.scope === action.scope

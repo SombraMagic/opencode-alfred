@@ -39,6 +39,9 @@
   };
 
   const AGENT_LABELS = { opencode: "OPEN", claude: "CLAUDE", codex: "CODEX" };
+  // opencode no admite estos integrados como agente de sesión (solo se invocan como
+  // subagente): el botón ❯ fallaría siempre, así que no se pinta en sus filas.
+  const NO_ACTIVABLES = new Set(["explore", "general"]);
   // Nombre legible de la app: el texto visible es un svg, así que el title/aria-label es lo único
   // que identifica el botón; las abreviaturas de AGENT_LABELS no sirven para eso.
   const AGENT_NAMES = { opencode: "opencode", claude: "Claude Code", codex: "Codex" };
@@ -46,6 +49,10 @@
   // Fichero de instrucciones que abre cada botón del mando: opencode y Codex escriben
   // AGENTS.md, Claude CLAUDE.md. Un proveedor desconocido cae al de opencode.
   const AGENT_FILE = { opencode: "AGENTS.md", codex: "AGENTS.md", claude: "CLAUDE.md" };
+
+  // Solo opencode sabe activar un agente en su sesión viva: el botón de activar depende de esto.
+  // Lo fija `renderAgents` en cada render, antes de pintar las filas.
+  let esOpencode = false;
 
   // Dibujo de cada app para el botón de sesión (monócromos, viewBox 0 0 24 24).
   // Fuente: simple-icons (opencode, claude) y lobe-icons (codex). No redibujar aquí.
@@ -160,6 +167,17 @@
 
     // VER va pegado al borde derecho: el contenedor es el que lleva `margin-left: auto`.
     const acciones = node("div", "agent-actions");
+    // Activar en la sesión viva de opencode (la TUI); va antes de VER y solo con ese proveedor.
+    if (esOpencode && !NO_ACTIVABLES.has(agent.name)) {
+      const activar = node("button", "mini", "❯");
+      activar.type = "button";
+      activar.title = "Activar " + agent.name + " en la sesión de opencode";
+      activar.setAttribute("aria-label", activar.title);
+      activar.addEventListener("click", () =>
+        act({ type: "activateAgent", name: agent.name })
+      );
+      acciones.appendChild(activar);
+    }
     acciones.appendChild(ver);
     card.appendChild(acciones);
 
@@ -176,6 +194,8 @@
   }
 
   function renderAgents(data) {
+    // El botón de activar solo tiene sentido con opencode; se fija antes de pintar las filas.
+    esOpencode = data.sessionAgent === "opencode";
     const agents = data.agents || {};
     const builtin = agents.builtin || [];
 
