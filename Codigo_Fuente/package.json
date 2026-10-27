@@ -384,7 +384,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^5.5.0",
     "jsonc-parser": "^3.3.1",
     "koffi": "^3.3.3",
     "mpg123-decoder": "^1.0.3",
