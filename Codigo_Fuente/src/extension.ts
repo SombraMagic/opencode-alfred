@@ -1038,6 +1038,19 @@ export function activate(context: vscode.ExtensionContext): void {
           ? `opencode: «${agent.name}» usará «${modelLabel}».`
           : `opencode: «${agent.name}» sin modelo fijado.`;
       }
+      // Sesión viva medida trabajando con este agente: fijar también el modelo activo.
+      // Borrar el modelo no admite POST, así que solo con modelo no vacío. La comparación
+      // por nombre cuadra también con los integrados (el tablero pasa el nombre sin sufijo).
+      const sessionId = model ? contextView.currentSessionId() : undefined;
+      if (sessionId && contextView.currentAgent() === action.agent) {
+        if (await applySessionModel(sessionId, model)) {
+          notice = `${notice.replace(/\.$/, "")} y ya es activo en la sesión.`;
+        } else {
+          void vscode.window.showWarningMessage(
+            `opencode: el .md de «${action.agent}» está guardado, pero el modelo «${model}» no se pudo aplicar a la sesión viva.`
+          );
+        }
+      }
       await refreshAgents();
       void vscode.window.setStatusBarMessage(notice, 6000);
     } catch (err) {
@@ -2323,10 +2336,26 @@ export function activate(context: vscode.ExtensionContext): void {
         try {
           // El cuerpo solo admite la clave `agent`: el OpenAPI la declara con `additionalProperties: false`.
           await opencodeApi("POST", `/api/session/${id}/agent`, { agent: action.name });
-          void vscode.window.setStatusBarMessage(
-            `opencode: agente "${action.name}" activado en la sesión.`,
-            4000
-          );
+          // Modelo del .md con precedencia proyecto > global: los integrados sin override
+          // no viven en esas listas, así que se quedan sin modelo y sin POST.
+          const model = findLoadedAgent(action.name)?.frontmatter.model ?? "";
+          if (!model) {
+            void vscode.window.setStatusBarMessage(
+              `opencode: agente "${action.name}" activado en la sesión.`,
+              4000
+            );
+            return;
+          }
+          if (await applySessionModel(id, model)) {
+            void vscode.window.setStatusBarMessage(
+              `opencode: agente «${action.name}» activado en la sesión con su modelo «${model}».`,
+              4000
+            );
+          } else {
+            void vscode.window.showWarningMessage(
+              `opencode: agente «${action.name}» activado, pero el modelo «${model}» no se pudo aplicar a la sesión.`
+            );
+          }
         } catch (err) {
           void vscode.window.showErrorMessage(
             `No se pudo activar el agente: ${err instanceof Error ? err.message : String(err)}`
@@ -2629,6 +2658,27 @@ function opencodeApi(method: string, route: string, body?: unknown): Promise<str
       resolve(stdout);
     });
   });
+}
+
+/**
+ * Pone `model` (`proveedor/modelo` del frontmatter) como modelo ACTIVO de la sesión viva.
+ * El OpenAPI (`session.switchModel`) declara el cuerpo `{model:{id, providerID}}` con
+ * `additionalProperties: false`: ninguna clave más. True si el servidor responde sin error.
+ */
+async function applySessionModel(sessionId: string, model: string): Promise<boolean> {
+  // El id puede contener "/": solo el primer separador parte proveedor/modelo.
+  const slash = model.indexOf("/");
+  if (slash <= 0 || slash === model.length - 1) {
+    return false;
+  }
+  try {
+    await opencodeApi("POST", `/api/session/${sessionId}/model`, {
+      model: { id: model.slice(slash + 1), providerID: model.slice(0, slash) },
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** ¿Existe el ejecutable en el PATH del host? `where` en Windows, `which` en el resto. */

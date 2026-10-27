@@ -58,6 +58,11 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
     return this.last?.sessionId;
   }
 
+  /** Agente de la sesión medida: lleva el retraso del sondeo, vale para comparar por nombre. */
+  currentAgent(): string | undefined {
+    return this.last?.agent;
+  }
+
   private post(info: ContextWindowInfo): void {
     void this.view?.webview.postMessage({ type: "context", payload: info });
   }
