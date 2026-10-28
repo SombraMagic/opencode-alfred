@@ -253,7 +253,7 @@ export class VozPanel {
     <!-- Zona flexible: crece con los agentes y es lo único que se comprime
          (con scroll propio) cuando la vista es corta. -->
     <div class="stage">
-      <canvas id="equalizer" width="128" height="56"></canvas>
+      <canvas id="equalizer" width="128" height="72"></canvas>
 
       <!-- Agentes en vuelo: panel.js lo rellena y lo vacía (vacío = sin hueco). -->
       <div id="agents"></div>

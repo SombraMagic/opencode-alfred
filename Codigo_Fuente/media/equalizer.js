@@ -1,19 +1,37 @@
 /**
  * Ecualizador de barras pixeladas del panel de voz.
- * Canvas de resolución fija (128×56) escalado por CSS con píxeles duros, como
- * los medidores de las tarjetas de agentes. En reposo pinta un solo fotograma
- * y no deja ningún requestAnimationFrame vivo: CPU cero.
+ * Canvas de resolución fija (128×72) escalado por CSS con píxeles duros, como
+ * los medidores de las tarjetas de agentes. Fuego plano, sin degradados. En
+ * reposo pinta un solo fotograma y no deja ningún requestAnimationFrame vivo:
+ * CPU cero.
  */
 (function () {
   const COLS = 32;
-  const ROWS = 14;
+  const ROWS = 18;
   const CELL = 4;
   const W = COLS * CELL;
   const H = ROWS * CELL;
-  /** Cadencia: la voz va a 20 fps, la onda de agentes a 8 y la caída a 20. */
-  const VOZ_MS = 50;
-  const ONDA_MS = 125;
-  const CAIDA_MS = 250;
+  /** Cadencia: la voz a 30 fps; la onda a la mitad, que así se mueve más suave. */
+  const VOZ_MS = 33;
+  const ONDA_MS = 66;
+  /** Tope de la caída: a 0,9 por fotograma el nivel tarda más de 0,9 s en bajar
+      de 0,01, y esta marca es la que fija el final real. */
+  const CAIDA_MS = 900;
+
+  /** Paleta de fuego, de la base a la punta. La celda superior va en blanco. */
+  const FIRE = ["#e03000", "#ff6a00", "#ffa000", "#ffd166"];
+  const TIP = "#fff3c4";
+
+  /** Ventana de centro (las barras nacen en el medio y mueren en los bordes) y
+      temblor fijo por columna. Se calculan una sola vez al cargar. */
+  const wind = new Float32Array(COLS);
+  const jitter = new Float32Array(COLS);
+  for (let i = 0; i < COLS; i++) {
+    wind[i] = 0.03 + 0.97 * Math.pow(Math.cos(((i - (COLS - 1) / 2) / COLS) * Math.PI), 1.6);
+    // Semilla determinista: mismo dibujo en cada arranque, sin Math.random.
+    const ruido = (((Math.sin(i * 12.9898) * 43758.5453) % 1) + 1) % 1;
+    jitter[i] = 0.85 + 0.3 * ruido;
+  }
 
   const canvas = document.getElementById("equalizer");
   const ctx = canvas.getContext("2d");
@@ -22,11 +40,6 @@
   const levels = new Float32Array(COLS);
   const target = new Float32Array(COLS);
   const shape = new Float32Array(COLS);
-  /** Altura del pico de cada columna (0..1): aguanta y después cae. */
-  const peaks = new Float32Array(COLS);
-
-  let accent = "#00e5ff";
-  let peakColor = "#ff2d95";
 
   /** Id del rAF pendiente (0 = ninguno). */
   let raf = 0;
@@ -41,14 +54,12 @@
   let actCount = 0;
   let actStreaming = false;
 
-  function readPalette() {
-    const style = getComputedStyle(document.body);
-    accent = style.getPropertyValue("--neon").trim() || "#00e5ff";
-    peakColor = style.getPropertyValue("--magenta").trim() || "#ff2d95";
+  /** Celda de la rejilla, con un píxel de separación como en los medidores. */
+  function cell(x, row) {
+    ctx.fillRect(x * CELL + 1, row * CELL + 1, CELL - 2, CELL - 2);
   }
 
   function start() {
-    readPalette();
     // last a 0 fuerza el primer fotograma sin esperar a la cadencia.
     last = 0;
     if (!raf && !document.hidden) raf = requestAnimationFrame(tick);
@@ -66,92 +77,96 @@
     return a + (b - a) * f;
   }
 
-  /** Los picos suben con la barra, aguantan un fotograma de cada tres y caen. */
-  function updatePeaks() {
-    const decay = frames % 3 === 0;
-    for (let i = 0; i < COLS; i++) {
-      const h = levels[i];
-      if (h >= peaks[i]) peaks[i] = h;
-      else if (decay) peaks[i] = Math.max(h, peaks[i] - 0.05);
-    }
-  }
-
   function advance(now) {
     if (mode === "voice") {
       // Sin duración no hay aviso de fin: se corta igualmente pasado un margen
-      // para no dejar el bucle eterno a 20 fps.
+      // para no dejar el bucle eterno.
       const fin = durationMs > 0 ? durationMs : 15000;
       if (now - startedAt > fin + 300) {
         fallUntil = now + CAIDA_MS;
         mode = "fall";
       } else {
         const gain = currentGain(now);
-        for (let i = 0; i < COLS; i++) {
-          target[i] = shape[i] * gain;
-          levels[i] += (target[i] - levels[i]) * 0.18;
-        }
+        for (let i = 0; i < COLS; i++) target[i] = shape[i] * gain * wind[i];
       }
     }
 
     if (mode === "wave") {
-      // Onda que recorre las columnas mientras hay agentes trabajando.
+      // Onda que viaja del centro a los lados: el retardo por distancia es lo
+      // que hace que se mueva sola en vez de latir en bloque.
       const t = now * 0.001;
-      const amp = 0.16 + Math.min(0.24, actCount * 0.04);
-      const speed = actStreaming ? 2.6 : 1.6;
+      const centro = (COLS - 1) / 2;
+      const amp = 0.5 + Math.min(0.25, actCount * 0.05);
       for (let i = 0; i < COLS; i++) {
-        target[i] = amp * (0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * speed + i * 0.55)));
-        levels[i] += (target[i] - levels[i]) * 0.25;
+        target[i] =
+          amp * wind[i] * (0.55 + 0.45 * Math.sin(t * 2 - Math.abs(i - centro) * 0.35)) * jitter[i];
       }
     }
 
     if (mode === "fall") {
-      for (let i = 0; i < COLS; i++) levels[i] *= 0.6;
-      if (now >= fallUntil) {
+      let max = 0;
+      for (let i = 0; i < COLS; i++) {
+        levels[i] *= 0.9;
+        if (levels[i] > max) max = levels[i];
+      }
+      if (max < 0.01 || now >= fallUntil) {
         levels.fill(0);
-        peaks.fill(0);
+        target.fill(0);
         // Si los agentes siguen en marcha, el ecualizador vuelve a la onda.
         mode = actCount > 0 ? "wave" : "standby";
         return;
       }
     }
 
-    updatePeaks();
+    // Ataque rápido y caída lenta, sin redondear: la barra no salta de celda.
+    if (mode === "voice" || mode === "wave") {
+      for (let i = 0; i < COLS; i++) {
+        const delta = target[i] - levels[i];
+        if (delta > 0) levels[i] += delta * 0.35;
+        else levels[i] += delta * 0.12;
+      }
+    }
   }
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
 
     if (mode === "standby") {
-      // Reposo: solo la fila de abajo, tenue. Es el único fotograma que se pinta.
-      // Se relee la paleta aquí (una vez por reposo) para seguir un cambio de tema.
-      readPalette();
-      ctx.fillStyle = accent;
-      ctx.globalAlpha = 0.5;
-      for (let x = 0; x < COLS; x++) ctx.fillRect(x * CELL + 1, (ROWS - 1) * CELL + 1, CELL - 2, CELL - 2);
+      // Reposo: brasa fija, determinista, sin animación. Único fotograma.
+      for (let x = 0; x < COLS; x++) {
+        ctx.fillStyle = FIRE[0];
+        ctx.globalAlpha = 0.35;
+        cell(x, ROWS - 1);
+        ctx.globalAlpha = 0.1 + 0.1 * ((jitter[x] - 0.85) / 0.3);
+        cell(x, ROWS - 2);
+        if (jitter[x] > 1.03) {
+          ctx.globalAlpha = 0.07;
+          cell(x, ROWS - 3);
+        }
+      }
       ctx.globalAlpha = 1;
       return;
     }
 
-    // Cuerpo de las barras: crecen de abajo arriba, con el alfa por tramos.
-    ctx.fillStyle = accent;
+    // Cuerpo: crece de abajo arriba y el color sube con la altura.
     for (let x = 0; x < COLS; x++) {
-      const rows = Math.min(ROWS, Math.round(levels[x] * ROWS));
-      for (let r = 0; r < rows; r++) {
-        if (r === rows - 1) ctx.globalAlpha = 1;
-        else ctx.globalAlpha = r < rows * 0.45 ? 0.22 : r < rows * 0.8 ? 0.4 : 0.65;
-        ctx.fillRect(x * CELL + 1, (ROWS - 1 - r) * CELL + 1, CELL - 2, CELL - 2);
+      const total = levels[x] * ROWS;
+      const body = Math.min(ROWS, Math.floor(total));
+      const frac = total - body;
+      ctx.globalAlpha = 1;
+      for (let r = 0; r < body; r++) {
+        ctx.fillStyle = FIRE[Math.min(FIRE.length - 1, Math.floor((r / ROWS) * FIRE.length))];
+        cell(x, ROWS - 1 - r);
       }
-    }
-
-    // Pico: una celda por columna, por encima de la barra.
-    ctx.fillStyle = peakColor;
-    ctx.globalAlpha = 1;
-    for (let x = 0; x < COLS; x++) {
-      if (peaks[x] <= 0.04) continue;
-      const row = Math.min(ROWS - 1, Math.max(0, ROWS - 1 - Math.round(peaks[x] * ROWS)));
-      const top = ROWS - Math.min(ROWS, Math.round(levels[x] * ROWS));
-      if (row >= top) continue;
-      ctx.fillRect(x * CELL + 1, row * CELL + 1, CELL - 2, CELL - 2);
+      if (total > 0.03) {
+        // La celda superior siempre es blanca, y asoma ya con la fracción antes
+        // de que la columna llegue a una celda entera: así la barra no aparece
+        // de golpe al cruzar la primera.
+        const tipRow = Math.min(ROWS - 1, body);
+        ctx.fillStyle = TIP;
+        ctx.globalAlpha = body >= ROWS ? 1 : 0.25 + 0.75 * frac;
+        cell(x, ROWS - 1 - tipRow);
+      }
     }
     ctx.globalAlpha = 1;
   }
@@ -195,7 +210,7 @@
       start();
     },
     idle() {
-      // Caída de ~250 ms y después el fotograma de reposo, sin bucle.
+      // Caída y después el fotograma de reposo, sin bucle.
       fallUntil = performance.now() + CAIDA_MS;
       mode = "fall";
       start();
@@ -218,9 +233,8 @@
       } else if (mode === "wave") {
         stopLoop();
         levels.fill(0);
-        peaks.fill(0);
+        target.fill(0);
         mode = "standby";
-        readPalette();
         draw();
       }
     },
@@ -248,6 +262,5 @@
   });
 
   // Estado inicial: un fotograma de reposo y ningún temporizador.
-  readPalette();
   draw();
 })();

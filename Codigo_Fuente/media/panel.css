@@ -28,15 +28,15 @@
 }
 
 /* ── Ecualizador de barras ────────────────────────────── */
-/* El canvas se dibuja a 128×56 y el CSS lo escala: de ahí los píxeles duros.
-   El ancho manda; el alto sale de la proporción de la rejilla (32 × 14). */
+/* El canvas se dibuja a 128×72 y el CSS lo escala: de ahí los píxeles duros.
+   El ancho manda; el alto sale de la proporción de la rejilla (32 × 18). */
 #equalizer {
   display: block;
   flex: none;
   width: 100%;
-  max-width: min(340px, 40vh);
+  max-width: min(340px, 44vh);
   margin: 4px auto 10px;
-  aspect-ratio: 32 / 14;
+  aspect-ratio: 128 / 72;
   image-rendering: pixelated;
 }
 
