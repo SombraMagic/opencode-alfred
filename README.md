@@ -12,6 +12,28 @@ Sin editar YAML a mano. Sin cambiar de ventana.
 
 ---
 
+## Manifiesto
+
+Desde siempre he sido un apasionado de los IDE. Todavía echo de menos a Delphi, aunque está
+claro que los tiempos han cambiado: ahora lo llaman *vibe coding*, el código abierto empieza
+a imponerse al cerrado, los IDE parecen estar perdiendo su sentido y, para colmo, cada vez
+cuesta más encontrar juegos en formato físico.
+
+A veces me siento como un viejo sentado en una hamaca, mirando al horizonte y criticando a
+la juventud XD.
+
+Pero uno no abandona sus costumbres tan fácilmente.
+
+Aquí os dejo mi herramienta de trabajo habitual. La he bautizado como **Alfred**. (Taii sabe
+por qué.)
+
+Quizá los tiempos cambien, las herramientas evolucionen y la forma de programar sea otra,
+pero siempre quedará ese pequeño placer de tener tu propio entorno de trabajo, a tu manera.
+
+Bienvenidos a Alfred.
+
+---
+
 ## Qué hace
 
 - **Agentes con formulario.** Crea, edita, duplica y borra agentes y subagentes de
