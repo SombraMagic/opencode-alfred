@@ -37,6 +37,7 @@ import {
 import { AssignAction, AssignAgent, AssignData, AssignPanel, AssignProfile, FavoriteGroup, ModelEntry } from "./panels/assignPanel";
 import { ConnectorsPanel, ConnectorAction } from "./panels/connectorsPanel";
 import { PizarraPanel } from "./panels/pizarraPanel";
+import { BlendViewerProvider } from "./panels/blendViewerPanel";
 import {
   ConnectorAttempt,
   ConnectorService,
@@ -160,7 +161,14 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(ExplorerPanel.viewType, explorer, {
       webviewOptions: { retainContextWhenHidden: true },
-    })
+    }),
+
+    // Visor de .blend como editor de solo lectura: el fichero nunca se modifica.
+    vscode.window.registerCustomEditorProvider(
+      BlendViewerProvider.viewType,
+      new BlendViewerProvider(context),
+      { webviewOptions: { retainContextWhenHidden: false } }
+    )
   );
 
   // opencode has no "enabled" flag for plugins, so disabling removes the entry from
@@ -2099,6 +2107,28 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand("opencodeAgents.pizarra", () =>
       void PizarraPanel.open(context)
+    ),
+
+    vscode.commands.registerCommand(
+      "opencodeAgents.openInAlfred3D",
+      async (uri?: vscode.Uri) => {
+        const target = uri ?? vscode.window.activeTextEditor?.document.uri;
+        if (!target) {
+          void vscode.window.showWarningMessage(
+            "Abre o selecciona un fichero .blend para verlo en Alfred 3D."
+          );
+          return;
+        }
+        if (!target.fsPath.toLowerCase().endsWith(".blend")) {
+          void vscode.window.showWarningMessage("Ese fichero no es un .blend.");
+          return;
+        }
+        await vscode.commands.executeCommand(
+          "vscode.openWith",
+          target,
+          BlendViewerProvider.viewType
+        );
+      }
     ),
 
     vscode.commands.registerCommand("opencodeAgents.resetAllStats", () => resetAllAgents()),

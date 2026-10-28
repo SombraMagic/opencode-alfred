@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<!-- `blob:` en connect-src: three baja las texturas embebidas del GLB con fetch() sobre un blob:. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data: blob:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%'; font-src %%CSP%%; connect-src %%CSP%% blob: data:;" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="%%TOKENS%%" rel="stylesheet" />
+<link href="%%STYLE%%" rel="stylesheet" />
+<title>Visor Alfred 3D</title>
+</head>
+<body>
+  <div class="bv">
+    <header class="bv-head">
+      <div class="bv-title">
+        <span class="bv-kicker">VISOR ALFRED 3D</span>
+        <span class="bv-file" id="bv-file">—</span>
+      </div>
+      <span class="hud-status busy" id="bv-hud">Preparando escena…</span>
+      <span class="bv-meta" id="bv-meta">—</span>
+    </header>
+
+    <div class="bv-main">
+      <!-- Izquierda: qué se ve y desde dónde. -->
+      <aside class="bv-side bv-left" aria-label="Escena">
+        <section class="bv-block">
+          <h2 class="label">OBJETOS</h2>
+          <div class="bv-list" id="bv-objects"></div>
+          <p class="bv-empty" id="bv-objects-empty" hidden>Sin objetos.</p>
+        </section>
+
+        <section class="bv-block">
+          <h2 class="label">CÁMARAS</h2>
+          <div class="bv-list" id="bv-cameras"></div>
+        </section>
+      </aside>
+
+      <!-- Centro: el lienzo. Los mensajes van encima, nunca rompen el panel. -->
+      <main class="bv-stage" id="bv-stage">
+        <canvas id="bv-canvas"></canvas>
+        <label class="bv-textures" title="Materiales reales del GLB; desmarcado, vista de arcilla">
+          <input id="bv-textures" type="checkbox" checked />
+          <span>TEXTURAS</span>
+        </label>
+        <div class="bv-overlay" id="bv-overlay" hidden>
+          <p class="bv-overlay-text" id="bv-overlay-text"></p>
+        </div>
+      </main>
+
+      <!-- Derecha: luces, animación y renders. -->
+      <aside class="bv-side bv-right" aria-label="Controles">
+        <section class="bv-block">
+          <h2 class="label">LUCES</h2>
+          <div class="bv-list" id="bv-lights"></div>
+          <p class="bv-empty" id="bv-lights-empty" hidden>Sin luces.</p>
+        </section>
+
+        <section class="bv-block">
+          <h2 class="label">ANIMACIONES</h2>
+          <select class="bv-select" id="bv-clips" aria-label="Animación" disabled>
+            <option value="">— sin animación —</option>
+          </select>
+        </section>
+
+        <section class="bv-block">
+          <h2 class="label">FRAMES</h2>
+          <div class="bv-frames">
+            <label class="bv-field">INICIO <input id="bv-start" type="number" step="1" value="1" disabled /></label>
+            <label class="bv-field">FIN <input id="bv-end" type="number" step="1" value="1" disabled /></label>
+          </div>
+          <div class="bv-scrub">
+            <input id="bv-frame" type="range" min="1" max="1" step="1" value="1" aria-label="Frame actual" disabled />
+            <output class="bv-frame-out" id="bv-frame-out">1</output>
+          </div>
+          <div class="bv-btns">
+            <button class="bv-btn" id="bv-btn-ini" type="button" title="Ir al frame de inicio" disabled>INICIO</button>
+            <button class="bv-btn" id="bv-btn-play" type="button" title="Reproducir o pausar la animación" disabled>PLAY</button>
+            <button class="bv-btn" id="bv-btn-stop" type="button" title="Parar y volver al inicio" disabled>STOP</button>
+            <button class="bv-btn" id="bv-btn-loop" type="button" title="Repetir la animación al llegar al final" aria-pressed="true" disabled>LOOP</button>
+          </div>
+        </section>
+
+        <section class="bv-block">
+          <h2 class="label">RENDER</h2>
+          <label class="bv-field bv-engine">MOTOR
+            <select class="bv-select" id="bv-engine" aria-label="Motor de render" disabled>
+              <option value="visor">VISOR</option>
+              <option value="blender">BLENDER</option>
+            </select>
+          </label>
+          <label class="bv-field bv-base">BASE <input id="bv-base" type="text" placeholder="nombre del .blend" spellcheck="false" disabled /></label>
+          <div class="bv-dir-row">
+            <span class="bv-dir-path" id="bv-dir" title="Sin carpeta">Sin carpeta</span>
+            <button class="bv-btn bv-dir-btn" id="bv-btn-dir" type="button" title="Elegir la carpeta de salida" disabled>ELEGIR</button>
+          </div>
+          <div class="bv-btns">
+            <button class="bv-btn" id="bv-btn-still" type="button" title="Renderizar el frame actual como PNG" disabled>FOTO</button>
+            <button class="bv-btn primary" id="bv-btn-anim" type="button" title="Renderizar el rango inicio..fin como PNG sueltos" disabled>RENDER ANIMACIÓN</button>
+          </div>
+          <p class="bv-hint">Los PNG se llaman &lt;base&gt;_frame&lt;frame&gt;.png.</p>
+          <div class="bv-render" id="bv-render" hidden>
+            <div class="bv-bar"><i id="bv-bar"></i></div>
+            <div class="bv-render-row">
+              <span class="bv-progress" id="bv-progress">0 / 0</span>
+              <button class="bv-btn danger" id="bv-btn-cancel" type="button" title="Cancelar el render en curso">CANCELAR</button>
+            </div>
+          </div>
+        </section>
+
+        <p class="bv-status" id="bv-status">Preparando escena…</p>
+      </aside>
+    </div>
+
+    <!-- Última barra del documento: qué Blender usa el host para exportar y renderizar. -->
+    <footer class="bv-foot" aria-label="Blender">
+      <span class="bv-foot-label">BLENDER</span>
+      <span class="bv-blender" id="bv-blender" title="">
+        <span class="bv-blender-version" id="bv-blender-version">—</span>
+        <span class="bv-blender-path" id="bv-blender-path"></span>
+      </span>
+      <button class="bv-btn bv-foot-btn" id="bv-btn-blender" type="button" title="Elegir el ejecutable de Blender">CAMBIAR</button>
+    </footer>
+  </div>
+
+  <script type="importmap" nonce="%%NONCE%%">
+    {
+      "imports": {
+        "three": "%%THREE%%"
+      }
+    }
+  </script>
+  <script type="module" nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
+</body>
+</html>

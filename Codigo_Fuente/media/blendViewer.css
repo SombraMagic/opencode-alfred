@@ -1,0 +1,643 @@
+/* Visor Alfred 3D — visor del GLB exportado de un .blend y lanzador de renders.
+   La base vive en tokens.css: aquí solo el HUD de tres columnas. */
+
+/* La vista ocupa el alto justo: no hay scroll de página, scrollea cada columna. */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+.bv {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  /* Regla del HUD: `--text-dim` SOLO para lo apagado; lo secundario va aquí. */
+  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
+}
+
+/* ── Cabecera ──────────────────────────────────────────── */
+.bv-head {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bv-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bv-kicker {
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  color: var(--neon);
+  text-shadow: 0 0 10px var(--neon-dim);
+  white-space: nowrap;
+}
+
+.bv-file {
+  min-width: 0;
+  max-width: 38vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text);
+}
+
+.bv-meta {
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+/* ── Tres columnas ─────────────────────────────────────── */
+.bv-main {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 280px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.bv-side {
+  min-height: 0;
+  padding: 10px 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.bv-left {
+  border-right: 1px solid var(--line-soft);
+}
+
+.bv-right {
+  border-left: 1px solid var(--line-soft);
+}
+
+.bv-block {
+  margin: 0 0 14px;
+}
+
+.bv-block .label {
+  display: block;
+  margin: 0 0 6px;
+  color: var(--neon);
+}
+
+/* ── Filas (objetos, luces, cámaras) ───────────────────── */
+.bv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.bv-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  background: none;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: var(--text);
+  text-align: left;
+  cursor: default;
+}
+
+/* Solo las filas que activan algo (objetos y cámaras) se comportan como control. */
+label.bv-row,
+button.bv-row {
+  cursor: pointer;
+}
+
+.bv-row:hover,
+.bv-row:focus-visible {
+  border-color: var(--line);
+  outline: none;
+}
+
+/* Oculto o apagado: la fila se atenúa, nunca se marca como deshabilitada. */
+.bv-row.off {
+  color: var(--text-soft);
+}
+
+.bv-row.off .bv-name {
+  color: var(--text-soft);
+}
+
+.bv-row[aria-disabled="true"] {
+  cursor: default;
+}
+
+.bv-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-type {
+  flex: none;
+  font-size: 8.5px;
+  letter-spacing: 0.8px;
+  color: var(--text-soft);
+}
+
+.bv-flag {
+  flex: none;
+  font-size: 8.5px;
+  color: var(--neon);
+}
+
+.bv-row input[type="checkbox"] {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  accent-color: var(--neon);
+  cursor: pointer;
+}
+
+.bv-row.off input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* Cámara: fila de selección, con la activa marcada. */
+.bv-row.on {
+  color: var(--neon);
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+}
+
+.bv-row.on .bv-type,
+.bv-row.on .bv-flag {
+  color: var(--neon);
+}
+
+/* Luz: el interruptor de tokens.css y el nombre al lado. */
+.bv-row .switch {
+  flex: none;
+}
+
+.bv-light {
+  padding: 1px 0 4px;
+}
+
+.bv-light .bv-row {
+  padding-bottom: 1px;
+}
+
+/* Intensidad de la luz: 0-200 % sobre la base normalizada. */
+.bv-dim {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 5px 2px 34px;
+  cursor: pointer;
+}
+
+.bv-dim input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 12px;
+  accent-color: var(--neon);
+}
+
+.bv-dim output {
+  flex: none;
+  min-width: 32px;
+  font-size: 8.5px;
+  letter-spacing: 0.6px;
+  color: var(--text-soft);
+  text-align: right;
+}
+
+.bv-empty {
+  margin: 2px 5px 0;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.bv-empty[hidden] {
+  display: none;
+}
+
+/* ── Formularios ───────────────────────────────────────── */
+.bv-select {
+  width: 100%;
+  padding: 3px 4px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.bv-select:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.bv-select:disabled {
+  color: var(--text-dim);
+}
+
+.bv-frames {
+  display: flex;
+  gap: 8px;
+}
+
+.bv-field {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: 5px;
+  font-size: 8.5px;
+  letter-spacing: 1.2px;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.bv-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.bv-field input:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.bv-field input:disabled {
+  color: var(--text-dim);
+}
+
+.bv-field input.invalid {
+  border-color: var(--magenta);
+}
+
+.bv-scrub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+
+.bv-scrub input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--neon);
+}
+
+.bv-frame-out {
+  flex: none;
+  min-width: 34px;
+  font-size: 10px;
+  color: var(--neon);
+  text-align: right;
+}
+
+/* ── Botones ───────────────────────────────────────────── */
+.bv-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.bv-btn {
+  flex: 1 1 auto;
+  padding: 5px 7px;
+  background: color-mix(in srgb, var(--neon) 6%, transparent);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.bv-btn:hover:not(:disabled),
+.bv-btn:focus-visible:not(:disabled) {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+.bv-btn.on {
+  color: var(--neon);
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 22%, transparent);
+}
+
+.bv-btn.primary {
+  color: var(--neon);
+  border-color: color-mix(in srgb, var(--neon) 55%, transparent);
+}
+
+.bv-btn.danger:hover:not(:disabled),
+.bv-btn.danger:focus-visible:not(:disabled) {
+  color: var(--magenta);
+  border-color: var(--magenta);
+}
+
+.bv-btn:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+  background: transparent;
+  cursor: default;
+}
+
+/* ── Render: progreso y cancelar ───────────────────────── */
+.bv-render {
+  margin-top: 8px;
+}
+
+.bv-render[hidden] {
+  display: none;
+}
+
+.bv-bar {
+  height: 5px;
+  margin-bottom: 5px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+}
+
+.bv-bar i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--amber);
+  transition: width 0.12s linear;
+}
+
+.bv-render-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bv-progress {
+  flex: 1 1 auto;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--amber);
+}
+
+.bv-render-row .bv-btn {
+  flex: none;
+}
+
+/* ── Estado ────────────────────────────────────────────── */
+.bv-status {
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 9px;
+  line-height: 1.45;
+  letter-spacing: 0.8px;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.bv-status.ok {
+  color: var(--green);
+}
+
+.bv-status.error {
+  color: var(--magenta);
+}
+
+/* ── Lienzo ────────────────────────────────────────────── */
+.bv-stage {
+  position: relative;
+  /* Por encima de las scanlines de tokens.css (body::before, z-index 10): el 3D se ve limpio. */
+  z-index: 11;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* El fondo lo pinta el CSS, no el renderer: el tema claro y el oscuro se siguen solos. */
+.bv-stage canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.bv-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+}
+
+.bv-overlay[hidden] {
+  display: none;
+}
+
+.bv-overlay-text {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 11px;
+  line-height: 1.55;
+  letter-spacing: 0.6px;
+  color: var(--text);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* Panel estrecho: las tres columnas siguen, más apretadas. */
+@media (max-width: 700px) {
+  .bv-main {
+    grid-template-columns: 170px minmax(0, 1fr) 216px;
+  }
+
+  .bv-side {
+    padding: 8px;
+  }
+
+  .bv-type {
+    display: none;
+  }
+}
+
+/* ── Pie: Blender y cambio de ejecutable ───────────────── */
+.bv-foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.bv-foot-label {
+  flex: none;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  color: var(--neon);
+}
+
+.bv-blender {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  color: var(--text);
+}
+
+/* Sin Blender sí es un estado apagado: ahí manda `--text-dim`. */
+.bv-blender.off {
+  color: var(--text-dim);
+}
+
+.bv-blender-version {
+  flex: none;
+  white-space: nowrap;
+}
+
+.bv-blender-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-soft);
+}
+
+.bv-blender.off .bv-blender-path {
+  color: var(--text-dim);
+}
+
+.bv-foot-btn {
+  flex: none;
+  padding: 3px 9px;
+}
+
+/* ── Vista previa con texturas ─────────────────────────── */
+.bv-textures {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  font-size: 8.5px;
+  letter-spacing: 1.1px;
+  color: var(--text-soft);
+  cursor: pointer;
+  user-select: none;
+}
+
+.bv-textures:hover,
+.bv-textures:focus-within {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.bv-textures input {
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  accent-color: var(--neon);
+  cursor: pointer;
+}
+
+/* ── Render: motor, base y carpeta ─────────────────────── */
+.bv-engine {
+  display: flex;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.bv-engine select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bv-base {
+  display: flex;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.bv-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 7px;
+}
+
+.bv-dir-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 1px solid var(--line-soft);
+  background: var(--bg-soft);
+  font-size: 9px;
+  color: var(--text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sin carpeta es un estado vacío, no una ruta: ahí sí `--text-dim`. */
+.bv-dir-path.off {
+  color: var(--text-dim);
+}
+
+.bv-dir-btn {
+  flex: none;
+  padding: 3px 8px;
+}
+
+.bv-hint {
+  margin: 7px 0 0;
+  font-size: 8.5px;
+  line-height: 1.4;
+  letter-spacing: 0.6px;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+

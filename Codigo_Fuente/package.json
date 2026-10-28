@@ -1,9 +1,9 @@
 {
   "name": "opencode-alfred",
   "displayName": "OpenCode Alfred",
-  "description": "Centro de control de opencode (agentes, MCP, skills, plugins y contexto) con voz y dictado.",
+  "description": "Centro de control de opencode (agentes, MCP, skills, plugins y contexto) con voz, dictado y visor 3D de Blender.",
   "icon": "media/icon.png",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "publisher": "SombraMagic",
   "license": "MIT",
   "repository": {
@@ -25,7 +25,8 @@
     "skills",
     "tts",
     "voice",
-    "dictado"
+    "dictado",
+    "blender"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
@@ -33,7 +34,8 @@
     "onView:opencodeAgents.context",
     "onView:opencodeAgents.limits",
     "onView:voz.panel",
-    "onView:voz.dictado"
+    "onView:voz.dictado",
+    "onCustomEditor:opencodeAgents.blendViewer"
   ],
   "contributes": {
     "viewsContainers": {
@@ -95,6 +97,14 @@
         }
       ]
     },
+    "customEditors": [
+      {
+        "viewType": "opencodeAgents.blendViewer",
+        "displayName": "Visor Alfred 3D",
+        "selector": [{ "filenamePattern": "*.blend" }],
+        "priority": "default"
+      }
+    ],
     "commands": [
       {
         "command": "opencodeAgents.refresh",
@@ -140,6 +150,11 @@
         "command": "opencodeAgents.pizarra",
         "title": "Pizarra",
         "category": "opencode"
+      },
+      {
+        "command": "opencodeAgents.openInAlfred3D",
+        "title": "Abrir en Alfred 3D",
+        "category": "Alfred"
       },
       {
         "command": "opencodeAgents.resetAllStats",
@@ -222,6 +237,13 @@
           "when": "view == opencodeAgents.view",
           "group": "navigation@6"
         }
+      ],
+      "explorer/context": [
+        {
+          "command": "opencodeAgents.openInAlfred3D",
+          "when": "resourceExtname == '.blend'",
+          "group": "navigation"
+        }
       ]
     },
     "keybindings": [
@@ -238,6 +260,11 @@
           "type": "string",
           "default": "",
           "description": "Ruta al directorio de configuración global de opencode. Vacío = ~/.config/opencode"
+        },
+        "opencodeAgents.blenderPath": {
+          "type": "string",
+          "default": "",
+          "description": "Ruta a blender.exe para el Visor Alfred 3D. Vacío = autodetectar (PATH y C:\\Program Files\\Blender Foundation)."
         },
         "opencodeAgents.defaultModel": {
           "type": "string",
