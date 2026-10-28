@@ -52,6 +52,7 @@
     erSize: document.getElementById("er-size"),
     erHard: document.getElementById("er-hard"),
     txtColor: document.getElementById("txt-color"),
+    bgColor: document.getElementById("bg-color"),
     txtFamily: document.getElementById("txt-family"),
     txtSize: document.getElementById("txt-size"),
     tools: Array.from(document.querySelectorAll(".tool")),
@@ -178,13 +179,17 @@
   }
 
   function hasContent() {
-    return Boolean(
-      state.strokes.length ||
-        state.images.length ||
-        state.texts.length ||
-        state.bg.image ||
-        state.bg.color !== BG_DEFAULT
-    );
+    return Boolean(state.strokes.length || state.images.length || state.texts.length || state.bg.image);
+  }
+
+  /**
+   * Fija el color del lienzo y lo refleja en el selector. El color es una preferencia: el host
+   * la recuerda y la manda en `init`; sin ella vale el blanco por defecto.
+   */
+  function aplicaFondo(color) {
+    const hex = typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : BG_DEFAULT;
+    el.bgColor.value = hex;
+    state.bg.color = hex;
   }
 
   /**
@@ -941,9 +946,10 @@
     });
   }
 
-  /** Tira trazos, imágenes y textos y deja el fondo en blanco. Sin preguntar. */
+  /** Tira trazos, imágenes y textos y conserva el color de fondo. Sin preguntar. */
   function vaciar() {
-    state.bg = { color: BG_DEFAULT, image: null };
+    // El color es una preferencia: vaciar no lo devuelve al blanco.
+    state.bg = { color: el.bgColor.value, image: null };
     state.strokes = [];
     // Misma razón que en `deleteSelected`: los bitmaps pegados se cierran.
     for (const img of state.images) img.drawable.close?.();
@@ -1001,6 +1007,17 @@
     };
     input.addEventListener("input", pinta);
     pinta();
+  });
+
+  // Color de fondo del lienzo: pinta al momento y el host lo recuerda para la próxima vez.
+  el.bgColor.addEventListener("input", () => {
+    state.bg.color = el.bgColor.value;
+    changed();
+    vscode.postMessage({ type: "bgColor", color: el.bgColor.value });
+    // Con imagen de fondo el color queda debajo y no se ve: mejor decirlo que parecer roto.
+    if (state.bg.image) {
+      setStatus("La imagen de fondo tapa el lienzo: el color se verá al vaciar la pizarra.");
+    }
   });
 
   // Los controles de texto también sirven sobre lo seleccionado.
@@ -1184,6 +1201,8 @@
         } else {
           setStatus(`Lienzo listo: ${W} × ${H}.`);
         }
+        // El color elegido lo guarda el host: vale también con el panel recién abierto.
+        aplicaFondo(m.bgColor);
         // `redraw`, no `changed`: restaurar no es un cambio, y reescribir la copia con la misma
         // imagen no aporta nada.
         redraw();
@@ -1207,7 +1226,7 @@
       // de trazos ya use el lienzo nuevo.
       fijarLienzo(img.width, img.height);
       vaciar();
-      state.bg = { color: BG_DEFAULT, image: { drawable: img, width: W, height: H } };
+      state.bg = { color: el.bgColor.value, image: { drawable: img, width: W, height: H } };
       changed();
       setStatus(`Lienzo ${W} × ${H} con la imagen del portapapeles.`, "ok");
       return;
@@ -1229,6 +1248,8 @@
     }
   });
 
+  // BG_DEFAULT es la única fuente del color por defecto: el HTML solo lleva el valor inicial.
+  el.bgColor.value = BG_DEFAULT;
   setTool("select");
   aplicaVista();
   medirMarco(true); // primer ajuste con el aspecto real del marco antes de pintar nada

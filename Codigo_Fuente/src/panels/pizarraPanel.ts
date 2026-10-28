@@ -24,6 +24,8 @@ const MAX_SNAPSHOT_BYTES = 20 * 1024 * 1024;
 const WORK_FILE = "pizarra-ultima.png";
 /** Dónde guardó el PNG la última vez (ámbito de ventana). */
 const KEY_LAST_URI = "opencodeAgents.pizarra.lastUri";
+/** Color de fondo elegido en la pizarra (preferencia de instalación, no del proyecto). */
+const KEY_BG_COLOR = "opencodeAgents.pizarra.bgColor";
 /** Cuánto espera `requestPng` al webview antes de conformarse con lo que haya. */
 const CAPTURE_TIMEOUT_MS = 5000;
 /** Cabecera de todo PNG: lo que manda el webview tiene que ser de verdad una imagen. */
@@ -63,6 +65,11 @@ function decodePng(raw: unknown): Buffer | undefined {
     return undefined;
   }
   return bytes;
+}
+
+/** El webview no es de fiar: solo se guarda un hex `#rrggbb`. */
+function decodeColor(raw: unknown): string | undefined {
+  return typeof raw === "string" && /^#[0-9a-f]{6}$/i.test(raw) ? raw.toLowerCase() : undefined;
 }
 
 export class PizarraPanel {
@@ -173,7 +180,7 @@ export class PizarraPanel {
 
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(
-      (message: { type?: string; png?: unknown }) => void this.onMessage(message),
+      (message: { type?: string; png?: unknown; color?: unknown }) => void this.onMessage(message),
       null,
       this.disposables
     );
@@ -190,7 +197,7 @@ export class PizarraPanel {
     } catch {
       // Sin copia: lienzo en blanco.
     }
-    this.post({ type: "init", png });
+    this.post({ type: "init", png, bgColor: this.context.globalState.get<string>(KEY_BG_COLOR) ?? null });
   }
 
   /**
@@ -223,12 +230,20 @@ export class PizarraPanel {
     }
   }
 
-  private async onMessage(message: { type?: string; png?: unknown }): Promise<void> {
+  private async onMessage(message: { type?: string; png?: unknown; color?: unknown }): Promise<void> {
     switch (message?.type) {
       case "ready":
         this.ready = true;
         this.flush();
         return;
+      case "bgColor": {
+        const color = decodeColor(message.color);
+        // El selector nativo dispara `input` en cada paso del arrastre: solo se escribe si cambia.
+        if (color && color !== this.context.globalState.get<string>(KEY_BG_COLOR)) {
+          await this.context.globalState.update(KEY_BG_COLOR, color);
+        }
+        return;
+      }
       case "clipboardBg": {
         const src = await this.readClipboard();
         this.post(src ? { type: "clipboardImage", src } : { type: "clipboardEmpty" });
