@@ -109,7 +109,7 @@ async function speak(args: Record<string, unknown>): Promise<string> {
 
   const pcm = await toPcm(result.data, result.format);
   const envelope32 = envelope(pcm, 32);
-  // Serie temporal de energía: hace que la esfera lata con la voz.
+  // Serie temporal de energía: hace que las barras latan con la voz.
   const energy = envelope(pcm, 64);
   const device = num(args.device, config.device ?? -1);
 

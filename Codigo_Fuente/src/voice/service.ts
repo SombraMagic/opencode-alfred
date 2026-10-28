@@ -111,7 +111,7 @@ export async function speak(
 
   const pcm = await toPcm(result.data, result.format);
   const env = envelope(pcm, 32);
-  // Serie temporal de energía: hace que la esfera lata con la voz.
+  // Serie temporal de energía: hace que las barras latan con la voz.
   const energy = envelope(pcm, 64);
 
   // Antes de bloquear la reproducción: el ecualizador ya puede moverse.

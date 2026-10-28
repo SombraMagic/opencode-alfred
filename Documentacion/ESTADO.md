@@ -27,7 +27,7 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 - **Estadísticas de agentes** (tokens, coste, tiempo, sesiones) y **de prompts**
   (línea de tiempo por prompt, con subagentes en paralelo).
 - **Límites de consumo** por proveedor (DeepSeek, OpenAI, GitHub Copilot, OpenCode Go).
-- **Voz** (SAPI, Edge, OpenAI, ElevenLabs) con esfera y ecualizador, y **dictado**
+- **Voz** (SAPI, Edge, OpenAI, ElevenLabs) con ecualizador de barras pixeladas, y **dictado**
   (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP viaja dentro
   de la extensión (`dist/voz-mcp.js`), no como paquete externo.
 - **Pizarra** por capas con lápiz, imágenes, textos, zoom y envío al prompt.

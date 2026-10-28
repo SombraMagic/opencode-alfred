@@ -231,7 +231,7 @@ export class VozPanel {
     const tokensUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "tokens.css"));
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.css"));
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.js"));
-    const sphereUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "sphere.js"));
+    const equalizerUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "equalizer.js"));
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -253,7 +253,7 @@ export class VozPanel {
     <!-- Zona flexible: crece con los agentes y es lo único que se comprime
          (con scroll propio) cuando la vista es corta. -->
     <div class="stage">
-      <canvas id="sphere" width="320" height="320"></canvas>
+      <canvas id="equalizer" width="128" height="56"></canvas>
 
       <!-- Agentes en vuelo: panel.js lo rellena y lo vacía (vacío = sin hueco). -->
       <div id="agents"></div>
@@ -283,7 +283,7 @@ export class VozPanel {
       <div class="mcp-row"><button id="install-mcp" class="ghost-btn" title="Instalar el servidor MCP en tu agente de IA">INSTALAR MCP</button><span class="mcp-hint" id="mcp-hint"></span></div>
     </div>
   </div>
-  <script src="${sphereUri}"></script>
+  <script src="${equalizerUri}"></script>
   <script src="${scriptUri}"></script>
 </body>
 </html>`;

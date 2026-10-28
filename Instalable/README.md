@@ -40,7 +40,7 @@ code --install-extension opencode-alfred-0.2.1.vsix --force
 - **ALFRED** en la barra de actividad (izquierda): el centro de control. Explorador de
   agentes, MCP, skills y plugins; arriba, el mando con los botones de conectores,
   asignación de modelos, pizarra y sesión.
-- **VOZ** en la barra lateral derecha: esfera, ecualizador y ajustes de voz.
+- **VOZ** en la barra lateral derecha: ecualizador de barras y ajustes de voz.
 - **DICTADO** en el panel inferior: bloc de notas, configuración y micrófono.
 
 Los ajustes viven en `Ajustes → OpenCode Alfred` (`opencodeAgents.*`) y

@@ -284,11 +284,12 @@
     }
 
     paintStatus();
-    // Gancho que lee sphere.js: la esfera ondula de fondo aunque no haya voz.
+    // Gancho que lee equalizer.js: la onda recorre las barras aunque no haya voz.
     window.alfredActivity = {
       count: agents.length,
       streaming: agents.some((a) => a.streaming),
     };
+    window.VOZEqualizer?.activity(window.alfredActivity);
     ensureLoop();
   }
 
@@ -367,7 +368,7 @@
         break;
 
       case "envelope":
-        // Llamada directa al ecualizador (sphere.js).
+        // Llamada directa al ecualizador (equalizer.js).
         window.VOZEqualizer?.envelope(msg);
         break;
 

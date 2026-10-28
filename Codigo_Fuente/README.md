@@ -46,7 +46,7 @@ fila de `CONECTORES`; solo sondea con la vista abierta.
 
 ### Voz (barra lateral derecha) y Dictado (panel inferior)
 
-- Voz: esfera y ecualizador, cuatro motores (SAPI de Windows, Edge, OpenAI, ElevenLabs).
+- Voz: ecualizador de barras pixeladas y cuatro motores (SAPI de Windows, Edge, OpenAI, ElevenLabs).
   `Ctrl+Alt+V` lee la selección. El ecualizador también reacciona a lo que diga el MCP; el
   servidor MCP de voz viaja dentro del paquete y se registra desde el botón `INSTALAR MCP`.
 - Dictado: bloc de notas con adjuntos (imágenes pegadas, ficheros arrastrados o `ADJUNTAR`),
