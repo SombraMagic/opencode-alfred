@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 28 de octubre de 2026 · versión **0.2.4**
+Última revisión: 28 de octubre de 2026 · versión **0.3.0**
 
 ## Resumen
 
@@ -31,6 +31,14 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP viaja dentro
   de la extensión (`dist/voz-mcp.js`), no como paquete externo.
 - **Pizarra** por capas con lápiz, imágenes, textos, zoom y envío al prompt.
+- **Visor Alfred 3D** por fichero `.blend` (doble clic en el Explorador o «Abrir en Alfred
+  3D»): vista con three.js y órbita estilo Blender, objetos con ocultar, cámaras (la de
+  escena bloquea la vista), luces con deslizador, animaciones con rango de frames editable,
+  casilla de texturas y render PNG de un frame o de toda la tirada. Dos motores: `VISOR`,
+  por defecto, captura desde la propia webview y no necesita Blender; `BLENDER` renderiza
+  con el motor y la cámara del `.blend`. Blender es **opcional** y se autodetecta: sin él
+  abren las escenas ya cacheadas y las que traen un `.glb` al lado del `.blend` (sidecar).
+  El `.blend` nunca se guarda.
 
 ## Siguiente
 
@@ -38,11 +46,15 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
    se validaron los formularios y las rutas con datos reales simulados).
 2. **Lápiz real**: confirmar que los trazos no se cortan en un dispositivo táctil
    (depende del driver; el manejo de `pointercancel` ya está puesto).
-3. **Publicación**: repositorio público, README de presentación y `.vsix` en
-   `Instalable/`. El paso a público se hace a mano.
-4. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
+3. **Visor 3D en VS Code real**: el motor `VISOR` de punta a punta (del `.blend` al PNG en
+   disco con la extensión instalada) y el sidecar `.glb` junto al `.blend`. Hasta ahora está
+   probado con Chrome, Blender 4.4 real y stubs del host, no con la ventana de VS Code.
+4. **`modelo1.blend`**: Blender pinta 15 personajes apilados y su mundo anula el sol sobre
+   lo visible, mientras el visor solo muestra lo visible. Rareza del `.blend`, no del visor:
+   decidir si se documenta o se deja.
+5. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
    usan en ejecución.
-5. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
+6. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
 
 ## Alcance
 

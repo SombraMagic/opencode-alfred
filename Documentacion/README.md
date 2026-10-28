@@ -9,6 +9,7 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 | --- | --- |
 | [ESTADO.md](ESTADO.md) | Estado actual, qué está probado y próximos pasos |
 | [DESARROLLO.md](DESARROLLO.md) | Estructura del repositorio, comandos, depuración y empaquetado |
+| [../Codigo_Fuente/CHANGELOG.md](../Codigo_Fuente/CHANGELOG.md) | Qué trajo cada versión publicada |
 | [../LICENSE](../LICENSE) | Licencia MIT |
 | [../Codigo_Fuente/README.md](../Codigo_Fuente/README.md) | Guía de uso completa: paneles y ajustes |
 | [../Instalable/README.md](../Instalable/README.md) | Instalación del `.vsix` |

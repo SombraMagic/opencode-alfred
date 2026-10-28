@@ -53,6 +53,8 @@ Bienvenidos a Alfred.
   imágenes, pegar y arrastrar. Cuatro motores de voz y tres de dictado; funciona sin
   conexión con lo que ya trae Windows.
 - **Pizarra.** Dibuja, pega imágenes y mándalo al prompt como si fuera un adjunto.
+- **Visor Alfred 3D.** Abre ficheros `.blend` como pestaña de edición: órbita, objetos,
+  cámaras, luces, animaciones y render de un frame o de toda la tirada. Con Blender o sin él.
 
 Todo en español, en una sola extensión.
 
@@ -72,6 +74,7 @@ formato que el CLI espera, sin pisar comentarios ni claves que no gestiona la ex
 | `config.toml` de Codex | Solo si usas Codex (experimental) |
 | `%APPDATA%\voz\config.json` | Ajustes de voz para que el MCP los vea |
 | `<raíz>/.alfred/adjuntos` | Adjuntos del dictado; sin proyecto, en el almacenamiento global |
+| `<almacén global>/alfred3d/` y `<nombre>.glb` junto al `.blend` | Caché del visor 3D y sidecar que se lee cuando no hay Blender; el `.blend` nunca se guarda |
 
 No escribe `~/.claude.json` (las conmutaciones de MCP pasan por el propio CLI) y nunca
 manda credenciales al webview: las claves viven en `secrets` de VS Code. Solo sale a la
@@ -91,6 +94,7 @@ compilar nada.
 | [`Documentacion/ESTADO.md`](Documentacion/ESTADO.md) | En qué punto está el proyecto y qué viene después |
 | [`Documentacion/DESARROLLO.md`](Documentacion/DESARROLLO.md) | Estructura de carpetas, compilar, depurar y empaquetar |
 | [`Codigo_Fuente/README.md`](Codigo_Fuente/README.md) | Guía completa: cada panel, cada ajuste, con detalle |
+| [`Codigo_Fuente/CHANGELOG.md`](Codigo_Fuente/CHANGELOG.md) | Qué trajo cada versión publicada |
 | [`Instalable/README.md`](Instalable/README.md) | Instalar el `.vsix` paso a paso |
 
 ## Requisitos
@@ -100,6 +104,9 @@ compilar nada.
   agentes (la voz y el dictado funcionan sin él).
 - Windows para la voz y el dictado sin conexión (SAPI). En otros sistemas, los motores
   en la nube y Whisper siguen disponibles.
+- [Blender](https://www.blender.org), **opcional**: es el motor de render del visor 3D y
+  el que exporta los `.blend`. Sin él abren las escenas ya exportadas y las que traigan su
+  `.glb` al lado; ver [requisitos de la guía](Codigo_Fuente/README.md#requisitos).
 
 ## Invítame a un café
 

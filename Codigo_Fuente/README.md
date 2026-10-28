@@ -58,6 +58,35 @@ Lienzo por capas: fondo (color o imagen), imágenes movibles, trazos con lápiz 
 textos. Zoom con la rueda y paneo con `Espacio` + arrastrar. `SUBIR PIZARRA` la mete en el
 bloc del dictado como adjunto.
 
+### Visor Alfred 3D (`.blend`)
+
+Abre ficheros `.blend` como pestaña de editor: doble clic en el Explorador o
+**Abrir en Alfred 3D** en su menú contextual.
+
+- **Vista**: three.js con órbita, `OBJETOS` (mallas y armaduras; cámaras y luces no salen en
+  esa lista), `CÁMARAS` —la de escena es la que usa Blender al renderizar— y
+  `LUCES` con encendido y deslizador de 0 a 200 %. `TEXTURAS` alterna entre los materiales
+  reales y la vista de arcilla. El estado (cámara, ocultos, luces, clip, frames, texturas)
+  se conserva al cambiar de pestaña.
+- **Animación**: clip elegido, frames `INICIO` / `FIN` editables, scrub y `PLAY` / `STOP` /
+  `LOOP`.
+- **Render**: `BASE` editable y carpeta con `ELEGIR`; los ficheros salen
+  `<base>_frame<####>.png`. `FOTO` hace un frame y `RENDER ANIMACIÓN` la tirada entera, y se
+  puede cancelar. El selector `MOTOR` decide quién pinta: `VISOR` (por defecto) captura desde
+  la propia ventana, sin Blender y con iluminación aproximada; `BLENDER` renderiza con su
+  motor, su cámara y la resolución del `.blend`. El visor usa AgX como EEVEE, pero sin
+  sombras, oclusión, profundidad de campo ni geometry nodes: no es idéntico al PNG de Blender.
+- **Blender es opcional**: sin él abren las escenas ya exportadas y las que traigan un
+  `<nombre>.glb` junto al `.blend`, si no es más viejo que él. Su `<nombre>.meta.json` es
+  opcional, y sin él no hay resolución ni fps reales (frames a 24 y captura al tamaño del
+  lienzo). Sin caché, sin sidecar y sin Blender, el aviso lo dice claro.
+- **Cómo lo lee**: Blender exporta el `.blend` a GLB por línea de órdenes y eso se guarda en
+  la caché `<almacén global>/alfred3d/`, invalidada por la fecha del `.blend`. **El `.blend`
+  nunca se guarda.** El pie de la ventana enseña el Blender en uso y `CAMBIAR` lo cambia:
+  escribe `opencodeAgents.blenderPath`, limpia la caché y reexporta.
+- **Versiones**: los `.blend` de Blender 5.x no los abre el 4.4 (`incomplete header`). Haz
+  que la extensión apunte a 5.2 o más nuevo; el mensaje de error incluye lo que dice Blender.
+
 ### Estadísticas de agentes y de prompts
 
 - **Agentes**: tokens (entrada, salida, razonamiento, caché), coste, tiempo de trabajo,
@@ -101,7 +130,8 @@ ellas.
 
 ## Ajustes
 
-`opencodeAgents.*`: `globalConfigDir`, `defaultModel`, `showBuiltins`, `schemaUrl`,
+`opencodeAgents.*`: `globalConfigDir`, `blenderPath` (ruta a `blender.exe`; vacío =
+autodetectar), `defaultModel`, `showBuiltins`, `schemaUrl`,
 `dataDir`, `watchLive`, `liveIntervalMs`, `modelsCachePath`, `showAllProviders`,
 `limitsProviders`, `goPlan`.
 
@@ -114,6 +144,12 @@ fondo de ruido).
 VS Code 1.90+ y Node 20+. Las estadísticas en vivo necesitan Node 22.5+ en el host; con
 menos, esas vistas se degradan solas. opencode solo es necesario para su parte; la voz y
 el dictado funcionan sin él (SAPI sin conexión en Windows).
+
+**Blender es opcional** y solo lo usa el visor 3D: sin él abren las escenas cacheadas y las
+que traigan su `.glb` al lado del `.blend`, y el motor `VISOR` renderiza sin proceso
+externo. Lo busca por `opencodeAgents.blenderPath`, el `PATH`, `C:\Program Files\Blender
+Foundation` y el registro de Windows, y elige la versión más alta. Para abrir `.blend` de
+Blender 5.x hace falta **5.2 o más nuevo**: el 4.4 los rechaza.
 
 ## Desarrollo
 

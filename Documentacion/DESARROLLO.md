@@ -6,6 +6,12 @@
   vivo; con menos, esas vistas se degradan solas).
 - VS Code 1.90 o superior.
 - Git.
+- **Blender, opcional**: solo lo necesita el Visor Alfred 3D para exportar los `.blend` y
+  para renderizar con su motor. Se busca por este orden: el ajuste `opencodeAgents.blenderPath`
+  (si apunta a un `.exe` que existe, manda), el `PATH`, `C:\Program Files\Blender Foundation`
+  y el registro de Windows; entre los autodetectados gana la versión más alta. Sin Blender
+  siguen abriendo las escenas cacheadas y las que traen un `.glb` al lado del `.blend`. Para
+  `.blend` de Blender 5.x hace falta 5.2 o más nuevo.
 
 ## Estructura
 
@@ -18,10 +24,13 @@
 │  │  ├─ limits/             consumo por proveedor
 │  │  ├─ panels/             webviews (el HTML vive en el .ts de cada panel)
 │  │  ├─ providers/          lectores de config de Claude Code y Codex
+│  │  ├─ blender/            puente con la CLI de Blender: export a GLB y renders
 │  │  ├─ voice/              motores de voz y dictado, MCP
 │  │  └─ extension.ts        comandos, sondeo en vivo y reparto a los paneles
 │  ├─ media/                 JS, CSS y SVG de las webviews (a mano, sin bundler)
-│  ├─ resources/             scripts que la extensión lanza (voz, dictado, pizarra)
+│  │  └─ three/              three.js r0.169 vendorizado para el visor 3D (no va por npm)
+│  ├─ resources/             scripts que la extensión lanza (voz, dictado, pizarra y el
+│  │                         exportador `alfred3d-export.py` del visor 3D)
 │  ├─ dist/                  bundle generado por esbuild (gitignorado, viaja en el .vsix)
 │  ├─ package.json           manifiesto de la extensión
 │  ├─ esbuild.js             build
