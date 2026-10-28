@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 27 de octubre de 2026 · versión **0.1.0**
+Última revisión: 28 de octubre de 2026 · versión **0.2.0**
 
 ## Resumen
 
@@ -28,7 +28,8 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   (línea de tiempo por prompt, con subagentes en paralelo).
 - **Límites de consumo** por proveedor (DeepSeek, OpenAI, GitHub Copilot, OpenCode Go).
 - **Voz** (SAPI, Edge, OpenAI, ElevenLabs) con esfera y ecualizador, y **dictado**
-  (SAPI, Whisper local, nube) con bloc de notas y adjuntos.
+  (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP viaja dentro
+  de la extensión (`dist/voz-mcp.js`), no como paquete externo.
 - **Pizarra** por capas con lápiz, imágenes, textos, zoom y envío al prompt.
 
 ## Siguiente

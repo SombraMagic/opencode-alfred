@@ -11,6 +11,7 @@ import {
 import { setAgentModel } from "./agents/assign";
 import {
   DisabledPlugin,
+  ensureMcpCommand,
   loadAutoAccept,
   loadMcpServers,
   loadPlugins,
@@ -59,7 +60,7 @@ import {
 import { VozPanel } from "./panels/voicePanel";
 import { VozDictado } from "./panels/dictadoPanel";
 import { speak, syncSharedConfig } from "./voice/service";
-import { installMcp } from "./voice/mcpInstaller";
+import { installMcp, nodeBinary, serverScriptPath } from "./voice/mcpInstaller";
 import { ContextWindowService } from "./stats/contextWindow";
 import { formatRelative } from "./stats/format";
 import { readTuiTabs } from "./stats/tuiTabs";
@@ -2889,12 +2890,22 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
 
     vscode.commands.registerCommand("voz.installMcp", async () => {
-      await installMcp();
+      await installMcp(context.extensionPath);
     })
   );
 
   // El MCP es otro proceso: necesita los ajustes en un fichero compartido.
   void syncSharedConfig();
+
+  // El bundle del MCP vive dentro de la extensión, así que su ruta lleva la versión
+  // instalada: al actualizar, la apuntada en la config deja de existir. Se repara en
+  // segundo plano; un fallo aquí no puede romper la activación (el botón la rehace).
+  const mcpScript = serverScriptPath(context.extensionPath);
+  if (existsSync(mcpScript)) {
+    void ensureMcpCommand("voz", [nodeBinary(), mcpScript]).catch(() => {
+      /* config sin permisos o ilegible: se queda como está */
+    });
+  }
 
   // Si los ajustes cambian fuera del panel (Settings o settings.json), el
   // fichero compartido y la interfaz deben seguirlos.

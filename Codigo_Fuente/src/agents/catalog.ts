@@ -234,6 +234,69 @@ export async function setMcpEnabled(server: McpServer, enabled: boolean): Promis
   await modifyJson(server.filePath, [...server.keyPath, server.name, "enabled"], enabled);
 }
 
+/**
+ * Clave de un servidor MCP existente en el texto: v2 (`mcp.servers`) manda si está.
+ * `undefined` cuando el servidor no está declarado o el JSONC no se puede leer.
+ */
+function mcpCommandOf(text: string, name: string): { keyPath: string[]; command: string[] } | undefined {
+  const errors: ParseError[] = [];
+  const parsed = parseJsonc(text, errors, { allowTrailingComma: true, disallowComments: false });
+  if (errors.length > 0) {
+    return undefined;
+  }
+  const mcp = asObject(asObject(parsed)?.mcp);
+  if (!mcp) {
+    return undefined;
+  }
+  const wrapped = asObject(mcp.servers);
+  const keyPath = wrapped ? ["mcp", "servers"] : ["mcp"];
+  const entry = asObject((wrapped ?? mcp)[name]);
+  if (!entry) {
+    return undefined;
+  }
+  return {
+    keyPath,
+    command: Array.isArray(entry.command) ? entry.command.map(String) : [],
+  };
+}
+
+/**
+ * Devuelve el texto con el `command` del servidor MCP `name` fijado a `command`.
+ * Puro: no toca disco. Si el servidor no está declarado o el comando ya coincide,
+ * devuelve el texto tal cual.
+ */
+export function applyMcpCommand(text: string, name: string, command: string[]): string {
+  const found = mcpCommandOf(text, name);
+  if (!found) {
+    return text;
+  }
+  const equal =
+    found.command.length === command.length && found.command.every((v, i) => v === command[i]);
+  if (equal) {
+    return text;
+  }
+  const edits = modify(text, [...found.keyPath, name, "command"], command, { formattingOptions: FMT });
+  return applyEdits(text, edits);
+}
+
+/**
+ * Reapunta el comando de un MCP ya declarado cuando la extensión cambia de versión:
+ * el bundle vive dentro de ella, así que la ruta antigua deja de existir. Solo mira
+ * la config global y no da de alta nada (eso es del instalador).
+ */
+export async function ensureMcpCommand(name: string, command: string[]): Promise<void> {
+  for (const file of globalConfigFiles()) {
+    const config = await readConfig(file, "global");
+    if (!config) {
+      continue;
+    }
+    const next = applyMcpCommand(config.text, name, command);
+    if (next !== config.text) {
+      await writeAtomic(file, next);
+    }
+  }
+}
+
 /* --------------------------------- Skills --------------------------------- */
 
 export interface SkillInfo {

@@ -184,7 +184,7 @@ export class VozPanel {
         await this.updateSetting("outputDevice", msg.device);
         break;
       case "installMcp": {
-        const message = await installMcp();
+        const message = await installMcp(this.context.extensionPath);
         this.post({ type: "mcp", message });
         break;
       }

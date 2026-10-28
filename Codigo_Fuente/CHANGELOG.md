@@ -1,5 +1,12 @@
 # Historial de cambios
 
+## 0.2.0
+
+- **Servidor MCP `voz` dentro de la extensión**: viaja en el paquete (`dist/voz-mcp.js`) y
+  el instalador lo registra como `node <extensión>/dist/voz-mcp.js`. Ya no depende del
+  paquete externo `@sombra/voz-mcp`, que nunca se publicó. La ruta se repara sola al
+  activar si cambia la versión instalada.
+
 ## 0.1.0
 
 Primera versión.

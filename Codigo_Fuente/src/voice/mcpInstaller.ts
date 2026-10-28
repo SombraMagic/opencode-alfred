@@ -16,8 +16,11 @@ import { delimiter, join } from "node:path";
  *
  * process.execPath NO sirve: dentro del extension host es Code.exe, así que
  * el agente acabaría lanzando VS Code en lugar del servidor.
+ *
+ * Exportada para la auto-reparación de `extension.ts`, que reescribe el comando
+ * del MCP cuando la extensión cambia de versión.
  */
-function nodeBinary(): string {
+export function nodeBinary(): string {
   const name = process.platform === "win32" ? "node.exe" : "node";
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     if (!dir) continue;
@@ -27,28 +30,24 @@ function nodeBinary(): string {
   return name; // se confía en el PATH del sistema
 }
 
+/** Bundle del servidor MCP: viaja dentro de la extensión instalada. */
+export function serverScriptPath(extensionPath: string): string {
+  return join(extensionPath, "dist", "voz-mcp.js");
+}
+
 /**
  * Comando que arranca el servidor MCP.
  *
- * Se usa `node` con la ruta al script en lugar de `npx`: en Windows los
- * shims .cmd de npm no propagan stdin, y el servidor MCP lo necesita.
- * Si el paquete está publicado, `npx -y @sombra/voz-mcp` también vale.
+ * Se usa `node` con la ruta al bundle en lugar del lanzador de npm: en Windows
+ * sus shims .cmd no propagan stdin, y el servidor MCP lo necesita. La ruta
+ * lleva la versión instalada, así que al actualizar la extensión cambia:
+ * `ensureMcpCommand` (al activar) vuelve a escribirla en la config.
  *
  * Exportado para las comprobaciones automatizadas: aquí se colaba Code.exe
  * (process.execPath) en lugar de node y el agente no podía arrancarlo.
  */
-export function serverCommand(): { command: string; args: string[] } {
-  const local = join(
-    process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"),
-    "npm",
-    "node_modules",
-    "@sombra",
-    "voz-mcp",
-    "dist",
-    "index.js",
-  );
-  if (existsSync(local)) return { command: nodeBinary(), args: [local] };
-  return { command: "npx", args: ["-y", "@sombra/voz-mcp"] };
+export function serverCommand(extensionPath: string): { command: string; args: string[] } {
+  return { command: nodeBinary(), args: [serverScriptPath(extensionPath)] };
 }
 
 /** Ejecuta un comando y devuelve su salida. */
@@ -76,7 +75,10 @@ function claudeConfigPath(): string {
 }
 
 /** Instala el servidor MCP donde se le pida. */
-export async function installMcp(): Promise<string> {
+export async function installMcp(extensionPath: string): Promise<string> {
+  if (!existsSync(serverScriptPath(extensionPath))) {
+    return "Falta dist/voz-mcp.js: recompila la extensión (npm run compile) antes de instalar el MCP.";
+  }
   const choice = await vscode.window.showQuickPick(
     [
       { label: "opencode", description: "Instalar en opencode (recomendado)" },
@@ -89,7 +91,7 @@ export async function installMcp(): Promise<string> {
   );
   if (!choice) return "Instalación cancelada.";
 
-  const { command, args } = serverCommand();
+  const { command, args } = serverCommand(extensionPath);
 
   switch (choice.label) {
     case "opencode":
@@ -121,10 +123,11 @@ async function installOpencode(command: string, args: string[]): Promise<string>
   const check = await run("opencode", ["mcp", "list"]);
   const line = check.out.split(/\r?\n/).find((l) => /\bvoz\b/.test(l)) ?? "";
   const ok = line.length > 0 && !line.includes("disabled");
+  // opencode v2 recarga la config al guardar el fichero: no hay que reiniciar.
   vscode.window.showInformationMessage(
     ok
-      ? "VOZ: servidor MCP instalado en opencode. Reinicia opencode para que lo cargue."
-      : `VOZ: servidor MCP añadido a opencode, pero aparece como "${line.trim()}".`,
+      ? "VOZ: servidor MCP instalado en opencode."
+      : `VOZ: servidor MCP añadido a opencode, pero aparece como "${line.trim()}". Si no lo ves, reinicia opencode.`,
   );
   return ok ? "Instalado en opencode ✓" : `Añadido a opencode (${line.trim() || "sin confirmar"})`;
 }

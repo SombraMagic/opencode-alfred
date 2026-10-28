@@ -3,7 +3,7 @@
   "displayName": "OpenCode Alfred",
   "description": "Centro de control de opencode (agentes, MCP, skills, plugins y contexto) con voz y dictado.",
   "icon": "media/icon.png",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "SombraMagic",
   "license": "MIT",
   "repository": {
