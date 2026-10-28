@@ -1,20 +1,26 @@
 /* Pizarra — editor de imagen por capas: fondo, imágenes pegadas, trazos y textos
    (ese es el orden de apilado, de abajo arriba).
-   El alto interno del lienzo es fijo (1024 px) y el ancho sigue el aspecto real del marco
-   (con topes): el lienzo llena el panel en los dos ejes y ese W × H es el PNG exportado.
+   Por defecto el lienzo es el del panel: alto fijo (1024 px) y ancho según el aspecto real
+   del marco (con topes), así llena el panel en los dos ejes. [NUEVA DESDE PORTAPAPELES] lo
+   fija al tamaño exacto de la imagen (con tope de 4096 por lado), y ese W × H es el PNG
+   exportado y la copia de trabajo.
    El zoom y el paneo son una transform CSS sobre el mundo: no cambian ni un píxel del aplanado. */
 (function () {
   const vscode = acquireVsCodeApi();
-  /** Alto interno del lienzo: fijo y referencia de la escala. El ancho `W` sigue al marco. */
+  /** Alto del lienzo del panel: referencia de la escala. `W` sigue al marco; un lienzo fijado cambia los dos. */
   const SIZE = 1024;
-  const H = SIZE;
   /** Topes del ancho del lienzo: fuera no se dibuja, dentro se copia el aspecto del panel. */
   const ANCHO_MIN = 256;
   const ANCHO_MAX = 4096;
+  /** Tope de cada lado cuando el lienzo se fija al tamaño de una imagen. */
+  const LADO_MAX = 4096;
   let W = SIZE;
-  /** Separación del asa de giro respecto al cuadro, en coordenadas del lienzo. */
+  let H = SIZE;
+  /** Lienzo con tamaño propio (el de la imagen pegada), no el del panel. */
+  let fijado = false;
+  /** Separación del asa de giro respecto al cuadro, en píxeles de pantalla. */
   const ROT_OFF = 30;
-  /** Tamaño del cuadradito de cada asa. */
+  /** Tamaño del cuadradito de cada asa, en píxeles de pantalla. */
   const HANDLE = 15;
   /** Color del lienzo recién creado. */
   const BG_DEFAULT = "#ffffff";
@@ -120,6 +126,13 @@
   }
 
   /**
+   * Píxeles de PANTALLA llevados a coordenadas del lienzo. Asas y trazos del overlay se miden
+   * así: con el lienzo de una imagen pequeña muy ampliado, un asa de 15 px del lienzo taparía
+   * la imagen entera.
+   */
+  const px = (n) => n / pantallaEscala();
+
+  /**
    * Factor canvas→píxeles de LAYOUT, sin el zoom. El área de edición vive dentro del mundo, así
    * que se dimensiona aquí y la transform se encarga del resto: con la escala de pantalla el
    * textarea saldría doble de grande al acercar.
@@ -195,18 +208,31 @@
   }
 
   /**
-   * Alto fijo (H); el ancho se saca del aspecto del marco: así la unidad de lienzo conserva su
-   * tamaño relativo en Y y la escala CSS→lienzo sale uniforme en los dos ejes.
+   * Lienzo del panel: alto fijo (SIZE) y ancho según el aspecto del marco, así la unidad de
+   * lienzo conserva su tamaño relativo en Y y la escala CSS→lienzo sale uniforme en los dos ejes.
    * `clientWidth/Height`: caja de contenido sin el borde de 1 px, que falsearía el aspecto.
    * `sinMarcar`: en el arranque el lienzo aún no tiene nada que conservar en la copia.
+   * Con el lienzo fijado no se toca el tamaño: solo se recoloca el mundo en el marco.
    */
   function medirMarco(sinMarcar) {
+    encajarMundo();
+    if (fijado) {
+      if (editing) {
+        colocaEditor(editing);
+        growEditor();
+      }
+      // La escala de pantalla cambia con la caja: el overlay tiene que repintar sus asas.
+      redraw();
+      return;
+    }
     const cw = el.frame.clientWidth;
     const ch = el.frame.clientHeight;
     if (!cw || !ch) return; // panel oculto: nada que recalcular
-    const w = clamp(Math.round((H * cw) / ch), ANCHO_MIN, ANCHO_MAX);
-    if (w === W) return; // solo cambia el tamaño sin cambiar el aspecto: no se toca nada
+    const w = clamp(Math.round((SIZE * cw) / ch), ANCHO_MIN, ANCHO_MAX);
+    // El mapa de bits manda: tras soltar un lienzo fijado el ancho puede coincidir por casualidad.
+    if (w === W && H === SIZE && el.board.width === w && el.board.height === SIZE) return;
     W = w;
+    H = SIZE;
     for (const node of [el.board, el.overlay, committed, live]) cambiarTamañoLienzo(node, W, H);
     pintaMedida();
     if (editing) {
@@ -215,6 +241,55 @@
     }
     if (sinMarcar) redraw();
     else changed(); // la copia de trabajo tiene que reflejar el nuevo tamaño
+  }
+
+  /**
+   * Caja del mundo dentro del marco. Con el lienzo del panel ocupa el marco entero; con uno
+   * fijado se centra con el aspecto del lienzo, así una imagen de 100 × 100 se ve grande sin
+   * deformarse y el PNG sigue siendo 100 × 100.
+   */
+  function encajarMundo() {
+    const s = el.world.style;
+    if (!fijado) {
+      s.left = "0";
+      s.top = "0";
+      s.width = "100%";
+      s.height = "100%";
+      return;
+    }
+    const cw = el.frame.clientWidth;
+    const ch = el.frame.clientHeight;
+    if (!cw || !ch) return; // panel oculto: la caja se queda como estaba
+    const k = Math.min(cw / W, ch / H);
+    const bw = Math.round(W * k);
+    const bh = Math.round(H * k);
+    s.width = bw + "px";
+    s.height = bh + "px";
+    s.left = Math.round((cw - bw) / 2) + "px";
+    s.top = Math.round((ch - bh) / 2) + "px";
+  }
+
+  /** Fija el lienzo al tamaño de una imagen (con tope por lado) y deja la vista limpia. */
+  function fijarLienzo(w, h) {
+    const k = Math.max(w, h) > LADO_MAX ? LADO_MAX / Math.max(w, h) : 1;
+    W = Math.max(1, Math.round(w * k));
+    H = Math.max(1, Math.round(h * k));
+    for (const node of [el.board, el.overlay, committed, live]) cambiarTamañoLienzo(node, W, H);
+    fijado = true;
+    encajarMundo();
+    pintaMedida();
+    // Pegar con el zoom a 800 % dejaría el lienzo nuevo fuera del marco.
+    view.z = 1;
+    view.tx = 0;
+    view.ty = 0;
+    aplicaVista();
+  }
+
+  /** Vuelve al lienzo del panel (alto fijo y ancho según el marco) tras vaciar uno fijado. */
+  function soltarLienzo() {
+    fijado = false;
+    H = SIZE;
+    medirMarco();
   }
 
   // ── Imágenes ──────────────────────────────────────────────
@@ -523,12 +598,12 @@
       hs.push({ kind: "width", side: -1, p: world(o, -hw, 0) });
       hs.push({ kind: "width", side: 1, p: world(o, hw, 0) });
     }
-    hs.push({ kind: "rotate", p: world(o, 0, -hh - ROT_OFF) });
+    hs.push({ kind: "rotate", p: world(o, 0, -hh - px(ROT_OFF)) });
     return hs;
   }
 
   function hitHandle(o, p) {
-    const radio = Math.max(HANDLE, 9 / pantallaEscala());
+    const radio = px(HANDLE);
     for (const h of handlesOf(o)) {
       if (Math.abs(p.x - h.p.x) <= radio && Math.abs(p.y - h.p.y) <= radio) return h;
     }
@@ -554,22 +629,23 @@
     const cs = corners(sel);
     const hs = handlesOf(sel);
     const rot = hs[hs.length - 1];
+    const lado = px(HANDLE);
     octx.save();
     octx.strokeStyle = "#00e5ff";
     octx.fillStyle = "#00e5ff";
-    octx.lineWidth = 2;
+    octx.lineWidth = px(2);
     octx.beginPath();
     octx.moveTo(cs[0].x, cs[0].y);
     for (let i = 1; i < 4; i++) octx.lineTo(cs[i].x, cs[i].y);
     octx.closePath();
-    octx.setLineDash([8, 6]);
+    octx.setLineDash([px(8), px(6)]);
     octx.stroke();
     octx.setLineDash([]);
     octx.beginPath();
     octx.moveTo(sel.x + sel.w / 2, sel.y + sel.h / 2);
     octx.lineTo(rot.p.x, rot.p.y);
     octx.stroke();
-    for (const h of hs) octx.fillRect(h.p.x - HANDLE / 2, h.p.y - HANDLE / 2, HANDLE, HANDLE);
+    for (const h of hs) octx.fillRect(h.p.x - lado / 2, h.p.y - lado / 2, lado, lado);
     octx.restore();
   }
 
@@ -710,8 +786,9 @@
         text: "",
         x: p.x,
         y: p.y,
-        w: 420,
-        h: 50,
+        // En un lienzo de 100 × 100 el bloque no puede nacer cuatro veces más ancho que el lienzo.
+        w: Math.max(40, Math.min(420, W)),
+        h: Math.max(20, Math.min(50, H)),
         rot: 0,
         color: el.txtColor.value,
         size: Number(el.txtSize.value),
@@ -887,6 +964,7 @@
       (aceptar) => {
         if (!aceptar) return;
         vaciar();
+        soltarLienzo();
         changed();
         setStatus("Pizarra vacía.");
       }
@@ -964,7 +1042,7 @@
       const m = marcoPunto(event);
       const z2 = pasoZoom(view.z, event.deltaY);
       if (z2 === view.z) return; // en el límite: nada que recalcular
-      const nuevo = zoomEn(view.z, view.tx, view.ty, z2, m.x, m.y);
+      const nuevo = zoomEn(view.z, view.tx, view.ty, z2, m.x - el.world.offsetLeft, m.y - el.world.offsetTop);
       view.z = nuevo.z;
       view.tx = nuevo.tx;
       view.ty = nuevo.ty;
@@ -1095,7 +1173,10 @@
         if (m.png && !hasContent()) {
           try {
             const img = await loadImage(m.png);
-            state.bg = { color: BG_DEFAULT, image: { drawable: img, width: img.width, height: img.height } };
+            // La copia de trabajo conserva su tamaño: reabrir una pizarra de 100 × 100 no la
+            // devuelve a un lienzo enorme con la imagen diminuta en el centro.
+            fijarLienzo(img.width, img.height);
+            state.bg = { color: BG_DEFAULT, image: { drawable: img, width: W, height: H } };
             setStatus("Pizarra anterior restaurada desde la copia de trabajo.");
           } catch {
             setStatus("La copia de trabajo no se ha podido leer.", "error");
@@ -1121,10 +1202,14 @@
         setStatus("El portapapeles no trae ninguna imagen.", "error");
         return;
       }
+      // El lienzo pasa a ser el de la imagen: el PNG, la copia de trabajo y lo que sube el
+      // dictado salen de ese tamaño, no del panel. Va antes de `vaciar` para que su repintado
+      // de trazos ya use el lienzo nuevo.
+      fijarLienzo(img.width, img.height);
       vaciar();
-      state.bg = { color: BG_DEFAULT, image: { drawable: img, width: img.width, height: img.height } };
+      state.bg = { color: BG_DEFAULT, image: { drawable: img, width: W, height: H } };
       changed();
-      setStatus("Nueva pizarra desde el portapapeles.", "ok");
+      setStatus(`Lienzo ${W} × ${H} con la imagen del portapapeles.`, "ok");
       return;
     }
     if (m.type === "clipboardEmpty") {

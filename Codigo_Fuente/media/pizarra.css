@@ -187,8 +187,9 @@ body {
 
 /* Llena el stage en los dos ejes: se aprovecha toda la ventana. El JS pone el ancho interno del
    lienzo al aspecto real de la caja de contenido (alto fijo 1024), así que la escala CSS→lienzo
-   sale uniforme y el puntero cae donde toca en los dos ejes. El cuadro con `min()` recortaba el
-   ancho y dejaba letterbox en horizontal. */
+   sale uniforme y el puntero cae donde toca en los dos ejes. Con un lienzo fijado al tamaño de
+   una imagen el JS lo centra con el aspecto propio de esa imagen, no con el del marco. El cuadro
+   con `min()` recortaba el ancho y dejaba letterbox en horizontal. */
 .pz-frame {
   position: relative;
   width: 100cqw;
@@ -203,10 +204,14 @@ body {
 }
 
 /* El mundo es el lienzo con el zoom y el paneo encima, en CSS nada más: la resolución interna
-   (1024 de alto y el ancho del aspecto del marco) y el PNG exportado no las toca el zoom. */
+   (1024 de alto y el ancho del aspecto del marco) y el PNG exportado no las toca el zoom.
+   Con el lienzo fijado al tamaño de una imagen, el JS lo centra aquí en píxeles. */
 .pz-world {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
   transform-origin: 0 0;
 }
 

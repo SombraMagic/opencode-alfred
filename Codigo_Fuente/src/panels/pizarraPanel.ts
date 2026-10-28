@@ -1,6 +1,8 @@
 /**
  * Panel de PIZARRA: editor de imagen por capas (fondo, imágenes pegadas, trazos y
- * textos) sobre un lienzo de alto fijo 1024 px y ancho según el aspecto del panel.
+ * textos) sobre un lienzo de alto fijo 1024 px y ancho según el aspecto del panel, o
+ * fijado al tamaño exacto de la imagen traída del portapapeles (con tope de 4096 por
+ * lado), que es el que se exporta.
  *
  * Lo que importa de fuera es el PNG aplanado. Cada cambio se guarda como copia de
  * trabajo en la carpeta de adjuntos (la misma del dictado), de modo que otro panel

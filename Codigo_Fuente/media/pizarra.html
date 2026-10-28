@@ -17,7 +17,7 @@
       </div>
       <div class="pz-actions">
         <button id="btn-new" class="ghost-btn" type="button" title="Vaciar el lienzo y empezar de cero">NUEVA EN BLANCO</button>
-        <button id="btn-paste" class="ghost-btn" type="button" title="Vaciar la pizarra y poner la imagen del portapapeles como fondo (con Ctrl+V se añade como capa IMÁGENES sin tocar lo demás)">NUEVA DESDE PORTAPAPELES</button>
+        <button id="btn-paste" class="ghost-btn" type="button" title="Vaciar la pizarra, crear un lienzo del tamaño de la imagen del portapapeles (con tope de 4096 por lado) y ponerla de fondo 1:1 (con Ctrl+V se añade como capa IMÁGENES sin tocar lo demás)">NUEVA DESDE PORTAPAPELES</button>
         <button id="btn-save" class="ghost-btn" type="button" title="Guardar el PNG aplanado en un fichero">GUARDAR</button>
       </div>
     </header>
@@ -66,7 +66,8 @@
     <main class="pz-stage" id="stage">
       <div class="pz-frame">
         <!-- El mundo lleva el zoom y el paneo; dentro, el lienzo mide 1024 de alto y el ancho
-             que dicta el aspecto del marco (el JS lo ajusta al redimensionar). -->
+             que dicta el aspecto del marco (el JS lo ajusta al redimensionar), salvo que un
+             lienzo fijado al tamaño de una imagen mande otro tamaño a los dos ejes. -->
         <div class="pz-world" id="world">
           <canvas id="board" width="1024" height="1024"></canvas>
           <canvas id="overlay" width="1024" height="1024"></canvas>
