@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 28 de octubre de 2026 · versión **0.2.1**
+Última revisión: 28 de octubre de 2026 · versión **0.2.4**
 
 ## Resumen
 
