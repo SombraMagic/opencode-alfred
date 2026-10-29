@@ -5,6 +5,8 @@
    Arista: { id, from, to, fromSide, toSide, waypoints, label, color, width, dashed,
              arrows: "arrow" | "both" | "none" }
    `from`/`to` valen un id de `nodesById`, un nodo suelto o un punto libre { x, y }.
+   `waypoints` es la polilínea explícita del usuario; los codos que añade el router para
+   ortogonalizar entre el stub y el primer/último punto NO se persisten ni son asas.
 
    Se puede cargar con `require` en node para comprobarla sin navegador. */
 (function () {

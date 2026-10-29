@@ -203,6 +203,30 @@ body {
   background: repeating-linear-gradient(45deg, transparent 0 3px, var(--line) 3px 4px);
 }
 
+/* Chip AUTO del color de texto: alto como los cuadraditos de la paleta. */
+.pz-auto {
+  height: 18px;
+  padding: 0 5px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.pz-auto:hover,
+.pz-auto:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.pz-auto.on {
+  border-color: var(--neon);
+  color: var(--neon);
+}
+
 /* Indicador de qué capa toca lo que está activo; de paso, interruptor de su visibilidad. */
 .pz-layers {
   margin-left: auto;

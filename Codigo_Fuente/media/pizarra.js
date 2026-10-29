@@ -103,6 +103,8 @@
     nodeSize: document.getElementById("node-size"),
     nodeIcon: document.getElementById("node-icon"),
     nodeIconField: document.getElementById("node-icon-field"),
+    nodeText: document.getElementById("node-text"),
+    nodeTextAuto: document.getElementById("node-text-auto"),
     edgeColor: document.getElementById("edge-color"),
     edgeWidth: document.getElementById("edge-width"),
     edgeDash: document.getElementById("edge-dash"),
@@ -150,6 +152,8 @@
   let selEdge = null;
   /** Nodo bajo el puntero: enseña sus asas de conexión. */
   let hoverNode = null;
+  /** Último punto del puntero en el lienzo: lo usan los chivatos del overlay. */
+  let puntero = null;
   /** Bloque de texto que se está escribiendo en el área flotante. */
   let editing = null;
   /** Nodo cuya etiqueta se está escribiendo en el mismo área. */
@@ -181,6 +185,8 @@
   let fondoVisible = true;
   /** El último relleno elegido; `"none"` no cabe en un `input[type=color]`. */
   let rellenoSin = false;
+  /** El próximo nodo nace con texto automático salvo que se fije un color a mano. */
+  let textoAuto = true;
   /** Último tamaño dibujado con la herramienta NODO: el clic lo reutiliza. */
   let ultimoTamano = { w: NODO_W, h: NODO_H };
   /** Pila de deshacer/rehacer: escenas completas, una entrada por gesto. */
@@ -661,10 +667,6 @@
     return colorTextoNodo(n);
   }
 
-  function fuenteNodo(n) {
-    return `${n.weight || 400} ${n.fontSize}px sans-serif`;
-  }
-
   /** Silueta redondeada a mano: `arcTo` no admite un radio mayor que medio lado. */
   function caja(t, x, y, w, h, r) {
     const rr = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -706,12 +708,31 @@
     t.restore();
   }
 
-  /** Líneas del texto de un nodo, ajustadas a su ancho. */
-  function lineasNodo(n) {
-    const pad = 10;
-    const ancho = Math.max(4, n.w - pad * 2);
-    measure.font = fuenteNodo(n);
-    const lineH = Math.max(1, Math.round(n.fontSize * 1.3));
+  /**
+   * Rectángulo útil del texto de un nodo, dentro de su silueta. El texto se ajusta y, si no
+   * cabe en alto, se encoge: nunca debe salirse de la figura.
+   */
+  function cajaTextoNodo(n) {
+    if (n.shape === "ellipse") {
+      return { x: n.x + n.w * 0.14, y: n.y + n.h * 0.14, w: Math.max(1, n.w * 0.72), h: Math.max(1, n.h * 0.72) };
+    }
+    if (n.shape === "diamond") {
+      return { x: n.x + n.w * 0.25, y: n.y + n.h * 0.25, w: Math.max(1, n.w * 0.5), h: Math.max(1, n.h * 0.5) };
+    }
+    if (n.shape === "icon") {
+      // El icono ocupa la parte de arriba; su etiqueta va debajo.
+      return { x: n.x + 8, y: n.y + n.h * 0.56, w: Math.max(1, n.w - 16), h: Math.max(1, n.h * 0.4) };
+    }
+    if (n.shape === "stadium") {
+      const lateral = Math.max(0, Math.min(n.w / 2 - 4, n.h / 2 + 6));
+      return { x: n.x + lateral, y: n.y + 8, w: Math.max(1, n.w - lateral * 2), h: Math.max(1, n.h - 16) };
+    }
+    return { x: n.x + 10, y: n.y + 10, w: Math.max(1, n.w - 20), h: Math.max(1, n.h - 20) };
+  }
+
+  /** Reparte el texto del nodo en líneas con el cuerpo y el ancho dados. */
+  function partirTextoNodo(n, ancho, size) {
+    measure.font = `${n.weight || 400} ${size}px sans-serif`;
     const lines = [];
     for (const para of String(n.text == null ? "" : n.text).split("\n")) {
       if (para === "") {
@@ -736,23 +757,46 @@
       }
       lines.push(cur);
     }
-    return { lines, lineH, pad };
+    return lines;
   }
 
-  function dibujaTextoNodo(t, n, desplazamientoY) {
+  /**
+   * Líneas del texto de un nodo con su cuerpo efectivo: si el bloque no cabe en la caja de la
+   * forma, se baja el cuerpo de 1 en 1 hasta 8. Nunca sube por encima de `n.fontSize`.
+   */
+  function lineasNodo(n) {
+    const caja = cajaTextoNodo(n);
+    const ancho = Math.max(4, caja.w);
+    let size = Math.max(1, Math.round(n.fontSize));
+    let lines = partirTextoNodo(n, ancho, size);
+    let lineH = Math.max(1, Math.round(size * 1.25));
+    while (size > 8 && lines.length * lineH > caja.h) {
+      size -= 1;
+      lines = partirTextoNodo(n, ancho, size);
+      lineH = Math.max(1, Math.round(size * 1.25));
+    }
+    return { lines, lineH, size, caja };
+  }
+
+  function dibujaTextoNodo(t, n) {
     if (n === nodeEditing) return; // lo escribe el textarea encima
     const m = lineasNodo(n);
     if (!m.lines.length) return;
+    const cajaTexto = m.caja;
     t.save();
-    t.font = fuenteNodo(n);
+    // Recorte con la silueta: aunque el bloque no quepa, el texto no sale del nodo.
+    if (n.shape === "icon") caja(t, n.x, n.y, n.w, n.h, 10);
+    else PZFlow.nodePath(t, n);
+    t.clip();
+    t.font = `${n.weight || 400} ${m.size}px sans-serif`;
     t.fillStyle = colorTextoNodo(n);
-    t.textBaseline = "top";
-    const alto = m.lines.length * m.lineH;
-    const centro = n.y + n.h / 2 + (desplazamientoY || 0);
-    let y = centro - alto / 2;
+    t.textBaseline = "middle";
+    const alto = (m.lines.length - 1) * m.lineH;
+    let y = cajaTexto.y + cajaTexto.h / 2 - alto / 2;
     const alineado = n.align === "left" || n.align === "right" ? n.align : "center";
     t.textAlign = alineado;
-    const x = alineado === "left" ? n.x + m.pad : alineado === "right" ? n.x + n.w - m.pad : n.x + n.w / 2;
+    const x =
+      alineado === "left" ? cajaTexto.x : alineado === "right" ? cajaTexto.x + cajaTexto.w : cajaTexto.x + cajaTexto.w / 2;
     for (const linea of m.lines) {
       t.fillText(linea, x, y);
       y += m.lineH;
@@ -774,9 +818,9 @@
       t.strokeStyle = n.stroke;
       t.stroke();
       const hayTexto = Boolean(String(n.text || "").trim());
-      const lado = Math.max(12, Math.min(n.w, n.h) * (hayTexto ? 0.5 : 0.66));
-      dibujaIcono(t, n, n.x + (n.w - lado) / 2, n.y + (hayTexto ? n.h * 0.12 : (n.h - lado) / 2), lado);
-      if (hayTexto) dibujaTextoNodo(t, n, n.h * 0.22);
+      const lado = Math.max(12, Math.min(n.w, n.h) * (hayTexto ? 0.42 : 0.66));
+      dibujaIcono(t, n, n.x + (n.w - lado) / 2, n.y + (hayTexto ? n.h * 0.1 : (n.h - lado) / 2), lado);
+      if (hayTexto) dibujaTextoNodo(t, n);
     } else {
       PZFlow.nodePath(t, n);
       if (n.fill !== "none") {
@@ -786,7 +830,7 @@
       t.lineWidth = 2;
       t.strokeStyle = n.stroke;
       t.stroke();
-      dibujaTextoNodo(t, n, 0);
+      dibujaTextoNodo(t, n);
     }
     t.restore();
   }
@@ -1407,12 +1451,19 @@
   }
 
   function actualizarContexto() {
-    if (tool === "pen") setStatus("LÁPIZ: arrastra para dibujar. La goma está en BORRADOR.");
+    if ((tool === "pen" || tool === "eraser") && state.layers.strokes === false) {
+      setStatus("La capa TRAZOS está oculta: enciéndela con el chip TRAZOS o lo que pintes no se verá.", "error");
+    } else if (tool === "pen") setStatus("LÁPIZ: arrastra para dibujar. La goma está en BORRADOR.");
     else if (tool === "eraser") setStatus("BORRADOR: arrastra sobre los trazos. La dureza del borde está arriba.");
     else if (tool === "text") setStatus("TEXTO: clic en el lienzo donde escribir; cierra con Ctrl+Enter o Escape.");
     else if (tool === "node")
-      setStatus("NODO: clic crea uno de 200 × 80; arrastra para dibujarlo a ese tamaño. Doble clic edita su etiqueta.");
-    else if (selEdge) setStatus("CONECTOR: arrastra la línea o la etiqueta; doble clic edita el texto; Alt+clic añade un codo.");
+      setStatus(
+        `NODO: clic crea uno de ${ultimoTamano.w} × ${ultimoTamano.h}; arrastra para dibujarlo a ese tamaño. Doble clic edita su etiqueta.`
+      );
+    else if (selEdge)
+      setStatus(
+        "CONECTOR: arrastra un tramo para desviarlo, un codo para moverlo, o un extremo para reengancharlo; Alt+clic añade un codo y doble clic en la etiqueta la edita."
+      );
     else if (selNodes.length > 1)
       setStatus(`${selNodes.length} nodos: arrastra para mover, flechas para ajustar y ABAJO para alinear o repartir.`);
     else if (selNodes.length === 1)
@@ -1427,9 +1478,16 @@
     el.root.dataset.tool = next;
     for (const b of el.tools) b.classList.toggle("on", b.dataset.tool === next);
     if (next !== "select" && next !== "node") cerrarEditores(false);
+    // Pintar con la capa TRAZOS oculta es pintar a ciegas: se enciende al coger el lápiz o la goma.
+    const capaApagada = (next === "pen" || next === "eraser") && state.layers.strokes === false;
+    if (capaApagada) {
+      state.layers.strokes = true;
+      changed();
+    }
     syncOpciones();
     paintLayers();
     actualizarContexto();
+    if (capaApagada) setStatus("La capa TRAZOS estaba oculta: la enciendo para que se vea lo que pintes.", "ok");
     redraw();
   }
 
@@ -1574,6 +1632,11 @@
       document.getElementById("node-size-out").textContent = String(n.fontSize);
       if (PZFlow.ICONS[n.icon]) el.nodeIcon.value = n.icon;
       for (const sw of el.swatches) sw.classList.toggle("on", sw.dataset.fill === n.fill);
+      // Color del texto: el automático se enseña resuelto, pero sigue siendo "auto".
+      textoAuto = n.textColor === "auto";
+      el.nodeText.value = textoAuto ? colorTextoNodo(n) : n.textColor;
+      el.nodeTextAuto.classList.toggle("on", textoAuto);
+      el.nodeTextAuto.setAttribute("aria-pressed", textoAuto ? "true" : "false");
     }
     syncOpciones();
   }
@@ -1688,6 +1751,78 @@
     const flujoVisible = state.layers.flow !== false;
     const lado = px(HANDLE_NODO);
 
+    // ── Chivatos de NODO: antes de las asas, para no tapar la selección ──
+    const formaNueva = PZFlow.SHAPES.indexOf(el.nodeShape.value) >= 0 ? el.nodeShape.value : "rect";
+    const silueta = (cajaNodo, discontinuo, opacidad) => {
+      octx.save();
+      if (cajaNodo.shape === "icon") caja(octx, cajaNodo.x, cajaNodo.y, cajaNodo.w, cajaNodo.h, 10);
+      else PZFlow.nodePath(octx, cajaNodo);
+      const relleno = rellenoActual();
+      if (relleno !== "none") {
+        octx.globalAlpha = opacidad * 0.22;
+        octx.fillStyle = relleno;
+        octx.fill();
+        octx.globalAlpha = opacidad;
+      }
+      octx.lineWidth = px(2);
+      octx.strokeStyle = el.nodeStroke.value;
+      if (discontinuo) octx.setLineDash([px(6), px(4)]);
+      octx.stroke();
+      octx.restore();
+    };
+
+    // NODO arrastrando: silueta del nodo que se va a crear + medida exacta.
+    if (flujoVisible && drag && drag.kind === "nodo-dibujar") {
+      const brutoW = Math.abs(drag.p.x - drag.desde.x);
+      const brutoH = Math.abs(drag.p.y - drag.desde.y);
+      const dibujando = brutoW > 8 && brutoH > 8;
+      let prev;
+      if (dibujando) {
+        let w = brutoW;
+        let h = brutoH;
+        if (drag.shift) {
+          const ladoMayor = Math.max(w, h);
+          w = ladoMayor;
+          h = ladoMayor;
+        }
+        prev = {
+          shape: formaNueva,
+          x: ajusta(Math.min(drag.desde.x, drag.p.x)),
+          y: ajusta(Math.min(drag.desde.y, drag.p.y)),
+          w: Math.max(NODO_MIN_W, Math.round(w)),
+          h: Math.max(NODO_MIN_H, Math.round(h)),
+        };
+      } else {
+        // Un clic sin arrastre crea el nodo del último tamaño en el punto pulsado.
+        prev = { shape: formaNueva, x: ajusta(drag.desde.x), y: ajusta(drag.desde.y), w: ultimoTamano.w, h: ultimoTamano.h };
+      }
+      silueta(prev, !dibujando, dibujando ? 1 : 0.35);
+      if (dibujando) {
+        const etiqueta = `${Math.round(prev.w)} × ${Math.round(prev.h)}`;
+        octx.save();
+        octx.font = `600 ${px(11)}px sans-serif`;
+        octx.textAlign = "center";
+        octx.textBaseline = "middle";
+        const tx = prev.x + prev.w / 2;
+        const ty = prev.y + prev.h + px(11);
+        octx.lineWidth = px(3);
+        octx.strokeStyle = "rgba(11, 20, 24, 0.85)";
+        octx.strokeText(etiqueta, tx, ty);
+        octx.fillStyle = "#ffffff";
+        octx.fillText(etiqueta, tx, ty);
+        octx.restore();
+      }
+    }
+
+    // NODO sin gesto: dónde caería el próximo nodo, si el puntero está en el vacío.
+    if (flujoVisible && tool === "node" && puntero && !drag && !hoverNode) {
+      silueta(
+        { shape: formaNueva, x: ajusta(puntero.x), y: ajusta(puntero.y), w: ultimoTamano.w, h: ultimoTamano.h },
+        true,
+        0.35
+      );
+    }
+
     if (
       flujoVisible &&
       hoverNode &&
@@ -1751,7 +1886,10 @@
         PZFlow.roundedPath(octx, pts, 10);
         octx.stroke();
         octx.restore();
-        // Extremos redondos, codos cuadrados y un punto hueco en el centro de cada tramo.
+        // Extremos redondos y codos cuadrados en los `waypoints` (o en la ruta si aún no hay).
+        // El punto hueco marca cada tramo arrastrable: los de los extremos no lo llevan.
+        const usuario = puntosUsuario(selEdge) || pts;
+        const codos = selEdge.waypoints.length;
         octx.save();
         octx.strokeStyle = "#00e5ff";
         octx.fillStyle = "#00e5ff";
@@ -1761,9 +1899,17 @@
           octx.arc(p.x, p.y, px(5), 0, Math.PI * 2);
           octx.fill();
         }
-        for (let i = 1; i < pts.length - 1; i++) cuadro(octx, pts[i], px(9), "#00e5ff");
-        for (let i = 1; i < pts.length; i++) {
-          const m = { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 };
+        if (codos) {
+          for (const w of selEdge.waypoints) cuadro(octx, w, px(9), "#00e5ff");
+        } else {
+          for (let i = 1; i < pts.length - 1; i++) cuadro(octx, pts[i], px(9), "#00e5ff");
+        }
+        const hasta = codos ? codos - 1 : usuario.length - 3;
+        for (let s = 1; s <= hasta; s++) {
+          const a = usuario[s];
+          const b = usuario[s + 1];
+          if (!a || !b) continue;
+          const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
           octx.beginPath();
           octx.arc(m.x, m.y, px(3), 0, Math.PI * 2);
           octx.fillStyle = "#0b1418";
@@ -1823,6 +1969,43 @@
       octx.arc(fin.x, fin.y, px(4), 0, Math.PI * 2);
       octx.fillStyle = "#35c08a";
       octx.fill();
+      octx.restore();
+    }
+
+    // ── Chivato del pincel: al final y encima de todo, sigue al puntero siempre ──
+    if ((tool === "pen" || tool === "eraser") && puntero && !(drag && drag.kind === "pan")) {
+      const tamano = tool === "pen" ? Number(el.penSize.value) : Number(el.erSize.value);
+      const radio = Math.max(0.5, tamano / 2);
+      octx.save();
+      octx.beginPath();
+      octx.arc(puntero.x, puntero.y, radio, 0, Math.PI * 2);
+      octx.lineWidth = px(3.5);
+      octx.strokeStyle = "rgba(11, 20, 24, 0.85)";
+      octx.stroke();
+      octx.beginPath();
+      octx.arc(puntero.x, puntero.y, radio, 0, Math.PI * 2);
+      octx.lineWidth = px(1.5);
+      octx.strokeStyle = "#ffffff";
+      octx.stroke();
+      if (tool === "eraser") {
+        const duro = clamp(Number(el.erHard.value) / 100, 0, 0.95);
+        if (duro > 0) {
+          octx.beginPath();
+          octx.arc(puntero.x, puntero.y, radio * duro, 0, Math.PI * 2);
+          octx.setLineDash([px(4), px(3)]);
+          octx.lineWidth = px(1.5);
+          octx.strokeStyle = "#ffffff";
+          octx.stroke();
+          octx.setLineDash([]);
+        }
+      } else {
+        octx.beginPath();
+        octx.arc(puntero.x, puntero.y, Math.max(px(1.5), radio * 0.25), 0, Math.PI * 2);
+        octx.globalAlpha = 0.4;
+        octx.fillStyle = el.penColor.value;
+        octx.fill();
+        octx.globalAlpha = 1;
+      }
       octx.restore();
     }
   }
@@ -1904,27 +2087,34 @@
 
   // ── Editor de la etiqueta de un nodo ──────────────────────
 
-  /** Coloca el área dentro del nodo; el padding superior la centra en vertical. */
+  /**
+   * Coloca el área exactamente donde se pinta el texto: mismo cuerpo efectivo, mismos márgenes
+   * laterales de la caja y el mismo centrado vertical. Así no baila al confirmar.
+   */
   function colocaEditorNodo(n) {
     const k = layoutEscala();
+    const m = lineasNodo(n);
+    const cajaTexto = m.caja;
     const s = el.editor.style;
+    // El área ocupa el nodo entero y el relleno la recorta a la caja útil (caja de contenido).
     s.left = n.x * k + "px";
     s.top = n.y * k + "px";
-    // El área es de caja de contenido: el ancho útil descuenta el relleno lateral del nodo.
-    s.width = Math.max(32, n.w * k - 20 * k) + "px";
+    s.width = Math.max(24, n.w * k) + "px";
     s.setProperty("--edit-font", "sans-serif");
-    s.setProperty("--edit-size", n.fontSize * k + "px");
-    s.setProperty("--edit-line", Math.round(n.fontSize * 1.3) * k + "px");
+    s.setProperty("--edit-size", m.size * k + "px");
+    s.setProperty("--edit-line", m.lineH * k + "px");
     s.setProperty("--edit-color", colorTextoNodo(n));
     s.fontWeight = String(n.weight || 400);
     s.textAlign = n.align === "left" || n.align === "right" ? n.align : "center";
-    s.paddingLeft = 10 * k + "px";
-    s.paddingRight = 10 * k + "px";
+    s.paddingLeft = Math.max(0, (cajaTexto.x - n.x) * k) + "px";
+    s.paddingRight = Math.max(0, (n.x + n.w - cajaTexto.x - cajaTexto.w) * k) + "px";
     s.paddingTop = "0px";
     s.height = "auto";
     const contenido = el.editor.scrollHeight;
-    s.height = contenido + "px";
-    s.paddingTop = Math.max(0, (n.h * k - contenido) / 2) + "px";
+    // `border-box`: el relleno va dentro del alto, así que hay que sumarlo para no recortar.
+    const padTop = Math.max(0, (cajaTexto.y - n.y) * k + (cajaTexto.h * k - contenido) / 2);
+    s.paddingTop = padTop + "px";
+    s.height = contenido + padTop + "px";
   }
 
   function abrirEditorNodo(n) {
@@ -1939,11 +2129,16 @@
     setStatus("Etiqueta del nodo: Enter confirma, Mayús+Enter salta de línea, TAB encadena a la derecha y Ctrl+Enter abajo.");
   }
 
-  /** El alto del nodo crece si el texto no cabe; nunca se encoge solo. */
+  /**
+   * El alto del nodo crece si el texto no cabe con el cuerpo configurado; nunca se encoge solo.
+   * El aire extra cubre los márgenes de la forma (la diferencia entre el nodo y su caja útil).
+   */
   function crecerNodo(n) {
-    const m = lineasNodo(n);
-    const alto = m.lines.length * m.lineH + 20;
-    if (alto > n.h) n.h = alto;
+    const cajaTexto = cajaTextoNodo(n);
+    const lines = partirTextoNodo(n, Math.max(4, cajaTexto.w), Math.max(1, Math.round(n.fontSize)));
+    const lineH = Math.max(1, Math.round(n.fontSize * 1.25));
+    const necesario = lines.length * lineH + (n.h - cajaTexto.h) + 4;
+    if (necesario > n.h) n.h = necesario;
   }
 
   function confirmarEditorNodo(direccion) {
@@ -2077,7 +2272,7 @@
       text: "",
       fill: rellenoActual(),
       stroke: el.nodeStroke.value,
-      textColor: "auto",
+      textColor: textoAuto ? "auto" : el.nodeText.value,
       fontSize: clamp(Number(el.nodeSize.value) || 18, 6, 300),
       weight: 600,
       align: "center",
@@ -2222,6 +2417,9 @@
     }
 
     if (tool === "pen" || tool === "eraser") {
+      if (state.layers.strokes === false) {
+        setStatus("La capa TRAZOS está oculta: enciéndela con TRAZOS o no se verá lo que pintes.", "error");
+      }
       const stroke = newStroke(tool, p);
       lctx.clearRect(0, 0, W, H);
       lctx.drawImage(committed, 0, 0);
@@ -2314,17 +2512,27 @@
       }
       const r = rutaDe(selEdge);
       if (r && r.points.length >= 2) {
-        const pts = r.points;
         const radio = px(10);
-        for (let i = 1; i < pts.length - 1; i++) {
-          if (Math.abs(p.x - pts[i].x) <= radio && Math.abs(p.y - pts[i].y) <= radio) {
-            // La ruta se materializa al primer movimiento: un clic no cambia la escena.
-            drag = { kind: "arista-codo", arista: selEdge, indice: i };
-            return;
+        // Codos: se golpea sobre los `waypoints` guardados; sin ellos, sobre los de la ruta
+        // pintada, que tras materializar ocupan exactamente los mismos índices (i - 1).
+        if (selEdge.waypoints.length) {
+          for (let j = 0; j < selEdge.waypoints.length; j++) {
+            const w = selEdge.waypoints[j];
+            if (Math.abs(p.x - w.x) <= radio && Math.abs(p.y - w.y) <= radio) {
+              drag = { kind: "arista-codo", arista: selEdge, indice: j, desde: p };
+              return;
+            }
+          }
+        } else {
+          for (let i = 1; i < r.points.length - 1; i++) {
+            if (Math.abs(p.x - r.points[i].x) <= radio && Math.abs(p.y - r.points[i].y) <= radio) {
+              drag = { kind: "arista-codo", arista: selEdge, indice: i - 1, desde: p };
+              return;
+            }
           }
         }
         for (const extremo of ["from", "to"]) {
-          const q = extremo === "from" ? pts[0] : pts[pts.length - 1];
+          const q = extremo === "from" ? r.points[0] : r.points[r.points.length - 1];
           if (Math.hypot(p.x - q.x, p.y - q.y) <= radio) {
             drag = { kind: "arista-extremo", arista: selEdge, extremo, p, destino: nodoEn(p), destinoLado: null };
             return;
@@ -2414,20 +2622,36 @@
     return Math.abs(p.x - q.x) <= ancho / 2 + 6 && Math.abs(p.y - q.y) <= TEXTO_ARISTA;
   }
 
-  /** Materializa la ruta en `waypoints`: la forma deja de depender del enrutado automático. */
+  /**
+   * Materializa la ruta en `waypoints`: la forma deja de depender del enrutado automático.
+   * Solo la primera vez: volver a materializar metería los codos que dibuja la librería.
+   */
   function materializar(e) {
+    if (e.waypoints && e.waypoints.length) return true;
     const r = rutaDe(e);
     if (!r || r.points.length < 3) return false;
     e.waypoints = r.points.slice(1, -1).map((p) => ({ x: p.x, y: p.y }));
     return true;
   }
 
-  /** Tramo interior (entre codos) que pasa por el punto; -1 si es un codo del extremo. */
-  function tramoInterior(e, p) {
+  /**
+   * Polilínea de edición: `[a0, ...waypoints, b0]`, donde los anclajes son los dos extremos
+   * de la ruta. Sin waypoints vale la ruta pintada, que es lo que se puede tocar antes de
+   * materializar. El índice `k` de esta lista es el waypoint `k - 1` una vez materializada.
+   */
+  function puntosUsuario(e) {
     const r = rutaDe(e);
-    if (!r || r.points.length < 3) return -1;
-    const golpe = PZFlow.segmentHit(r.points, p, px(EDGE_TOL));
-    if (golpe.index < 1 || golpe.index > r.points.length - 3) return -1;
+    if (!r || r.points.length < 2) return null;
+    if (!e.waypoints || !e.waypoints.length) return r.points;
+    return [r.points[0], ...e.waypoints, r.points[r.points.length - 1]];
+  }
+
+  /** Tramo interior (entre codos) que pasa por el punto; -1 si es un tramo del extremo. */
+  function tramoInterior(e, p) {
+    const pts = puntosUsuario(e);
+    if (!pts || pts.length < 3) return -1;
+    const golpe = PZFlow.segmentHit(pts, p, px(EDGE_TOL));
+    if (golpe.index < 1 || golpe.index > pts.length - 3) return -1;
     return golpe.index;
   }
 
@@ -2446,15 +2670,17 @@
   }
 
   function onMove(event) {
+    puntero = toCanvas(event);
     if (!drag) {
       // Sin gesto: se decide el cursor y el nodo bajo el puntero. Solo se repinta si cambió
-      // algo: recomponer la escena en cada movimiento del ratón es caro y no aporta nada.
-      const p = toCanvas(event);
+      // algo; las herramientas que llevan chivato repintan siempre (el rAF agrupa).
+      const p = puntero;
       const previo = hoverNode;
       const cursorPrevio = el.root.dataset.cursor;
       hoverNode = nodoEn(p);
       pintaCursorCursor(p);
-      if (previo !== hoverNode || cursorPrevio !== el.root.dataset.cursor) redraw();
+      const chivato = tool === "pen" || tool === "eraser" || tool === "node";
+      if (chivato || previo !== hoverNode || cursorPrevio !== el.root.dataset.cursor) redraw();
       return;
     }
 
@@ -2514,47 +2740,117 @@
       return;
     }
 
+    // Desplazamiento del gesto: redondeado a la rejilla si está encendida, crudo si no.
+    // Se aplica siempre sobre la base, así un temblor de 1 px no pega el punto a la rejilla.
+    const delta = (d) => (rejilla ? Math.round(d / REJILLA) * REJILLA : d);
+
     if (drag.kind === "arista-tramo") {
       const e = drag.arista;
-      const i = drag.tramo;
-      // Un clic no toca la escena: el enrutado se congela en `waypoints` al primer movimiento.
+      const s = drag.tramo;
+      const pts = puntosUsuario(e);
+      if (!pts) return;
+      const pa = pts[s];
+      const pb = pts[s + 1];
+      if (!pa || !pb) return;
+      const vertical = Math.abs(pa.x - pb.x) <= Math.abs(pa.y - pb.y);
+      const paso = delta(vertical ? p.x - drag.desde.x : p.y - drag.desde.y);
+      // Sin desplazamiento del eje que manda no hay gesto: ni materializa ni consolida.
+      if (!paso) {
+        redraw();
+        return;
+      }
+      // La ruta se congela en `waypoints` al primer movimiento real.
       if (!drag.materializado) {
         if (!materializar(e)) {
           drag = null;
           return;
         }
+        const a0 = e.waypoints[s - 1];
+        const b0 = e.waypoints[s];
+        if (!a0 || !b0) {
+          drag = null;
+          return;
+        }
+        drag.base = { ax: a0.x, ay: a0.y, bx: b0.x, by: b0.y };
         drag.materializado = true;
       }
-      const a = e.waypoints[i - 1];
-      const b = e.waypoints[i];
+      const a = e.waypoints[s - 1];
+      const b = e.waypoints[s];
       if (!a || !b) return;
-      const vertical = Math.abs(a.x - b.x) <= Math.abs(a.y - b.y);
       if (vertical) {
-        const x = ajusta(a.x + (p.x - drag.desde.x));
+        const x = drag.base.ax + paso;
+        if (x === drag.base.ax) {
+          redraw();
+          return;
+        }
         a.x = x;
         b.x = x;
       } else {
-        const y = ajusta(a.y + (p.y - drag.desde.y));
+        const y = drag.base.ay + paso;
+        if (y === drag.base.ay) {
+          redraw();
+          return;
+        }
         a.y = y;
         b.y = y;
       }
+      drag.movido = true;
       redraw();
       return;
     }
 
     if (drag.kind === "arista-codo") {
-      // Misma regla: el codo solo se materializa cuando se mueve de verdad.
+      const dx = delta(p.x - drag.desde.x);
+      const dy = delta(p.y - drag.desde.y);
+      if (!dx && !dy) {
+        redraw();
+        return;
+      }
+      // Misma regla: el codo solo se materializa cuando el desplazamiento es real.
       if (!drag.materializado) {
         if (!materializar(drag.arista)) {
           drag = null;
           return;
         }
+        const inicio = drag.arista.waypoints[drag.indice];
+        if (!inicio) {
+          drag = null;
+          return;
+        }
+        const previo = drag.arista.waypoints[drag.indice - 1];
+        const siguiente = drag.arista.waypoints[drag.indice + 1];
+        drag.base = {
+          x: inicio.x,
+          y: inicio.y,
+          prev: previo ? { x: previo.x, y: previo.y } : null,
+          next: siguiente ? { x: siguiente.x, y: siguiente.y } : null,
+        };
         drag.materializado = true;
       }
-      const w = drag.arista.waypoints[drag.indice - 1];
+      const e = drag.arista;
+      const w = e.waypoints[drag.indice];
       if (!w) return;
-      w.x = ajusta(p.x);
-      w.y = ajusta(p.y);
+      const nx = drag.base.x + dx;
+      const ny = drag.base.y + dy;
+      if (nx === drag.base.x && ny === drag.base.y) {
+        redraw();
+        return;
+      }
+      w.x = nx;
+      w.y = ny;
+      // Arrastrar con él a los vecinos que compartían eje: los tramos contiguos se desplazan
+      // y el resto de la ruta no se toca. Los anclajes nunca se mueven.
+      const prev = e.waypoints[drag.indice - 1];
+      const next = e.waypoints[drag.indice + 1];
+      if (prev && drag.base.prev) {
+        if (drag.base.prev.x === drag.base.x) prev.x = nx;
+        if (drag.base.prev.y === drag.base.y) prev.y = ny;
+      }
+      if (next && drag.base.next) {
+        if (drag.base.next.x === drag.base.x) next.x = nx;
+        if (drag.base.next.y === drag.base.y) next.y = ny;
+      }
+      drag.movido = true;
       redraw();
       return;
     }
@@ -2832,8 +3128,8 @@
       return;
     }
     if (d.kind === "arista-tramo" || d.kind === "arista-codo") {
-      // Sin movimiento no hay gesto: ni se materializa la ruta ni entra en el historial.
-      if (!d.materializado) {
+      // Sin movimiento real no hay gesto: ni entra en el historial.
+      if (!d.movido) {
         redraw();
         return;
       }
@@ -3288,6 +3584,9 @@
     syncOpciones(); // el campo ICONO depende de la forma elegida
     if (!cambia) return;
     changed();
+  });
+  el.nodeShape.addEventListener("change", () => {
+    // La forma no cambia el tamaño del nodo: el texto se ajusta a la caja nueva de la figura.
     commit();
   });
   el.nodeFill.addEventListener("input", () => {
@@ -3301,6 +3600,7 @@
       cambia = true;
     }
     for (const sw of el.swatches) sw.classList.toggle("on", sw.dataset.fill === valor);
+    if (textoAuto && selNodes.length) el.nodeText.value = colorTextoNodo(selNodes[0]);
     if (cambia) changed();
   });
   el.nodeStroke.addEventListener("input", () => {
@@ -3311,6 +3611,7 @@
       n.stroke = valor;
       cambia = true;
     }
+    if (textoAuto && selNodes.length) el.nodeText.value = colorTextoNodo(selNodes[0]);
     if (cambia) changed();
   });
   [el.nodeFill, el.nodeStroke].forEach((c) => c.addEventListener("change", () => commit()));
@@ -3324,7 +3625,16 @@
     }
     if (cambia) changed();
   });
-  el.nodeSize.addEventListener("change", () => commit());
+  el.nodeSize.addEventListener("change", () => {
+    let crece = false;
+    for (const n of selNodes) {
+      const alto = n.h;
+      crecerNodo(n);
+      if (n.h !== alto) crece = true;
+    }
+    if (crece) changed();
+    commit();
+  });
   el.nodeIcon.addEventListener("input", () => {
     const icono = el.nodeIcon.value;
     let cambia = false;
@@ -3337,6 +3647,37 @@
     if (!cambia) return;
     changed();
     commit();
+  });
+  // Color del texto: el fijado a mano manda; AUTO vuelve a resolverlo con el relleno.
+  el.nodeText.addEventListener("input", () => {
+    const valor = el.nodeText.value;
+    let cambia = false;
+    for (const n of selNodes) {
+      if (n.textColor === valor) continue;
+      n.textColor = valor;
+      cambia = true;
+    }
+    textoAuto = false;
+    el.nodeTextAuto.classList.remove("on");
+    el.nodeTextAuto.setAttribute("aria-pressed", "false");
+    if (cambia) changed();
+  });
+  el.nodeText.addEventListener("change", () => commit());
+  el.nodeTextAuto.addEventListener("click", () => {
+    textoAuto = true;
+    let cambia = false;
+    for (const n of selNodes) {
+      if (n.textColor === "auto") continue;
+      n.textColor = "auto";
+      cambia = true;
+    }
+    el.nodeTextAuto.classList.add("on");
+    el.nodeTextAuto.setAttribute("aria-pressed", "true");
+    if (selNodes.length) el.nodeText.value = colorTextoNodo(selNodes[0]);
+    if (cambia) {
+      changed();
+      commit();
+    }
   });
 
   el.swatches.forEach((sw) =>
@@ -3355,6 +3696,7 @@
         cambia = true;
       }
       for (const s of el.swatches) s.classList.toggle("on", s === sw);
+      if (textoAuto && selNodes.length) el.nodeText.value = colorTextoNodo(selNodes[0]);
       if (!cambia) return;
       changed();
       commit();
@@ -3400,6 +3742,11 @@
   // `pointercancel` y NUNCA `pointerup`. Sin esto el `drag` queda clavado y el trazo persigue
   // al lápiz cuando solo planea sobre la pantalla.
   el.frame.addEventListener("pointercancel", onUp);
+  // Fuera del marco no hay chivato: el puntero deja de ser una posición del lienzo.
+  el.frame.addEventListener("pointerleave", () => {
+    puntero = null;
+    redraw();
+  });
 
   // Rueda: acerca y aleja dejando el cursor sobre el mismo punto del lienzo. `passive:false`
   // porque hay que cortar el scroll de la página; la transform CSS no cambia el PNG exportado.
@@ -3456,20 +3803,33 @@
       return;
     }
     if (selEdge) {
-      const r = rutaDe(selEdge);
-      if (r && r.points.length >= 3) {
+      const pts = puntosUsuario(selEdge);
+      if (pts && pts.length >= 3) {
         // Doble clic en un codo (lejos de la etiqueta) lo quita.
         const radio = px(10);
-        for (let i = 1; i < r.points.length - 1; i++) {
-          if (Math.abs(p.x - r.points[i].x) <= radio && Math.abs(p.y - r.points[i].y) <= radio) {
-            if (materializar(selEdge)) {
-              selEdge.waypoints.splice(i - 1, 1);
-              changed();
-              commit();
-              setStatus("Codo quitado.");
-            }
-            return;
+        let k = -1;
+        for (let i = 1; i < pts.length - 1; i++) {
+          if (Math.abs(p.x - pts[i].x) <= radio && Math.abs(p.y - pts[i].y) <= radio) {
+            k = i;
+            break;
           }
+        }
+        if (k >= 0) {
+          if (!materializar(selEdge)) return;
+          // `pts[k]` es `waypoints[k - 1]` antes y después de materializar.
+          selEdge.waypoints.splice(k - 1, 1);
+          // Deduplicar consecutivos: el codo que quitaba la librería puede dejar un punto
+          // repetido justo en su sitio.
+          const limpios = [];
+          for (const w of selEdge.waypoints) {
+            const ult = limpios[limpios.length - 1];
+            if (!ult || Math.abs(ult.x - w.x) > 0.01 || Math.abs(ult.y - w.y) > 0.01) limpios.push(w);
+          }
+          selEdge.waypoints = limpios;
+          changed();
+          commit();
+          setStatus("Codo quitado.");
+          return;
         }
       }
     }
