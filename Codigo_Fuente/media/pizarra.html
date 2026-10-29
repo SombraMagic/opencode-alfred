@@ -16,18 +16,72 @@
         <span class="pz-sub pz-medida">Lienzo 1024 × 1024</span>
       </div>
       <div class="pz-actions">
+        <button id="btn-undo" class="ghost-btn" type="button" title="Deshacer el último cambio" disabled>DESHACER</button>
+        <button id="btn-redo" class="ghost-btn" type="button" title="Rehacer el cambio deshecho" disabled>REHACER</button>
         <button id="btn-new" class="ghost-btn" type="button" title="Vaciar el lienzo y empezar de cero">NUEVA EN BLANCO</button>
         <button id="btn-paste" class="ghost-btn" type="button" title="Vaciar la pizarra, crear un lienzo del tamaño de la imagen del portapapeles (con tope de 4096 por lado) y ponerla de fondo 1:1 (con Ctrl+V se añade como capa IMÁGENES sin tocar lo demás)">NUEVA DESDE PORTAPAPELES</button>
         <button id="btn-save" class="ghost-btn" type="button" title="Guardar el PNG aplanado en un fichero">GUARDAR</button>
+        <button id="btn-fit" class="ghost-btn" type="button" title="Encajar el diagrama entero en el marco y centrarlo">AJUSTAR LIENZO</button>
+        <button id="btn-mermaid" class="ghost-btn" type="button" title="Copiar el diagrama como texto Mermaid (flowchart TD) al portapapeles">COPIAR MERMAID</button>
+        <button id="btn-grid" class="ghost-btn" type="button" title="Mostrar u ocultar la rejilla de 8 px del lienzo">REJILLA</button>
+        <button id="btn-help" class="ghost-btn" type="button" title="Ver los atajos y gestos de la pizarra">ATAJOS</button>
       </div>
     </header>
 
     <div class="pz-tools">
       <div class="pz-group" role="group" aria-label="Herramientas">
+        <button id="tool-node" class="tool" type="button" data-tool="node" title="Clic crea un nodo del tamaño elegido; arrastra para dibujarlo a ese tamaño. Con Tab encadenas el siguiente">NODO</button>
         <button id="tool-select" class="tool on" type="button" data-tool="select" title="Mover, escalar y seleccionar">SELECCIONAR</button>
         <button id="tool-pen" class="tool" type="button" data-tool="pen" title="Dibujar a mano alzada">LÁPIZ</button>
         <button id="tool-eraser" class="tool" type="button" data-tool="eraser" title="Borrar trazos">BORRADOR</button>
         <button id="tool-text" class="tool" type="button" data-tool="text" title="Añadir un bloque de texto">TEXTO</button>
+      </div>
+
+      <div class="pz-group opt" data-for="node">
+        <label class="pz-field">FORMA <select id="node-shape" title="Silueta del nodo nuevo">
+          <option value="rect">RECTÁNGULO</option>
+          <option value="round">REDONDEADO</option>
+          <option value="stadium">INICIO/FIN</option>
+          <option value="diamond">DECISIÓN</option>
+          <option value="ellipse">ELÍPSEA</option>
+          <option value="icon">ICONO</option>
+        </select></label>
+        <label class="pz-field" id="node-icon-field" title="Icono del nodo (forma ICONO)">ICONO <select id="node-icon">
+          <option value="mail">Correo</option>
+          <option value="key">Llave</option>
+          <option value="user">Usuario</option>
+          <option value="database">Base de datos</option>
+          <option value="cloud">Nube</option>
+          <option value="api">API</option>
+          <option value="clock">Reloj</option>
+          <option value="gear">Engranaje</option>
+          <option value="doc">Documento</option>
+          <option value="lock">Candado</option>
+          <option value="globe">Globo</option>
+          <option value="terminal">Terminal</option>
+        </select></label>
+        <div class="pz-swatches" role="group" aria-label="Paleta del nodo">
+          <button type="button" class="swatch on" data-fill="#4f9db5" data-stroke="#2e6f82" title="Teal" aria-label="Teal" style="--sw:#4f9db5"></button>
+          <button type="button" class="swatch" data-fill="#f5b82e" data-stroke="#b8860b" title="Ámbar" aria-label="Ámbar" style="--sw:#f5b82e"></button>
+          <button type="button" class="swatch" data-fill="#35c08a" data-stroke="#1f8a63" title="Verde" aria-label="Verde" style="--sw:#35c08a"></button>
+          <button type="button" class="swatch" data-fill="#ffffff" data-stroke="#5b7385" title="Blanco" aria-label="Blanco" style="--sw:#ffffff"></button>
+          <button type="button" class="swatch" data-fill="#e4572e" data-stroke="#a33a1b" title="Rojo" aria-label="Rojo" style="--sw:#e4572e"></button>
+          <button type="button" class="swatch" data-fill="none" data-stroke="#5b7385" title="Sin relleno" aria-label="Sin relleno"></button>
+        </div>
+        <label class="pz-field">RELLENO <input id="node-fill" type="color" value="#4f9db5" title="Color de relleno del nodo" /></label>
+        <label class="pz-field">BORDE <input id="node-stroke" type="color" value="#2e6f82" title="Color del borde del nodo" /></label>
+        <label class="pz-field">TAMAÑO <input id="node-size" type="range" min="8" max="72" value="18" title="Cuerpo del texto del nodo en píxeles" /><output id="node-size-out">18</output></label>
+      </div>
+
+      <div class="pz-group opt" data-for="edge">
+        <label class="pz-field">COLOR <input id="edge-color" type="color" value="#3d5566" title="Color del conector" /></label>
+        <label class="pz-field">GROSOR <input id="edge-width" type="range" min="1" max="8" value="2" title="Grosor del conector en píxeles" /></label>
+        <label class="pz-field">DISCONTINUA <input id="edge-dash" type="checkbox" title="Trazar el conector a trazos" /></label>
+        <label class="pz-field">FLECHAS <select id="edge-arrows" title="Puntas de flecha del conector">
+          <option value="arrow">→</option>
+          <option value="both">↔</option>
+          <option value="none">—</option>
+        </select></label>
       </div>
 
       <div class="pz-group opt" data-for="pen">
@@ -60,10 +114,22 @@
       </div>
 
       <div class="pz-group pz-layers" role="group" aria-label="Capas">
-        <span class="pz-layer" id="ly-bg" data-layer="bg">FONDO</span>
-        <span class="pz-layer" id="ly-images" data-layer="images">IMÁGENES</span>
-        <span class="pz-layer" id="ly-strokes" data-layer="strokes">TRAZOS</span>
-        <span class="pz-layer" id="ly-texts" data-layer="texts">TEXTOS</span>
+        <button type="button" class="pz-layer" id="ly-bg" data-layer="bg" aria-pressed="true" title="Mostrar u ocultar la capa FONDO">FONDO</button>
+        <button type="button" class="pz-layer" id="ly-flow" data-layer="flow" aria-pressed="true" title="Mostrar u ocultar la capa DIAGRAMA">DIAGRAMA</button>
+        <button type="button" class="pz-layer" id="ly-images" data-layer="images" aria-pressed="true" title="Mostrar u ocultar la capa IMÁGENES">IMÁGENES</button>
+        <button type="button" class="pz-layer" id="ly-strokes" data-layer="strokes" aria-pressed="true" title="Mostrar u ocultar la capa TRAZOS">TRAZOS</button>
+        <button type="button" class="pz-layer" id="ly-texts" data-layer="texts" aria-pressed="true" title="Mostrar u ocultar la capa TEXTOS">TEXTOS</button>
+      </div>
+
+      <div class="pz-group" id="align-group" role="group" aria-label="Alinear y distribuir" hidden>
+        <button class="tool" type="button" data-align="l" title="Alinear a la izquierda">IZQ</button>
+        <button class="tool" type="button" data-align="c" title="Centrar en horizontal">CENTRO</button>
+        <button class="tool" type="button" data-align="r" title="Alinear a la derecha">DER</button>
+        <button class="tool" type="button" data-align="t" title="Alinear arriba">ARRIBA</button>
+        <button class="tool" type="button" data-align="m" title="Centrar en vertical">MEDIO</button>
+        <button class="tool" type="button" data-align="b" title="Alinear abajo">ABAJO</button>
+        <button class="tool" type="button" data-dist="h" title="Repartir a partes iguales en horizontal">DIST H</button>
+        <button class="tool" type="button" data-dist="v" title="Repartir a partes iguales en vertical">DIST V</button>
       </div>
     </div>
 
@@ -76,6 +142,8 @@
           <canvas id="board" width="1024" height="1024"></canvas>
           <canvas id="overlay" width="1024" height="1024"></canvas>
           <textarea id="text-editor" class="pz-editor" hidden spellcheck="false" aria-label="Editar texto"></textarea>
+          <!-- Etiqueta de un conector: una sola línea, colocada sobre la mitad de la ruta. -->
+          <input id="edge-editor" class="pz-edge-editor" type="text" hidden spellcheck="false" aria-label="Etiqueta del conector" />
         </div>
       </div>
     </main>
@@ -96,7 +164,36 @@
         </div>
       </div>
     </div>
+
+    <!-- Ayuda de atajos: mismo patrón que el mini-modal. -->
+    <div id="help" class="pz-help" role="dialog" aria-modal="true" hidden>
+      <div class="pz-help-box">
+        <div class="pz-help-title" id="help-title">ATAJOS DE LA PIZARRA</div>
+        <dl class="pz-help-list">
+          <dt>V / N / T / P / B</dt><dd>Seleccionar, nodo, texto, lápiz y borrador.</dd>
+          <dt>Doble clic</dt><dd>Crea un nodo en el hueco, o abre el texto que haya debajo.</dd>
+          <dt>Arrastrar un asa azul</dt><dd>Conecta ese nodo con el que sueltes.</dd>
+          <dt>Enter</dt><dd>Al editar un nodo, cierra la etiqueta.</dd>
+          <dt>Tab</dt><dd>Al editar, cierra y encadena un nodo conectado.</dd>
+          <dt>Ctrl + Enter</dt><dd>Cierra la edición saltándose el encadenado.</dd>
+          <dt>Alt + clic</dt><dd>Añade un codo a la ruta del conector.</dd>
+          <dt>Doble clic en la línea</dt><dd>Edita la etiqueta del conector.</dd>
+          <dt>Doble clic en un codo</dt><dd>Quita ese codo.</dd>
+          <dt>Ctrl + Z / Ctrl + Y</dt><dd>Deshacer y rehacer.</dd>
+          <dt>Ctrl + D</dt><dd>Duplica la selección.</dd>
+          <dt>Ctrl + A</dt><dd>Selecciona todos los nodos.</dd>
+          <dt>Flechas</dt><dd>Mueve la selección (Mayús, de 10 en 10).</dd>
+          <dt>Supr</dt><dd>Borra la selección.</dd>
+          <dt>Espacio + arrastrar</dt><dd>Panea el lienzo.</dd>
+          <dt>Rueda</dt><dd>Zoom sobre el puntero.</dd>
+        </dl>
+        <div class="pz-help-actions">
+          <button id="help-close" class="ghost-btn" type="button">CERRAR</button>
+        </div>
+      </div>
+    </div>
   </div>
+<script nonce="%%NONCE%%" src="%%WORKFLOW%%"></script>
 <script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
 </body>
 </html>

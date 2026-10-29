@@ -58,6 +58,19 @@ body {
   margin-left: auto;
 }
 
+/* Botón de estado encendido (REJILLA): el mismo tono que una herramienta activa. */
+.ghost-btn.on {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+/* Deshacer y rehacer arrancan apagados: aquí `--text-dim` sí es estado apagado. */
+.ghost-btn:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+  cursor: default;
+}
+
 /* ── Barra de herramientas ─────────────────────────────── */
 .pz-tools {
   display: flex;
@@ -154,23 +167,84 @@ body {
   font-size: 9px;
 }
 
-/* Indicador de qué capa toca lo que está activo. */
+/* `.pz-field` fija su propio `display` y taparía el atributo `hidden` (el campo ICONO). */
+.pz-field[hidden] {
+  display: none;
+}
+
+/* Paleta del nodo: el cuadradito enseña el relleno y el JS lee `data-fill`/`data-stroke`. */
+.pz-swatches {
+  display: flex;
+  gap: 3px;
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: var(--sw, var(--bg-soft));
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.swatch:hover,
+.swatch:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.swatch.on {
+  border-color: var(--neon);
+  box-shadow: 0 0 6px var(--neon-dim);
+}
+
+/* Sin relleno: trama diagonal, que es lo que se va a ver en el lienzo. */
+.swatch[data-fill="none"] {
+  background: repeating-linear-gradient(45deg, transparent 0 3px, var(--line) 3px 4px);
+}
+
+/* Indicador de qué capa toca lo que está activo; de paso, interruptor de su visibilidad. */
 .pz-layers {
   margin-left: auto;
   gap: 3px;
 }
 
 .pz-layer {
+  background: transparent;
+  font-family: inherit;
   font-size: 8px;
   letter-spacing: 1.1px;
-  color: var(--text-dim);
+  color: var(--text-soft);
   border: 1px solid var(--line-soft);
   padding: 2px 5px;
+  cursor: pointer;
+}
+
+/* Capa apagada: aquí `--text-dim` sí es estado apagado. */
+.pz-layer[aria-pressed="false"] {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+.pz-layer:hover,
+.pz-layer:focus-visible {
+  border-color: var(--neon);
+  outline: none;
 }
 
 .pz-layer.on {
   color: var(--amber);
   border-color: color-mix(in srgb, var(--amber) 55%, transparent);
+}
+
+/* Alinear y distribuir: solo aparece con varios nodos elegidos. */
+#align-group[hidden] {
+  display: none;
+}
+
+#align-group .tool {
+  padding: 3px 5px;
+  font-size: 8.5px;
 }
 
 /* ── Lienzo ────────────────────────────────────────────── */
@@ -233,6 +307,37 @@ body {
   cursor: crosshair;
 }
 
+/* Herramienta NODO: se dibuja el rectángulo del nodo. */
+.pz[data-tool="node"] .pz-frame {
+  cursor: crosshair;
+}
+
+/* Estado del puntero que decide el JS al pasar por encima del diagrama. El paneo manda:
+   sus reglas van después y ganan a igualdad de especificidad. */
+.pz[data-cursor="connect"] .pz-frame {
+  cursor: crosshair;
+}
+
+.pz[data-cursor="move"] .pz-frame {
+  cursor: move;
+}
+
+.pz[data-cursor="resize-nwse"] .pz-frame {
+  cursor: nwse-resize;
+}
+
+.pz[data-cursor="resize-nesw"] .pz-frame {
+  cursor: nesw-resize;
+}
+
+.pz[data-cursor="edge"] .pz-frame {
+  cursor: pointer;
+}
+
+.pz[data-cursor="label"] .pz-frame {
+  cursor: text;
+}
+
 /* `data-pan`: 1 con la barra espaciadora pulsada, 2 mientras se arrastra. */
 .pz[data-pan="1"] .pz-frame {
   cursor: grab;
@@ -260,6 +365,29 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
   z-index: 3;
+}
+
+/* Etiqueta del conector: el mismo patrón, pero de una línea y centrada sobre la ruta. */
+.pz-edge-editor {
+  position: absolute;
+  margin: 0;
+  height: 20px;
+  padding: 2px 4px;
+  overflow: hidden;
+  border: 1px dashed var(--neon);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
+  caret-color: var(--neon);
+  outline: none;
+  z-index: 4;
+}
+
+.pz-edge-editor[hidden] {
+  display: none;
 }
 
 /* ── Pie: estado + zoom ────────────────────────────────── */
@@ -359,4 +487,62 @@ body {
 .pz-modal-actions .danger:focus-visible {
   color: var(--magenta);
   border-color: var(--magenta);
+}
+
+/* ── Ayuda de atajos ──────────────────────────────────────── */
+/* Mismo patrón que el mini-modal, con una caja más ancha para la lista de atajos. */
+.pz-help {
+  position: fixed;
+  inset: 0;
+  z-index: 21;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.pz-help[hidden] {
+  display: none;
+}
+
+.pz-help-box {
+  width: min(520px, 100%);
+  max-height: 100%;
+  padding: 14px;
+  overflow: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+}
+
+.pz-help-title {
+  font-size: 10.5px;
+  letter-spacing: 2px;
+  color: var(--neon);
+}
+
+/* Dos columnas: el atajo a la izquierda, lo que hace a la derecha. */
+.pz-help-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 5px 12px;
+  margin: 12px 0 14px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text-soft);
+}
+
+.pz-help-list dt {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.pz-help-list dd {
+  margin: 0;
+}
+
+.pz-help-actions {
+  display: flex;
+  justify-content: flex-end;
 }

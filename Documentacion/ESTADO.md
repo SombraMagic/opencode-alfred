@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 28 de octubre de 2026 · versión **0.3.0**
+Última revisión: 29 de octubre de 2026 · versión **0.3.1**
 
 ## Resumen
 
@@ -30,7 +30,11 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 - **Voz** (SAPI, Edge, OpenAI, ElevenLabs) con ecualizador de barras pixeladas, y **dictado**
   (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP viaja dentro
   de la extensión (`dist/voz-mcp.js`), no como paquete externo.
-- **Pizarra** por capas con lápiz, imágenes, textos, zoom y envío al prompt.
+- **Pizarra** por capas con lápiz, imágenes, textos, zoom y envío al prompt. Incluye una
+  capa **DIAGRAMA** para dibujar workflows: nodos (formas e iconos) y conectores
+  ortogonales con asas, codos arrastrables, etiquetas y flechas; deshacer/rehacer,
+  multi-selección, guías y rejilla, copia como Mermaid y escena editable persistida en
+  `pizarra.json` (además del PNG).
 - **Visor Alfred 3D** por fichero `.blend` (doble clic en el Explorador o «Abrir en Alfred
   3D»): vista con three.js y órbita estilo Blender, objetos con ocultar, cámaras (la de
   escena bloquea la vista), luces con deslizador, animaciones con rango de frames editable,
