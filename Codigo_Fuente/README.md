@@ -54,9 +54,20 @@ fila de `CONECTORES`; solo sondea con la vista abierta.
 
 ### Pizarra
 
-Lienzo por capas: fondo (color o imagen), imágenes movibles, trazos con lápiz y goma, y
-textos. Zoom con la rueda y paneo con `Espacio` + arrastrar. `SUBIR PIZARRA` la mete en el
-bloc del dictado como adjunto.
+Lienzo por capas, de abajo arriba: fondo (color o imagen), **diagrama**, imágenes movibles,
+trazos con lápiz y goma, y textos. Zoom con la rueda y paneo con `Espacio` + arrastrar.
+`SUBIR PIZARRA` la mete en el bloc del dictado como adjunto.
+
+- **Diagrama**: capa para dibujar workflows con nodos (seis formas y doce iconos) y
+  conectores ortogonales. Los conectores se crean arrastrando un asa del nodo y se enganchan
+  solos al lado más cercano; arrastrar un tramo lo reorienta, `Alt` + clic añade un codo y el
+  doble clic en el codo lo quita o edita la etiqueta. Cada arista elige sus flechas (`FLECHAS`:
+  final, ambas o ninguna) y si la línea es discontinua.
+- **Edición**: deshacer/rehacer de 50 pasos, multi-selección con alinear y distribuir, guías
+  y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles.
+- **Qué se guarda**: el PNG aplanado en `pizarra-ultima.png` y, junto a él, la escena
+  editable en `pizarra.json` (misma carpeta de adjuntos). Al reabrir manda la escena; si no
+  es válida, se descarta y queda el PNG.
 
 ### Visor Alfred 3D (`.blend`)
 

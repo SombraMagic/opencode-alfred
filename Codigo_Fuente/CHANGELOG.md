@@ -3,7 +3,21 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
-## [0.3.1] — 2026-10-29
+## [0.3.2] - 2026-10-29
+
+- **Pizarra de workflows**: capa `DIAGRAMA` entre el fondo y las imágenes, para dibujar
+  diagramas de flujo. Nodos con seis formas, doce iconos y texto, y conectores ortogonales
+  con asas, anclaje automático al lado más cercano, codos arrastrables (`Alt` + clic añade,
+  doble clic quita), etiquetas y flechas.
+- **Edición del diagrama**: deshacer/rehacer de 50 pasos, multi-selección con alinear y
+  distribuir, guías y rejilla, encaje del lienzo al contenido y `COPIAR MERMAID` al
+  portapapeles.
+- **Escena editable**: además del PNG, la pizarra guarda su escena en `pizarra.json`
+  (saneada en el host); al reabrir manda la escena y el PNG solo se usa si no la hay.
+- **Dictado**: la frase siguiente ya entra detrás de lo dictado, también cuando el bloc
+  acaba en una imagen o un fichero adjunto.
+
+## [0.3.1] - 2026-10-29
 
 - **Bloc de notas del dictado**: botón `COPIAR` en el pie, que copia el texto al
   portapapeles con los adjuntos como rutas, igual que el envío a la terminal.

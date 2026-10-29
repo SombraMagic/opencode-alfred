@@ -52,7 +52,9 @@ Bienvenidos a Alfred.
 - **Voz.** Lee en voz alta lo que selecciones y dicta en un bloc con adjuntos,
   imágenes, pegar y arrastrar. Cuatro motores de voz y tres de dictado; funciona sin
   conexión con lo que ya trae Windows.
-- **Pizarra.** Dibuja, pega imágenes y mándalo al prompt como si fuera un adjunto.
+- **Pizarra.** Dibuja, pega imágenes y mándalo al prompt como si fuera un adjunto. Tiene una
+  capa de diagrama para dibujar workflows con nodos y conectores, y exporta el diagrama como
+  Mermaid.
 - **Visor Alfred 3D.** Abre ficheros `.blend` como pestaña de edición: órbita, objetos,
   cámaras, luces, animaciones y render de un frame o de toda la tirada. Con Blender o sin él.
 

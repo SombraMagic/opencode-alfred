@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 29 de octubre de 2026 · versión **0.3.1**
+Última revisión: 29 de octubre de 2026 · versión **0.3.2**
 
 ## Resumen
 
@@ -48,17 +48,19 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 
 1. **Probar el alta real de conectores** contra la API (crea credenciales; hasta ahora
    se validaron los formularios y las rutas con datos reales simulados).
-2. **Lápiz real**: confirmar que los trazos no se cortan en un dispositivo táctil
+2. **Pizarra de workflows en VS Code real**: puntero real de las asas, reenganche de
+   conectores al mover el nodo, zoom con arrastre de tramos y la cabecera a poco ancho.
+3. **Lápiz real**: confirmar que los trazos no se cortan en un dispositivo táctil
    (depende del driver; el manejo de `pointercancel` ya está puesto).
-3. **Visor 3D en VS Code real**: el motor `VISOR` de punta a punta (del `.blend` al PNG en
+4. **Visor 3D en VS Code real**: el motor `VISOR` de punta a punta (del `.blend` al PNG en
    disco con la extensión instalada) y el sidecar `.glb` junto al `.blend`. Hasta ahora está
    probado con Chrome, Blender 4.4 real y stubs del host, no con la ventana de VS Code.
-4. **`modelo1.blend`**: Blender pinta 15 personajes apilados y su mundo anula el sol sobre
+5. **`modelo1.blend`**: Blender pinta 15 personajes apilados y su mundo anula el sol sobre
    lo visible, mientras el visor solo muestra lo visible. Rareza del `.blend`, no del visor:
    decidir si se documenta o se deja.
-5. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
+6. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
    usan en ejecución.
-6. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
+7. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
 
 ## Alcance
 
