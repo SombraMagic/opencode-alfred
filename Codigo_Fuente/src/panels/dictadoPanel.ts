@@ -291,6 +291,9 @@ export class VozDictado {
       case "sendPrompt":
         await this.sendPrompt(String(msg.text ?? ""));
         break;
+      case "copyPrompt":
+        await this.copyPrompt(String(msg.text ?? ""));
+        break;
       case "installWhisper": {
         this.state("working", "Instalando Whisper…");
         try {
@@ -658,6 +661,17 @@ export class VozDictado {
     void vscode.window.showInformationMessage(
       "VOZ: no hay terminal activa; el prompt se ha copiado al portapapeles.",
     );
+  }
+
+  /** Copia el bloc al portapapeles, con los adjuntos como rutas. */
+  private async copyPrompt(raw: string) {
+    const text = raw.replace(/\r\n?/g, "\n").trim();
+    if (!text) {
+      this.state("error", "El bloc está vacío.");
+      return;
+    }
+    await vscode.env.clipboard.writeText(text);
+    this.state("idle", "Copiado al portapapeles.");
   }
 
   private fail(err: unknown) {

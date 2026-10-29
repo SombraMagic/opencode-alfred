@@ -284,6 +284,13 @@ body {
   padding: 3px;
 }
 
+/* COPIAR lleva icono y rótulo: mismo alto que el pie, con su separación. */
+#copiar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .note-tip {
   flex: 1;
   min-width: 0;

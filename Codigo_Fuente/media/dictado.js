@@ -648,6 +648,7 @@
   }
 
   $("send").addEventListener("click", () => post({ type: "sendPrompt", text: promptText() }));
+  $("copiar").addEventListener("click", () => post({ type: "copyPrompt", text: promptText() }));
 
   // ── Mensajes de la extensión ────────────────────────────
   window.addEventListener("message", (event) => {
