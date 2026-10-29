@@ -3,6 +3,24 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.3.4] - 2026-10-29
+
+- **Lápiz y borrador con `TRAZOS` oculta**: coger cualquiera de los dos enciende la capa
+  (con aviso en el pie), así que lo que se pinta se ve. El chivato del pincel se dibuja
+  siempre, y si la capa se apaga con la herramienta activa se avisa al empezar a pintar.
+
+## [0.3.3] - 2026-10-29
+
+- **Edición de conectores predecible**: los codos y los tramos se agarran donde se ven, y
+  arrastrar un codo desplaza sus dos tramos sin mover el resto de la ruta. Pulsar ya no
+  salta a la rejilla.
+- **Texto de los nodos encajado**: la etiqueta se ajusta dentro de la silueta (rombo,
+  elipse, inicio/fin, icono), siempre centrada, y encoge antes de salirse.
+- **Color del texto del nodo**: controles `TEXTO` y `AUTO` (contraste con el relleno) por
+  nodo.
+- **Chivatos al dibujar**: con un nodo se ve su silueta y su medida; con el lápiz y el
+  borrador, el círculo del grosor y el núcleo de la goma.
+
 ## [0.3.2] - 2026-10-29
 
 - **Pizarra de workflows**: capa `DIAGRAMA` entre el fondo y las imágenes, para dibujar

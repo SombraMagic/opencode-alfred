@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 29 de octubre de 2026 · versión **0.3.2**
+Última revisión: 29 de octubre de 2026 · versión **0.3.4**
 
 ## Resumen
 
@@ -31,9 +31,11 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP viaja dentro
   de la extensión (`dist/voz-mcp.js`), no como paquete externo.
 - **Pizarra** por capas con lápiz, imágenes, textos, zoom y envío al prompt. Incluye una
-  capa **DIAGRAMA** para dibujar workflows: nodos (formas e iconos) y conectores
-  ortogonales con asas, codos arrastrables, etiquetas y flechas; deshacer/rehacer,
-  multi-selección, guías y rejilla, copia como Mermaid y escena editable persistida en
+  capa **DIAGRAMA** para dibujar workflows: nodos (formas e iconos) con la etiqueta encajada
+  en la silueta y color propio, y conectores ortogonales con asas, codos arrastrables,
+  etiquetas y flechas, agarrando lo que se ve; el lápiz y el borrador encienden la capa
+  `TRAZOS` si estaba oculta; deshacer/rehacer, multi-selección, guías y
+  rejilla, chivatos de dibujo, copia como Mermaid y escena editable persistida en
   `pizarra.json` (además del PNG).
 - **Visor Alfred 3D** por fichero `.blend` (doble clic en el Explorador o «Abrir en Alfred
   3D»): vista con three.js y órbita estilo Blender, objetos con ocultar, cámaras (la de

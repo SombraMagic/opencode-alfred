@@ -60,9 +60,14 @@ trazos con lápiz y goma, y textos. Zoom con la rueda y paneo con `Espacio` + ar
 
 - **Diagrama**: capa para dibujar workflows con nodos (seis formas y doce iconos) y
   conectores ortogonales. Los conectores se crean arrastrando un asa del nodo y se enganchan
-  solos al lado más cercano; arrastrar un tramo lo reorienta, `Alt` + clic añade un codo y el
-  doble clic en el codo lo quita o edita la etiqueta. Cada arista elige sus flechas (`FLECHAS`:
-  final, ambas o ninguna) y si la línea es discontinua.
+  solos al lado más cercano; arrastrar un codo mueve sus dos tramos sin tocar el resto de la
+  ruta y arrastrar un tramo lo reorienta. Se agarra lo que se ve, sin saltos a la rejilla al
+  pulsar. `Alt` + clic añade un codo y el doble clic en el codo lo quita o edita la etiqueta.
+  Cada arista elige sus flechas (`FLECHAS`: final, ambas o ninguna) y si la línea es
+  discontinua. La etiqueta del nodo se ajusta dentro de su silueta (rombo, elipse, inicio/fin,
+  icono), siempre centrada, y encoge antes de salirse; su color se fija con `TEXTO` o `AUTO`
+  (contraste con el relleno). Mientras dibujas un nodo se ve su silueta y su medida; con el
+  lápiz y el borrador, el círculo del grosor y el núcleo de la goma.
 - **Edición**: deshacer/rehacer de 50 pasos, multi-selección con alinear y distribuir, guías
   y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles.
 - **Qué se guarda**: el PNG aplanado en `pizarra-ultima.png` y, junto a él, la escena
