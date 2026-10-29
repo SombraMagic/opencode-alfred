@@ -3,6 +3,11 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.3.1] — 2026-10-29
+
+- **Bloc de notas del dictado**: botón `COPIAR` en el pie, que copia el texto al
+  portapapeles con los adjuntos como rutas, igual que el envío a la terminal.
+
 ## [0.3.0] — 2026-10-28
 
 - **Visor Alfred 3D**: editor propio para ficheros `.blend` (doble clic en el Explorador o
