@@ -213,52 +213,78 @@
   const isChip = (node) =>
     node.nodeType === 1 && !!(node.dataset && (node.dataset.path || node.dataset.file));
 
-  /** Nodos de texto del bloc; el interior de los chips (miniatura, nombre) no cuenta. */
-  function textNodes(root) {
+  /**
+   * Piezas del caret en orden: cada nodo de texto y cada chip, que ocupa un
+   * hueco. El interior de los chips (miniatura, nombre) no cuenta.
+   */
+  function caretItems(root) {
     const out = [];
     const walk = (n) => {
       for (const child of n.childNodes) {
-        if (child.nodeType === 3) out.push(child);
-        else if (child.nodeType === 1 && !isChip(child)) walk(child);
+        if (child.nodeType === 3) out.push({ text: child });
+        else if (isChip(child)) out.push({ chip: child });
+        else if (child.nodeType === 1) walk(child);
       }
     };
     walk(root);
     return out;
   }
 
-  /** Posición del caret como índice sobre textNodes(root), o null si no está dentro. */
+  /** Lo que ocupa una pieza en el índice del caret: su texto, o 1 por chip. */
+  const itemLength = (item) => (item.text ? item.text.nodeValue.length : 1);
+
+  /**
+   * Posición del caret como índice sobre caretItems(root), o null si no está
+   * dentro. Entiende también el caret entre nodos, que es el que deja
+   * `range.setStartAfter` al insertar: ahí solo cuenta lo que queda antes.
+   */
   function caretOffset(root) {
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount) return null;
     const range = sel.getRangeAt(0);
-    if (!root.contains(range.startContainer)) return null;
+    const start = range.startContainer;
+    if (!root.contains(start)) return null;
+    // Punto suelto del caret, solo cuando cae en un contenedor de elemento.
+    const point = start.nodeType === 3 ? null : document.createRange();
+    if (point) point.setStart(start, range.startOffset);
     let offset = 0;
-    for (const node of textNodes(root)) {
-      if (node === range.startContainer) return offset + range.startOffset;
-      offset += node.nodeValue.length;
+    for (const item of caretItems(root)) {
+      const node = item.text ?? item.chip;
+      if (node === start) return offset + (item.text ? range.startOffset : 1);
+      // comparePoint devuelve -1 cuando el nodo entero queda antes del caret.
+      if (point && point.comparePoint(node, 0) >= 0) break;
+      offset += itemLength(item);
     }
-    return null;
+    return point ? offset : null;
   }
 
   /** Devuelve el caret al índice indicado (misma cuenta que caretOffset). */
   function setCaret(root, offset) {
     if (offset == null) return;
-    const nodes = textNodes(root);
-    if (!nodes.length) return;
+    const items = caretItems(root);
+    if (!items.length) return;
     let accumulated = 0;
-    let node = nodes[nodes.length - 1];
-    let at = node.nodeValue.length;
-    for (const candidate of nodes) {
-      const len = candidate.nodeValue.length;
-      if (offset <= accumulated + len) {
-        node = candidate;
-        at = offset - accumulated;
-        break;
+    let range = null;
+    for (const item of items) {
+      const len = itemLength(item);
+      if (offset > accumulated + len) {
+        accumulated += len;
+        continue;
       }
-      accumulated += len;
+      const at = offset - accumulated;
+      range = document.createRange();
+      // El chip ocupa su hueco: el final de su índice deja el caret detrás.
+      if (item.text) range.setStart(item.text, at);
+      else if (at > 0) range.setStartAfter(item.chip);
+      else range.setStartBefore(item.chip);
+      break;
     }
-    const range = document.createRange();
-    range.setStart(node, at);
+    if (!range) {
+      const last = items[items.length - 1];
+      range = document.createRange();
+      if (last.text) range.setStart(last.text, last.text.nodeValue.length);
+      else range.setStartAfter(last.chip);
+    }
     range.collapse(true);
     const sel = window.getSelection();
     sel.removeAllRanges();
