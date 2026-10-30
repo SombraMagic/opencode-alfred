@@ -3,6 +3,22 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.6.1] - 2026-10-30
+
+- **Estilo por widget en la capa INTERFACES**: cada widget lleva `fill` (`"auto"` es el relleno
+  de su tipo, `"none"` lo deja transparente, o un `#rrggbb`), `stroke` (un color o `"none"`),
+  `titleColor`, `titleSize` (de 8 a 48 px) y, solo en el menú, `orientation` (fila o columna).
+  Vale para los trece tipos: el texto propio —título, etiqueta, botón, menú, pestañas,
+  acordeón, campos, etiquetas de casilla y el glifo del icono— usa su color y su tamaño.
+- **Cajón `INTERFAZ` más usable**: 280 px de ancho y más aire, la paleta con icono y rótulo
+  corto, las acciones solo con icono y una sección `ESTILO` con chips `AUTO`/`SIN`, el
+  selector de iconos en rejilla de doce y el reparto del menú, horizontal o vertical.
+- **La ayuda de edición no sale en el PNG**: la etiqueta vacía (marco discontinuo y la palabra
+  «etiqueta») se pinta con el flag `hints`, que el exportado apaga, así que un widget sin texto
+  sale limpio en la imagen.
+- **MCP**: `pizarra_ui_escribir` y `pizarra_ui_nodo` aceptan los cinco campos nuevos, y
+  `pizarra_ui_escribir` documenta la lista completa del contrato de un widget.
+
 ## [0.6.0] - 2026-10-30
 
 - **Capa INTERFACES en la pizarra**: wireframes funcionales, como árbol de widgets y no como

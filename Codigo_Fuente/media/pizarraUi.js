@@ -7,6 +7,10 @@
    `x`/`y` son relativas a la caja útil del padre y el orden del array es el z-order.
    `parent` a null (o ausente) cuelga de la escena.
 
+   Personalización, plana junto a lo anterior: `fill` (`"auto"`, `"none"` o `#rrggbb`),
+   `stroke` (`#rrggbb` o `"none"`), `titleColor` (`#rrggbb`), `titleSize` (8..48) y
+   `orientation` (`"h"`/`"v"`, solo `menu`).
+
    Se puede cargar con `require` en node para comprobarla sin navegador. */
 (function () {
   "use strict";
@@ -52,7 +56,6 @@
   const MUTE = "#888888";
   const OFF = "#bbbbbb";
   const FONT = "12px sans-serif";
-  const FONT_SM = "11px sans-serif";
 
   /** Alto de la barra de título de `window`. */
   const TITLE_H = 28;
@@ -65,17 +68,70 @@
   /** Alto de fila de `accordion`. */
   const ACC_H = 26;
 
-  /** Glifos de reserva para los nombres de icono habituales. */
+  /** Círculo aproximado con cuatro curvas, en coordenadas de 24×24. */
+  function circulo(cx, cy, r) {
+    return [
+      ["M", cx - r, cy],
+      ["Q", cx - r, cy - r, cx, cy - r],
+      ["Q", cx + r, cy - r, cx + r, cy],
+      ["Q", cx + r, cy + r, cx, cy + r],
+      ["Q", cx - r, cy + r, cx - r, cy],
+    ];
+  }
+
+  /**
+   * Glifos de los iconos de la rejilla (`PZFlow.ICONS` en el panel, aquí sin cargarlo).
+   * Un valor de texto se pinta como glifo; una lista de trazos, con `trazaIcono` en 24×24.
+   */
   const GLYPHS = {
     user: "☺", search: "⌕", menu: "≡", close: "✕", plus: "+", minus: "−",
     check: "✓", star: "★", home: "⌂", gear: "⚙", mail: "✉", lock: "⚿",
     info: "i", warning: "!", play: "▶",
+    key: [circulo(8, 12, 4.5), [["M", 12, 12], ["L", 20, 12]], [["M", 17, 12], ["L", 17, 16]], [["M", 20, 12], ["L", 20, 15]]],
+    database: [
+      [["M", 4, 7], ["Q", 4, 4, 12, 4], ["Q", 20, 4, 20, 7], ["Q", 20, 10, 12, 10], ["Q", 4, 10, 4, 7]],
+      [["M", 4, 7], ["L", 4, 17], ["Q", 4, 20, 12, 20], ["Q", 20, 20, 20, 17], ["L", 20, 7]],
+      [["M", 4, 13.5], ["Q", 4, 16.5, 12, 16.5], ["Q", 20, 16.5, 20, 13.5]],
+    ],
+    cloud: [
+      [
+        ["M", 7, 17],
+        ["Q", 4, 17, 4, 14],
+        ["Q", 4, 11, 7, 11],
+        ["Q", 8, 7, 12, 7],
+        ["Q", 16, 7, 16, 11],
+        ["Q", 20, 11, 20, 14],
+        ["Q", 20, 17, 17, 17],
+        ["Z"],
+      ],
+    ],
+    api: [
+      [["M", 4, 8], ["L", 4, 16]],
+      [["M", 20, 8], ["L", 20, 16]],
+      [["M", 8, 12], ["L", 16, 12]],
+      [["M", 13, 9], ["L", 16, 12], ["L", 13, 15]],
+    ],
+    clock: [circulo(12, 12, 8), [["M", 12, 7], ["L", 12, 12], ["L", 16, 14]]],
+    doc: [
+      [["M", 6, 3], ["L", 14, 3], ["L", 18, 7], ["L", 18, 21], ["L", 6, 21], ["Z"]],
+      [["M", 14, 3], ["L", 14, 7], ["L", 18, 7]],
+      [["M", 9, 12], ["L", 15, 12]],
+      [["M", 9, 16], ["L", 13, 16]],
+    ],
+    globe: [circulo(12, 12, 8), [["M", 4, 12], ["L", 20, 12]], [["M", 12, 4], ["Q", 7.5, 12, 12, 20], ["Q", 16.5, 12, 12, 4]]],
+    terminal: [
+      [["M", 3, 5], ["L", 21, 5], ["L", 21, 19], ["L", 3, 19], ["Z"]],
+      [["M", 7, 9], ["L", 10, 12], ["L", 7, 15]],
+      [["M", 13, 15], ["L", 17, 15]],
+    ],
   };
 
   // Estado de pintado de la llamada en curso (draw es síncrono).
   let ZOOM = 1;
   let FINE = true;
   let LW = 1;
+  /** Ayudas de edición (etiqueta vacía): en pantalla sí, al exportar el PNG no. */
+  let HINTS = false;
   /** Imágenes ya decodificadas que pasa el llamador en `draw`, por `src` del widget. */
   let IMGS = null;
 
@@ -219,6 +275,15 @@
     }
     if (k === "menu") {
       const rows = count(n.items);
+      if (rows <= 0) return "body";
+      // `orientation: "h"` reparte las entradas en columnas: manda la `x` y no la fila.
+      // Mismo ancho que `paintMenu` (`w / entradas`), sin suelo de 1 px: con 9 entradas en 8 px
+      // el suelo desalineaba el golpe de la pintura.
+      if (n.orientation === "h") {
+        const ancho = Math.max(0.000001, num(n.w, 1) / rows);
+        const col = Math.floor(lx / ancho);
+        return col >= 0 && col < rows ? "row:" + col : "body";
+      }
       const i = Math.floor(ly / ROW_H);
       return i >= 0 && i < rows ? "row:" + i : "body";
     }
@@ -299,6 +364,8 @@
   // ── Pintura ────────────────────────────────────────────────
 
   function fillBox(ctx, x, y, w, h, color) {
+    // Sin color no se rellena: `fill:"none"` deja ver lo de debajo.
+    if (!color) return;
     ctx.fillStyle = color;
     ctx.fillRect(x, y, w, h);
   }
@@ -363,16 +430,19 @@
     ctx.closePath();
   }
 
-  /** Recorte aproximado por caracteres: el wireframe no necesita medir de verdad. */
-  function cut(str, w) {
-    const max = Math.max(1, Math.floor(w / 6.6));
+  /** Recorte aproximado por caracteres, con la métrica proporcional al cuerpo del texto. */
+  function cut(str, w, font) {
+    const m = /(\d+(?:\.\d+)?)px/.exec(font || FONT);
+    const size = m ? parseFloat(m[1]) : 12;
+    // 6,6 px por carácter es la métrica de 12 px.
+    const max = Math.max(1, Math.floor(w / (6.6 * (size / 12))));
     return str.length > max ? str.slice(0, Math.max(1, max - 1)) + "…" : str;
   }
 
   /** Texto centrado vertical en `y`; `x` es el borde izquierdo del hueco de ancho `w`. */
   function text(ctx, str, x, y, w, color, font, align) {
     if (!FINE || str == null || str === "" || w < 2) return;
-    const s = cut(String(str), w);
+    const s = cut(String(str), w, font || FONT);
     ctx.fillStyle = color || INK;
     ctx.font = font || FONT;
     ctx.textBaseline = "middle";
@@ -380,23 +450,79 @@
     ctx.fillText(s, align === "center" ? x + w / 2 : align === "right" ? x + w : x, y);
   }
 
+  // ── Personalización del widget ─────────────────────────────
+
+  function isHex(v) {
+    return typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
+  }
+
+  /** Relleno: `none` no rellena, un hex manda y `auto` deja el de su tipo (`auto`). */
+  function fillOf(n, auto) {
+    if (n.fill === "none") return null;
+    // Apagado: todo gris claro, los colores declarados no cuentan.
+    return !n.disabled && isHex(n.fill) ? n.fill : auto;
+  }
+
+  /** Relleno de la marca de activo: el de siempre; con `fill:"none"` no se pinta nada. */
+  function markFill(n, auto) {
+    return n.fill === "none" ? null : auto;
+  }
+
+  /** Tinta de los trazos: el hex declarado o la de siempre (el apagado no lo hereda). */
+  function strokeOf(n, ink) {
+    return !n.disabled && isHex(n.stroke) ? n.stroke : ink;
+  }
+
+  /**
+   * Marco exterior: `stroke:"none"` lo quita. Un tipo que no lo lleva (`drawn` falso)
+   * solo lo estrena si se pide un color distinto del de tinta: el saneado siempre manda
+   * un hex, y con el de por defecto el widget tiene que verse como siempre.
+   */
+  function outerFrame(ctx, n, x, y, w, h, ink, drawn) {
+    if (n.stroke === "none") return;
+    if (!drawn && (!isHex(n.stroke) || n.stroke.toLowerCase() === INK)) return;
+    frame(ctx, x, y, w, h, strokeOf(n, ink));
+  }
+
+  /** Tinta del texto propio del widget; `disabled` la aplasta. */
+  function titleInk(n, ink) {
+    return !n.disabled && isHex(n.titleColor) ? n.titleColor : ink;
+  }
+
+  /** Cuerpo del texto propio: `titleSize` entre 8 y 48; sin él, el de siempre. */
+  function fontOf(n, base) {
+    const size = Math.round(num(n.titleSize, base));
+    return (size < 8 ? 8 : size > 48 ? 48 : size) + "px sans-serif";
+  }
+
+  /** Marco discontinuo fino de las ayudas de edición. */
+  function dashedBox(ctx, x, y, w, h, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = LW;
+    if (ctx.setLineDash) ctx.setLineDash([4, 4]);
+    ctx.strokeRect(x, y, w, h);
+    if (ctx.setLineDash) ctx.setLineDash([]);
+  }
+
   function paintContainer(ctx, n, x, y, w, h, ink) {
-    frame(ctx, x, y, w, h, ink);
-    if (n.title) text(ctx, n.title, x + 4, y + 9, w - 8, ink, FONT_SM, "left");
+    fillBox(ctx, x, y, w, h, fillOf(n, null));
+    outerFrame(ctx, n, x, y, w, h, ink, true);
+    if (n.title) text(ctx, n.title, x + 4, y + 9, w - 8, titleInk(n, ink), fontOf(n, 11), "left");
   }
 
   function paintWindow(ctx, n, x, y, w, h, ink) {
     const soft = n.disabled ? PAPER : SOFT;
-    fillBox(ctx, x, y, w, h, PAPER);
-    fillBox(ctx, x, y, w, TITLE_H, soft);
-    frame(ctx, x, y, w, h, ink);
-    line(ctx, x, y + TITLE_H, x + w, y + TITLE_H, ink);
+    const fg = strokeOf(n, ink);
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
+    fillBox(ctx, x, y, w, TITLE_H, fillOf(n, soft));
+    outerFrame(ctx, n, x, y, w, h, ink, true);
+    line(ctx, x, y + TITLE_H, x + w, y + TITLE_H, fg);
     if (FINE) {
-      dot(ctx, x + 11, y + TITLE_H / 2, 3, ink);
-      dot(ctx, x + 21, y + TITLE_H / 2, 3, ink);
-      dot(ctx, x + 31, y + TITLE_H / 2, 3, ink);
+      dot(ctx, x + 11, y + TITLE_H / 2, 3, fg);
+      dot(ctx, x + 21, y + TITLE_H / 2, 3, fg);
+      dot(ctx, x + 31, y + TITLE_H / 2, 3, fg);
     }
-    text(ctx, n.title, x + 40, y + TITLE_H / 2, Math.max(2, w - 80), ink, FONT_SM, "center");
+    text(ctx, n.title, x + 40, y + TITLE_H / 2, Math.max(2, w - 80), titleInk(n, ink), fontOf(n, 11), "center");
   }
 
   function paintTabsH(ctx, n, x, y, w, h, ink) {
@@ -404,19 +530,22 @@
     const m = items.length;
     const act = idx(n.active);
     const soft = n.disabled ? PAPER : SOFT;
-    fillBox(ctx, x, y, w, h, PAPER);
-    fillBox(ctx, x, y, w, STRIP_H, soft);
+    const fg = strokeOf(n, ink);
+    const mark = markFill(n, PAPER);
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
+    fillBox(ctx, x, y, w, STRIP_H, fillOf(n, soft));
     const tw = m > 0 ? w / m : w;
     for (let i = 0; i < m; i++) {
       const tx = x + i * tw;
-      if (i === act) fillBox(ctx, tx + LW, y + LW, Math.max(1, tw - LW * 2), STRIP_H, PAPER);
-      frame(ctx, tx, y, tw, STRIP_H, ink);
-      text(ctx, items[i], tx + 4, y + STRIP_H / 2, Math.max(2, tw - 8), ink, FONT_SM, "center");
+      if (i === act) fillBox(ctx, tx + LW, y + LW, Math.max(1, tw - LW * 2), STRIP_H, mark);
+      // los tabiques de la tira son detalle interno: se trazan siempre
+      frame(ctx, tx, y, tw, STRIP_H, fg);
+      text(ctx, items[i], tx + 4, y + STRIP_H / 2, Math.max(2, tw - 8), titleInk(n, ink), fontOf(n, 11), "center");
     }
     // cuerpo, con la línea de arriba abierta bajo la pestaña activa
-    frame(ctx, x, y + STRIP_H, w, Math.max(1, h - STRIP_H), ink);
+    outerFrame(ctx, n, x, y + STRIP_H, w, Math.max(1, h - STRIP_H), ink, true);
     if (act >= 0 && act < m) {
-      fillBox(ctx, x + act * tw + LW, y + STRIP_H - LW, Math.max(1, tw - LW * 2), LW * 2, PAPER);
+      fillBox(ctx, x + act * tw + LW, y + STRIP_H - LW, Math.max(1, tw - LW * 2), LW * 2, mark);
     }
   }
 
@@ -425,18 +554,20 @@
     const m = items.length;
     const act = idx(n.active);
     const soft = n.disabled ? PAPER : SOFT;
-    fillBox(ctx, x, y, w, h, PAPER);
-    fillBox(ctx, x, y, STRIP_V, h, soft);
+    const fg = strokeOf(n, ink);
+    const mark = markFill(n, PAPER);
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
+    fillBox(ctx, x, y, STRIP_V, h, fillOf(n, soft));
     const th = m > 0 ? h / m : h;
     for (let i = 0; i < m; i++) {
       const ty = y + i * th;
-      if (i === act) fillBox(ctx, x + LW, ty + LW, STRIP_V - LW * 2, Math.max(1, th - LW * 2), PAPER);
-      frame(ctx, x, ty, STRIP_V, th, ink);
-      text(ctx, items[i], x + 8, ty + th / 2, STRIP_V - 14, ink, FONT_SM, "left");
+      if (i === act) fillBox(ctx, x + LW, ty + LW, STRIP_V - LW * 2, Math.max(1, th - LW * 2), mark);
+      frame(ctx, x, ty, STRIP_V, th, fg);
+      text(ctx, items[i], x + 8, ty + th / 2, STRIP_V - 14, titleInk(n, ink), fontOf(n, 11), "left");
     }
-    frame(ctx, x + STRIP_V, y, Math.max(1, w - STRIP_V), h, ink);
+    outerFrame(ctx, n, x + STRIP_V, y, Math.max(1, w - STRIP_V), h, ink, true);
     if (act >= 0 && act < m) {
-      fillBox(ctx, x + STRIP_V - LW, y + act * th + LW, LW * 2, Math.max(1, th - LW * 2), PAPER);
+      fillBox(ctx, x + STRIP_V - LW, y + act * th + LW, LW * 2, Math.max(1, th - LW * 2), mark);
     }
   }
 
@@ -445,104 +576,179 @@
     const rows = items.length;
     const act = idx(n.active);
     const soft = n.disabled ? PAPER : SOFT;
-    fillBox(ctx, x, y, w, h, PAPER);
-    frame(ctx, x, y, w, h, ink);
+    const fg = strokeOf(n, ink);
+    const mark = markFill(n, soft);
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
+    outerFrame(ctx, n, x, y, w, h, ink, true);
     for (let i = 0; i < rows; i++) {
       const ry = y + i * ACC_H;
       if (ry + ACC_H > y + h) break;
-      if (i === act) fillBox(ctx, x + LW, ry + LW, Math.max(1, w - LW * 2), ACC_H - LW, soft);
-      line(ctx, x, ry + ACC_H, x + w, ry + ACC_H, ink);
-      text(ctx, i === act ? "▾" : "▸", x + 6, ry + ACC_H / 2, 12, ink, FONT_SM, "left");
-      text(ctx, items[i], x + 22, ry + ACC_H / 2, Math.max(2, w - 28), ink, FONT_SM, "left");
+      if (i === act) fillBox(ctx, x + LW, ry + LW, Math.max(1, w - LW * 2), ACC_H - LW, mark);
+      line(ctx, x, ry + ACC_H, x + w, ry + ACC_H, fg);
+      text(ctx, i === act ? "▾" : "▸", x + 6, ry + ACC_H / 2, 12, titleInk(n, ink), fontOf(n, 11), "left");
+      text(ctx, items[i], x + 22, ry + ACC_H / 2, Math.max(2, w - 28), titleInk(n, ink), fontOf(n, 11), "left");
     }
     const by = y + rows * ACC_H;
-    if (h - rows * ACC_H > 0) frame(ctx, x, by, w, h - rows * ACC_H, ink);
+    if (h - rows * ACC_H > 0) frame(ctx, x, by, w, h - rows * ACC_H, fg);
   }
 
   function paintMenu(ctx, n, x, y, w, h, ink) {
     const items = n.items || [];
     const act = idx(n.active);
     const soft = n.disabled ? PAPER : SOFT;
-    fillBox(ctx, x, y, w, h, PAPER);
-    for (let i = 0; i < items.length; i++) {
-      const ry = y + i * ROW_H;
-      if (ry + ROW_H > y + h) break;
-      if (i === act) fillBox(ctx, x + LW, ry + LW, Math.max(1, w - LW * 2), ROW_H - LW, soft);
-      text(ctx, items[i], x + 8, ry + ROW_H / 2, Math.max(2, w - 16), ink, FONT, "left");
-      line(ctx, x, ry + ROW_H, x + w, ry + ROW_H, ink);
+    const fg = strokeOf(n, ink);
+    const mark = markFill(n, soft);
+    const tcol = titleInk(n, ink);
+    const font = fontOf(n, 12);
+    const horizontal = n.orientation === "h";
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
+    if (items.length === 0) {
+      // Menú vacío: una fila con su raya corta para que se vea y se pueda seleccionar.
+      const ry = y + (horizontal ? h / 2 : Math.min(ROW_H, h) / 2);
+      const rx0 = x + Math.min(8, w / 2);
+      line(ctx, rx0, ry, Math.max(rx0 + 1, x + Math.min(w - 4, 40)), ry, fg);
+    } else if (horizontal) {
+      // Raya horizontal: una columna por entrada, el ancho repartido. Mismo reparto que el
+      // golpe de `partAt`, así con muchas entradas en una caja estrecha no se desalinean.
+      const cw = Math.max(0.000001, w / items.length);
+      for (let i = 0; i < items.length; i++) {
+        const cx = x + i * cw;
+        if (i === act) fillBox(ctx, cx + LW, y + LW, Math.max(1, cw - LW * 2), Math.max(1, h - LW * 2), mark);
+        if (i > 0) line(ctx, cx, y + LW, cx, y + h - LW, fg);
+        text(ctx, items[i], cx + 4, y + h / 2, Math.max(2, cw - 8), tcol, font, "center");
+      }
+    } else {
+      for (let i = 0; i < items.length; i++) {
+        const ry = y + i * ROW_H;
+        if (ry + ROW_H > y + h) break;
+        if (i === act) fillBox(ctx, x + LW, ry + LW, Math.max(1, w - LW * 2), ROW_H - LW, mark);
+        text(ctx, items[i], x + 8, ry + ROW_H / 2, Math.max(2, w - 16), tcol, font, "left");
+        line(ctx, x, ry + ROW_H, x + w, ry + ROW_H, fg);
+      }
     }
-    frame(ctx, x, y, w, h, ink);
+    outerFrame(ctx, n, x, y, w, h, ink, true);
   }
 
   function paintLabel(ctx, n, x, y, w, h, ink) {
-    if (!n.text) return;
-    text(ctx, n.text, x, y + h / 2, w, ink, FONT, n.align || "left");
+    fillBox(ctx, x, y, w, h, fillOf(n, null));
+    outerFrame(ctx, n, x, y, w, h, ink, false);
+    if (n.text) {
+      text(ctx, n.text, x, y + h / 2, w, titleInk(n, ink), fontOf(n, 12), n.align || "left");
+      return;
+    }
+    // Etiqueta vacía: marco discontinuo y palabra de relleno, solo como ayuda de edición.
+    if (!HINTS) return;
+    dashedBox(ctx, x, y, w, h, MUTE);
+    text(ctx, "etiqueta", x + 4, y + h / 2, Math.max(2, w - 8), MUTE, fontOf(n, 12), "left");
   }
 
   function paintInput(ctx, n, x, y, w, h, ink) {
-    const str = n.text != null && n.text !== "" ? n.text : n.placeholder;
-    const color = n.text != null && n.text !== "" ? ink : n.disabled ? OFF : MUTE;
-    fillBox(ctx, x, y, w, h, PAPER);
-    frame(ctx, x, y, w, h, ink);
-    text(ctx, str, x + 8, y + h / 2, Math.max(2, w - 16), color, FONT, "left");
+    const tieneTexto = n.text != null && n.text !== "";
+    const str = tieneTexto ? n.text : n.placeholder;
+    // El texto propio se tiñe con `titleColor`; la pista del campo se queda en su gris.
+    const color = tieneTexto ? titleInk(n, ink) : n.disabled ? OFF : MUTE;
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
+    outerFrame(ctx, n, x, y, w, h, ink, true);
+    text(ctx, str, x + 8, y + h / 2, Math.max(2, w - 16), color, fontOf(n, 12), "left");
   }
 
   function paintTextarea(ctx, n, x, y, w, h, ink) {
-    const str = n.text != null && n.text !== "" ? n.text : n.placeholder;
-    const color = n.text != null && n.text !== "" ? ink : n.disabled ? OFF : MUTE;
-    fillBox(ctx, x, y, w, h, PAPER);
-    frame(ctx, x, y, w, h, ink);
-    text(ctx, str, x + 8, y + Math.min(h / 2, 12), Math.max(2, w - 16), color, FONT, "left");
+    const tieneTexto = n.text != null && n.text !== "";
+    const str = tieneTexto ? n.text : n.placeholder;
+    const color = tieneTexto ? titleInk(n, ink) : n.disabled ? OFF : MUTE;
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
+    outerFrame(ctx, n, x, y, w, h, ink, true);
+    text(ctx, str, x + 8, y + Math.min(h / 2, 12), Math.max(2, w - 16), color, fontOf(n, 12), "left");
   }
 
   function paintChoice(ctx, n, x, y, w, h, ink) {
     const opts = n.options || [];
     const checked = Array.isArray(n.checked) ? n.checked : [];
     const radio = n.variant === "radio";
+    const fg = strokeOf(n, ink);
+    fillBox(ctx, x, y, w, h, fillOf(n, null));
+    outerFrame(ctx, n, x, y, w, h, ink, false);
     for (let i = 0; i < opts.length; i++) {
       const ry = y + i * ROW_H;
       if (ry + ROW_H > y + h) break;
       const cy = ry + ROW_H / 2;
       const cx = x + 6;
       if (radio) {
-        ring(ctx, cx + 6, cy, 6, ink);
-        if (checked.indexOf(i) >= 0) dot(ctx, cx + 6, cy, 2.5, ink);
+        ring(ctx, cx + 6, cy, 6, fg);
+        if (checked.indexOf(i) >= 0) dot(ctx, cx + 6, cy, 2.5, fg);
       } else {
-        frame(ctx, cx, cy - 6, 12, 12, ink);
+        frame(ctx, cx, cy - 6, 12, 12, fg);
         if (checked.indexOf(i) >= 0) {
-          line(ctx, cx + 2, cy, cx + 5, cy + 3.5, ink);
-          line(ctx, cx + 5, cy + 3.5, cx + 10, cy - 3.5, ink);
+          line(ctx, cx + 2, cy, cx + 5, cy + 3.5, fg);
+          line(ctx, cx + 5, cy + 3.5, cx + 10, cy - 3.5, fg);
         }
       }
-      text(ctx, opts[i], x + 24, cy, Math.max(2, w - 30), ink, FONT, "left");
+      text(ctx, opts[i], x + 24, cy, Math.max(2, w - 30), titleInk(n, ink), fontOf(n, 12), "left");
     }
   }
 
   function paintButton(ctx, n, x, y, w, h, ink) {
     const r = 6;
+    const auto = n.variant === "primary" && !n.disabled ? SOFT : PAPER;
+    const relleno = fillOf(n, auto);
     shape(ctx, x, y, w, h, r);
-    if (n.variant === "primary" && !n.disabled) {
-      ctx.fillStyle = SOFT;
-      ctx.fill();
-    } else {
-      ctx.fillStyle = PAPER;
+    if (relleno) {
+      ctx.fillStyle = relleno;
       ctx.fill();
     }
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = LW;
-    ctx.stroke();
-    text(ctx, n.text, x + 8, y + h / 2, Math.max(2, w - 16), ink, FONT, "center");
+    if (n.stroke !== "none") {
+      ctx.strokeStyle = strokeOf(n, ink);
+      ctx.lineWidth = LW;
+      ctx.stroke();
+    }
+    text(ctx, n.text, x + 8, y + h / 2, Math.max(2, w - 16), titleInk(n, ink), fontOf(n, 12), "center");
+  }
+
+  /**
+   * Pinta un icono de trazos con coordenadas de 24×24, escalado a la caja que se le da.
+   * Sin `Path2D` ni `arc`: aquí solo hay un `ctx` y `M`/`L`/`Q`/`Z`.
+   */
+  function trazaIcono(ctx, tramos, x, y, lado, color) {
+    if (!ctx.beginPath || !ctx.moveTo || !ctx.lineTo) return;
+    const k = lado / 24;
+    ctx.save();
+    if (ctx.translate) ctx.translate(x, y);
+    if (ctx.scale) ctx.scale(k, k);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = LW / Math.max(0.01, k);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const tramo of tramos) {
+      ctx.beginPath();
+      for (const paso of tramo) {
+        if (paso[0] === "M") ctx.moveTo(paso[1], paso[2]);
+        else if (paso[0] === "L") ctx.lineTo(paso[1], paso[2]);
+        else if (paso[0] === "Q") {
+          if (ctx.quadraticCurveTo) ctx.quadraticCurveTo(paso[1], paso[2], paso[3], paso[4]);
+          else ctx.lineTo(paso[3], paso[4]);
+        } else if (paso[0] === "Z" && ctx.closePath) ctx.closePath();
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function paintIcon(ctx, n, x, y, w, h, ink) {
-    fillBox(ctx, x, y, w, h, PAPER);
-    frame(ctx, x, y, w, h, ink);
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
+    outerFrame(ctx, n, x, y, w, h, ink, true);
     if (!FINE) return;
-    const name = n.icon || "";
-    const glyph = GLYPHS[name] || name;
-    if (!glyph) return;
-    const size = Math.max(9, Math.min(22, Math.round(Math.min(w, h) * 0.6)));
-    text(ctx, glyph, x + 2, y + h / 2, Math.max(2, w - 4), ink, size + "px sans-serif", "center");
+    const nombre = n.icon || "";
+    // El bloque TEXTO también manda aquí: `titleSize` escala el glifo y `titleColor` lo tiñe.
+    const escala = Math.max(0.45, Math.min(3, num(n.titleSize, 12) / 12));
+    const lado = Math.max(8, Math.min(Math.min(w, h) - 4, Math.min(w, h) * 0.6 * escala));
+    const color = titleInk(n, ink);
+    const glifo = GLYPHS[nombre];
+    if (Array.isArray(glifo)) {
+      trazaIcono(ctx, glifo, x + (w - lado) / 2, y + (h - lado) / 2, lado, color);
+      return;
+    }
+    if (!nombre) return;
+    text(ctx, typeof glifo === "string" ? glifo : nombre, x + 2, y + h / 2, Math.max(2, w - 4), color, Math.round(lado) + "px sans-serif", "center");
   }
 
   /** Imagen decodificada de un widget `image`, si el llamador la trae en el mapa de `draw`. */
@@ -555,7 +761,8 @@
 
   /** `image`: la imagen recortada a la caja (centrada, sin deformar) o el aspa de marcador. */
   function paintImage(ctx, n, x, y, w, h, ink) {
-    fillBox(ctx, x, y, w, h, PAPER);
+    const fg = strokeOf(n, ink);
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
     const img = imagenDelMapa(n.src);
     if (img && ctx.drawImage && ctx.clip) {
       // Recorte tipo «cover»: se queda la parte central de la imagen que llena la caja.
@@ -569,10 +776,10 @@
       ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, x, y, w, h);
       ctx.restore();
     } else {
-      line(ctx, x, y, x + w, y + h, ink);
-      line(ctx, x + w, y, x, y + h, ink);
+      line(ctx, x, y, x + w, y + h, fg);
+      line(ctx, x + w, y, x, y + h, fg);
     }
-    frame(ctx, x, y, w, h, ink);
+    outerFrame(ctx, n, x, y, w, h, ink, true);
   }
 
   /** Pinta un widget y, debajo, sus hijos desde la caja útil. */
@@ -634,11 +841,13 @@
   }
 
   /** Pinta el árbol entero; el llamador ya aplicó la transformación del zoom. */
-  function draw(ctx, nodes, zoom, imagenes) {
+  function draw(ctx, nodes, zoom, imagenes, hints) {
     if (!ctx) return;
     ZOOM = num(zoom, 1) > 0 ? num(zoom, 1) : 1;
     FINE = ZOOM >= 0.5;
     LW = 1 / ZOOM;
+    // Ayudas de edición: el panel las enciende en pantalla y las apaga al exportar el PNG.
+    HINTS = !!hints;
     // Mapa opcional `src → imagen decodificada` para los widgets `image`; sin él, marcador.
     IMGS = imagenes && typeof imagenes.get === "function" ? imagenes : null;
     const all = nodes || [];

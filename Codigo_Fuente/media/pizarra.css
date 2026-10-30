@@ -634,10 +634,10 @@ body.vscode-light .pz-tab.on {
   z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 196px;
+  gap: 14px;
+  width: 280px;
   max-height: calc(100% - 20px);
-  padding: 8px;
+  padding: 10px;
   overflow: auto;
   background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
   border: 1px solid var(--line);
@@ -685,12 +685,18 @@ body.vscode-light .pz-tab.on {
 .pz-drawer-grp {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
   min-width: 0;
 }
 
 .pz-drawer-grp[hidden] {
   display: none;
+}
+
+/* Separador fino entre PALETA e INSPECTOR. */
+#ui-inspect {
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
 }
 
 /* Rótulo de grupo de la paleta: el mismo cian que los rótulos del HUD. */
@@ -701,26 +707,58 @@ body.vscode-light .pz-tab.on {
   color: var(--neon);
 }
 
+/* Rótulo de sección del inspector (ESTILO): hace de separador fino. */
+.pz-ui-sec {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 9.5px;
+  letter-spacing: 1.4px;
+  color: var(--neon);
+}
+
+.pz-ui-sec svg {
+  width: 13px;
+  height: 13px;
+}
+
 .pz-ui-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
+  gap: 6px;
 }
 
+/* Botón de la paleta: icono y rótulo corto, con aire de sobra para el dedo. */
 .pz-ui-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   min-width: 0;
-  padding: 4px 5px;
+  min-height: 38px;
+  padding: 0 8px;
   overflow: hidden;
-  background: transparent;
+  background: color-mix(in srgb, var(--neon) 6%, transparent);
   border: 1px solid var(--line);
-  color: var(--text-soft);
+  color: var(--text);
   font-family: inherit;
-  font-size: 9.5px;
-  letter-spacing: 0.4px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
   text-align: left;
+  cursor: pointer;
+}
+
+.pz-ui-btn svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.pz-ui-btn span {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
 }
 
 .pz-ui-btn:hover,
@@ -734,7 +772,7 @@ body.vscode-light .pz-tab.on {
 .pz-ui-field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   font-size: 9.5px;
   letter-spacing: 1.1px;
   color: var(--text);
@@ -780,6 +818,108 @@ body.vscode-light .pz-tab.on {
   color: var(--text-soft);
 }
 
+/* Fila del bloque ESTILO: rótulo arriba y los controles en línea. */
+.pz-ui-fila {
+  gap: 5px;
+}
+
+.pz-ui-ctl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* FONDO, BORDE y TEXTO: color nativo (la única excepción a los tokens) y su medida. */
+.pz-ui-color {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.pz-ui-num {
+  width: 58px;
+  padding: 3px 5px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+}
+
+.pz-ui-color:focus-visible,
+.pz-ui-num:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+/* Chips AUTO / SIN: el activo va en cian, como una herramienta encendida. */
+.pz-ui-chip {
+  height: 26px;
+  min-width: 34px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.pz-ui-chip:hover,
+.pz-ui-chip:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.pz-ui-chip.on {
+  color: var(--neon);
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 16%, transparent);
+}
+
+/* Rejilla de iconos del widget ICONO y botones de orientación del MENÚ. */
+.pz-ui-icons {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.pz-ui-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.pz-ui-ico svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pz-ui-ico:hover,
+.pz-ui-ico:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+.pz-ui-ico.on {
+  color: var(--neon);
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 16%, transparent);
+}
+
 /* APAGADO va en fila: rótulo a la izquierda, casilla a la derecha. */
 .pz-ui-check {
   flex-direction: row;
@@ -808,26 +948,31 @@ body.vscode-light .pz-tab.on {
   outline: none;
 }
 
-/* Acciones del inspector: z-order, sacar a la raíz y borrar. */
+/* Acciones del inspector: z-order, sacar a la raíz y borrar. Solo icono. */
 .pz-ui-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  gap: 8px;
   margin-top: 2px;
-  padding-top: 6px;
+  padding-top: 10px;
   border-top: 1px solid var(--line-soft);
 }
 
 .pz-ui-act {
-  flex: 1 1 40%;
-  padding: 4px 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: transparent;
   border: 1px solid var(--line);
   color: var(--text);
-  font-family: inherit;
-  font-size: 9.5px;
-  letter-spacing: 1px;
   cursor: pointer;
+}
+
+.pz-ui-act svg {
+  width: 16px;
+  height: 16px;
 }
 
 .pz-ui-act:hover,
@@ -835,6 +980,13 @@ body.vscode-light .pz-tab.on {
   color: var(--neon);
   border-color: var(--neon);
   outline: none;
+}
+
+/* BORRAR es el último y avisa en magenta, como el botón de peligro del modal. */
+.pz-ui-actions .pz-ui-act:last-child:hover,
+.pz-ui-actions .pz-ui-act:last-child:focus-visible {
+  color: var(--magenta);
+  border-color: var(--magenta);
 }
 
 /* Sin la librería cargada el cajón lo dice en vez de quedarse vacío. */

@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 30 de octubre de 2026 · versión **0.6.0**
+Última revisión: 30 de octubre de 2026 · versión **0.6.1**
 
 ## Resumen
 
@@ -9,8 +9,9 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.6.0** está empaquetada e instalada en local, con la capa **INTERFACES** de la
-pizarra dentro; falta la release publicada en GitHub.
+La **0.6.1** está empaquetada e instalada en local: trae la capa **INTERFACES** de la
+pizarra y, encima, el estilo por widget y el cajón `INTERFAZ` remozado. Sigue sin release
+publicada en GitHub.
 
 **opencode es el centro del producto.** La extensión está pensada y orientada a opencode.
 Claude Code y Codex son **experimentales**: se exploran y se manejan en parte, pero su
@@ -77,7 +78,9 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
    conectores al mover el nodo, zoom con arrastre de tramos y la cabecera a poco ancho.
 4. **Capa INTERFACES en VS Code real**: abrir el cajón `INTERFAZ` e insertar, anidar y mover
    widgets; pegar una imagen con `Ctrl+V` sobre un widget `image`; y comprobar el aspecto con
-   tema claro y oscuro y a escalas de 125 y 150 %.
+   tema claro y oscuro y a escalas de 125 y 150 %. De la tanda de estilo queda por ver el
+   aspecto del swatch del selector nativo de color, los iconos de trazo a tamaño real y que el
+   PNG salga sin la ayuda de la etiqueta vacía.
 5. **Lápiz real**: confirmar que los trazos no se cortan en un dispositivo táctil
    (depende del driver; el manejo de `pointercancel` ya está puesto).
 6. **Visor 3D en VS Code real**: el motor `VISOR` de punta a punta (del `.blend` al PNG en

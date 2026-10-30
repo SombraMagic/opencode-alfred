@@ -30,7 +30,7 @@ import type {
   SceneText,
 } from "../pizarra/scene";
 import { readSceneFile, SCENE_FILE, WORK_FILE, writeSceneFile } from "../pizarra/files";
-import { MAX_UI_ITEMS, MAX_UI_NODES, sanitizeUi, uiContent, uiDefaults, UI_KINDS } from "../pizarra/ui";
+import { MAX_UI_ITEMS, MAX_UI_NODES, sanitizeUi, uiContent, uiDefaults, uiPreset, UI_KINDS } from "../pizarra/ui";
 import type { Ui, UiNode } from "../pizarra/ui";
 import { readEntorno } from "../voice/core/shared";
 
@@ -587,6 +587,17 @@ function aplicarContenido(nodo: UiNode, args: Record<string, unknown>): void {
   }
   const disabled = boolOf(args, "disabled");
   if (disabled !== undefined) nodo.disabled = disabled;
+  const fill = strOf(args, "fill");
+  if (fill !== undefined) nodo.fill = fill;
+  const stroke = strOf(args, "stroke");
+  if (stroke !== undefined) nodo.stroke = stroke;
+  const titleColor = strOf(args, "titleColor");
+  if (titleColor !== undefined) nodo.titleColor = titleColor;
+  const titleSize = numOf(args, "titleSize", -MAX_COORD, MAX_COORD);
+  if (titleSize !== undefined) nodo.titleSize = titleSize;
+  // El reparto solo pinta en un menú; en otro tipo se ignora sin avisar.
+  const orientation = strOf(args, "orientation");
+  if (orientation !== undefined && nodo.kind === "menu") nodo.orientation = orientation;
 }
 
 /**
@@ -668,6 +679,26 @@ const OP = {
   type: "string",
   enum: ["alta", "editar", "borrar"],
   description: "Qué hacer con el widget.",
+};
+const FILL = {
+  type: "string",
+  description: 'Fondo: "auto" (el del tipo), "none" o #rrggbb.',
+};
+const STROKE = { type: "string", description: 'Borde: #rrggbb o "none".' };
+const TITLE_COLOR = {
+  type: "string",
+  description: "Color del texto; en window, el de la barra de título.",
+};
+const TITLE_SIZE = {
+  type: "integer",
+  minimum: 8,
+  maximum: 48,
+  description: "Tamaño de ese texto, en px.",
+};
+const ORIENTATION = {
+  type: "string",
+  enum: ["h", "v"],
+  description: "Solo menu: reparto en fila (h) o en columna (v).",
 };
 const X = { type: "number", description: "Coordenada x en píxeles, origen arriba a la izquierda." };
 const Y = { type: "number", description: "Coordenada y en píxeles, origen arriba a la izquierda." };
@@ -923,7 +954,14 @@ export const PIZARRA_TOOLS = [
           items: {
             type: "object",
             description:
-              "Widget: id, kind, parent (id o null), x, y, w, h (x e y relativos a la caja útil del padre), title, text, placeholder, items, active, options, checked, variant, align, icon, src, disabled.",
+              "Widget: id, kind, parent (id o null), x, y, w, h (x e y relativos a la caja útil del padre), title, text, placeholder, items, active, options, checked, variant, align, icon, src, disabled, fill, stroke, titleColor, titleSize y orientation.",
+            properties: {
+              fill: FILL,
+              stroke: STROKE,
+              titleColor: TITLE_COLOR,
+              titleSize: TITLE_SIZE,
+              orientation: ORIENTATION,
+            },
           },
         },
         carpeta: CARPETA,
@@ -934,7 +972,7 @@ export const PIZARRA_TOOLS = [
   {
     name: "pizarra_ui_nodo",
     description:
-      "Da de alta, edita o borra un widget de la capa INTERFACES. Al dar de alta sin x/y se apila debajo de los hijos que ya tenga su padre; al borrar se lleva por delante sus descendientes. Devuelve el árbol resultante, igual que pizarra_ui_leer.",
+      "Da de alta, edita o borra un widget de la capa INTERFACES. Al dar de alta sin x/y se apila debajo de los hijos que ya tenga su padre; al borrar se lleva por delante sus descendientes. «editar» cambia solo los campos del contrato que lleguen (geometría, parent, textos, listas y estilo) y deja el resto como estaba. Devuelve el árbol resultante, igual que pizarra_ui_leer.",
     inputSchema: {
       type: "object",
       properties: {
@@ -986,6 +1024,11 @@ export const PIZARRA_TOOLS = [
         icon: { type: "string", description: "Nombre del icono del widget." },
         src: { type: "string", description: 'Imagen del widget en data URL, o "" sin imagen.' },
         disabled: { type: "boolean", description: "Widget apagado." },
+        fill: FILL,
+        stroke: STROKE,
+        titleColor: TITLE_COLOR,
+        titleSize: TITLE_SIZE,
+        orientation: ORIENTATION,
         carpeta: CARPETA,
       },
       required: ["op"],
@@ -1320,7 +1363,10 @@ async function pizarraUiNodo(args: Record<string, unknown>): Promise<string> {
     // relativas a la caja útil del padre (`uiContent`), así que su chrome no entra aquí.
     const hermanos = nodos.filter((nodo) => nodo.parent === parent);
     const tamano = uiDefaults(kind);
+    // El preset da los defectos por tipo; `variant`/`align` solo los fijan los tipos que los usan.
+    const preset = uiPreset(kind);
     const nodo: UiNode = {
+      ...preset,
       id,
       kind,
       parent,
@@ -1337,8 +1383,8 @@ async function pizarraUiNodo(args: Record<string, unknown>): Promise<string> {
       active: -1,
       options: [],
       checked: [],
-      variant: "",
-      align: "left",
+      variant: preset.variant ?? "",
+      align: preset.align ?? "left",
       icon: "",
       src: "",
       disabled: false,

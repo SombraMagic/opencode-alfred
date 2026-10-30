@@ -49,6 +49,17 @@ const ICON_NAME = /^[a-z-]{0,20}$/;
 const ALIGNS: readonly string[] = ["left", "center", "right"];
 const CHOICE_VARIANTS: readonly string[] = ["", "check", "radio"];
 const BUTTON_VARIANTS: readonly string[] = ["", "primary", "secondary"];
+/** Copia de `HEX_COLOR` (`scene.ts`). */
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+/** Fondos con nombre: el relleno que le toca al tipo, o ninguno. */
+const FILL_WORDS: readonly string[] = ["auto", "none"];
+const ORIENTATIONS: readonly string[] = ["h", "v"];
+/** Bordes y color del texto del widget: los mismos que los del diagrama. */
+const DEFAULT_STROKE = "#111111";
+const DEFAULT_TITLE_COLOR = "#111111";
+const DEFAULT_TITLE_SIZE = 12;
+const MIN_TITLE_SIZE = 8;
+const MAX_TITLE_SIZE = 48;
 
 /** Chrome de cada widget, en px: lo que la caja útil deja fuera. */
 const WINDOW_BAR = 28;
@@ -77,6 +88,16 @@ export interface UiNode {
   icon: string;
   src: string;
   disabled: boolean;
+  /** Fondo: `"auto"` es el relleno del tipo, `"none"` transparente, o `#rrggbb`. */
+  fill: string;
+  /** Borde: `#rrggbb` o `"none"`. */
+  stroke: string;
+  /** Color del texto del widget (en `window`, el de la barra de título). */
+  titleColor: string;
+  /** Tamaño de ese texto, en px. */
+  titleSize: number;
+  /** Reparto de un `menu`: `"h"` en fila, `"v"` en columna. */
+  orientation: string;
 }
 
 export interface Ui {
@@ -171,6 +192,36 @@ function variantOf(raw: unknown, kind: string): string {
 /** Data URL de imagen de un widget; `""` es «sin imagen» y también un valor válido. */
 function srcImage(raw: unknown): string {
   return typeof raw === "string" && raw.length <= MAX_UI_IMAGE_CHARS && DATA_IMAGE.test(raw) ? raw : "";
+}
+
+/** Fondo de un widget: el relleno de su tipo (`auto`), transparente (`none`) o un color. */
+function fillOf(raw: unknown): string {
+  const palabra = pick(raw, FILL_WORDS, "");
+  if (palabra) {
+    return palabra;
+  }
+  return typeof raw === "string" && HEX_COLOR.test(raw) ? raw.toLowerCase() : "auto";
+}
+
+/** Borde de un widget: un color o `none`. */
+function strokeOf(raw: unknown): string {
+  if (raw === "none") {
+    return "none";
+  }
+  return typeof raw === "string" && HEX_COLOR.test(raw) ? raw.toLowerCase() : DEFAULT_STROKE;
+}
+
+/** Color del texto: solo color; aquí `auto` no vale. */
+function titleColorOf(raw: unknown): string {
+  return typeof raw === "string" && HEX_COLOR.test(raw) ? raw.toLowerCase() : DEFAULT_TITLE_COLOR;
+}
+
+/** Tamaño del texto: entero acotado a la caja legible del wireframe. */
+function titleSizeOf(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return DEFAULT_TITLE_SIZE;
+  }
+  return Math.min(MAX_TITLE_SIZE, Math.max(MIN_TITLE_SIZE, Math.round(raw)));
 }
 
 /**
@@ -273,6 +324,12 @@ export function sanitizeUi(raw: unknown): Ui {
       icon: typeof item.icon === "string" && ICON_NAME.test(item.icon) ? item.icon : "",
       src: srcImage(item.src),
       disabled: boolFlag(item.disabled, false),
+      fill: fillOf(item.fill),
+      stroke: strokeOf(item.stroke),
+      titleColor: titleColorOf(item.titleColor),
+      titleSize: titleSizeOf(item.titleSize),
+      // Solo `menu` lo usa, pero todos lo llevan para que el contrato sea plano.
+      orientation: pick(item.orientation, ORIENTATIONS, "v"),
     });
   }
   resolveTree(nodes);
@@ -339,4 +396,37 @@ export function uiDefaults(kind: string): { w: number; h: number } {
     default:
       return { w: 240, h: 160 };
   }
+}
+
+/**
+ * Estilo con el que nace un widget: los cinco campos nuevos van siempre y `variant`/`align`
+ * solo si el tipo los usa. Es `Partial<UiNode>` y algo más, para que quien lo despliegue en
+ * un literal (`{ ...uiPreset(kind), id, ... }`) no se quede con huecos opcionales.
+ */
+export type UiStyle = Required<
+  Pick<UiNode, "fill" | "stroke" | "titleColor" | "titleSize" | "orientation">
+> &
+  Partial<UiNode>;
+
+/**
+ * Estilo con el que nace un widget de cada tipo, para que el panel y el MCP no repitan la
+ * tabla. Ni `id`, ni `parent`, ni geometría: eso lo pone quien lo crea.
+ */
+export function uiPreset(kind: string): UiStyle {
+  const preset: UiStyle = {
+    fill: "auto",
+    stroke: DEFAULT_STROKE,
+    titleColor: DEFAULT_TITLE_COLOR,
+    titleSize: DEFAULT_TITLE_SIZE,
+    orientation: "v",
+  };
+  if (kind === "choice") {
+    preset.variant = "check";
+  } else if (kind === "button") {
+    preset.variant = "secondary";
+    preset.align = "left";
+  } else if (kind === "label") {
+    preset.align = "left";
+  }
+  return preset;
 }

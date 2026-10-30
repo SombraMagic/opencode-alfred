@@ -78,7 +78,9 @@ botón la mete en el bloc como adjunto.
   inspector del elegido. Los widgets se insertan en el contenedor seleccionado, se anidan
   (hasta 8 niveles), se mueven, se redimensionan y se borran; un clic sobre el que ya está
   elegido simula su control (pestañas, acordeón, casillas). Con un widget `image` elegido,
-  `Ctrl+V` le pone la imagen del portapapeles.
+  `Ctrl+V` le pone la imagen del portapapeles. Cada widget se pinta como quieras: fondo
+  (automático, sin fondo o color), borde y color y tamaño de su texto, y el menú en fila o en
+  columna.
 - **Edición**: deshacer/rehacer de 50 pasos, multi-selección con alinear y distribuir, guías
   y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles.
 - **Varias pizarras**: una tira de pestañas en la cabecera, con `+` para añadir y `−` para

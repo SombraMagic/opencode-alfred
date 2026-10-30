@@ -887,7 +887,7 @@
     "tabs-h": ["items", "active", "disabled"],
     "tabs-v": ["items", "active", "disabled"],
     accordion: ["items", "active", "disabled"],
-    menu: ["items", "active", "disabled"],
+    menu: ["items", "active", "orientation", "disabled"],
     label: ["text", "align", "disabled"],
     input: ["text", "placeholder", "disabled"],
     textarea: ["text", "placeholder", "disabled"],
@@ -908,16 +908,50 @@
     checked: { etiqueta: "MARCADAS (0, 2…)", tag: "input" },
     variant: { etiqueta: "VARIANTE", tag: "select" },
     align: { etiqueta: "ALINEAR", tag: "select" },
-    icon: { etiqueta: "ICONO", tag: "input" },
+    // Rejilla con los iconos del diagrama, no una lista de nombres.
+    icon: { etiqueta: "ICONO", tag: "iconos" },
+    // Dos botones de icono: el menú en fila o en columna.
+    orientation: { etiqueta: "ORIENTACIÓN", tag: "orientacion" },
     // Solo lectura: la data URL se pone pegando la imagen o desde el MCP, no escribiéndola.
     src: { etiqueta: "IMAGEN", tag: "nota" },
     disabled: { etiqueta: "APAGADO", tag: "checkbox" },
   };
-  const UI_ORDEN = ["title", "text", "placeholder", "items", "active", "options", "checked", "variant", "align", "icon", "src", "disabled"];
+  const UI_ORDEN = ["title", "text", "placeholder", "items", "active", "options", "checked", "variant", "align", "icon", "orientation", "src", "disabled"];
+
+  /**
+   * Paleta: icono y rótulo corto de cada tipo. La librería trae rótulos largos («Pestañas H»,
+   * «Área de texto») que no caben en el cajón; aquí se acortan sin tocar `pizarraUi.js`.
+   * El `d` va en un `<svg viewBox="0 0 24 24">` con trazo 1.7, como el resto del panel.
+   */
+  const UI_PALETA = {
+    container: { label: "Contenedor", d: "M4 4h16v16H4z" },
+    window: { label: "Ventana", d: "M3 4h18v16H3zM3 10h18" },
+    "tabs-h": { label: "Tabs H", d: "M3 4h18v16H3zM3 10h18M9 4v6M15 4v6" },
+    "tabs-v": { label: "Tabs V", d: "M3 4h18v16H3zM9 4v16M3 9h6M3 15h6" },
+    accordion: { label: "Acordeón", d: "M3 4h18v16H3zM3 10h18M3 16h18M6 7h4M6 13h4" },
+    menu: { label: "Menú", d: "M4 7h16M4 12h16M4 17h16" },
+    label: { label: "Etiqueta", d: "M5 6h14M12 6v13" },
+    input: { label: "Campo", d: "M3 8h18v8H3zM7 10v4" },
+    textarea: { label: "Área texto", d: "M3 6h18v12H3zM6 10h12M6 14h8" },
+    choice: { label: "Casilla", d: "M4 9h5v5H4zM12 11.5h8" },
+    button: { label: "Botón", d: "M7 9h10a3 3 0 0 1 0 6H7a3 3 0 0 1 0-6z" },
+    icon: { label: "Icono", d: "M12 4l2.4 5.2L20 12l-5.6 2.8L12 20l-2.4-5.2L4 12l5.6-2.8z" },
+    image: { label: "Imagen", d: "M3 5h18v14H3zM8 11h.01M4 17l5-5 4 4 3-3 4 4" },
+  };
+
+  /** Iconos de las acciones del inspector: solo trazo, con `title` y `aria-label`. */
+  const UI_ACCIONES = [
+    { id: "subir", title: "Subir el widget un paso en el orden de pintado", d: "M12 19V5M6 11l6-6 6 6" },
+    { id: "bajar", title: "Bajar el widget un paso en el orden de pintado", d: "M12 5v14M6 13l6 6 6-6" },
+    { id: "extraer", title: "Sacar el widget a la raíz de la capa", d: "M14 4h6v6M20 4l-8 8M18 14v6H4V4h6" },
+    { id: "borrar", title: "Borrar el widget y los que cuelgan de él", d: "M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13M10 11v6M14 11v6" },
+  ];
 
   /** Controles del inspector por campo; se crean una vez y se rellenan al elegir. */
   const inspectorCampos = {};
   const inspectorFilas = {};
+  /** Chips y botones del bloque ESTILO y de los extras por tipo, para marcarlos al elegir. */
+  const inspectorMarcas = {};
   /** Siguiente número de id de widget: `u1`, `u2`… sin repetir lo que ya haya. */
   let uiSeq = 0;
 
@@ -987,6 +1021,13 @@
         icon: typeof n.icon === "string" ? n.icon : "",
         src: typeof n.src === "string" ? n.src : "",
         disabled: n.disabled === true,
+        // Estilo: mismas reglas que el saneado del host, por si la escena viene de un `init`
+        // viejo o del historial de antes de estos campos.
+        fill: n.fill === "none" || n.fill === "auto" ? n.fill : /^#[0-9a-f]{6}$/i.test(n.fill) ? n.fill.toLowerCase() : "auto",
+        stroke: n.stroke === "none" ? "none" : /^#[0-9a-f]{6}$/i.test(n.stroke) ? n.stroke.toLowerCase() : "#111111",
+        titleColor: /^#[0-9a-f]{6}$/i.test(n.titleColor) ? n.titleColor.toLowerCase() : "#111111",
+        titleSize: clamp(Math.round(num(n.titleSize, 12)), 8, 48),
+        orientation: n.orientation === "h" ? "h" : "v",
       });
     }
     // Padre que no está: el widget se queda, pero en la raíz (igual que el saneado del host).
@@ -1026,6 +1067,12 @@
       icon: kind === "icon" ? "user" : "",
       src: "",
       disabled: false,
+      // Estilo obligatorio en el contrato: los defectos del saneado del host, tal cual.
+      fill: "auto",
+      stroke: "#111111",
+      titleColor: "#111111",
+      titleSize: 12,
+      orientation: "v",
     };
   }
 
@@ -1235,9 +1282,8 @@
     poner("items", n.items.join("\n"));
     poner("options", n.options.join("\n"));
     poner("checked", n.checked.join(", "));
-    poner("icon", n.icon);
     poner("disabled", n.disabled);
-    poner("src", n.src ? "Con imagen. Ctrl+V la cambia." : "Sin imagen: Ctrl+V con el widget elegido.");
+    poner("src", n.src ? "Cargada" : "Sin imagen");
     if (campos.indexOf("variant") >= 0) {
       const pares =
         n.kind === "choice"
@@ -1257,6 +1303,93 @@
       const pares = n.items.map((t, i) => [String(i), `${i + 1}. ${t || "fila"}`]);
       llenarOpciones(inspectorCampos.active, abierta ? pares : [["-1", "NINGUNA"], ...pares], String(n.active));
     }
+    pintaEstilo();
+  }
+
+  /** Marca los chips y botones del bloque ESTILO y de los extras del tipo elegido. */
+  function pintaEstilo() {
+    const n = selUi && state.ui.nodes.indexOf(selUi) >= 0 ? selUi : null;
+    if (!n) return;
+    const seis = (valor, defecto) => (/^#[0-9a-f]{6}$/i.test(valor) ? valor : defecto);
+    const color = (clave, valor) => {
+      const c = inspectorCampos[clave];
+      if (c) c.value = valor;
+    };
+    color("fill", seis(n.fill, "#ffffff"));
+    color("stroke", seis(n.stroke, "#111111"));
+    color("titleColor", seis(n.titleColor, "#111111"));
+    const tam = inspectorCampos.titleSize;
+    if (tam) tam.value = String(n.titleSize || 12);
+    // Un chip encendido es un `aria-pressed` y su clase: el resto de marcas, igual.
+    const marca = (boton, activo) => {
+      if (!boton) return;
+      boton.classList.toggle("on", activo);
+      boton.setAttribute("aria-pressed", activo ? "true" : "false");
+    };
+    marca(inspectorMarcas.fillAuto, n.fill === "auto");
+    marca(inspectorMarcas.fillNone, n.fill === "none");
+    marca(inspectorMarcas.strokeNone, n.stroke === "none");
+    marca(inspectorMarcas.orientH, n.orientation === "h");
+    marca(inspectorMarcas.orientV, n.orientation !== "h");
+    for (const [nombre, boton] of Object.entries(inspectorMarcas.iconos || {})) {
+      marca(boton, nombre === n.icon);
+    }
+  }
+
+  /**
+   * Bloque ESTILO: aplica **solo** el campo tocado (los demás no se pisan) y no repinta los
+   * controles mientras se escribe: normalizar el número a cada tecla impediría teclear «45».
+   * `cerrar` es el final del gesto: ahí sí se reescriben valores (el número acotado) y chips.
+   */
+  function aplicarEstilo(clave, cerrar) {
+    const n = selUi && state.ui.nodes.indexOf(selUi) >= 0 ? selUi : null;
+    if (!n) return;
+    let cambia = false;
+    const hex = (control) => {
+      const valor = control ? String(control.value).toLowerCase() : "";
+      return /^#[0-9a-f]{6}$/.test(valor) ? valor : "";
+    };
+    if (clave === "fill") {
+      const fondo = hex(inspectorCampos.fill);
+      if (fondo && n.fill !== fondo) {
+        n.fill = fondo;
+        cambia = true;
+      }
+    } else if (clave === "stroke") {
+      const borde = hex(inspectorCampos.stroke);
+      if (borde && n.stroke !== borde) {
+        n.stroke = borde;
+        cambia = true;
+      }
+    } else if (clave === "titleColor") {
+      const tinta = hex(inspectorCampos.titleColor);
+      if (tinta && n.titleColor !== tinta) {
+        n.titleColor = tinta;
+        cambia = true;
+      }
+    } else if (clave === "titleSize") {
+      const control = inspectorCampos.titleSize;
+      const valor = control ? clamp(Math.round(Number(control.value) || 12), 8, 48) : n.titleSize;
+      if (n.titleSize !== valor) {
+        n.titleSize = valor;
+        cambia = true;
+      }
+    }
+    if (cambia) changed();
+    if (cerrar) pintaEstilo();
+  }
+
+  /** Escribe un campo de estilo desde un chip o un botón: un gesto, una entrada de historial. */
+  function fijaEstilo(clave, valor) {
+    const n = selUi && state.ui.nodes.indexOf(selUi) >= 0 ? selUi : null;
+    if (!n || n[clave] === valor) {
+      pintaEstilo();
+      return;
+    }
+    n[clave] = valor;
+    changed();
+    commit();
+    pintaEstilo();
   }
 
   /** Vuelca el inspector sobre el widget elegido. `changed` en cada tecla; `commit` al cerrar. */
@@ -1278,8 +1411,8 @@
     const iguales = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
     let cambia = false;
     for (const clave of campos) {
-      // `src` es solo lectura: se rellena pegando la imagen o desde el MCP, no desde el campo.
-      if (clave === "src") continue;
+      // `src` es solo lectura; `icon` y `orientation` los ponen sus botones, no un campo.
+      if (clave === "src" || clave === "icon" || clave === "orientation") continue;
       if (clave === "items") {
         const lista = listas("items");
         if (!iguales(lista, n.items)) {
@@ -1323,6 +1456,46 @@
     if (cambia) changed();
   }
 
+  /** Icono SVG de 24×24 con el mismo trazo que el resto del panel. */
+  function svgIcono(d) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.7");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    svg.append(path);
+    return svg;
+  }
+
+  /** Rótulo de sección del cajón: hace de separador fino entre bloques. */
+  function seccion(titulo, d) {
+    const caja = document.createElement("div");
+    caja.className = "pz-ui-sec";
+    if (d) caja.append(svgIcono(d));
+    const texto = document.createElement("span");
+    texto.textContent = titulo;
+    caja.append(texto);
+    return caja;
+  }
+
+  /** Botón de icono del inspector: solo trazo, con `title` y `aria-label` en español. */
+  function botonIcono(clase, d, titulo, fn) {
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = clase;
+    boton.title = titulo;
+    boton.setAttribute("aria-label", titulo);
+    boton.append(svgIcono(d));
+    boton.addEventListener("click", fn);
+    return boton;
+  }
+
   /** Paleta del cajón: un botón por tipo, agrupados como los declara la librería. */
   function construirPaleta() {
     if (!el.palette) return;
@@ -1345,11 +1518,14 @@
       const rejilla = document.createElement("div");
       rejilla.className = "pz-ui-grid";
       for (const k of lista) {
+        const meta = UI_PALETA[k.kind] || { label: k.label, d: "M4 4h16v16H4z" };
         const boton = document.createElement("button");
         boton.type = "button";
         boton.className = "pz-ui-btn";
-        boton.textContent = k.label;
-        boton.title = `Insertar ${k.label.toLowerCase()} en la capa INTERFACES`;
+        const texto = document.createElement("span");
+        texto.textContent = meta.label;
+        boton.append(svgIcono(meta.d), texto);
+        boton.title = `Insertar ${meta.label.toLowerCase()} en la capa INTERFACES`;
         boton.setAttribute("aria-label", boton.title);
         boton.addEventListener("click", () => insertarUi(k.kind));
         rejilla.append(boton);
@@ -1358,12 +1534,40 @@
     }
   }
 
+  /** Fila del bloque ESTILO: rótulo arriba y los controles en línea. */
+  function filaEstilo(etiqueta) {
+    const fila = document.createElement("div");
+    fila.className = "pz-ui-field pz-ui-fila";
+    const rotulo = document.createElement("span");
+    rotulo.textContent = etiqueta;
+    const caja = document.createElement("span");
+    caja.className = "pz-ui-ctl";
+    fila.append(rotulo, caja);
+    return { fila, caja };
+  }
+
+  /** Chip de dos estados (AUTO / SIN): el activo se marca con `.on` y `aria-pressed`. */
+  function chip(texto, titulo, fn) {
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = "pz-ui-chip";
+    boton.textContent = texto;
+    boton.title = titulo;
+    boton.setAttribute("aria-label", titulo);
+    boton.setAttribute("aria-pressed", "false");
+    boton.addEventListener("click", fn);
+    return boton;
+  }
+
   /** Inspector del cajón: se crea una vez y se rellena al elegir widget. */
   function construirInspector() {
     if (!el.inspect) return;
     for (const clave of UI_ORDEN) {
       const editor = UI_EDITOR[clave];
-      const fila = document.createElement("label");
+      // Los campos compuestos (rejilla de iconos, orientación) van en un `div`: un `label` con
+      // varios botones dentro reparte el clic al primero.
+      const compuesto = editor.tag === "iconos" || editor.tag === "orientacion";
+      const fila = document.createElement(compuesto ? "div" : "label");
       fila.className = clave === "disabled" ? "pz-ui-field pz-ui-check" : "pz-ui-field";
       fila.hidden = true;
       const rotulo = document.createElement("span");
@@ -1378,42 +1582,137 @@
         // Valor de solo lectura (`src`): un span, no un campo que se pueda escribir.
         control = document.createElement("span");
         control.className = "pz-ui-valor";
+      } else if (compuesto) {
+        // Rejilla de botones: el valor lo pone el clic, no un campo.
+        control = document.createElement("span");
+        control.className = editor.tag === "iconos" ? "pz-ui-icons" : "pz-ui-ctl";
+        if (editor.tag === "iconos") {
+          inspectorMarcas.iconos = {};
+          for (const nombre of Object.keys(PZFlow.ICONS)) {
+            const boton = botonIcono("pz-ui-ico", PZFlow.ICONS[nombre], `Icono ${nombre}`, () => fijaEstilo("icon", nombre));
+            inspectorMarcas.iconos[nombre] = boton;
+            control.append(boton);
+          }
+        } else {
+          inspectorMarcas.orientH = botonIcono(
+            "pz-ui-ico",
+            "M4 12h16M16 8l4 4-4 4",
+            "Menú horizontal",
+            () => fijaEstilo("orientation", "h")
+          );
+          inspectorMarcas.orientV = botonIcono(
+            "pz-ui-ico",
+            "M12 4v16M8 16l4 4 4-4",
+            "Menú vertical",
+            () => fijaEstilo("orientation", "v")
+          );
+          control.append(inspectorMarcas.orientH, inspectorMarcas.orientV);
+        }
       } else {
         control = document.createElement("input");
         control.type = editor.tag === "checkbox" ? "checkbox" : "text";
       }
-      control.title = editor.etiqueta;
-      control.setAttribute("aria-label", editor.etiqueta);
-      if (control.tagName === "INPUT" && control.type !== "checkbox") control.spellcheck = false;
       fila.append(rotulo, control);
       inspectorCampos[clave] = control;
       inspectorFilas[clave] = fila;
       el.inspect.append(fila);
-      if (control.tagName === "SPAN") continue;
+      if (control.tagName === "SPAN") {
+        // El valor de solo lectura no se edita: su `title` explica de dónde sale y el rótulo de
+        // la fila ya lo nombra, así que el valor se queda sin `aria-label` propio.
+        if (editor.tag === "nota") control.title = "La imagen se pega con Ctrl+V";
+        continue;
+      }
+      control.title = editor.etiqueta;
+      control.setAttribute("aria-label", editor.etiqueta);
+      if (control.tagName === "INPUT" && control.type !== "checkbox") control.spellcheck = false;
       control.addEventListener("input", () => aplicarInspector());
       control.addEventListener("change", () => {
         aplicarInspector();
         commit();
       });
     }
+
+    // ── ESTILO: fondo, borde y texto, iguales en todos los tipos ──
+    el.inspect.append(seccion("ESTILO", "M4 20l6-6M12 4h8v8M20 4l-8 8M4 4h6v6H4z"));
+    const fondo = filaEstilo("FONDO");
+    inspectorCampos.fill = document.createElement("input");
+    inspectorCampos.fill.type = "color";
+    inspectorCampos.fill.className = "pz-ui-color";
+    inspectorCampos.fill.title = "Color de fondo del widget";
+    inspectorCampos.fill.setAttribute("aria-label", "Color de fondo del widget");
+    inspectorMarcas.fillAuto = chip("AUTO", "Fondo del tipo, sin color propio", () => fijaEstilo("fill", "auto"));
+    inspectorMarcas.fillNone = chip("SIN", "Sin fondo: deja ver lo que hay debajo", () => fijaEstilo("fill", "none"));
+    fondo.caja.append(inspectorCampos.fill, inspectorMarcas.fillAuto, inspectorMarcas.fillNone);
+    el.inspect.append(fondo.fila);
+
+    const borde = filaEstilo("BORDE");
+    inspectorCampos.stroke = document.createElement("input");
+    inspectorCampos.stroke.type = "color";
+    inspectorCampos.stroke.className = "pz-ui-color";
+    inspectorCampos.stroke.title = "Color del borde del widget";
+    inspectorCampos.stroke.setAttribute("aria-label", "Color del borde del widget");
+    inspectorMarcas.strokeNone = chip("SIN", "Sin borde", () => fijaEstilo("stroke", "none"));
+    borde.caja.append(inspectorCampos.stroke, inspectorMarcas.strokeNone);
+    el.inspect.append(borde.fila);
+
+    const texto = filaEstilo("TEXTO");
+    inspectorCampos.titleColor = document.createElement("input");
+    inspectorCampos.titleColor.type = "color";
+    inspectorCampos.titleColor.className = "pz-ui-color";
+    inspectorCampos.titleColor.title = "Color del texto del widget";
+    inspectorCampos.titleColor.setAttribute("aria-label", "Color del texto del widget");
+    inspectorCampos.titleSize = document.createElement("input");
+    inspectorCampos.titleSize.type = "number";
+    inspectorCampos.titleSize.min = "8";
+    inspectorCampos.titleSize.max = "48";
+    inspectorCampos.titleSize.step = "1";
+    inspectorCampos.titleSize.className = "pz-ui-num";
+    inspectorCampos.titleSize.title = "Cuerpo del texto del widget, en píxeles (8 a 48)";
+    inspectorCampos.titleSize.setAttribute("aria-label", "Cuerpo del texto del widget, en píxeles (8 a 48)");
+    texto.caja.append(inspectorCampos.titleColor, inspectorCampos.titleSize);
+    el.inspect.append(texto.fila);
+
+    // El selector nativo no emite `input` si se elige el color que ya vale. Con `fill` a «auto»
+    // o «sin» el control muestra blanco, y elegir blanco no haría nada: antes de abrirlo se deja
+    // un color casi igual (`CASI`) que no se va a elegir. Si se cierra sin elegir, el `change`
+    // devuelve el control a lo guardado y no toca el widget.
+    const CASI = { fill: "#feffff", stroke: "#fefefe" };
+    const evitaRepetido = (clave) => {
+      const control = inspectorCampos[clave];
+      control.addEventListener("click", () => {
+        const n = selUi && state.ui.nodes.indexOf(selUi) >= 0 ? selUi : null;
+        if (n && !/^#[0-9a-f]{6}$/i.test(String(n[clave]))) control.value = CASI[clave];
+      });
+    };
+    evitaRepetido("fill");
+    evitaRepetido("stroke");
+
+    for (const clave of ["fill", "stroke", "titleColor", "titleSize"]) {
+      const control = inspectorCampos[clave];
+      control.addEventListener("input", () => aplicarEstilo(clave, false));
+      control.addEventListener("change", () => {
+        // Sin elección real el control sigue en el color de relleno: se repinta y no se escribe.
+        if (CASI[clave] && String(control.value).toLowerCase() === CASI[clave]) {
+          pintaEstilo();
+          return;
+        }
+        aplicarEstilo(clave, true);
+        commit();
+      });
+    }
+
+    // ── ACCIONES: solo icono, con su rótulo en `title` ──
     const acciones = document.createElement("div");
     acciones.className = "pz-ui-actions";
-    const accion = (texto, titulo, fn) => {
-      const boton = document.createElement("button");
-      boton.type = "button";
-      boton.className = "pz-ui-act";
-      boton.textContent = texto;
-      boton.title = titulo;
-      boton.setAttribute("aria-label", titulo);
-      boton.addEventListener("click", fn);
-      return boton;
+    const hechos = {
+      subir: () => moverUi(1),
+      bajar: () => moverUi(-1),
+      extraer: extraerUi,
+      borrar: () => deleteSelected(),
     };
-    acciones.append(
-      accion("SUBIR", "Subir el widget un paso en el orden de pintado", () => moverUi(1)),
-      accion("BAJAR", "Bajar el widget un paso en el orden de pintado", () => moverUi(-1)),
-      accion("EXTRAER", "Sacar el widget a la raíz de la capa INTERFACES", extraerUi),
-      accion("BORRAR", "Borrar el widget y los que cuelgan de él", () => deleteSelected())
-    );
+    for (const accion of UI_ACCIONES) {
+      acciones.append(botonIcono("pz-ui-act", accion.d, accion.title, hechos[accion.id]));
+    }
     el.inspect.append(acciones);
   }
 
@@ -1576,7 +1875,8 @@
       // El zoom que pide la librería es el mismo que usa `px()`: píxeles de pantalla por píxel
       // de lienzo (el lienzo va estirado por CSS, así el trazo mide igual a cualquier zoom).
       // El mapa de imágenes ya decodificadas es la misma caché que usan la escena y el pegado.
-      PZUi.draw(ctx, state.ui.nodes, pantallaEscala(), cacheImagenes);
+      // `hints` enciende la ayuda de etiqueta vacía: en pantalla sí, en el PNG exportado no.
+      PZUi.draw(ctx, state.ui.nodes, pantallaEscala(), cacheImagenes, !exportando);
     }
     if (state.layers.images !== false) {
       for (const img of state.images) {
@@ -1729,6 +2029,11 @@
           icon: n.icon || "",
           src: n.src || "",
           disabled: Boolean(n.disabled),
+          fill: n.fill || "auto",
+          stroke: n.stroke || "#111111",
+          titleColor: n.titleColor || "#111111",
+          titleSize: n.titleSize || 12,
+          orientation: n.orientation || "v",
         })),
       },
       images: state.images
