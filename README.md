@@ -52,6 +52,9 @@ Bienvenidos a Alfred.
 - **Voz.** Lee en voz alta lo que selecciones y dicta en un bloc con adjuntos,
   imágenes, pegar y arrastrar. Cuatro motores de voz y tres de dictado; funciona sin
   conexión con lo que ya trae Windows.
+- **Mente local.** El cerebro Ollama, en su pestaña: instalar o desinstalar con `winget`,
+  modelos con su tamaño y el espacio del disco, descargar, borrar y encender o apagar. Al
+  encender, Ollama aparece en los conectores y en la asignación de modelos de opencode.
 - **Pizarra.** Dibuja, pega imágenes y mándalo al prompt como si fuera un adjunto. Tiene una
   capa de diagrama para dibujar workflows con nodos y conectores, y exporta el diagrama como
   Mermaid.

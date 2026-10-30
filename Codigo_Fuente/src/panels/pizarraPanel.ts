@@ -17,7 +17,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { readFile, rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { isRecord, Scene, sanitizeScene } from "../pizarra/scene";
 import { readSceneFile, readSceneText, SCENE_FILE, WORK_FILE, writeAtomic, writeSceneFile } from "../pizarra/files";
 
@@ -31,6 +31,12 @@ const MAX_COPY_BYTES = 2 * 1024 * 1024;
 const KEY_LAST_URI = "opencodeAgents.pizarra.lastUri";
 /** Color de fondo elegido en la pizarra (preferencia de instalación, no del proyecto). */
 const KEY_BG_COLOR = "opencodeAgents.pizarra.bgColor";
+/** Pizarras de la ventana: la 1 es la de la carpeta de adjuntos, la que leen los agentes. */
+const KEY_BOARDS = "opencodeAgents.pizarra.boards";
+/** Pizarra activa en el panel (ámbito de ventana, igual que `KEY_LAST_URI`). */
+const KEY_BOARD = "opencodeAgents.pizarra.board";
+/** Tope de id de pizarra: por encima no hay nombre de carpeta razonable. */
+const MAX_BOARD = 9999;
 /** Cuánto espera `requestPng` al webview antes de conformarse con lo que haya. */
 const CAPTURE_TIMEOUT_MS = 5000;
 /** Cabecera de todo PNG: lo que manda el webview tiene que ser de verdad una imagen. */
@@ -46,14 +52,32 @@ export function pizarraAdjuntosDir(context: vscode.ExtensionContext): string {
     : join(context.globalStorageUri.fsPath, "adjuntos");
 }
 
+/** Carpeta de una pizarra: la 1 vive en la raíz de adjuntos, que es la que lee el MCP. */
+function carpetaPizarra(base: string, board: number): string {
+  return board === 1 ? base : join(base, `pizarra-${board}`);
+}
+
+/** Lista saneada de pizarras: enteros, sin repetidos, ascendentes y con la 1 dentro. */
+function boardsDe(raw: unknown): number[] {
+  const lista = Array.isArray(raw)
+    ? raw.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= MAX_BOARD)
+    : [];
+  return [...new Set([1, ...lista])].sort((a, b) => a - b);
+}
+
+/** El webview no es de fiar: solo vale un entero. */
+function decodeBoard(raw: unknown): number | undefined {
+  return typeof raw === "number" && Number.isInteger(raw) ? raw : undefined;
+}
+
 /** Copia de trabajo de la pizarra (PNG aplanado). */
-function workFile(context: vscode.ExtensionContext): string {
-  return join(pizarraAdjuntosDir(context), WORK_FILE);
+function workFile(dir: string): string {
+  return join(dir, WORK_FILE);
 }
 
 /** Escena editable de la pizarra, en la misma carpeta que la copia de trabajo. */
-function sceneFile(context: vscode.ExtensionContext): string {
-  return join(pizarraAdjuntosDir(context), SCENE_FILE);
+function sceneFile(dir: string): string {
+  return join(dir, SCENE_FILE);
 }
 
 /** Descifra el base64 que manda el webview, con el mismo tope que los adjuntos. */
@@ -85,6 +109,7 @@ interface PanelMessage {
   scene?: unknown;
   color?: unknown;
   text?: unknown;
+  board?: unknown;
 }
 
 export class PizarraPanel {
@@ -109,6 +134,33 @@ export class PizarraPanel {
    * la copia de trabajo cargada y exportaría un lienzo en blanco por encima de lo ya dibujado.
    */
   private iniciado: Promise<void> = Promise.resolve();
+  /** Mensajes de una en una: `snapshot` escribe escena y PNG, y no admite un cambio a mitad. */
+  private mensajes: Promise<void> = Promise.resolve();
+  /** Pizarra activa del panel. */
+  private board = 1;
+  /** Pizarras que existen en esta ventana, con la 1 dentro. */
+  private boards: number[] = [1];
+  /** Fichero que vigila el vigilante ahora mismo, para soltarlo al cambiar de pizarra. */
+  private vigilado?: string;
+
+  /** Carpeta de la pizarra activa. */
+  private boardDir(): string {
+    return carpetaPizarra(pizarraAdjuntosDir(this.context), this.board);
+  }
+
+  /** Reengancha el vigilante de la escena a la pizarra activa. */
+  private vigilar(): void {
+    const file = sceneFile(this.boardDir());
+    if (this.vigilado === file) {
+      return;
+    }
+    if (this.vigilado) {
+      unwatchFile(this.vigilado);
+    }
+    this.vigilado = file;
+    // `watchFile` avisa aunque la carpeta no esté abierta y no depende del watcher de VS Code.
+    watchFile(file, { interval: 1000 }, () => void this.recargarEscena());
+  }
 
   /** Encadena una escritura a la cola: dos instantáneas seguidas pisarían el mismo `.tmp`. */
   private encolar(trabajo: () => Promise<void>): Promise<void> {
@@ -121,12 +173,14 @@ export class PizarraPanel {
 
   /** Escribe la copia de trabajo esperando a las escrituras pendientes. */
   private guardarCopia(bytes: Buffer): Promise<void> {
-    return this.encolar(() => writeAtomic(workFile(this.context), bytes));
+    // La carpeta se resuelve ahora: la clausura corre después y `board` puede haber cambiado.
+    const dir = this.boardDir();
+    return this.encolar(() => writeAtomic(workFile(dir), bytes));
   }
 
   /** Escribe la escena editable en la misma cola que el PNG y devuelve el texto escrito. */
   private async guardarEscena(scene: Scene): Promise<string> {
-    const dir = pizarraAdjuntosDir(this.context);
+    const dir = this.boardDir();
     let texto = "";
     await this.encolar(async () => {
       texto = await writeSceneFile(dir, scene);
@@ -137,7 +191,8 @@ export class PizarraPanel {
   /** Tira la escena guardada: el PNG fresco pasa a mandar al reabrir. */
   private borrarEscena(): Promise<void> {
     this.lastSceneText = undefined;
-    return this.encolar(() => rm(sceneFile(this.context), { force: true }));
+    const file = sceneFile(this.boardDir());
+    return this.encolar(() => rm(file, { force: true }));
   }
 
   /**
@@ -152,6 +207,8 @@ export class PizarraPanel {
       return;
     }
     if (!isRecord(raw)) {
+      // Sin escena válida no se guarda JSON al lado del PNG: el texto anterior es de otra pizarra.
+      this.lastSceneText = undefined;
       return;
     }
     const scene = sanitizeScene(raw);
@@ -198,14 +255,14 @@ export class PizarraPanel {
   static async requestPng(context: vscode.ExtensionContext): Promise<Buffer | null> {
     const panel = PizarraPanel.current;
     if (panel) {
-      // `capture` puede rechazar si la webview se liberó mientras esperaba: aquí vale leer la copia.
-      const fresh = await panel.capture().catch(() => undefined);
+      // La pizarra 1 es la de los agentes y el dictado: con otra activa se lee la copia de la 1.
+      const fresh = panel.board === 1 ? await panel.capture().catch(() => undefined) : undefined;
       if (fresh) {
         return fresh;
       }
     }
     try {
-      const bytes = await readFile(workFile(context));
+      const bytes = await readFile(workFile(pizarraAdjuntosDir(context)));
       return bytes.length ? bytes : null;
     } catch {
       // Sin copia de trabajo: todavía no se ha dibujado nada.
@@ -239,26 +296,32 @@ export class PizarraPanel {
     this.context = context;
     this.panel.webview.html = this.getHtml(this.panel.webview);
 
+    // Ambas son de la ventana, no del proyecto: el `pizarra.json` sí es del proyecto.
+    this.boards = boardsDe(context.workspaceState.get(KEY_BOARDS));
+    const activa = decodeBoard(context.workspaceState.get(KEY_BOARD));
+    this.board = activa !== undefined && this.boards.includes(activa) ? activa : 1;
+
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(
-      (message: PanelMessage) => void this.onMessage(message),
+      (message: PanelMessage) => {
+        this.mensajes = this.mensajes.then(() => this.onMessage(message)).catch(() => undefined);
+      },
       null,
       this.disposables
     );
-    // `watchFile` avisa aunque la carpeta no esté abierta y no depende del watcher de VS Code.
-    watchFile(sceneFile(this.context), { interval: 1000 }, () => void this.recargarEscena());
+    this.vigilar();
   }
 
   /** Lee la escena o, si no hay, la copia de trabajo, y manda el estado inicial al webview. */
   private async sendInit(): Promise<void> {
     // El texto se guarda para distinguir después las escrituras propias de las de fuera.
-    this.lastSceneText = await readSceneText(pizarraAdjuntosDir(this.context));
+    this.lastSceneText = await readSceneText(this.boardDir());
     const scene = await this.readScene();
     let png: string | null = null;
     if (scene === undefined) {
       // Pizarra de antes de existir la escena: vale el PNG aplanado de la copia de trabajo.
       try {
-        const bytes = await readFile(workFile(this.context));
+        const bytes = await readFile(workFile(this.boardDir()));
         if (bytes.length && bytes.length <= MAX_SNAPSHOT_BYTES) {
           png = `data:image/png;base64,${bytes.toString("base64")}`;
         }
@@ -271,12 +334,14 @@ export class PizarraPanel {
       png,
       scene: scene ?? null,
       bgColor: this.context.globalState.get<string>(KEY_BG_COLOR) ?? null,
+      board: this.board,
+      boards: this.boards,
     });
   }
 
   /** Escena guardada y saneada, o undefined si no hay fichero, el JSON está roto o no pasa el saneado. */
   private async readScene(): Promise<Scene | undefined> {
-    return readSceneFile(pizarraAdjuntosDir(this.context));
+    return readSceneFile(this.boardDir());
   }
 
   /**
@@ -289,12 +354,20 @@ export class PizarraPanel {
       // El `init` leerá el fichero cuando el webview esté listo.
       return;
     }
-    const dir = pizarraAdjuntosDir(this.context);
+    const board = this.board;
+    const dir = this.boardDir();
     const texto = await readSceneText(dir);
+    // El vigilante de otra pizarra no puede postear su escena sobre la activa.
+    if (board !== this.board) {
+      return;
+    }
     if (texto === undefined || texto === this.lastSceneText) {
       return;
     }
     const scene = await readSceneFile(dir);
+    if (board !== this.board) {
+      return;
+    }
     if (!scene) {
       return;
     }
@@ -352,6 +425,10 @@ export class PizarraPanel {
         return;
       }
       case "snapshot": {
+        // La respuesta de una captura puede llegar después de un cambio de pizarra.
+        if (decodeBoard(message.board) !== this.board) {
+          return;
+        }
         // La escena se resuelve antes que el PNG (misma cola). Si no pasa el saneado se borra
         // la anterior y el webview lo sabe; la copia de trabajo se guarda igual.
         await this.aplicarEscena(message.scene, true);
@@ -384,7 +461,67 @@ export class PizarraPanel {
         await this.aplicarEscena(message.scene, false);
         await this.saveToDisk(decodePng(message.png));
         return;
+      case "switchBoard":
+        await this.switchBoard(decodeBoard(message.board));
+        return;
+      case "addBoard":
+        await this.addBoard();
+        return;
+      case "deleteBoard":
+        await this.deleteBoard(decodeBoard(message.board));
+        return;
     }
+  }
+
+  /** Cambia de pizarra y repinta con el `init` de la nueva. */
+  private async switchBoard(board: number | undefined): Promise<void> {
+    if (board === undefined || board === this.board || !this.boards.includes(board)) {
+      return;
+    }
+    this.board = board;
+    // La instantánea anterior es de otra pizarra: no vale como respaldo de una captura.
+    this.lastSnapshot = undefined;
+    await this.context.workspaceState.update(KEY_BOARD, board);
+    this.vigilar();
+    // Sin esto, `capture` daría por bueno el init de la pizarra anterior.
+    this.iniciado = this.sendInit();
+    await this.iniciado.catch(() => undefined);
+  }
+
+  /** Añade una pizarra vacía y salta a ella: id máximo + 1, sin reutilizar huecos borrados. */
+  private async addBoard(): Promise<void> {
+    const board = Math.max(...this.boards) + 1;
+    if (board > MAX_BOARD || this.boards.includes(board)) {
+      return;
+    }
+    this.boards = [...this.boards, board];
+    await this.context.workspaceState.update(KEY_BOARDS, this.boards);
+    await this.switchBoard(board);
+  }
+
+  /** Borra una pizarra extra y su carpeta. La 1 no se borra nunca: es la que leen los agentes. */
+  private async deleteBoard(board: number | undefined): Promise<void> {
+    if (board === undefined || board === 1 || !this.boards.includes(board)) {
+      return;
+    }
+    // La carpeta se resuelve antes de cambiar de pizarra y se borra al final, en la cola.
+    const dir = carpetaPizarra(pizarraAdjuntosDir(this.context), board);
+    // La lista se recorta primero: el `init` que abre la siguiente pizarra ya lleva la tira sin esta,
+    // así solo hay un repintado.
+    this.boards = this.boards.filter((n) => n !== board);
+    await this.context.workspaceState.update(KEY_BOARDS, this.boards);
+    if (this.board === board) {
+      // Se salta a la anterior de la lista (o a la 1) antes de soltar el vigilante.
+      await this.switchBoard(this.boards.filter((n) => n < board).pop() ?? 1);
+    } else {
+      await this.sendInit();
+    }
+    await this.encolar(async () => {
+      // Nunca la carpeta de adjuntos entera: solo `<base>/pizarra-<n>` de una pizarra extra.
+      if (board !== 1 && basename(dir) === `pizarra-${board}`) {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
   }
 
   private settleWaiters(bytes: Buffer | undefined): void {
@@ -410,7 +547,7 @@ export class PizarraPanel {
       target = await vscode.window.showSaveDialog({
         filters: { PNG: ["png"] },
         defaultUri,
-        title: "Guardar pizarra como PNG",
+        title: "Guardar la pizarra (PNG + JSON)",
       });
     } catch (err) {
       void vscode.window.showErrorMessage(
@@ -433,7 +570,25 @@ export class PizarraPanel {
     await this.context.workspaceState.update(KEY_LAST_URI, target.fsPath);
     this.lastSnapshot = png;
     await this.guardarCopia(png);
-    this.post({ type: "saved", path: target.fsPath });
+    // La escena va al lado, con el mismo nombre y `.json`: el PNG solo no se puede seguir editando.
+    const scenePath = this.lastSceneText
+      ? await this.guardarEscenaAlLado(target.fsPath, this.lastSceneText)
+      : undefined;
+    this.post({ type: "saved", path: target.fsPath, scenePath });
+  }
+
+  /** Copia el texto de la escena junto al PNG (`<mismo nombre>.json`). Falla sin tirar el PNG. */
+  private async guardarEscenaAlLado(png: string, texto: string): Promise<string | undefined> {
+    const file = `${png.replace(/\.png$/i, "")}.json`;
+    try {
+      await writeAtomic(file, Buffer.from(texto, "utf8"));
+      return file;
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        `La pizarra se guardó, pero la escena no: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return undefined;
+    }
   }
 
   private post(message: unknown): void {
@@ -477,7 +632,9 @@ export class PizarraPanel {
     }
     // Un aviso del vigilante que llegue tarde ya no postea sobre un webview muerto.
     this.ready = false;
-    unwatchFile(sceneFile(this.context));
+    if (this.vigilado) {
+      unwatchFile(this.vigilado);
+    }
     this.settleWaiters(this.lastSnapshot);
     while (this.disposables.length) {
       this.disposables.pop()?.dispose();

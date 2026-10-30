@@ -154,17 +154,22 @@
   color: var(--neon);
 }
 
-/* CONECTORES y ASIGNAR AGENTES: las dos acciones de opencode que vivían en la vista Modelos. */
+/* CONECTORES, ASIGNAR AGENTES y MENTE LOCAL: acciones de opencode en una barra estrecha.
+   Los tres son cajas flexibles: el de texto lleva solo su rótulo y MENTE LOCAL su cerebro. */
 .assign-btn {
-  flex: 1 1 0;
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   min-width: 0;
-  padding: 5px 4px;
+  padding: 5px 3px;
   background: color-mix(in srgb, var(--neon) 8%, transparent);
   border: 1px solid var(--line);
   color: var(--text);
   font-family: inherit;
-  font-size: 9.5px;
-  letter-spacing: 1px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
@@ -181,23 +186,42 @@
   outline: none;
 }
 
-/* PIZARRA es el único de los tres con icono: flex solo aquí, para no mover a los vecinos. */
-.pizarra-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.pizarra-btn svg {
+.assign-btn svg {
   flex: none;
 }
 
 /* Con el contenedor en flex, el recorte lo necesita el texto: si no, pisa al icono. */
-.pizarra-btn span {
+.assign-btn span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* MENTE LOCAL encendida: el servidor de Ollama responde. Solo cambian color, borde y brillo
+   (nunca `border-width` ni el padding): la fila mide lo mismo encendida que apagada. */
+.assign-btn.on {
+  background: color-mix(in srgb, var(--neon) 22%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+  box-shadow: 0 0 6px var(--neon-dim), 0 0 10px var(--neon-dim);
+}
+
+/* Encendida no se apaga con el ratón: el hover sube el tinte y el halo, no vuelve al estado normal. */
+.assign-btn.on:hover,
+.assign-btn.on:focus-visible {
+  background: color-mix(in srgb, var(--neon) 32%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+  box-shadow: 0 0 8px var(--neon-dim), 0 0 14px var(--neon-dim);
+}
+
+/* Tema claro: el cian oscuro de ese tema no aguanta un rótulo de 9 px encima del tinte (3,3:1).
+   Ahí el encendido va en el relleno, el borde y el halo, y el texto se queda en `--text`. */
+body.vscode-light .assign-btn.on,
+body.vscode-light .assign-btn.on:hover,
+body.vscode-light .assign-btn.on:focus-visible {
+  color: var(--text);
+  box-shadow: 0 0 6px var(--neon-dim), 0 0 10px var(--neon-dim);
 }
 
 /* ── Secciones ─────────────────────────────────────────── */

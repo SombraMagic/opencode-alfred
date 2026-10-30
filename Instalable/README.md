@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.4.0.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.5.0.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -11,9 +11,21 @@ No hace falta compilar nada ni instalar Node.
 | opencode | opcional, pero sin él no hay explorador de agentes ni estadísticas |
 | Windows | necesario para la voz y el dictado sin conexión (SAPI) |
 | Blender | opcional: solo lo usa el Visor Alfred 3D para exportar y renderizar. Sin él, el visor abre lo ya exportado (caché o `.glb` al lado) y renderiza con el motor `VISOR` |
+| Ollama | opcional: es el cerebro de **Mente local**. Se instala desde el propio panel con `winget` |
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.5.0
+
+- **Mente local**: pestaña nueva con el cerebro Ollama del equipo. El botón `MENTE LOCAL` del
+  mando del Explorador la abre. Instala o desinstala Ollama con `winget`, enciende y apaga el
+  servidor, lista los modelos con su tamaño y el espacio del disco, descarga con progreso y
+  cancelación, borra y marca un modelo preferido.
+- **Ollama en opencode**: al encender escribe el proveedor `ollama` en el `opencode.json(c)`
+  global, así que sale en `CONECTORES` y en `ASIGNAR AGENTES`; al apagar lo retira. Si quedó
+  encendido, el servidor vuelve al activar la extensión.
+- La `PIZARRA` sigue en su sitio: ahora se abre desde `SUBIR PIZARRA`, en el bloc del dictado.
 
 ## Instalar
 
@@ -21,26 +33,26 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.4.0.vsix`.
+3. Elige `opencode-alfred-0.5.0.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.4.0.vsix
+code --install-extension opencode-alfred-0.5.0.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.4.0.vsix --force
+code --install-extension opencode-alfred-0.5.0.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?
 
 - **ALFRED** en la barra de actividad (izquierda): el centro de control. Explorador de
   agentes, MCP, skills y plugins; arriba, el mando con los botones de conectores,
-  asignación de modelos, pizarra y sesión.
+  asignación de modelos, mente local y sesión.
 - **VOZ** en la barra lateral derecha: ecualizador de barras y ajustes de voz.
 - **DICTADO** en el panel inferior: bloc de notas, configuración y micrófono.
 - **Visor Alfred 3D**: haz doble clic en un `.blend` desde el Explorador (o menú contextual →

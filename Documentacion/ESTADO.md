@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 30 de octubre de 2026 · versión **0.4.0**
+Última revisión: 30 de octubre de 2026 · versión **0.5.0**
 
 ## Resumen
 
@@ -50,23 +50,37 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   abren las escenas ya cacheadas y las que traen un `.glb` al lado del `.blend` (sidecar).
   El `.blend` nunca se guarda.
 
+- **Mente local (Ollama)**: pestaña central con el cerebro local del equipo. Detecta la
+  instalación y la da de alta o de baja con `winget`; enciende el cerebro (arranca
+  `ollama serve` si falta) y lo apaga; el bloque SERVIDOR tiene su propio `ARRANCAR`/`PARAR`,
+  independiente del interruptor. Lista los modelos con su tamaño y el espacio libre del
+  disco, con filtro, orden, descarga con progreso y cancelación, borrado y modelo preferido.
+  Con el cerebro encendido escribe `provider.ollama` en el `opencode.json(c)` global (y lo
+  reescribe al descargar o borrar), así que Ollama aparece en `CONECTORES` y en
+  `ASIGNAR AGENTES`; al apagar lo retira y al activar la extensión el servidor vuelve solo.
+  Revisada (`PASS`), con `typecheck` y `compile` en verde.
+
 ## Siguiente
 
-1. **Probar el alta real de conectores** contra la API (crea credenciales; hasta ahora
+1. **Mente local en vivo**: pulsar `MENTE LOCAL` y recorrer la pestaña con VS Code real
+   (instalar, encender, descargar un modelo, apagar) y comprobar que el proveedor `ollama`
+   aparece en `CONECTORES` y en `ASIGNAR AGENTES`. Hasta ahora está verificado el código, no
+   el recorrido completo.
+2. **Probar el alta real de conectores** contra la API (crea credenciales; hasta ahora
    se validaron los formularios y las rutas con datos reales simulados).
-2. **Pizarra de workflows en VS Code real**: puntero real de las asas, reenganche de
+3. **Pizarra de workflows en VS Code real**: puntero real de las asas, reenganche de
    conectores al mover el nodo, zoom con arrastre de tramos y la cabecera a poco ancho.
-3. **Lápiz real**: confirmar que los trazos no se cortan en un dispositivo táctil
+4. **Lápiz real**: confirmar que los trazos no se cortan en un dispositivo táctil
    (depende del driver; el manejo de `pointercancel` ya está puesto).
-4. **Visor 3D en VS Code real**: el motor `VISOR` de punta a punta (del `.blend` al PNG en
+5. **Visor 3D en VS Code real**: el motor `VISOR` de punta a punta (del `.blend` al PNG en
    disco con la extensión instalada) y el sidecar `.glb` junto al `.blend`. Hasta ahora está
    probado con Chrome, Blender 4.4 real y stubs del host, no con la ventana de VS Code.
-5. **`modelo1.blend`**: Blender pinta 15 personajes apilados y su mundo anula el sol sobre
+6. **`modelo1.blend`**: Blender pinta 15 personajes apilados y su mundo anula el sol sobre
    lo visible, mientras el visor solo muestra lo visible. Rareza del `.blend`, no del visor:
    decidir si se documenta o se deja.
-6. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
+7. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
    usan en ejecución.
-7. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
+8. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
 
 ## Alcance
 

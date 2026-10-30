@@ -81,6 +81,9 @@
     btnMermaid: document.getElementById("btn-mermaid"),
     btnHelp: document.getElementById("btn-help"),
     modal: document.getElementById("modal"),
+    tabs: document.getElementById("pz-tabs"),
+    btnBoardAdd: document.getElementById("btn-board-add"),
+    btnBoardDel: document.getElementById("btn-board-del"),
     modalText: document.getElementById("modal-text"),
     modalOk: document.getElementById("modal-ok"),
     modalCancel: document.getElementById("modal-cancel"),
@@ -172,6 +175,13 @@
   let dirty = false;
   /** `init` ya aplicado: hasta entonces no se guarda nada (la escena aún no está). */
   let iniciada = false;
+  /** Pizarra activa y todas las que hay: las manda el host en cada `init`. La 1 siempre existe. */
+  let pizarraActual = 1;
+  /** Pizarra cuyo contenido está pintado en el lienzo: cambia al aplicar su `init`, no al pedirla. */
+  let pizarraVisible = 1;
+  let pizarras = [1];
+  /** Sube con cada `init`: un `init` viejo que termine tarde no pisa la pizarra nueva. */
+  let initGen = 0;
   /** Encuadre: escala `z` y desplazamiento en píxeles de pantalla, aplicados por CSS. */
   const view = { z: 1, tx: 0, ty: 0 };
   /** Barra espaciadora pulsada: el arrastre panea en vez de dibujar o seleccionar. */
@@ -1075,7 +1085,7 @@
     // se pospone hasta que la escena esté puesta.
     if (!dirty || !iniciada) return;
     dirty = false;
-    vscode.postMessage({ type: "snapshot", png: pngBase64(), scene: escenaParaEnviar() });
+    vscode.postMessage({ type: "snapshot", board: pizarraActual, png: pngBase64(), scene: escenaParaEnviar() });
   }
 
   // ── Escena (contrato con el host) ─────────────────────────
@@ -3206,6 +3216,63 @@
     });
   }
 
+  // ── Pizarras de la pestaña ────────────────────────────────
+
+  /**
+   * Pinta la tira de pestañas con `pizarras` y marca la activa. La 1 lleva el distintivo IA:
+   * es la que leen y editan los agentes y no se puede eliminar.
+   */
+  function pintaPestanas() {
+    el.tabs.textContent = "";
+    for (const n of pizarras) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "pz-tab" + (n === pizarraActual ? " on" : "");
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", n === pizarraActual ? "true" : "false");
+      b.textContent = String(n);
+      b.title = n === 1 ? "Pizarra 1: la que leen y editan los agentes" : `Pizarra ${n}`;
+      if (n === 1) {
+        const ia = document.createElement("span");
+        ia.className = "pz-tab-ia";
+        ia.textContent = "IA";
+        b.appendChild(ia);
+      }
+      b.addEventListener("click", () => {
+        if (n === pizarraActual) return;
+        // El volcado va primero: el host encadena sus mensajes y lo escribe en la pizarra que
+        // se deja, no en la que llega.
+        flushSnapshot();
+        vscode.postMessage({ type: "switchBoard", board: n });
+      });
+      el.tabs.appendChild(b);
+    }
+    // La 1 no se puede eliminar: el `−` se apaga y dice por qué.
+    const sola = pizarraActual === 1;
+    el.btnBoardDel.disabled = sola;
+    el.btnBoardDel.title = sola
+      ? "La pizarra 1 no se puede eliminar: es la que leen y editan los agentes"
+      : `Eliminar la pizarra ${pizarraActual}`;
+  }
+
+  function anadirPizarra() {
+    flushSnapshot();
+    vscode.postMessage({ type: "addBoard" });
+  }
+
+  function eliminarPizarra() {
+    if (pizarraActual === 1) return;
+    void preguntar(`Se eliminará la pizarra ${pizarraActual} con su imagen. No se puede deshacer.`, "ELIMINAR").then(
+      (aceptar) => {
+        if (aceptar) {
+          // Volcado antes de borrar: el host lo escribe en la pizarra que aún existe.
+          flushSnapshot();
+          vscode.postMessage({ type: "deleteBoard", board: pizarraActual });
+        }
+      }
+    );
+  }
+
   /** Tira el diagrama, los trazos, las imágenes y los textos y conserva el color de fondo. */
   function vaciar() {
     // El color es una preferencia: vaciar no lo devuelve al blanco.
@@ -3494,6 +3561,8 @@
   el.tools.forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
   el.btnNew.addEventListener("click", nuevaEnBlanco);
   el.btnPaste.addEventListener("click", desdePortapapeles);
+  el.btnBoardAdd.addEventListener("click", anadirPizarra);
+  el.btnBoardDel.addEventListener("click", eliminarPizarra);
   el.btnSave.addEventListener("click", guardar);
   el.btnUndo.addEventListener("click", () => void deshacer());
   el.btnRedo.addEventListener("click", () => void rehacer());
@@ -4082,9 +4151,38 @@
     const m = event.data;
     if (!m) return;
     if (m.type === "init") {
+      const gen = ++initGen;
+      // Un `snapshot` de rebote no se cuela en la pizarra que llega.
+      iniciada = false;
+      pizarraActual = num(m.board, 1);
+      pizarras = Array.isArray(m.boards) && m.boards.length ? m.boards.slice() : [1];
+      pintaPestanas();
+      // Los `init` van en cadena: uno lento no puede aplicar su escena sobre la pizarra siguiente.
+      const previa = cargando;
       // Se guarda la promesa: una `capture` que llegue antes de terminar exportaría un lienzo en
       // blanco y la extensión lo escribiría encima de la copia de trabajo.
       cargando = (async () => {
+        if (previa) await previa;
+        if (gen !== initGen) return;
+        // Se compara al aplicar, no al recibir: dos clics de pestaña seguidos dejan `iniciada` en
+        // `false` y el `init` viejo ya no delata el cambio. `init` también llega al cambiar de
+        // pizarra, y con `scene:null` + `png:null` nada más vaciaría el lienzo.
+        const cambiada = pizarraVisible !== pizarraActual;
+        if (cambiada) {
+          vaciar();
+          // Vista limpia: el zoom y el paneo de la otra pizarra no valen aquí. `dirty` a cero
+          // para no devolver al host lo que se acaba de dejar.
+          dirty = false;
+          fijado = false;
+          H = SIZE;
+          medirMarco(true);
+          view.z = 1;
+          view.tx = 0;
+          view.ty = 0;
+          aplicaVista();
+          reiniciarHistorial();
+        }
+        pizarraVisible = pizarraActual;
         const doc = m.scene && typeof m.scene === "object" ? m.scene : null;
         if (doc) {
           await aplicarEscena(doc, { mantenerVista: false });
@@ -4108,9 +4206,10 @@
           reiniciarHistorial();
         } else {
           aplicaFondo(m.bgColor);
-          setStatus(`Lienzo listo: ${W} × ${H}.`);
+          setStatus(`Pizarra ${pizarraActual}.`);
           reiniciarHistorial();
         }
+        if (gen !== initGen) return;
         paintLayers();
         actualizarContexto();
         // `redraw`, no `changed`: restaurar no es un cambio, y reescribir la copia con la misma
@@ -4174,11 +4273,11 @@
       // Respuesta inmediata: se anula el reposo del debounce para no mandar dos veces.
       clearTimeout(snapshotTimer);
       dirty = false;
-      vscode.postMessage({ type: "snapshot", png: pngBase64(), scene: escenaParaEnviar() });
+      vscode.postMessage({ type: "snapshot", board: pizarraActual, png: pngBase64(), scene: escenaParaEnviar() });
       return;
     }
     if (m.type === "saved") {
-      setStatus(`Guardado en ${m.path}`, "ok");
+      setStatus(`Guardado en ${m.path}${m.scenePath ? ` y ${m.scenePath}` : ""}`, "ok");
       return;
     }
     if (m.type === "copied") {
@@ -4202,6 +4301,7 @@
   // BG_DEFAULT es la única fuente del color por defecto: el HTML solo lleva el valor inicial.
   el.bgColor.value = BG_DEFAULT;
   setTool("select");
+  pintaPestanas(); // la 1 sola y con el `−` apagado hasta que el host mande su `init`
   aplicaVista();
   medirMarco(true); // primer ajuste con el aspecto real del marco antes de pintar nada
   pintaMedida();

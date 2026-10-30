@@ -14,7 +14,7 @@
     rowOpencode: document.getElementById("row-opencode"),
     connectors: document.getElementById("btn-connectors"),
     assign: document.getElementById("btn-assign"),
-    pizarra: document.getElementById("btn-pizarra"),
+    mente: document.getElementById("btn-mente"),
     agentsProject: document.getElementById("agents-project"),
     agentsGlobal: document.getElementById("agents-global"),
     agentsProjectCount: document.getElementById("agents-project-count"),
@@ -354,6 +354,12 @@
     // CONECTORES y ASIGNAR AGENTES solo valen con opencode: con otro agente se oculta su fila.
     el.rowOpencode.classList.toggle("off", data.sessionAgent !== "opencode");
 
+    // MENTE LOCAL brilla mientras el servidor de Ollama responde: se ve sin abrir la pestaña.
+    if (el.mente) {
+      el.mente.classList.toggle("on", !!data.menteLocal);
+      el.mente.setAttribute("aria-pressed", String(!!data.menteLocal));
+    }
+
     // El botón de sesión lleva el dibujo de la app; sin logo conocido, el texto de siempre.
     const nombreSesion = (
       AGENT_LABELS[data.sessionAgent] || String(data.sessionAgent || "")
@@ -409,7 +415,7 @@
   el.addPlugin.addEventListener("click", () => act({ type: "addPlugin" }));
   el.connectors.addEventListener("click", () => act({ type: "openConnectors" }));
   el.assign.addEventListener("click", () => act({ type: "openAssign" }));
-  el.pizarra.addEventListener("click", () => act({ type: "openPizarra" }));
+  el.mente.addEventListener("click", () => act({ type: "openMenteLocal" }));
   // Se engancha una sola vez: el HTML es estático y solo cambia de clase.
   el.autoAcceptBtn.addEventListener("click", () => {
     const on = el.autoAcceptBtn.classList.contains("on");

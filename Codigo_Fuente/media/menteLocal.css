@@ -1,0 +1,552 @@
+/* Mente local — HUD del cerebro Ollama: interruptor, modelos, descarga e instalación.
+   Todo sale de tokens.css; aquí solo el reparto y lo propio del panel. */
+
+:root {
+  color-scheme: dark light;
+}
+
+body {
+  /* Secundario que no es estado apagado. `--text-dim` se reserva para `:disabled`,
+     placeholder, «—» y lo que está parado. */
+  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
+  padding: 0 12px 18px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ── Cabecera ─────────────────────────────────────────── */
+.hud-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--bg);
+  margin-bottom: 8px;
+}
+
+.hud-title {
+  flex: 1 1 120px;
+  min-width: 0;
+  margin: 0;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Interruptor del cerebro: punto de estado + texto, como el del MCP en el panel de voz. */
+.power {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.power:hover:not(:disabled),
+.power:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.power.on {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 55%, transparent);
+}
+
+.power.on:hover:not(:disabled) {
+  border-color: var(--green);
+}
+
+.power:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.power:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+  cursor: progress;
+}
+
+.power-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.power-dot.on {
+  background: var(--green);
+  box-shadow: 0 0 7px var(--green);
+}
+
+.power-dot.off {
+  background: var(--amber);
+}
+
+.power-dot.pulsa {
+  animation: power-pulse 1s ease-in-out infinite;
+}
+
+@keyframes power-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* ── Resumen y aviso ──────────────────────────────────── */
+.resumen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 7px;
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  line-height: 1.5;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.r-item.fuerte {
+  color: var(--text);
+}
+
+.r-item.ok {
+  color: var(--green);
+}
+
+.r-item.off {
+  color: var(--text-dim);
+}
+
+.r-sep {
+  color: var(--text-dim);
+}
+
+.aviso {
+  margin: 0 0 10px;
+  padding: 5px 8px;
+  border-left: 2px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--text-soft);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.aviso.error {
+  border-left-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 9%, transparent);
+  color: var(--amber);
+}
+
+/* ── Bloques ──────────────────────────────────────────── */
+/* La lista de modelos ocupa el ancho; los tres bloques cortos se reparten debajo. */
+.cuerpo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px 20px;
+  align-items: start;
+}
+
+#bloque-modelos {
+  grid-column: 1 / -1;
+}
+
+.bloque {
+  min-width: 0;
+}
+
+.bloque-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding-bottom: 5px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.bloque-title {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 1.8px;
+  color: var(--neon);
+  text-transform: uppercase;
+}
+
+.bloque-head .count {
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  color: var(--text-soft);
+}
+
+.pista {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.ruta {
+  margin: 6px 0 0;
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+/* ── Orden, campos y botones ──────────────────────────── */
+.orden {
+  display: inline-flex;
+  margin-left: auto;
+  border: 1px solid var(--line-soft);
+}
+
+.ord {
+  padding: 2px 7px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--line-soft);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 8.5px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.ord:first-child {
+  border-left: none;
+}
+
+.ord:hover,
+.ord:focus-visible {
+  color: var(--neon);
+  outline: none;
+}
+
+.ord.on {
+  color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 12%, transparent);
+}
+
+.campo {
+  min-width: 0;
+  padding: 4px 7px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.campo::placeholder {
+  color: var(--text-dim);
+}
+
+.campo:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.campo:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+}
+
+.campo.mal {
+  border-color: var(--magenta);
+}
+
+.campo-filtro {
+  flex: 1 1 130px;
+  max-width: 220px;
+  font-size: 10.5px;
+}
+
+.fila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fila .campo {
+  flex: 1 1 200px;
+}
+
+.btn {
+  flex: none;
+  padding: 5px 9px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled),
+.btn:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+.btn:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+  cursor: default;
+}
+
+.btn.mini {
+  padding: 2px 7px;
+  font-size: 8.5px;
+  letter-spacing: 1px;
+}
+
+.btn.danger:hover:not(:disabled),
+.btn.danger:focus-visible {
+  color: var(--magenta);
+  border-color: var(--magenta);
+}
+
+/* Segundo paso del botón destructivo. El ancho se fija para que «¿SEGURO?» no
+   mueva la fila al sustituir a «BORRAR» / «DESINSTALAR». */
+[data-confirm] {
+  min-width: 76px;
+  text-align: center;
+}
+
+/* La etiqueta más larga manda: el ancho no cambia al armarse. */
+#desinstalar {
+  min-width: 92px;
+}
+
+.btn.confirmar,
+.btn.confirmar:hover {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+}
+
+/* ── Lista de modelos ─────────────────────────────────── */
+.modelos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.mrow:last-child {
+  border-bottom-color: transparent;
+}
+
+.mrow:hover {
+  background: var(--bg-soft);
+  border-bottom-color: transparent;
+}
+
+.m-main {
+  flex: 1 1 240px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 7px;
+  min-width: 0;
+}
+
+.m-name {
+  font-size: 11.5px;
+  letter-spacing: 0.3px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.m-params {
+  font-size: 9.5px;
+  color: var(--text-soft);
+}
+
+.chip.mem {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 50%, transparent);
+}
+
+.chip.def {
+  color: var(--neon);
+  border-color: var(--neon-dim);
+}
+
+.m-size {
+  flex: 0 0 9ch;
+  text-align: right;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.m-actions {
+  flex: none;
+  display: flex;
+  gap: 5px;
+}
+
+.vacio {
+  margin: 6px 0 0;
+  padding: 9px 8px;
+  border: 1px dashed var(--line-soft);
+  color: var(--text-soft);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+/* ── Descarga en curso ────────────────────────────────── */
+.pull {
+  margin-top: 8px;
+  padding: 7px 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+}
+
+.pull-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pull-model {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pull-pct {
+  flex: none;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--neon);
+}
+
+.bar {
+  height: 6px;
+  margin: 5px 0 4px;
+  overflow: hidden;
+  background: var(--bg-raised);
+  border: 1px solid var(--line-soft);
+}
+
+.bar-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--neon);
+  box-shadow: 0 0 6px var(--neon-dim);
+  transition: width 0.2s ease;
+}
+
+/* Sin `total` no hay porcentaje: la barra corre sola. */
+.bar.indet .bar-fill {
+  width: 25%;
+  animation: bar-run 1.1s ease-in-out infinite;
+}
+
+@keyframes bar-run {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(410%);
+  }
+}
+
+.pull-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9.5px;
+  color: var(--text-soft);
+}
+
+.pull-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pull-bytes {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Ancho escaso: las acciones de la fila bajan a su propia línea ── */
+@media (max-width: 760px) {
+  .m-main {
+    flex-basis: 100%;
+  }
+
+  .m-size {
+    margin-left: auto;
+  }
+
+  .campo-filtro {
+    max-width: none;
+  }
+
+  .orden {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .power-dot.pulsa,
+  .bar.indet .bar-fill {
+    animation: none;
+  }
+
+  .bar-fill {
+    transition: none;
+  }
+}

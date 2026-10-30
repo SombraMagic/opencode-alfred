@@ -3,6 +3,30 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.5.0] - 2026-10-30
+
+- **Mente local (Ollama)**: pestaña central nueva, con botón `MENTE LOCAL` en el mando del
+  Explorador (sustituye al de `PIZARRA`, que se sigue abriendo desde el bloc del dictado).
+  Detecta si Ollama está instalado y lo instala o desinstala con `winget`. Enciende el cerebro
+  (arranca `ollama serve` si hace falta) y lo apaga (para el proceso); el servidor se puede
+  arrancar y parar también por separado, sin tocar el proveedor de opencode. El botón del
+  Explorador brilla mientras el servidor responde. Lista los modelos con su
+  tamaño y el espacio libre del disco, con filtro y orden; descarga uno nuevo con progreso y
+  cancelación, borra los que sobran y marca un modelo preferido.
+- **Proveedor `ollama` en opencode**: al encender escribe `provider.ollama`
+  (`@ai-sdk/openai-compatible`, `http://127.0.0.1:11434/v1`) con los modelos instalados en el
+  `opencode.json(c)` global, así que Ollama aparece en `CONECTORES` y en `ASIGNAR AGENTES`; al
+  apagar lo retira. Con el cerebro encendido, descargar o borrar reescribe el proveedor. Al
+  activar la extensión, si quedó encendido, el servidor vuelve solo.
+- **Multipizarra**: la pizarra deja de ser una sola. Una tira de pestañas en la cabecera con
+  `+` para añadir y `−` para eliminar (la pizarra 1 no se puede borrar: es la que leen y
+  editan los agentes). Cambiar de pestaña vuelca lo dibujado en la que se deja; las extra viven
+  en su propia carpeta dentro de los adjuntos, así que el MCP y el dictado siguen viendo la 1.
+  `GUARDAR` escribe además la escena editable (`.json`) junto al PNG.
+- **Seguridad**: no toca credenciales ni los demás proveedores; el config se edita con
+  `jsonc-parser` conservando comentarios. Los modelos y Ollama se quedan en disco al apagar o
+  desinstalar.
+
 ## [0.4.0] - 2026-10-30
 
 - **El botón del MCP deja de preguntar**: ya no abre el selector de VS Code. Al activar, la

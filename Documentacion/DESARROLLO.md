@@ -26,6 +26,7 @@
 │  │  ├─ providers/          lectores de config de Claude Code y Codex
 │  │  ├─ blender/            puente con la CLI de Blender: export a GLB y renders
 │  │  ├─ pizarra/            escena y ficheros de la pizarra (sin `vscode`)
+│  │  ├─ ollama/             mente local: `client`, `process`, `provider` y `service`
 │  │  ├─ mcp/                servidor `mcp_alfred` (voz y pizarra) → `dist/alfred-mcp.js`
 │  │  ├─ voice/              motores de voz y dictado
 │  │  └─ extension.ts        comandos, sondeo en vivo y reparto a los paneles
@@ -40,6 +41,11 @@
 ├─ Documentacion/            documentos del proyecto
 └─ Instalable/               readme de instalación y el .vsix publicado
 ```
+
+El panel de Mente local es `src/panels/menteLocalPanel.ts` con `media/menteLocal.js` y
+`media/menteLocal.css`. En `src/ollama/*` solo `service.ts` importa `vscode` (`client`,
+`process` y `provider` no); el alta de `provider.ollama` va al config global con
+`jsonc-parser` y `writeAtomic`.
 
 ## Comandos
 

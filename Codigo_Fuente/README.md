@@ -21,7 +21,7 @@ nunca. El detalle está en la tabla del
 ### ALFRED — Explorador (barra de actividad)
 
 - **Mando**: `GLOBAL` / `PROYECTO`, el selector del agente de sesión (opencode, Claude o
-  Codex), `ACEPTAR TODO` y los botones `CONECTORES`, `ASIGNAR AGENTES` y `PIZARRA`.
+  Codex), `ACEPTAR TODO` y los botones `CONECTORES`, `ASIGNAR AGENTES` y `MENTE LOCAL`.
 - **Explorador**: agentes de proyecto y globales, con su modelo, animación de vuelo cuando
   trabajan y tokens (sesión y total). `VER` abre su formulario.
 - **Control**: MCP, skills y plugins de cada proveedor, con interruptor para activar y
@@ -58,8 +58,9 @@ fila de `CONECTORES`; solo sondea con la vista abierta.
 ### Pizarra
 
 Lienzo por capas, de abajo arriba: fondo (color o imagen), **diagrama**, imágenes movibles,
-trazos con lápiz y goma, y textos. Zoom con la rueda y paneo con `Espacio` + arrastrar.
-`SUBIR PIZARRA` la mete en el bloc del dictado como adjunto.
+trazos con lápiz y goma, y textos. Zoom con la rueda y paneo con `Espacio` + arrastrar. Se
+abre desde `SUBIR PIZARRA` en el bloc del dictado, y ese mismo botón la mete en el bloc como
+adjunto.
 
 - **Diagrama**: capa para dibujar workflows con nodos (seis formas y doce iconos) y
   conectores ortogonales. Los conectores se crean arrastrando un asa del nodo y se enganchan
@@ -73,12 +74,34 @@ trazos con lápiz y goma, y textos. Zoom con la rueda y paneo con `Espacio` + ar
   lápiz y el borrador, el círculo del grosor y el núcleo de la goma.
 - **Edición**: deshacer/rehacer de 50 pasos, multi-selección con alinear y distribuir, guías
   y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles.
+- **Varias pizarras**: una tira de pestañas en la cabecera, con `+` para añadir y `−` para
+  eliminar. La pizarra 1 no se puede borrar: es la que leen y editan los agentes. Las demás
+  viven cada una en su carpeta dentro de los adjuntos, y cambiar de pestaña guarda lo dibujado
+  en la que se deja.
 - **Qué se guarda**: el PNG aplanado en `pizarra-ultima.png` y, junto a él, la escena
   editable en `pizarra.json` (misma carpeta de adjuntos). Al reabrir manda la escena; si no
-  es válida, se descarta y queda el PNG. El servidor MCP `mcp_alfred` expone siete
+  es válida, se descarta y queda el PNG. `GUARDAR` deja el PNG y su `.json` donde elijas. El
+  servidor MCP `mcp_alfred` expone siete
   herramientas de pizarra (`pizarra_leer`, `pizarra_escribir`, `pizarra_lienzo`,
   `pizarra_nodo`, `pizarra_arista`, `pizarra_texto`, `pizarra_imagen`) para leerla y
   editarla desde un agente; el panel recarga el cambio solo.
+
+### Mente local (Ollama)
+
+El cerebro local del equipo, en una pestaña central (`MENTE LOCAL` en el mando del
+Explorador). Comprueba si Ollama está instalado y lo instala o desinstala con `winget`;
+encender arranca `ollama serve` si hace falta y apagar para el proceso. El bloque `SERVIDOR`
+tiene además `ARRANCAR` y `PARAR` propios, para gobernar el proceso sin tocar el interruptor
+ni el proveedor de opencode. Lista los modelos con
+su tamaño y el espacio libre del disco (filtrar, ordenar por nombre, tamaño o recientes,
+descargar con progreso y cancelación, borrar uno, marcar el preferido).
+
+Con el cerebro encendido escribe `provider.ollama` en el `opencode.json(c)` global (con
+`@ai-sdk/openai-compatible` en `http://127.0.0.1:11434/v1` y los modelos instalados), así que
+Ollama sale en `CONECTORES` y en `ASIGNAR AGENTES`; al apagar lo retira. Descargar o borrar
+con el cerebro encendido reescribe el proveedor, y al activar la extensión el servidor vuelve
+solo si estaba encendido. No toca credenciales ni los demás proveedores, y el config se edita
+con `jsonc-parser` conservando los comentarios.
 
 ### Visor Alfred 3D (`.blend`)
 

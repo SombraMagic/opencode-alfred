@@ -52,6 +52,103 @@ body {
   white-space: nowrap;
 }
 
+/* ── Pestañas de pizarra ───────────────────────────────── */
+/* Sin barra visible: una barra de scroll dentro del contenedor cambiaría el alto de la
+   cabecera al añadir pestañas. Con scroll horizontal, rueda o Mayús+rueda para moverse. */
+.pz-tabs {
+  display: flex;
+  flex: 0 1 auto;
+  gap: 4px;
+  height: 24px;
+  min-width: 0;
+  max-width: 45vw;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.pz-tabs::-webkit-scrollbar {
+  height: 0;
+}
+
+/* Pastilla de 24 px. Actividad por color, borde y tinte: el tamaño no cambia entre estados. */
+.pz-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.pz-tab:hover,
+.pz-tab:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+.pz-tab.on {
+  color: var(--neon);
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 16%, transparent);
+}
+
+/* El resto de controles van sin anillo; la pestaña activa se distingue mal sin él. */
+.pz-tab:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: 1px;
+}
+
+/* Distintivo de la pizarra que leen y editan los agentes. */
+.pz-tab-ia {
+  margin-left: 4px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--neon);
+}
+
+/* Tema claro: el cian sobre el tinte baja de 4,5:1; el estado lo dicen borde y tinte. */
+body.vscode-light .pz-tab.on {
+  color: var(--text);
+}
+
+/* Añadir y eliminar: un `.ghost-btn` de la cabecera, un poco más pequeño. */
+.pz-board-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--text-soft);
+}
+
+.pz-board-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* `:not(:disabled)`: el `−` apagado no se enciende al pasar el ratón. */
+.pz-board-btn:hover:not(:disabled),
+.pz-board-btn:focus-visible:not(:disabled) {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+/* La pizarra 1 no se puede eliminar: aquí `--text-dim` sí es estado apagado. */
+.pz-board-btn:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+  cursor: default;
+}
+
 /* Acciones de la cabecera: botón cuadrado de icono. El texto vive en `title`/`aria-label`. */
 .pz-actions {
   display: flex;

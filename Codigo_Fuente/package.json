@@ -3,7 +3,7 @@
   "displayName": "OpenCode Alfred",
   "description": "Centro de control de opencode (agentes, MCP, skills, plugins y contexto) con voz, dictado y visor 3D de Blender.",
   "icon": "media/icon.png",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "SombraMagic",
   "license": "MIT",
   "repository": {
@@ -149,6 +149,11 @@
       {
         "command": "opencodeAgents.pizarra",
         "title": "Pizarra",
+        "category": "opencode"
+      },
+      {
+        "command": "opencodeAgents.menteLocal",
+        "title": "Mente local (Ollama)",
         "category": "opencode"
       },
       {

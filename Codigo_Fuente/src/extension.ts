@@ -37,6 +37,10 @@ import {
 } from "./panels/explorerPanel";
 import { AssignAction, AssignAgent, AssignData, AssignPanel, AssignProfile, FavoriteGroup, ModelEntry } from "./panels/assignPanel";
 import { ConnectorsPanel, ConnectorAction } from "./panels/connectorsPanel";
+import { MenteLocalPanel } from "./panels/menteLocalPanel";
+import { collectState, liveState, MenteLocalState, readSettings, runAction } from "./ollama/service";
+import { startServer } from "./ollama/process";
+import { ollamaVersion } from "./ollama/client";
 import { PizarraPanel, pizarraAdjuntosDir } from "./panels/pizarraPanel";
 import { BlendViewerProvider } from "./panels/blendViewerPanel";
 import {
@@ -192,6 +196,10 @@ export function activate(context: vscode.ExtensionContext): void {
   const availableAgents: SessionAgent[] = [];
   let sessionAgent: SessionAgent = "opencode";
   void detectAgents();
+
+  // Si Mente local quedó encendida, el servidor debe volver: el proveedor ya está escrito.
+  // Arranca en silencio; si falla, el panel lo cuenta al abrirse.
+  void startServerIfEnabled().catch(() => {});
 
   let disabledPlugins: DisabledPlugin[] = context.globalState.get<DisabledPlugin[]>(DISABLED_PLUGINS, []);
   async function setPluginDisabled(
@@ -492,6 +500,25 @@ export function activate(context: vscode.ExtensionContext): void {
     }, 10 * 60 * 1000);
   }
   context.subscriptions.push({ dispose: () => limitsTimer && clearInterval(limitsTimer) });
+
+  // ── Mente local: brillo del botón del Explorador ─────────────────────────
+  // Se sondea el servidor, no los ajustes: encendida y parada es un estado válido.
+  let menteLocalOn = false;
+  async function probeMenteLocal(): Promise<void> {
+    let on = false;
+    try {
+      await ollamaVersion(readSettings(context).baseURL);
+      on = true;
+    } catch {
+      on = false;
+    }
+    if (on !== menteLocalOn) {
+      menteLocalOn = on;
+      explorer.update(buildExplorerData());
+    }
+  }
+  const menteLocalTimer = setInterval(probeMenteLocal, 5000);
+  context.subscriptions.push({ dispose: () => clearInterval(menteLocalTimer) });
 
   async function refreshLimits(force = false): Promise<void> {
     const providers = await collectLimits(limitsProviderIds(), {
@@ -874,6 +901,7 @@ export function activate(context: vscode.ExtensionContext): void {
         autoAccept: claude.autoAccept,
         sessionAgent,
         sessionAgents: availableAgents,
+        menteLocal: menteLocalOn,
       };
     }
     if (sessionAgent === "codex") {
@@ -889,6 +917,7 @@ export function activate(context: vscode.ExtensionContext): void {
         autoAccept: codex.autoAccept,
         sessionAgent,
         sessionAgents: availableAgents,
+        menteLocal: menteLocalOn,
       };
     }
     const totals = display?.totals;
@@ -935,6 +964,7 @@ export function activate(context: vscode.ExtensionContext): void {
       autoAccept,
       sessionAgent,
       sessionAgents: availableAgents,
+      menteLocal: menteLocalOn,
     };
   }
 
@@ -1447,6 +1477,56 @@ export function activate(context: vscode.ExtensionContext): void {
         `No se pudieron leer los conectores: ${err instanceof Error ? err.message : String(err)}`
       );
     }
+  }
+
+  async function openMenteLocalPanel(): Promise<void> {
+    let state: MenteLocalState;
+    try {
+      state = await collectState(context);
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        `No se pudo leer Mente local: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return;
+    }
+    MenteLocalPanel.open(context, state, {
+      onAction: (action) => {
+        // Mientras la acción dura, el estado vivo se repinta sin releer el disco.
+        const timer = setInterval(() => MenteLocalPanel.current?.updateLive(liveState()), 500);
+        void runAction(context, action).finally(async () => {
+          clearInterval(timer);
+          const next = await collectState(context).catch(() => undefined);
+          const panel = MenteLocalPanel.current;
+          if (panel && next) {
+            panel.update(next);
+          }
+          if (next) {
+            // Sin pedir `/api/version` otra vez: la acción ya sabe cómo quedó el servidor.
+            // Brilla con el servidor en marcha, esté o no el cerebro encendido (misma regla que la sonda).
+            menteLocalOn = next.running;
+            explorer.update(buildExplorerData());
+          }
+        });
+      },
+      onReady: () => void refreshMenteLocalPanel(),
+    });
+  }
+
+  async function refreshMenteLocalPanel(): Promise<void> {
+    const panel = MenteLocalPanel.current;
+    if (!panel) {
+      return;
+    }
+    panel.update(await collectState(context));
+  }
+
+  /** Con Mente local encendida el proveedor ya está escrito: solo falta levantar el servidor. */
+  async function startServerIfEnabled(): Promise<void> {
+    const settings = readSettings(context);
+    if (!settings.enabled) {
+      return;
+    }
+    await startServer(settings.baseURL);
   }
 
   async function handleConnectorAction(action: ConnectorAction): Promise<void> {
@@ -2137,6 +2217,10 @@ export function activate(context: vscode.ExtensionContext): void {
       void PizarraPanel.open(context)
     ),
 
+    vscode.commands.registerCommand("opencodeAgents.menteLocal", () =>
+      void openMenteLocalPanel()
+    ),
+
     vscode.commands.registerCommand(
       "opencodeAgents.openInAlfred3D",
       async (uri?: vscode.Uri) => {
@@ -2823,8 +2907,8 @@ export function activate(context: vscode.ExtensionContext): void {
         await openConnectorsPanel();
         return;
 
-      case "openPizarra":
-        await PizarraPanel.open(context);
+      case "openMenteLocal":
+        await openMenteLocalPanel();
         return;
     }
   }
@@ -3009,6 +3093,9 @@ export function activate(context: vscode.ExtensionContext): void {
       voicePanel?.refresh();
     })
   );
+
+  // Estado inicial del botón MENTE LOCAL, sin esperar al primer tick del sondeo.
+  void probeMenteLocal();
 }
 
 export function deactivate(): void {
