@@ -170,6 +170,8 @@
   let guias = [];
   let snapshotTimer = 0;
   let dirty = false;
+  /** `init` ya aplicado: hasta entonces no se guarda nada (la escena aún no está). */
+  let iniciada = false;
   /** Encuadre: escala `z` y desplazamiento en píxeles de pantalla, aplicados por CSS. */
   const view = { z: 1, tx: 0, ty: 0 };
   /** Barra espaciadora pulsada: el arrastre panea en vez de dibujar o seleccionar. */
@@ -1068,7 +1070,10 @@
 
   /** `capture` contesta al momento; el resto va con reposo de 600 ms. */
   function flushSnapshot() {
-    if (!dirty) return;
+    // Sin el `init` aplicado, la escena es un lienzo vacío: guardarla pisaría el dibujo bueno.
+    // El panel mide el marco antes de recibir la escena y eso marca `dirty`, así que la guarda
+    // se pospone hasta que la escena esté puesta.
+    if (!dirty || !iniciada) return;
     dirty = false;
     vscode.postMessage({ type: "snapshot", png: pngBase64(), scene: escenaParaEnviar() });
   }
@@ -4111,7 +4116,30 @@
         // `redraw`, no `changed`: restaurar no es un cambio, y reescribir la copia con la misma
         // imagen no aporta nada.
         redraw();
+        // Desde aquí la escena ya está puesta y sus guardados son seguros. Si el marco se midió
+        // antes de llegar (lienzo elástico) quedó `dirty` sin temporizador: se guarda ahora.
+        iniciada = true;
+        // Con escena restaurada se rehace la copia: si otro proceso (el MCP) la cambió con el
+        // panel cerrado, el PNG aplanado se quedaría viejo.
+        if (doc) dirty = true;
+        if (dirty) {
+          clearTimeout(snapshotTimer);
+          snapshotTimer = setTimeout(flushSnapshot, 600);
+        }
       })();
+      return;
+    }
+    if (m.type === "sceneReload") {
+      const doc = m.scene && typeof m.scene === "object" ? m.scene : null;
+      if (doc) {
+        // Otro proceso (el MCP) reescribió la escena: se aplica sin mover la vista y se deja
+        // entrada de deshacer, para que el usuario pueda volver a lo que tenía.
+        if (cargando) await cargando;
+        await aplicarEscena(doc, { mantenerVista: true });
+        changed();
+        commit();
+        setStatus("La escena cambió fuera del panel: recargada.");
+      }
       return;
     }
     if (m.type === "clipboardImage") {

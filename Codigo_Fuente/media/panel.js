@@ -97,8 +97,12 @@
     });
   });
 
-  $("install-mcp").addEventListener("click", () => {
-    post({ type: "installMcp" });
+  const mcpToggle = $("mcp-toggle");
+  mcpToggle.addEventListener("click", () => {
+    // Mientras el host instala o apaga no se puede volver a pulsar.
+    mcpToggle.disabled = true;
+    $("mcp-hint").textContent = "instalando…";
+    post({ type: "toggleMcp" });
   });
 
   // ── Agentes en vuelo ───────────────────────────────────
@@ -409,9 +413,21 @@
         window.VOZEqualizer?.idle();
         break;
 
-      case "mcp":
-        $("mcp-hint").textContent = msg.message;
+      case "mcp": {
+        const list = Array.isArray(msg.agents) ? msg.agents : [];
+        const dot = $("mcp-dot");
+        dot.className = "mcp-dot " + (msg.enabled ? "on" : "off");
+        mcpToggle.disabled = false;
+        // Un aviso del host (error de instalación) manda sobre el estado.
+        $("mcp-hint").textContent =
+          msg.message ||
+          (msg.enabled
+            ? "activado · " + list.join(" · ")
+            : list.length
+              ? "desactivado"
+              : "sin agente");
         break;
+      }
     }
   });
 

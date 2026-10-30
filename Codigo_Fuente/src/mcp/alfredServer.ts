@@ -1,5 +1,6 @@
 /**
- * Servidor MCP `voz` por stdio (JSON-RPC 2.0, un objeto por línea).
+ * Servidor MCP `mcp_alfred` por stdio (JSON-RPC 2.0, un objeto por línea): cubre la voz
+ * (`speak`, `list_voices`) y las herramientas de la pizarra.
  *
  * Corre como proceso propio, lanzado por el agente: aquí NO hay `vscode`.
  * stdout es solo protocolo; cualquier diagnóstico va a stderr. Reutiliza los
@@ -20,13 +21,14 @@ import {
   toPcm,
 } from "../voice/core/index.js";
 import type { TtsMotor } from "../voice/core/index.js";
+import { callPizarraTool, PIZARRA_TOOLS } from "./alfredPizarra";
 
 const PROTOCOL_VERSION = "2025-06-18";
-const SERVER_INFO = { name: "voz", version: "1.0.0" };
+const SERVER_INFO = { name: "mcp_alfred", version: "1.1.0" };
 
 const ENGINES = ["sapi", "edge", "openai", "elevenlabs"];
 
-const TOOLS = [
+const VOICE_TOOLS = [
   {
     name: "speak",
     description: "Lee un texto en voz alta con el motor de voz configurado.",
@@ -54,6 +56,9 @@ const TOOLS = [
     },
   },
 ];
+
+/** Todo lo que publica el servidor: voz primero, luego la pizarra. */
+const TOOLS = [...VOICE_TOOLS, ...PIZARRA_TOOLS];
 
 /** Escribe un mensaje JSON-RPC en stdout. */
 function send(payload: unknown): void {
@@ -150,6 +155,10 @@ async function callTool(params: unknown): Promise<unknown> {
     if (name === "list_voices") {
       return { content: [{ type: "text", text: await listVoices(input) }] };
     }
+    const pizarra = typeof name === "string" ? await callPizarraTool(name, input) : undefined;
+    if (pizarra !== undefined) {
+      return { content: [{ type: "text", text: pizarra }] };
+    }
     throw new Error(`Herramienta desconocida: ${String(name)}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -220,7 +229,7 @@ async function handleLine(line: string): Promise<void> {
   } catch {
     const id = idOfBrokenJson(text);
     if (id === undefined) {
-      process.stderr.write(`[voz] JSON inválido: ${text.slice(0, 120)}\n`);
+      process.stderr.write(`[alfred] JSON inválido: ${text.slice(0, 120)}\n`);
       return;
     }
     replyError(id, -32700, "JSON inválido.");
@@ -238,7 +247,7 @@ let queue = Promise.resolve();
 lines.on("line", (line) => {
   // Ninguna línea puede tumbar el proceso: la sesión MCP vive hasta cerrar stdin.
   queue = queue.then(() => handleLine(line)).catch((err) => {
-    process.stderr.write(`[voz] ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(`[alfred] ${err instanceof Error ? err.message : String(err)}\n`);
   });
 });
 

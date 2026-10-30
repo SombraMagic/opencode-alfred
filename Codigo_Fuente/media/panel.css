@@ -288,6 +288,19 @@ input[type="range"]::-moz-range-thumb {
 
 .mcp-hint { font-size: 9px; color: var(--text-dim); flex: 1; min-width: 90px; }
 
+/* Punto de estado del interruptor: verde en marcha, ámbar apagado. */
+.mcp-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.mcp-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.mcp-dot.off { background: var(--amber); }
+
 /* ── Ajustes por tema ─────────────────────────────────── */
 /* Los colores vienen de tokens.css; aquí solo el degradado del botón. */
 body.vscode-light .speak-btn {

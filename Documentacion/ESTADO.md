@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 30 de octubre de 2026 · versión **0.3.5**
+Última revisión: 30 de octubre de 2026 · versión **0.4.0**
 
 ## Resumen
 
@@ -30,8 +30,10 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   OpenCode Go lee el consumo real de la consola (porcentajes con su reposición) y solo
   estima con las bases si esa ruta no existe.
 - **Voz** (SAPI, Edge, OpenAI, ElevenLabs) con ecualizador de barras pixeladas, y **dictado**
-  (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP viaja dentro
-  de la extensión (`dist/voz-mcp.js`), no como paquete externo.
+  (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP `mcp_alfred`
+  viaja dentro de la extensión (`dist/alfred-mcp.js`), no como paquete externo: cubre la voz
+  (`speak`, `list_voices`) y la pizarra (siete herramientas sobre `pizarra.json`, que el panel
+  recarga solo).
 - **Pizarra** por capas con lápiz, imágenes, textos, zoom y envío al prompt. Incluye una
   capa **DIAGRAMA** para dibujar workflows: nodos (formas e iconos) con la etiqueta encajada
   en la silueta y color propio, y conectores ortogonales con asas, codos arrastrables,

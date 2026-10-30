@@ -3,6 +3,35 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.4.0] - 2026-10-30
+
+- **El botón del MCP deja de preguntar**: ya no abre el selector de VS Code. Al activar, la
+  extensión da de alta `mcp_alfred` sola en los agentes que encuentre (opencode, Claude Code,
+  Claude Desktop, Cursor) y el botón del panel de VOZ pasa a ser `ALFRED MCP`, con punto verde
+  o ámbar: enciende o apaga el servidor en todos ellos. Si se apaga a mano, el arranque no lo
+  vuelve a encender.
+- **La pizarra no se guarda en blanco al abrirla**: el panel medía el marco (y marcaba la
+  copia como sucia) antes de recibir la escena, así que a veces el primer `snapshot` escribía
+  un lienzo vacío encima de lo dibujado. Ahora no se guarda nada hasta que la escena está
+  puesta.
+- **El servidor MCP pasa a llamarse `mcp_alfred`** (antes `voz`) y su bundle es
+  `dist/alfred-mcp.js`. Sigue cubriendo la voz con `speak` y `list_voices`, sin cambios.
+  **Rompe** las configuraciones que lo llamen por `voz`: al activar, la extensión sustituye
+  esa entrada del `opencode.json(c)` global por `mcp_alfred` (solo si su comando apuntaba a
+  `voz-mcp.js`; un `voz` ajeno se respeta). El botón `ALFRED MCP` del panel da de alta
+  `mcp_alfred` en opencode, Claude Code, Claude Desktop y Cursor, y retira la entrada vieja.
+- **Herramientas MCP de pizarra**: siete herramientas sobre la escena editable del proyecto
+  (`<proyecto>/.alfred/adjuntos/pizarra.json`). `pizarra_leer` devuelve lienzo, capas,
+  nodos, aristas, textos e imágenes con ids e índices (imágenes resumidas por tamaño, trazos
+  por número) y la ruta del PNG; `pizarra_escribir` sustituye la escena entera; `pizarra_lienzo`
+  toca tamaño y fijado del lienzo, color e imagen de fondo, capas visibles y limpiar una capa;
+  `pizarra_nodo`, `pizarra_arista`, `pizarra_texto` y `pizarra_imagen` crean, editan y borran
+  cada elemento (formas, colores, iconos, flechas, codos, giros).
+- **La pizarra se recarga sola**: el panel vigila `pizarra.json` y aplica lo que escriba el
+  MCP sin mover la vista y con entrada de deshacer.
+- **Carpeta de la pizarra publicada**: la extensión la deja en `%APPDATA%\voz\entorno.json`
+  (`pizarraDir`) porque el MCP corre en otro proceso y no sabe qué proyecto está abierto.
+
 ## [0.3.5] - 2026-10-30
 
 - **Interfaz de la pizarra**: letra más grande y rótulos menos apagados. Los botones pasan

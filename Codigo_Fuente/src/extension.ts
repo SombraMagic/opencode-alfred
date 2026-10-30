@@ -17,6 +17,7 @@ import {
   loadPlugins,
   loadSkills,
   McpServer,
+  migrateMcpEntry,
   PluginInfo,
   SkillInfo,
   setAutoAccept,
@@ -36,7 +37,7 @@ import {
 } from "./panels/explorerPanel";
 import { AssignAction, AssignAgent, AssignData, AssignPanel, AssignProfile, FavoriteGroup, ModelEntry } from "./panels/assignPanel";
 import { ConnectorsPanel, ConnectorAction } from "./panels/connectorsPanel";
-import { PizarraPanel } from "./panels/pizarraPanel";
+import { PizarraPanel, pizarraAdjuntosDir } from "./panels/pizarraPanel";
 import { BlendViewerProvider } from "./panels/blendViewerPanel";
 import {
   ConnectorAttempt,
@@ -61,7 +62,8 @@ import {
 import { VozPanel } from "./panels/voicePanel";
 import { VozDictado } from "./panels/dictadoPanel";
 import { speak, syncSharedConfig } from "./voice/service";
-import { installMcp, nodeBinary, serverScriptPath } from "./voice/mcpInstaller";
+import { writeEntorno } from "./voice/core/shared.js";
+import { installMcp, MCP_NAME, MCP_OFF_KEY, nodeBinary, serverScriptPath } from "./voice/mcpInstaller";
 import { ContextWindowService } from "./stats/contextWindow";
 import { formatRelative } from "./stats/format";
 import { readTuiTabs } from "./stats/tuiTabs";
@@ -2828,7 +2830,15 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   context.subscriptions.push(
-    vscode.workspace.onDidChangeWorkspaceFolders(refresh),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      refresh();
+      // El MCP corre en otro proceso: al cambiar de proyecto se le republica la carpeta.
+      try {
+        writeEntorno({ pizarraDir: pizarraAdjuntosDir(context) });
+      } catch {
+        // Sin permisos de escritura: se queda el entorno anterior.
+      }
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("opencodeAgents")) {
         restartPolling();
@@ -2950,21 +2960,44 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
 
     vscode.commands.registerCommand("voz.installMcp", async () => {
-      await installMcp(context.extensionPath);
+      vscode.window.showInformationMessage(await installMcp(context));
     })
   );
 
   // El MCP es otro proceso: necesita los ajustes en un fichero compartido.
   void syncSharedConfig();
 
+  // El MCP corre en otro proceso y no sabe qué proyecto hay abierto: se le publica la carpeta
+  // de adjuntos (ahí vive pizarra.json). Sin carpeta, la del almacén global.
+  try {
+    writeEntorno({ pizarraDir: pizarraAdjuntosDir(context) });
+  } catch {
+    // Sin permisos de escritura: el MCP se queda con su carpeta por defecto.
+  }
+
   // El bundle del MCP vive dentro de la extensión, así que su ruta lleva la versión
   // instalada: al actualizar, la apuntada en la config deja de existir. Se repara en
   // segundo plano; un fallo aquí no puede romper la activación (el botón la rehace).
   const mcpScript = serverScriptPath(context.extensionPath);
   if (existsSync(mcpScript)) {
-    void ensureMcpCommand("voz", [nodeBinary(), mcpScript]).catch(() => {
-      /* config sin permisos o ilegible: se queda como está */
-    });
+    const command = [nodeBinary(), mcpScript];
+    // En cadena: las dos funciones hacen leer-modificar-escribir sobre los mismos dos
+    // ficheros, y en paralelo la última en escribir borraría el reapunte de la otra. El alta
+    // silenciosa va detrás por lo mismo: también escribe en esa config.
+    void migrateMcpEntry("voz", MCP_NAME, command)
+      .then(() => ensureMcpCommand(MCP_NAME, command))
+      .catch(() => {
+        /* config sin permisos o ilegible: se queda como está */
+      })
+      .then(() => {
+        // Alta silenciosa: si la persona no lo apagó a mano, se da de alta en los agentes que haya.
+        if (context.globalState.get<boolean>(MCP_OFF_KEY, false)) {
+          return;
+        }
+        return installMcp(context).catch(() => {
+          /* sin PATH o sin permisos: lo dirá el botón al pulsarlo */
+        });
+      });
   }
 
   // Si los ajustes cambian fuera del panel (Settings o settings.json), el

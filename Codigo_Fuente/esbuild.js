@@ -17,9 +17,9 @@ async function main() {
     external: ["vscode", "node:sqlite", "koffi", "mpg123-decoder", "ws"],
     logLevel: "info",
   });
-  // Servidor MCP `voz`: proceso stdio aparte, sin `vscode`, con los mismos externos.
-  const vozMcp = await esbuild.context({
-    entryPoints: ["src/mcp/vozServer.ts"],
+  // Servidor MCP `mcp_alfred`: proceso stdio aparte, sin `vscode`, con los mismos externos.
+  const alfredMcp = await esbuild.context({
+    entryPoints: ["src/mcp/alfredServer.ts"],
     bundle: true,
     format: "cjs",
     minify: production,
@@ -27,19 +27,19 @@ async function main() {
     sourcesContent: false,
     platform: "node",
     mainFields: ["module", "main"],
-    outfile: "dist/voz-mcp.js",
+    outfile: "dist/alfred-mcp.js",
     external: ["vscode", "node:sqlite", "koffi", "mpg123-decoder", "ws"],
     logLevel: "info",
   });
   if (watch) {
     await ctx.watch();
-    await vozMcp.watch();
+    await alfredMcp.watch();
     console.log("[esbuild] watching...");
   } else {
     await ctx.rebuild();
     await ctx.dispose();
-    await vozMcp.rebuild();
-    await vozMcp.dispose();
+    await alfredMcp.rebuild();
+    await alfredMcp.dispose();
   }
 }
 

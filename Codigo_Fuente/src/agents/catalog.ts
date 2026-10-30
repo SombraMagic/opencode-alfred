@@ -240,7 +240,7 @@ export async function setMcpEnabled(server: McpServer, enabled: boolean): Promis
  * Clave de un servidor MCP existente en el texto: v2 (`mcp.servers`) manda si está.
  * `undefined` cuando el servidor no está declarado o el JSONC no se puede leer.
  */
-function mcpCommandOf(text: string, name: string): { keyPath: string[]; command: string[] } | undefined {
+function mcpCommandOf(text: string, name: string): { keyPath: string[]; command: string[]; disabled: boolean } | undefined {
   const errors: ParseError[] = [];
   const parsed = parseJsonc(text, errors, { allowTrailingComma: true, disallowComments: false });
   if (errors.length > 0) {
@@ -259,6 +259,7 @@ function mcpCommandOf(text: string, name: string): { keyPath: string[]; command:
   return {
     keyPath,
     command: Array.isArray(entry.command) ? entry.command.map(String) : [],
+    disabled: entry.disabled === true,
   };
 }
 
@@ -293,6 +294,50 @@ export async function ensureMcpCommand(name: string, command: string[]): Promise
       continue;
     }
     const next = applyMcpCommand(config.text, name, command);
+    if (next !== config.text) {
+      await writeAtomic(file, next);
+    }
+  }
+}
+
+/** Quita la entrada MCP `name` del texto JSONC. Si no está, devuelve el texto tal cual. */
+function removeMcpEntry(text: string, name: string): string {
+  const found = mcpCommandOf(text, name);
+  if (!found) {
+    return text;
+  }
+  const edits = modify(text, [...found.keyPath, name], undefined, { formattingOptions: FMT });
+  return applyEdits(text, edits);
+}
+
+/**
+ * Migra una entrada MCP propia de un nombre a otro (el servidor de la voz pasó a ser
+ * `mcp_alfred`). Solo actúa si el comando de la vieja apunta a un bundle de esta extensión;
+ * crea la nueva con `command` si falta y nunca pisa una que ya exista.
+ */
+export async function migrateMcpEntry(from: string, to: string, command: string[]): Promise<void> {
+  for (const file of globalConfigFiles()) {
+    const config = await readConfig(file, "global");
+    if (!config) {
+      continue;
+    }
+    const found = mcpCommandOf(config.text, from);
+    // Un `voz` ajeno (otro servidor con el mismo nombre) se queda donde está.
+    if (!found || !found.command.some((arg) => arg.endsWith("voz-mcp.js"))) {
+      continue;
+    }
+    let next = config.text;
+    if (!mcpCommandOf(next, to)) {
+      // El apagado viaja con la entrada: migrar no puede encender lo que estaba apagado.
+      const entry = found.disabled
+        ? { type: "local", command, disabled: true }
+        : { type: "local", command };
+      const edits = modify(next, [...found.keyPath, to], entry, {
+        formattingOptions: FMT,
+      });
+      next = applyEdits(next, edits);
+    }
+    next = removeMcpEntry(next, from);
     if (next !== config.text) {
       await writeAtomic(file, next);
     }

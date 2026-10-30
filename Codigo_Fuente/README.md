@@ -48,7 +48,10 @@ fila de `CONECTORES`; solo sondea con la vista abierta.
 
 - Voz: ecualizador de barras pixeladas y cuatro motores (SAPI de Windows, Edge, OpenAI, ElevenLabs).
   `Ctrl+Alt+V` lee la selección. El ecualizador también reacciona a lo que diga el MCP; el
-  servidor MCP de voz viaja dentro del paquete y se registra desde el botón `INSTALAR MCP`.
+  servidor MCP `mcp_alfred` (voz **y** pizarra) viaja dentro del paquete en
+  `dist/alfred-mcp.js` y se da de alta solo en los agentes que haya (opencode, Claude Code,
+  Claude Desktop, Cursor). El botón `ALFRED MCP` del panel, con su punto verde o ámbar, lo
+  enciende y lo apaga.
 - Dictado: bloc de notas con adjuntos (imágenes pegadas, ficheros arrastrados o `ADJUNTAR`),
   configuración plegable y tres motores (SAPI, Whisper local, nube compatible con OpenAI).
 
@@ -72,7 +75,10 @@ trazos con lápiz y goma, y textos. Zoom con la rueda y paneo con `Espacio` + ar
   y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles.
 - **Qué se guarda**: el PNG aplanado en `pizarra-ultima.png` y, junto a él, la escena
   editable en `pizarra.json` (misma carpeta de adjuntos). Al reabrir manda la escena; si no
-  es válida, se descarta y queda el PNG.
+  es válida, se descarta y queda el PNG. El servidor MCP `mcp_alfred` expone siete
+  herramientas de pizarra (`pizarra_leer`, `pizarra_escribir`, `pizarra_lienzo`,
+  `pizarra_nodo`, `pizarra_arista`, `pizarra_texto`, `pizarra_imagen`) para leerla y
+  editarla desde un agente; el panel recarga el cambio solo.
 
 ### Visor Alfred 3D (`.blend`)
 

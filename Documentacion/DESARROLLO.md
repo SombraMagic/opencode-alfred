@@ -25,7 +25,9 @@
 │  │  ├─ panels/             webviews (el HTML vive en el .ts de cada panel)
 │  │  ├─ providers/          lectores de config de Claude Code y Codex
 │  │  ├─ blender/            puente con la CLI de Blender: export a GLB y renders
-│  │  ├─ voice/              motores de voz y dictado, MCP
+│  │  ├─ pizarra/            escena y ficheros de la pizarra (sin `vscode`)
+│  │  ├─ mcp/                servidor `mcp_alfred` (voz y pizarra) → `dist/alfred-mcp.js`
+│  │  ├─ voice/              motores de voz y dictado
 │  │  └─ extension.ts        comandos, sondeo en vivo y reparto a los paneles
 │  ├─ media/                 JS, CSS y SVG de las webviews (a mano, sin bundler)
 │  │  └─ three/              three.js r0.169 vendorizado para el visor 3D (no va por npm)

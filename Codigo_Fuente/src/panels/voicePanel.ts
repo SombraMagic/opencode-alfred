@@ -10,7 +10,7 @@ import {
   speak,
   syncSharedConfig,
 } from "../voice/service.js";
-import { installMcp } from "../voice/mcpInstaller.js";
+import { mcpState, setMcpEnabled } from "../voice/mcpInstaller.js";
 
 /** Fichero donde el MCP publica cada reproducción (misma ruta que voz-core). */
 const nowFile = join(
@@ -39,6 +39,8 @@ export class VozPanel {
   private lastPlaybackId = "";
   /** Último estado recibido: se reenvía si el webview se recarga. */
   private agents: WorkingAgent[] = [];
+  /** El interruptor del MCP: dice qué hacer al pulsarlo. */
+  private mcpEnabled = false;
 
   constructor(
     view: vscode.WebviewView,
@@ -128,6 +130,26 @@ export class VozPanel {
     // Tras un recargo del webview, las tarjetas vuelven sin esperar al siguiente
     // sondeo: `pending` las guarda si aún no ha avisado de que está listo.
     this.post({ type: "agents", agents: this.agents });
+    // El interruptor del MCP se repinta al reabrir o recargar el panel.
+    void this.pushMcp();
+  }
+
+  /** Publica el estado del interruptor del MCP; `message` manda en el aviso. */
+  private async pushMcp(message?: string) {
+    let state: Awaited<ReturnType<typeof mcpState>> | undefined;
+    try {
+      state = await mcpState(this.context);
+    } catch (err) {
+      // Leer los agentes no puede dejar el botón bloqueado en el webview.
+      message = `No se pudo leer el estado del MCP: ${err instanceof Error ? err.message : String(err)}`;
+    }
+    if (state) {
+      this.mcpEnabled = state.enabled;
+    }
+    const agents = (state?.agents ?? [])
+      .filter((a) => a.installed && a.enabled)
+      .map((a) => a.label);
+    this.post({ type: "mcp", enabled: state?.enabled ?? this.mcpEnabled, agents, message });
   }
 
   /**
@@ -183,9 +205,14 @@ export class VozPanel {
       case "setDevice":
         await this.updateSetting("outputDevice", msg.device);
         break;
-      case "installMcp": {
-        const message = await installMcp(this.context.extensionPath);
-        this.post({ type: "mcp", message });
+      case "toggleMcp": {
+        let message: string;
+        try {
+          message = await setMcpEnabled(this.context, !this.mcpEnabled);
+        } catch (err) {
+          message = `No se pudo cambiar el MCP: ${err instanceof Error ? err.message : String(err)}`;
+        }
+        await this.pushMcp(message);
         break;
       }
   }
@@ -280,7 +307,7 @@ export class VozPanel {
     <div class="dock">
       <label class="field"><span class="field-label">TEXTO</span><textarea id="text" rows="3" placeholder="Escribe o pega el texto que quieres que se lea…"></textarea></label>
       <button id="speak" class="speak-btn"><span class="speak-glyph">▶</span><span id="speak-label">TRANSCRIBIR</span></button>
-      <div class="mcp-row"><button id="install-mcp" class="ghost-btn" title="Instalar el servidor MCP en tu agente de IA">INSTALAR MCP</button><span class="mcp-hint" id="mcp-hint"></span></div>
+      <div class="mcp-row"><button id="mcp-toggle" class="ghost-btn" type="button" disabled title="Servidor MCP de Alfred: voz y pizarra para tu agente"><span class="mcp-dot off" id="mcp-dot"></span>ALFRED MCP</button><span class="mcp-hint" id="mcp-hint">…</span></div>
     </div>
   </div>
   <script src="${equalizerUri}"></script>
