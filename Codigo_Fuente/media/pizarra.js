@@ -867,7 +867,8 @@
   }
 
   function arrowsTexto(e) {
-    if (e.endArrow && e.startArrow) return "both";
+    if (e.startArrow && e.endArrow) return "both";
+    if (e.startArrow) return "back";
     return e.endArrow ? "arrow" : "none";
   }
 
@@ -1465,7 +1466,9 @@
         "CONECTOR: arrastra un tramo para desviarlo, un codo para moverlo, o un extremo para reengancharlo; Alt+clic añade un codo y doble clic en la etiqueta la edita."
       );
     else if (selNodes.length > 1)
-      setStatus(`${selNodes.length} nodos: arrastra para mover, flechas para ajustar y ABAJO para alinear o repartir.`);
+      setStatus(
+        `${selNodes.length} nodos: arrastra para mover, flechas para ajustar; los iconos de alinear y repartir ordenan la selección.`
+      );
     else if (selNodes.length === 1)
       setStatus("NODO: arrastra para mover; asas de esquina redimensionan y las azules conectan; doble clic edita.");
     else if (sel && sel.type === "text") setStatus("TEXTO: arrastra para mover; asas para el ancho y el giro.");
@@ -1647,7 +1650,7 @@
     el.edgeColor.value = e.color;
     el.edgeWidth.value = String(e.width);
     el.edgeDash.checked = Boolean(e.dash);
-    el.edgeArrows.value = e.arrows || (e.endArrow && e.startArrow ? "both" : e.endArrow ? "arrow" : "none");
+    el.edgeArrows.value = arrowsTexto(e);
   }
 
   /** Imagen o bloque de texto: selección simple. */
@@ -1886,10 +1889,15 @@
         PZFlow.roundedPath(octx, pts, 10);
         octx.stroke();
         octx.restore();
-        // Extremos redondos y codos cuadrados en los `waypoints` (o en la ruta si aún no hay).
-        // El punto hueco marca cada tramo arrastrable: los de los extremos no lo llevan.
+        // Asas: los codos materializados van tal cual; sin materializar, solo los quiebres
+        // reales de la ruta (los vértices alineados del anclaje, el stub y el canal no lo son).
         const usuario = puntosUsuario(selEdge) || pts;
         const codos = selEdge.waypoints.length;
+        const asas = codos
+          ? selEdge.waypoints
+          : PZFlow.bends(pts)
+              .slice(1, -1)
+              .map((i) => pts[i]);
         octx.save();
         octx.strokeStyle = "#00e5ff";
         octx.fillStyle = "#00e5ff";
@@ -1899,11 +1907,7 @@
           octx.arc(p.x, p.y, px(5), 0, Math.PI * 2);
           octx.fill();
         }
-        if (codos) {
-          for (const w of selEdge.waypoints) cuadro(octx, w, px(9), "#00e5ff");
-        } else {
-          for (let i = 1; i < pts.length - 1; i++) cuadro(octx, pts[i], px(9), "#00e5ff");
-        }
+        for (const p of asas) cuadro(octx, p, px(9), "#00e5ff");
         const hasta = codos ? codos - 1 : usuario.length - 3;
         for (let s = 1; s <= hasta; s++) {
           const a = usuario[s];
@@ -2296,8 +2300,8 @@
       color: EDGE_STYLE.color,
       width: EDGE_STYLE.width,
       dash: EDGE_STYLE.dash,
-      startArrow: EDGE_STYLE.arrows === "both",
-      endArrow: EDGE_STYLE.arrows !== "none",
+      startArrow: EDGE_STYLE.arrows === "both" || EDGE_STYLE.arrows === "back",
+      endArrow: EDGE_STYLE.arrows === "arrow" || EDGE_STYLE.arrows === "both",
       waypoints: [],
       labelOffset: { dx: 0, dy: 0 },
     };
@@ -3725,10 +3729,11 @@
     commit();
   });
   el.edgeArrows.addEventListener("change", () => {
-    EDGE_STYLE.arrows = el.edgeArrows.value;
+    const a = el.edgeArrows.value;
+    EDGE_STYLE.arrows = a;
     if (selEdge) {
-      selEdge.startArrow = EDGE_STYLE.arrows === "both";
-      selEdge.endArrow = EDGE_STYLE.arrows !== "none";
+      selEdge.startArrow = a === "both" || a === "back";
+      selEdge.endArrow = a === "arrow" || a === "both";
     }
     changed();
     commit();

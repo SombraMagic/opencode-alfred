@@ -3,7 +3,7 @@
 
    Nodo:   { id, shape, x, y, w, h, text, icon, fill, stroke }
    Arista: { id, from, to, fromSide, toSide, waypoints, label, color, width, dashed,
-             arrows: "arrow" | "both" | "none" }
+             arrows: "arrow" | "back" | "both" | "none" }
    `from`/`to` valen un id de `nodesById`, un nodo suelto o un punto libre { x, y }.
    `waypoints` es la polilínea explícita del usuario; los codos que añade el router para
    ortogonalizar entre el stub y el primer/último punto NO se persisten ni son asas.
@@ -514,7 +514,13 @@
       const hasta = saneId(e.to);
       if (!vivos[desde] || !vivos[hasta]) continue; // arista huérfana
       const etiqueta = mermaidText(e.label);
-      lineas.push(desde + mermaidArrow(e) + (etiqueta ? "|" + etiqueta + "|" : "") + hasta);
+      // Mermaid no tiene flecha solo al inicio (`<--` no existe): la vuelta se exporta
+      // cambiando de sitio los dos nodos.
+      const vuelta = e.arrows === "back";
+      const a = vuelta ? hasta : desde;
+      const b = vuelta ? desde : hasta;
+      const arma = vuelta ? "arrow" : e.arrows;
+      lineas.push(a + mermaidArrow({ dashed: e.dashed, arrows: arma }) + (etiqueta ? "|" + etiqueta + "|" : "") + b);
     }
 
     return lineas.join("\n") + "\n";
@@ -535,6 +541,26 @@
     return out;
   }
 
+  /**
+   * Índices de los quiebres de una polilínea: el primero, el último y cada punto donde la
+   * ruta cambia de dirección. Los vértices alineados (anclaje, salida del stub, canal) no
+   * son asas: pintarlos llenaba el conector de cuadros que parecían nodos sueltos.
+   */
+  function bends(points) {
+    if (!points || points.length < 2) return [];
+    const out = [0];
+    for (let i = 1; i < points.length - 1; i++) {
+      const a = points[i - 1];
+      const b = points[i];
+      const c = points[i + 1];
+      if (Math.sign(b.x - a.x) !== Math.sign(c.x - b.x) || Math.sign(b.y - a.y) !== Math.sign(c.y - b.y)) {
+        out.push(i);
+      }
+    }
+    out.push(points.length - 1);
+    return out;
+  }
+
   const PZFlow = {
     SHAPES,
     SIDES,
@@ -552,6 +578,7 @@
     segmentHit,
     pointAt,
     arrowHead,
+    bends,
     toMermaid,
     cloneDoc,
     newId,

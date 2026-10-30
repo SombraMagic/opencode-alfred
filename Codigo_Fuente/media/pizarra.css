@@ -17,7 +17,7 @@ body {
   min-height: 0;
   padding: 0 12px 6px;
   /* Regla del HUD: `--text-dim` SOLO para lo apagado; lo secundario, aquí. */
-  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
+  --text-soft: color-mix(in srgb, var(--text) 82%, transparent);
 }
 
 /* ── Cabecera ──────────────────────────────────────────── */
@@ -39,23 +39,46 @@ body {
 }
 
 .pz-kicker {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 2.5px;
   color: var(--neon);
   text-shadow: 0 0 10px var(--neon-dim);
 }
 
 .pz-sub {
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 1.2px;
-  color: var(--text-dim);
+  color: var(--text-soft);
   white-space: nowrap;
 }
 
+/* Acciones de la cabecera: botón cuadrado de icono. El texto vive en `title`/`aria-label`. */
 .pz-actions {
   display: flex;
   gap: 6px;
   margin-left: auto;
+}
+
+.pz-actions .ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--text-soft);
+}
+
+.pz-actions .ghost-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* `:not(:disabled)` para que DESHACER/REHACER apagados no se enciendan al pasar el ratón. */
+.pz-actions .ghost-btn:hover:not(:disabled),
+.pz-actions .ghost-btn:focus-visible:not(:disabled) {
+  color: var(--neon);
+  border-color: var(--neon);
 }
 
 /* Botón de estado encendido (REJILLA): el mismo tono que una herramienta activa. */
@@ -72,41 +95,89 @@ body {
 }
 
 /* ── Barra de herramientas ─────────────────────────────── */
+/* Dos filas en el mismo contenedor: herramientas y capas arriba, ajustes abajo. */
 .pz-tools {
   display: flex;
   flex: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 9px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.pz-row {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--line-soft);
+}
+
+.pz-row-tools {
+  min-height: 32px;
+}
+
+/* La fila de ajustes tiene alto fijo: al cambiar de herramienta no se mueve el lienzo. Si el
+   marco es tan estrecho que los controles no caben, la fila se desplaza en horizontal; nunca
+   crece. */
+.pz-row-opts {
+  height: 36px;
+  margin-top: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.pz-row-opts .pz-group {
+  flex: none;
+  flex-wrap: nowrap;
+}
+
+/* Barra fina: la de tokens (6 px) se comería el alto de la fila. */
+.pz-row-opts::-webkit-scrollbar {
+  height: 3px;
+}
+
+/* Una fila con `hidden` desaparece: la de ajustes ya no se oculta, siempre reserva su alto. */
+.pz-row[hidden] {
+  display: none;
 }
 
 .pz-group {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 
 .pz-group.opt {
   display: none;
+  max-width: 100%;
 }
 
 .pz-group.opt.show {
   display: flex;
 }
 
+/* Botón de herramienta: cuadrado fijo de icono, sin texto. */
 .tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: color-mix(in srgb, var(--neon) 6%, transparent);
   border: 1px solid var(--line);
   color: var(--text-soft);
   font-family: inherit;
-  font-size: 9.5px;
-  letter-spacing: 1px;
-  padding: 5px 8px;
-  text-transform: uppercase;
   cursor: pointer;
   transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.tool svg {
+  width: 17px;
+  height: 17px;
 }
 
 .tool:hover,
@@ -125,22 +196,22 @@ body {
 .pz-field {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 8.5px;
+  gap: 6px;
+  font-size: 10.5px;
   letter-spacing: 1.2px;
-  color: var(--text-soft);
+  color: var(--text);
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 .pz-field input[type="range"] {
-  width: 74px;
+  width: 90px;
   accent-color: var(--neon);
 }
 
 .pz-field input[type="color"] {
-  width: 26px;
-  height: 18px;
+  width: 30px;
+  height: 24px;
   padding: 0;
   border: 1px solid var(--line);
   background: transparent;
@@ -151,8 +222,8 @@ body {
   border: 1px solid var(--line);
   color: var(--text);
   font-family: inherit;
-  font-size: 9.5px;
-  padding: 2px 4px;
+  font-size: 11px;
+  padding: 4px 6px;
 }
 
 /* El anillo de foco lo daba panel.css: sin ese enlace, se mantiene aquí. */
@@ -161,10 +232,32 @@ body {
   outline: none;
 }
 
+/* Casilla DISCONTINUA: cuadrado del HUD en vez del control nativo del sistema. */
+.pz-field input[type="checkbox"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.pz-field input[type="checkbox"]:checked {
+  background: var(--neon);
+  box-shadow: inset 0 0 0 3px var(--bg-soft);
+}
+
+.pz-field input[type="checkbox"]:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
 .pz-field output {
-  min-width: 22px;
+  min-width: 24px;
   color: var(--neon);
-  font-size: 9px;
+  font-size: 10.5px;
 }
 
 /* `.pz-field` fija su propio `display` y taparía el atributo `hidden` (el campo ICONO). */
@@ -179,8 +272,8 @@ body {
 }
 
 .swatch {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   background: var(--sw, var(--bg-soft));
   border: 1px solid var(--line);
@@ -205,13 +298,13 @@ body {
 
 /* Chip AUTO del color de texto: alto como los cuadraditos de la paleta. */
 .pz-auto {
-  height: 18px;
-  padding: 0 5px;
+  height: 24px;
+  padding: 0 7px;
   background: transparent;
   border: 1px solid var(--line);
   color: var(--text-soft);
   font-family: inherit;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1px;
   cursor: pointer;
 }
@@ -230,18 +323,28 @@ body {
 /* Indicador de qué capa toca lo que está activo; de paso, interruptor de su visibilidad. */
 .pz-layers {
   margin-left: auto;
-  gap: 3px;
+  gap: 5px;
+  flex-wrap: wrap;
 }
 
 .pz-layer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
   background: transparent;
   font-family: inherit;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 1.1px;
   color: var(--text-soft);
   border: 1px solid var(--line-soft);
-  padding: 2px 5px;
   cursor: pointer;
+}
+
+.pz-layer svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* Capa apagada: aquí `--text-dim` sí es estado apagado. */
@@ -267,8 +370,13 @@ body {
 }
 
 #align-group .tool {
-  padding: 3px 5px;
-  font-size: 8.5px;
+  width: 30px;
+  height: 30px;
+}
+
+#align-group .tool svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ── Lienzo ────────────────────────────────────────────── */
@@ -420,14 +528,14 @@ body {
   flex: none;
   align-items: center;
   gap: 8px;
-  padding: 5px 0;
+  padding: 7px 0;
   border-top: 1px solid var(--line-soft);
 }
 
 .pz-status {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 1.2px;
   color: var(--text-soft);
   white-space: nowrap;
@@ -442,9 +550,9 @@ body {
   border: 1px solid var(--line);
   color: var(--text-soft);
   font-family: inherit;
-  font-size: 8.5px;
+  font-size: 10.5px;
   letter-spacing: 1.2px;
-  padding: 2px 6px;
+  padding: 4px 10px;
   cursor: pointer;
 }
 
@@ -495,7 +603,7 @@ body {
 
 .pz-modal-text {
   margin: 10px 0 14px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   color: var(--text-soft);
   overflow-wrap: anywhere;
@@ -505,6 +613,21 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.pz-modal-actions .ghost-btn,
+.pz-help-actions .ghost-btn {
+  min-height: 28px;
+  font-size: 10.5px;
+  color: var(--text);
+}
+
+.pz-modal-actions .ghost-btn:hover,
+.pz-modal-actions .ghost-btn:focus-visible,
+.pz-help-actions .ghost-btn:hover,
+.pz-help-actions .ghost-btn:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
 }
 
 .pz-modal-actions .danger:hover,
@@ -552,7 +675,7 @@ body {
   grid-template-columns: max-content 1fr;
   gap: 5px 12px;
   margin: 12px 0 14px;
-  font-size: 10.5px;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--text-soft);
 }
