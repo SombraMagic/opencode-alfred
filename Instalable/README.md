@@ -25,6 +25,10 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 - **Ollama en opencode**: al encender escribe el proveedor `ollama` en el `opencode.json(c)`
   global, así que sale en `CONECTORES` y en `ASIGNAR AGENTES`; al apagar lo retira. Si quedó
   encendido, el servidor vuelve al activar la extensión.
+- **Multipizarra**: la pizarra pasa a tener una tira de pestañas, con `+` para añadir y `−`
+  para eliminar. La pizarra 1 no se puede borrar: es la que leen y editan los agentes. Las
+  demás viven cada una en su carpeta; cambiar de pestaña guarda lo dibujado en la que se deja.
+  `GUARDAR` escribe el PNG y la escena editable (`.json`).
 - La `PIZARRA` sigue en su sitio: ahora se abre desde `SUBIR PIZARRA`, en el bloc del dictado.
 
 ## Instalar
