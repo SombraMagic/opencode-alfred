@@ -153,6 +153,8 @@ export interface McpServer {
    * only recognizes `disabled: true`; v1 (servers directly under `mcp`) uses `enabled`.
    */
   usesDisabledFlag: boolean;
+  /** Solo existe en el runtime de opencode (`/api/mcp`): no se puede escribir en la config. */
+  liveOnly?: boolean;
 }
 
 /**

@@ -1,5 +1,6 @@
 import * as fs from "fs/promises";
 import { parse as parseJsonc } from "jsonc-parser";
+import type { OpencodeApi } from "../agents/connectors";
 import { configFileCandidates, opencodeAuthPath, opencodeDataDir } from "../agents/paths";
 import { listDbFiles, openSqliteReadOnly } from "../stats/opencodeStats";
 
@@ -8,7 +9,8 @@ export type LimitWindow = {
   label: string;
   used: number;
   limit: number;
-  unit: "usd" | "solicitudes" | "tokens";
+  /** Con «porcentaje»: `used` es el 0-100 ya calculado por la consola y `limit` vale 100. */
+  unit: "usd" | "solicitudes" | "tokens" | "porcentaje";
   resetsAt?: number /*epoch ms*/;
   /** Divisa ISO real del dato (p. ej. "USD", "CNY") cuando `unit` es "usd" y la hay. */
   currency?: string;
@@ -498,8 +500,8 @@ export function goWindows(rows: GoCostRow[], now: number, plan: GoPlan): LimitWi
   const round2 = (n: number): number => Math.round(n * 100) / 100;
   return [
     { id: "5h", label: "Últimas 5 horas", used: round2(five), limit: caps.fiveH, unit: "usd" },
-    { id: "week", label: "Semana actual", used: round2(week), limit: caps.week, unit: "usd", resetsAt: weekEnd },
-    { id: "month", label: "Mes actual", used: round2(month), limit: caps.month, unit: "usd", resetsAt: monthEnd },
+    { id: "week", label: "Semana", used: round2(week), limit: caps.week, unit: "usd", resetsAt: weekEnd },
+    { id: "month", label: "Mes", used: round2(month), limit: caps.month, unit: "usd", resetsAt: monthEnd },
   ];
 }
 
@@ -703,12 +705,187 @@ export function readGoCatalogPrices(dataDir: string = opencodeDataDir()): Map<st
   return new Map();
 }
 
-async function goLimits(at: number, plan: GoPlan): Promise<ProviderLimits> {
+async function goLimits(at: number, plan: GoPlan, api?: OpencodeApi): Promise<ProviderLimits> {
+  // La consola da el consumo real de la cuenta; la estimación sobre las BD es el respaldo.
+  if (api) {
+    try {
+      const data = parseConsoleLimits(JSON.parse(await api("GET", "/api/experimental/usage/limits")));
+      if (data?.go) {
+        return buildGoFromConsole(data, at, plan);
+      }
+    } catch {
+      // opencode en marcha pero sin esa ruta (build viejo): se estima como siempre
+    }
+  }
   const scan = scanGoMessages();
   if (!scan.ok) {
     return errorLimits("opencode-go", scan.error ?? "Sin datos.", at);
   }
   return buildGoEstimate(scan.rows, readGoCatalogPrices(), at, plan);
+}
+
+// ── OpenCode Go desde la consola (dato real; la estimación queda de respaldo) ─
+
+export interface ConsoleGoWindow {
+  percent: number;
+  limited: boolean;
+  resetsAt?: number /*epoch ms*/;
+}
+
+export interface ConsoleBudget {
+  ruleID?: string;
+  policyID?: string;
+  limitDollars?: number;
+  spentDollars?: number;
+  coverage?: string;
+  modelCount?: number;
+  resetsAt?: number /*epoch ms*/;
+}
+
+export interface ConsoleLimits {
+  go?: { rolling?: ConsoleGoWindow; weekly?: ConsoleGoWindow; monthly?: ConsoleGoWindow };
+  budgets?: ConsoleBudget[];
+}
+
+function consoleGoWindow(raw: unknown): ConsoleGoWindow | undefined {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  const percent = finiteNumber(obj.percent);
+  if (percent === undefined) {
+    return undefined;
+  }
+  const win: ConsoleGoWindow = {
+    percent: Math.max(0, Math.min(100, percent)),
+    limited: obj.limited === true || obj.limited === "true",
+  };
+  const resetsAt = toEpochMs(obj.resetsAt);
+  if (resetsAt !== undefined) {
+    win.resetsAt = resetsAt;
+  }
+  return win;
+}
+
+function consoleBudget(raw: unknown): ConsoleBudget | undefined {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  const limitDollars = finiteNumber(obj.limitDollars);
+  if (limitDollars === undefined || limitDollars <= 0) {
+    return undefined;
+  }
+  const budget: ConsoleBudget = { limitDollars };
+  const spentDollars = finiteNumber(obj.spentDollars);
+  if (spentDollars !== undefined) {
+    budget.spentDollars = spentDollars;
+  }
+  if (typeof obj.ruleID === "string") {
+    budget.ruleID = obj.ruleID;
+  }
+  if (typeof obj.policyID === "string") {
+    budget.policyID = obj.policyID;
+  }
+  if (typeof obj.coverage === "string") {
+    budget.coverage = obj.coverage;
+  }
+  const modelCount = finiteNumber(obj.modelCount);
+  if (modelCount !== undefined) {
+    budget.modelCount = modelCount;
+  }
+  const resetsAt = toEpochMs(obj.resetsAt);
+  if (resetsAt !== undefined) {
+    budget.resetsAt = resetsAt;
+  }
+  return budget;
+}
+
+/** `GET /api/experimental/usage/limits`: la respuesta envuelve en `{ location, data }`. */
+export function parseConsoleLimits(body: unknown): ConsoleLimits | undefined {
+  const data = (body as Record<string, unknown> | undefined)?.data as
+    | Record<string, unknown>
+    | undefined;
+  if (!data || typeof data !== "object") {
+    return undefined;
+  }
+  const out: ConsoleLimits = {};
+  const goRaw = (data.go ?? {}) as Record<string, unknown>;
+  const go: NonNullable<ConsoleLimits["go"]> = {};
+  const rolling = consoleGoWindow(goRaw.rolling);
+  const weekly = consoleGoWindow(goRaw.weekly);
+  const monthly = consoleGoWindow(goRaw.monthly);
+  if (rolling) {
+    go.rolling = rolling;
+  }
+  if (weekly) {
+    go.weekly = weekly;
+  }
+  if (monthly) {
+    go.monthly = monthly;
+  }
+  if (Object.keys(go).length === 0) {
+    return undefined;
+  }
+  out.go = go;
+  const budgets = (Array.isArray(data.budgets) ? data.budgets : [])
+    .map(consoleBudget)
+    .filter((b): b is ConsoleBudget => b !== undefined);
+  if (budgets.length > 0) {
+    out.budgets = budgets;
+  }
+  return out;
+}
+
+/** Etiquetas y orden de las tres ventanas Go de la consola. */
+const CONSOLE_WINDOW_KEYS: Array<{ key: "rolling" | "weekly" | "monthly"; label: string }> = [
+  { key: "rolling", label: "Últimas 5 horas" },
+  { key: "weekly", label: "Semana" },
+  { key: "monthly", label: "Mes" },
+];
+
+/**
+ * Tarjeta Go con el consumo real de la consola (sin `estimated`). Una ventana `limited`
+ * conserva su porcentaje y lo dice en la etiqueta: inflarla al 100 % escondía el dato.
+ */
+export function buildGoFromConsole(data: ConsoleLimits, at: number, plan: GoPlan): ProviderLimits {
+  const windows: LimitWindow[] = [];
+  for (const { key, label } of CONSOLE_WINDOW_KEYS) {
+    const w = data.go?.[key];
+    if (!w) {
+      continue;
+    }
+    const win: LimitWindow = {
+      id: key,
+      label: w.limited ? `${label} · al límite` : label,
+      used: w.percent,
+      limit: 100,
+      unit: "porcentaje",
+    };
+    if (w.resetsAt !== undefined) {
+      win.resetsAt = w.resetsAt;
+    }
+    windows.push(win);
+  }
+  // Los presupuestos en USD caen en la misma tarjeta.
+  (data.budgets ?? []).forEach((b, i) => {
+    if (b.limitDollars === undefined || b.limitDollars <= 0) {
+      return;
+    }
+    const win: LimitWindow = {
+      id: `budget-${i}`,
+      label: "Presupuesto",
+      used: b.spentDollars ?? 0,
+      limit: b.limitDollars,
+      unit: "usd",
+    };
+    if (b.resetsAt !== undefined) {
+      win.resetsAt = b.resetsAt;
+    }
+    windows.push(win);
+  });
+  return {
+    id: "opencode-go",
+    name: nameOf("opencode-go"),
+    plan: plan === "go" ? "Go" : "Go Plus",
+    status: "ok",
+    windows,
+    updatedAt: at,
+  };
 }
 
 // ── ¿Hay conexión con ese proveedor? ────────────────────────────────────────
@@ -869,7 +1046,12 @@ export function supportsLimitsCached(id: string): boolean {
 
 // ── Entrada del host ────────────────────────────────────────────────────────
 
-async function limitsFor(id: string, plan: GoPlan, now: number): Promise<ProviderLimits> {
+async function limitsFor(
+  id: string,
+  plan: GoPlan,
+  now: number,
+  api?: OpencodeApi
+): Promise<ProviderLimits> {
   try {
     switch (id) {
       case "deepseek":
@@ -879,7 +1061,7 @@ async function limitsFor(id: string, plan: GoPlan, now: number): Promise<Provide
       case "github-copilot":
         return await copilotLimits(now);
       case "opencode-go":
-        return await goLimits(now, plan);
+        return await goLimits(now, plan, api);
       default:
         throw new Error(`Sin adaptador de límites para «${id}».`);
     }
@@ -897,7 +1079,7 @@ async function limitsFor(id: string, plan: GoPlan, now: number): Promise<Provide
  */
 export async function collectLimits(
   ids: string[],
-  opts: { goPlan: GoPlan; force?: boolean }
+  opts: { goPlan: GoPlan; force?: boolean; api?: OpencodeApi }
 ): Promise<ProviderLimits[]> {
   const now = Date.now();
   return Promise.all(
@@ -912,7 +1094,7 @@ export async function collectLimits(
         return running;
       }
       // `limitsFor` no rechaza nunca: el .then siempre limpia la entrada en vuelo.
-      const probe = limitsFor(id, opts.goPlan, now).then((value) => {
+      const probe = limitsFor(id, opts.goPlan, now, opts.api).then((value) => {
         resultCache.set(key, { at: Date.now(), value });
         resultInFlight.delete(key);
         return value;

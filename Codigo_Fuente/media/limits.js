@@ -38,6 +38,7 @@
   function fmtValor(n, unidad, moneda) {
     if (unidad === "usd") return monedaTexto(n, moneda);
     if (unidad === "solicitudes") return Math.round(Number(n) || 0) + " peticiones";
+    if (unidad === "porcentaje") return Math.round(Number(n) || 0) + " %";
     return fmtTokens(n);
   }
 
@@ -45,6 +46,7 @@
   function fmtCorto(n, unidad, moneda) {
     if (unidad === "usd") return monedaTexto(n, moneda);
     if (unidad === "solicitudes") return String(Math.round(Number(n) || 0));
+    if (unidad === "porcentaje") return Math.round(Number(n) || 0) + " %";
     return fmtTokens(n);
   }
 
@@ -53,6 +55,8 @@
     if (unidad === "solicitudes") {
       return Math.round(Number(usado) || 0) + " / " + Math.round(Number(tope) || 0) + " peticiones";
     }
+    // En porcentaje el tope siempre es 100: repetirlo no dice nada.
+    if (unidad === "porcentaje") return Math.round(Number(usado) || 0) + " %";
     return fmtValor(usado, unidad, moneda) + " / " + fmtValor(tope, unidad, moneda);
   }
 
@@ -91,8 +95,11 @@
     const resto = at - (Number(ahora) || Date.now());
     if (resto <= 0) return "se repone en breve";
     const min = Math.ceil(resto / 60000);
-    const h = Math.floor(min / 60);
+    const d = Math.floor(min / 1440);
+    const h = Math.floor((min % 1440) / 60);
     const m = min % 60;
+    // Las ventanas largas (semana, mes) en horas daban «648h»: en días se leen de un vistazo.
+    if (d > 0) return "se repone en " + d + " d" + (h > 0 ? " " + h + " h" : "");
     return "se repone en " + (h > 0 ? h + "h " + m + "m" : m + "m");
   }
 
@@ -170,7 +177,9 @@
     const usado = Number(w.used) || 0;
     const tope = Number(w.limit) || 0;
     const unidad =
-      w.unit === "usd" || w.unit === "solicitudes" || w.unit === "tokens" ? w.unit : "tokens";
+      w.unit === "usd" || w.unit === "solicitudes" || w.unit === "tokens" || w.unit === "porcentaje"
+        ? w.unit
+        : "tokens";
     const etiqueta = String(w.label || "Ventana");
     const moneda = w.currency;
 
@@ -203,7 +212,8 @@
     }
 
     const pie = nodo("div", "win-foot");
-    if (tope > 0) {
+    // En porcentaje el número de arriba ya es el consumo: «quedan 0 %» sobra.
+    if (tope > 0 && unidad !== "porcentaje") {
       pie.appendChild(
         nodo("span", "win-rest", "quedan " + fmtCorto(Math.max(0, tope - usado), unidad, moneda))
       );

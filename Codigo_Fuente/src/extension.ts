@@ -495,6 +495,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const providers = await collectLimits(limitsProviderIds(), {
       goPlan: goPlanSetting(),
       force,
+      api: opencodeApi,
     });
     limitsView.update(providers);
   }
@@ -905,8 +906,10 @@ export function activate(context: vscode.ExtensionContext): void {
         name: s.name,
         scope: s.scope,
         enabled: s.enabled,
-        detail: s.type === "remote" ? "remote" : "local",
+        detail: s.liveOnly ? "consola de opencode" : s.type === "remote" ? "remote" : "local",
         filePath: s.filePath,
+        // Solo el runtime lo conoce: no hay fichero donde alternarlo.
+        toggleable: !s.liveOnly,
       })),
       skills: catalogData.skills.map((s) => ({
         name: s.name,
@@ -1781,12 +1784,35 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   async function refreshCatalog(): Promise<void> {
-    const [mcp, skills, plugins, accept] = await Promise.all([
+    const [mcp, skills, plugins, accept, liveMcp] = await Promise.all([
       loadMcpServers(),
       loadSkills(),
       loadPlugins(disabledPlugins),
       loadAutoAccept(),
+      // El catálogo de opencode solo se pinta con su proveedor activo: con Claude o Codex
+      // no hay a quién preguntar y no se paga el viaje al CLI.
+      sessionAgent === "opencode" ? liveMcpServers() : Promise.resolve([]),
     ]);
+    // Los que solo viven en el runtime (p. ej. el servidor de la consola) se suman sin
+    // pisar los de la config: mismo nombre = manda el fichero.
+    const known = new Set(mcp.map((s) => s.name));
+    for (const live of liveMcp) {
+      if (known.has(live.name)) {
+        continue;
+      }
+      known.add(live.name);
+      mcp.push({
+        name: live.name,
+        scope: "global",
+        type: "remote",
+        target: "",
+        enabled: live.status === "connected",
+        filePath: "",
+        keyPath: [],
+        usesDisabledFlag: false,
+        liveOnly: true,
+      });
+    }
     catalogData = { mcp, skills, plugins };
     autoAccept = accept;
     explorer.update(buildExplorerData());
@@ -2712,6 +2738,10 @@ export function activate(context: vscode.ExtensionContext): void {
         if (!server) {
           return;
         }
+        // Un MCP de solo runtime no tiene fichero donde escribirse.
+        if (server.liveOnly) {
+          return;
+        }
         return catalogEdit(
           () => setMcpEnabled(server, !server.enabled),
           `MCP "${server.name}" ${server.enabled ? "desactivado" : "activado"}`
@@ -3009,6 +3039,19 @@ function opencodeApi(method: string, route: string, body?: unknown): Promise<str
       resolve(stdout);
     });
   });
+}
+
+/** Servidores MCP en vivo (`/api/mcp`). Best-effort: sin opencode en marcha devuelve []. */
+async function liveMcpServers(): Promise<Array<{ name: string; status: string }>> {
+  try {
+    const raw = await opencodeApi("GET", "/api/mcp");
+    const body = JSON.parse(raw) as { data?: Array<{ name?: string; status?: { status?: string } }> };
+    return (body.data ?? [])
+      .filter((s) => typeof s?.name === "string" && s.name)
+      .map((s) => ({ name: String(s.name), status: String(s.status?.status ?? "") }));
+  } catch {
+    return [];
+  }
 }
 
 /**
