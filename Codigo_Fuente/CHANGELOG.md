@@ -3,7 +3,7 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
-## [Sin publicar]
+## [0.6.0] - 2026-10-30
 
 - **Capa INTERFACES en la pizarra**: wireframes funcionales, como árbol de widgets y no como
   dibujo. Trece tipos (`container`, `window`, `tabs-h`, `tabs-v`, `accordion`, `menu`, `label`,

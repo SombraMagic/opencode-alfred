@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 30 de octubre de 2026 · versión **0.5.0**
+Última revisión: 30 de octubre de 2026 · versión **0.6.0**
 
 ## Resumen
 
@@ -9,8 +9,8 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.5.0** está publicada. La capa **INTERFACES** de la pizarra está en el árbol,
-todavía sin publicar.
+La **0.6.0** está empaquetada e instalada en local, con la capa **INTERFACES** de la
+pizarra dentro; falta la release publicada en GitHub.
 
 **opencode es el centro del producto.** La extensión está pensada y orientada a opencode.
 Claude Code y Codex son **experimentales**: se exploran y se manejan en parte, pero su
