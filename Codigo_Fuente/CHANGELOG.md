@@ -3,6 +3,20 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.6.2] - 2026-10-30
+
+- **Una sola barra en la pizarra**: desaparece la segunda fila de ajustes (36 px fijos) y con
+  ella el hueco que robaba al lienzo. Queda una fila: herramientas, `INTERFAZ` y los chips de
+  capa.
+- **Cada herramienta lleva su ventana** en un cajón único, con el mismo lenguaje que el de
+  `INTERFAZ`: `NODO`, `CONECTOR`, `TEXTO`, `LÁPIZ`, `BORRADOR` e `INTERFAZ`. Se abre una a la
+  vez al coger la herramienta y se cierra con su ✕ o con `Esc`; va superpuesta al lienzo, así
+  que el encuadre no se mueve al abrirla.
+- **La ventana no tapa lo que escribes**: al abrir el editor de un texto o de la etiqueta de un
+  conector, la ventana se cierra antes de colocarlo. Si se quedaba encima, el `blur` con el
+  texto aún vacío borraba el bloque recién creado. La selección abre `NODO`/`CONECTOR`/`TEXTO`
+  solo con `SELECCIONAR` o `NODO`, y nunca pisa la paleta `INTERFAZ`.
+
 ## [0.6.1] - 2026-10-30
 
 - **Estilo por widget en la capa INTERFACES**: cada widget lleva `fill` (`"auto"` es el relleno

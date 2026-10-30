@@ -42,7 +42,7 @@
         </div>
 
         <div class="pz-group" role="group" aria-label="Capa de interfaz">
-          <button id="btn-ui" class="tool" type="button" title="Abrir o cerrar el cajón INTERFAZ: paleta de widgets y ajustes del elegido" aria-label="Cajón INTERFAZ" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M12 9h6" /><path d="M12 13h4" /></svg></button>
+          <button id="btn-ui" class="tool" type="button" title="Abrir o cerrar la ventana INTERFAZ: paleta de widgets y ajustes del elegido" aria-label="Ventana INTERFAZ" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M12 9h6" /><path d="M12 13h4" /></svg></button>
         </div>
 
         <div class="pz-group pz-layers" role="group" aria-label="Capas">
@@ -56,9 +56,21 @@
         </div>
       </div>
 
-      <div class="pz-row pz-row-opts" id="opts-row">
-        <div class="pz-group opt" data-for="node">
-          <label class="pz-field">FORMA <select id="node-shape" title="Silueta del nodo nuevo">
+    </div>
+
+    <main class="pz-stage" id="stage">
+      <!-- Ventana flotante de la herramienta activa: los ajustes de NODO, CONECTOR, TEXTO,
+           LÁPIZ y BORRADOR, y la paleta de widgets de INTERFAZ (su contenido lo construye el
+           JS desde `PZUi.KINDS`). Va superpuesta al lienzo: no reflow, el encuadre no se mueve. -->
+      <aside class="pz-drawer" id="drawer" hidden aria-label="Ajustes de la herramienta">
+        <div class="pz-drawer-head">
+          <span class="pz-drawer-title" id="drawer-title"></span>
+          <button id="drawer-x" class="ghost-btn pz-drawer-x" type="button" title="Cerrar" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg></button>
+        </div>
+
+        <div class="pz-drawer-grp" data-panel="node" hidden>
+          <div class="pz-sec">FORMA</div>
+          <label class="pz-field">SILUETA <select id="node-shape" title="Silueta del nodo nuevo">
             <option value="rect">RECTÁNGULO</option>
             <option value="round">REDONDEADO</option>
             <option value="stadium">INICIO/FIN</option>
@@ -80,6 +92,7 @@
             <option value="globe">Globo</option>
             <option value="terminal">Terminal</option>
           </select></label>
+          <div class="pz-sec">COLOR</div>
           <div class="pz-swatches" role="group" aria-label="Paleta del nodo">
             <button type="button" class="swatch on" data-fill="#4f9db5" data-stroke="#2e6f82" title="Teal" aria-label="Teal" style="--sw:#4f9db5"></button>
             <button type="button" class="swatch" data-fill="#f5b82e" data-stroke="#b8860b" title="Ámbar" aria-label="Ámbar" style="--sw:#f5b82e"></button>
@@ -90,14 +103,29 @@
           </div>
           <label class="pz-field">RELLENO <input id="node-fill" type="color" value="#4f9db5" title="Color de relleno del nodo" /></label>
           <label class="pz-field">BORDE <input id="node-stroke" type="color" value="#2e6f82" title="Color del borde del nodo" /></label>
-          <label class="pz-field">TEXTO <input id="node-text" type="color" value="#ffffff" title="Color del texto del nodo" /></label>
-          <button type="button" id="node-text-auto" class="pz-auto on" aria-pressed="true" title="Color automático: blanco u oscuro según el relleno">AUTO</button>
-          <label class="pz-field">TAMAÑO <input id="node-size" type="range" min="8" max="72" value="18" title="Cuerpo del texto del nodo en píxeles" /><output id="node-size-out">18</output></label>
+          <div class="pz-sec">TEXTO</div>
+          <div class="pz-ctl-row">
+            <label class="pz-field">COLOR <input id="node-text" type="color" value="#ffffff" title="Color del texto del nodo" /></label>
+            <button type="button" id="node-text-auto" class="pz-auto on" aria-pressed="true" title="Color automático: blanco u oscuro según el relleno" aria-label="Color automático"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none" /></svg></button>
+          </div>
+          <label class="pz-field">TAMAÑO <span class="pz-ctl"><input id="node-size" type="range" min="8" max="72" value="18" title="Cuerpo del texto del nodo en píxeles" /><output id="node-size-out">18</output></span></label>
+          <div class="pz-group pz-align" id="align-group" role="group" aria-label="Alinear y distribuir" hidden>
+            <div class="pz-sec">ALINEAR Y DISTRIBUIR</div>
+            <button class="tool" type="button" data-align="l" title="Alinear a la izquierda" aria-label="Alinear a la izquierda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 4v16" /><rect x="7" y="6" width="13" height="4" /><rect x="7" y="14" width="8" height="4" /></svg></button>
+            <button class="tool" type="button" data-align="c" title="Centrar en horizontal" aria-label="Centrar en horizontal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v16" /><rect x="4" y="6" width="16" height="4" /><rect x="7" y="14" width="10" height="4" /></svg></button>
+            <button class="tool" type="button" data-align="r" title="Alinear a la derecha" aria-label="Alinear a la derecha"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 4v16" /><rect x="4" y="6" width="13" height="4" /><rect x="9" y="14" width="8" height="4" /></svg></button>
+            <button class="tool" type="button" data-align="t" title="Alinear arriba" aria-label="Alinear arriba"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 4h16" /><rect x="6" y="7" width="4" height="13" /><rect x="14" y="7" width="4" height="8" /></svg></button>
+            <button class="tool" type="button" data-align="m" title="Centrar en vertical" aria-label="Centrar en vertical"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 12h16" /><rect x="6" y="4" width="4" height="16" /><rect x="14" y="7" width="4" height="10" /></svg></button>
+            <button class="tool" type="button" data-align="b" title="Alinear abajo" aria-label="Alinear abajo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 20h16" /><rect x="6" y="4" width="4" height="13" /><rect x="14" y="9" width="4" height="8" /></svg></button>
+            <button class="tool" type="button" data-dist="h" title="Repartir a partes iguales en horizontal" aria-label="Distribuir en horizontal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="5" width="4" height="14" /><rect x="10" y="5" width="4" height="14" /><rect x="17" y="5" width="4" height="14" /></svg></button>
+            <button class="tool" type="button" data-dist="v" title="Repartir a partes iguales en vertical" aria-label="Distribuir en vertical"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="5" y="3" width="14" height="4" /><rect x="5" y="10" width="14" height="4" /><rect x="5" y="17" width="14" height="4" /></svg></button>
+          </div>
         </div>
 
-        <div class="pz-group opt" data-for="edge">
+        <div class="pz-drawer-grp" data-panel="edge" hidden>
+          <div class="pz-sec">LÍNEA</div>
           <label class="pz-field">COLOR <input id="edge-color" type="color" value="#3d5566" title="Color del conector" /></label>
-          <label class="pz-field">GROSOR <input id="edge-width" type="range" min="1" max="8" value="2" title="Grosor del conector en píxeles" /></label>
+          <label class="pz-field">GROSOR <span class="pz-ctl"><input id="edge-width" type="range" min="1" max="8" value="2" title="Grosor del conector en píxeles" /><output id="edge-width-out">2</output></span></label>
           <label class="pz-field">DISCONTINUA <input id="edge-dash" type="checkbox" title="Trazar el conector a trazos" /></label>
           <label class="pz-field">FLECHAS <select id="edge-arrows" title="Puntas de flecha del conector">
             <option value="arrow">→</option>
@@ -107,17 +135,8 @@
           </select></label>
         </div>
 
-        <div class="pz-group opt" data-for="pen">
-          <label class="pz-field">COLOR <input id="pen-color" type="color" value="#12303f" /></label>
-          <label class="pz-field">GROSOR <input id="pen-size" type="range" min="1" max="80" value="6" /><output id="pen-size-out">6</output></label>
-        </div>
-
-        <div class="pz-group opt" data-for="eraser">
-          <label class="pz-field">TAMAÑO <input id="er-size" type="range" min="4" max="200" value="36" /><output id="er-size-out">36</output></label>
-          <label class="pz-field">DUREZA <input id="er-hard" type="range" min="0" max="100" value="80" /><output id="er-hard-out">80</output></label>
-        </div>
-
-        <div class="pz-group opt" data-for="text">
+        <div class="pz-drawer-grp" data-panel="text" hidden>
+          <div class="pz-sec">TIPOGRAFÍA</div>
           <label class="pz-field">COLOR <input id="txt-color" type="color" value="#12303f" /></label>
           <label class="pz-field">FUENTE <select id="txt-family">
             <option value="sans-serif">Sans-serif</option>
@@ -129,32 +148,25 @@
             <option value="'Times New Roman', serif">Times New Roman</option>
             <option value="'Courier New', monospace">Courier New</option>
           </select></label>
-          <label class="pz-field">TAMAÑO <input id="txt-size" type="range" min="10" max="200" value="40" /><output id="txt-size-out">40</output></label>
+          <label class="pz-field">TAMAÑO <span class="pz-ctl"><input id="txt-size" type="range" min="10" max="200" value="40" /><output id="txt-size-out">40</output></span></label>
         </div>
 
-        <div class="pz-group" id="align-group" role="group" aria-label="Alinear y distribuir" hidden>
-          <button class="tool" type="button" data-align="l" title="Alinear a la izquierda" aria-label="Alinear a la izquierda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 4v16" /><rect x="7" y="6" width="13" height="4" /><rect x="7" y="14" width="8" height="4" /></svg></button>
-          <button class="tool" type="button" data-align="c" title="Centrar en horizontal" aria-label="Centrar en horizontal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v16" /><rect x="4" y="6" width="16" height="4" /><rect x="7" y="14" width="10" height="4" /></svg></button>
-          <button class="tool" type="button" data-align="r" title="Alinear a la derecha" aria-label="Alinear a la derecha"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 4v16" /><rect x="4" y="6" width="13" height="4" /><rect x="9" y="14" width="8" height="4" /></svg></button>
-          <button class="tool" type="button" data-align="t" title="Alinear arriba" aria-label="Alinear arriba"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 4h16" /><rect x="6" y="7" width="4" height="13" /><rect x="14" y="7" width="4" height="8" /></svg></button>
-          <button class="tool" type="button" data-align="m" title="Centrar en vertical" aria-label="Centrar en vertical"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 12h16" /><rect x="6" y="4" width="4" height="16" /><rect x="14" y="7" width="4" height="10" /></svg></button>
-          <button class="tool" type="button" data-align="b" title="Alinear abajo" aria-label="Alinear abajo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 20h16" /><rect x="6" y="4" width="4" height="13" /><rect x="14" y="9" width="4" height="8" /></svg></button>
-          <button class="tool" type="button" data-dist="h" title="Repartir a partes iguales en horizontal" aria-label="Distribuir en horizontal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="5" width="4" height="14" /><rect x="10" y="5" width="4" height="14" /><rect x="17" y="5" width="4" height="14" /></svg></button>
-          <button class="tool" type="button" data-dist="v" title="Repartir a partes iguales en vertical" aria-label="Distribuir en vertical"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="5" y="3" width="14" height="4" /><rect x="5" y="10" width="14" height="4" /><rect x="5" y="17" width="14" height="4" /></svg></button>
+        <div class="pz-drawer-grp" data-panel="pen" hidden>
+          <div class="pz-sec">PINCEL</div>
+          <label class="pz-field">COLOR <input id="pen-color" type="color" value="#12303f" /></label>
+          <label class="pz-field">GROSOR <span class="pz-ctl"><input id="pen-size" type="range" min="1" max="80" value="6" /><output id="pen-size-out">6</output></span></label>
         </div>
-      </div>
-    </div>
 
-    <main class="pz-stage" id="stage">
-      <!-- Cajón de la capa INTERFACES: paleta e inspector del widget elegido. Va superpuesto
-           al lienzo (no reflow) y su contenido lo construye el JS desde `PZUi.KINDS`. -->
-      <aside class="pz-drawer" id="ui-drawer" hidden aria-label="Interfaz">
-        <div class="pz-drawer-head">
-          <span class="pz-drawer-title">INTERFAZ</span>
-          <button id="ui-close" class="ghost-btn pz-drawer-x" type="button" title="Cerrar el cajón INTERFAZ" aria-label="Cerrar INTERFAZ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg></button>
+        <div class="pz-drawer-grp" data-panel="eraser" hidden>
+          <div class="pz-sec">GOMA</div>
+          <label class="pz-field">TAMAÑO <span class="pz-ctl"><input id="er-size" type="range" min="4" max="200" value="36" /><output id="er-size-out">36</output></span></label>
+          <label class="pz-field">DUREZA <span class="pz-ctl"><input id="er-hard" type="range" min="0" max="100" value="80" /><output id="er-hard-out">80</output></span></label>
         </div>
-        <div class="pz-drawer-grp" id="ui-palette"></div>
-        <div class="pz-drawer-grp" id="ui-inspect" hidden></div>
+
+        <div class="pz-drawer-grp" data-panel="ui" hidden>
+          <div class="pz-drawer-grp" id="ui-palette"></div>
+          <div class="pz-drawer-grp" id="ui-inspect" hidden></div>
+        </div>
       </aside>
       <div class="pz-frame">
         <!-- El mundo lleva el zoom y el paneo; dentro, el lienzo mide 1024 de alto y el ancho
@@ -206,6 +218,7 @@
           <dt>Ctrl + A</dt><dd>Selecciona todos los nodos.</dd>
           <dt>Flechas</dt><dd>Mueve la selección (Mayús, de 10 en 10).</dd>
           <dt>Supr</dt><dd>Borra la selección.</dd>
+          <dt>Esc</dt><dd>Cierra la ventana de la herramienta; si ya está cerrada, suelta la selección.</dd>
           <dt>Espacio + arrastrar</dt><dd>Panea el lienzo.</dd>
           <dt>Rueda</dt><dd>Zoom sobre el puntero.</dd>
         </dl>

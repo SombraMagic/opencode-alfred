@@ -65,6 +65,11 @@
   ];
   const HEX = /^#[0-9a-f]{6}$/i;
 
+  /** Panel del cajón que abre cada herramienta. SELECT no tiene: cierra el cajón. */
+  const PANEL_DE_HERRAMIENTA = { node: "node", text: "text", pen: "pen", eraser: "eraser" };
+  /** Título del cajón según el panel que tenga abierto. */
+  const PANEL_TITULOS = { node: "NODO", edge: "CONECTOR", text: "TEXTO", pen: "LÁPIZ", eraser: "BORRADOR", ui: "INTERFAZ" };
+
   const el = {
     root: document.querySelector(".pz"),
     frame: document.querySelector(".pz-frame"),
@@ -111,8 +116,10 @@
     nodeText: document.getElementById("node-text"),
     nodeTextAuto: document.getElementById("node-text-auto"),
     btnUi: document.getElementById("btn-ui"),
-    drawer: document.getElementById("ui-drawer"),
-    drawerClose: document.getElementById("ui-close"),
+    drawer: document.getElementById("drawer"),
+    drawerTitle: document.getElementById("drawer-title"),
+    drawerClose: document.getElementById("drawer-x"),
+    panels: Array.from(document.querySelectorAll(".pz-drawer-grp[data-panel]")),
     palette: document.getElementById("ui-palette"),
     inspect: document.getElementById("ui-inspect"),
     edgeColor: document.getElementById("edge-color"),
@@ -121,7 +128,6 @@
     edgeArrows: document.getElementById("edge-arrows"),
     alignGroup: document.getElementById("align-group"),
     tools: Array.from(document.querySelectorAll("[data-tool]")),
-    opts: Array.from(document.querySelectorAll(".pz-group.opt")),
     layers: Array.from(document.querySelectorAll(".pz-layer")),
     swatches: Array.from(document.querySelectorAll(".swatch")),
     aligns: Array.from(document.querySelectorAll("[data-align]")),
@@ -156,6 +162,8 @@
   };
 
   let tool = "select";
+  /** Panel visible del cajón: `node`/`edge`/`text`/`pen`/`eraser`/`ui`, o `null` si está cerrado. */
+  let panelAbierto = null;
   /** Imagen o bloque de texto elegido (selección simple, con asas propias). */
   let sel = null;
   /** Nodos elegidos: la marquesina y Shift pueden sumar varios. */
@@ -2369,17 +2377,20 @@
     }
   }
 
-  /** Grupos de controles a la vista: la herramienta manda, y la selección enseña los suyos. */
+  /** Abre el panel que toque en la ventana flotante; `null` la cierra sin tocar la herramienta. */
+  function abrirPanel(clave) {
+    panelAbierto = clave || null;
+    el.drawer.hidden = !panelAbierto;
+    el.drawerTitle.textContent = panelAbierto ? PANEL_TITULOS[panelAbierto] || "" : "";
+    for (const p of el.panels) p.hidden = p.dataset.panel !== panelAbierto;
+    // El botón INTERFAZ solo marca su propia ventana, no cualquier cajón abierto.
+    const ui = panelAbierto === "ui";
+    el.btnUi.classList.toggle("on", ui);
+    el.btnUi.setAttribute("aria-pressed", ui ? "true" : "false");
+  }
+
+  /** Lo que depende de la selección dentro del panel abierto: ICONO y alinear. */
   function syncOpciones() {
-    const nodoSel = selNodes.length > 0;
-    for (const g of el.opts) {
-      const clave = g.dataset.for;
-      let visible = clave === tool;
-      if (clave === "node" && nodoSel) visible = true;
-      if (clave === "text" && sel && sel.type === "text") visible = true;
-      if (clave === "edge" && selEdge) visible = true;
-      g.classList.toggle("show", visible);
-    }
     const icono =
       (selNodes.length && selNodes[0].shape === "icon") || (!selNodes.length && el.nodeShape.value === "icon");
     el.nodeIconField.hidden = !icono;
@@ -2391,7 +2402,7 @@
     if ((tool === "pen" || tool === "eraser") && state.layers.strokes === false) {
       setStatus("La capa TRAZOS está oculta: enciéndela con el chip TRAZOS o lo que pintes no se verá.", "error");
     } else if (tool === "pen") setStatus("LÁPIZ: arrastra para dibujar. La goma está en BORRADOR.");
-    else if (tool === "eraser") setStatus("BORRADOR: arrastra sobre los trazos. La dureza del borde está arriba.");
+    else if (tool === "eraser") setStatus("BORRADOR: arrastra sobre los trazos. La dureza del borde está en su ventana.");
     else if (tool === "text") setStatus("TEXTO: clic en el lienzo donde escribir; cierra con Ctrl+Enter o Escape.");
     else if (tool === "node")
       setStatus(
@@ -2420,6 +2431,11 @@
     tool = next;
     el.root.dataset.tool = next;
     for (const b of el.tools) b.classList.toggle("on", b.dataset.tool === next);
+    // La ventana sigue a la herramienta. La paleta INTERFAZ no se cierra aquí: crear un widget
+    // pasa por SELECT y dejaría la paleta sin abrir en cada clic.
+    const propio = PANEL_DE_HERRAMIENTA[next];
+    if (propio) abrirPanel(propio);
+    else if (panelAbierto && panelAbierto !== "ui") abrirPanel(null);
     if (next !== "select" && next !== "node") cerrarEditores(false);
     // Pintar con la capa TRAZOS oculta es pintar a ciegas: se enciende al coger el lápiz o la goma.
     const capaApagada = (next === "pen" || next === "eraser") && state.layers.strokes === false;
@@ -2589,8 +2605,18 @@
     if (!e) return;
     el.edgeColor.value = e.color;
     el.edgeWidth.value = String(e.width);
+    const outAncho = document.getElementById("edge-width-out");
+    if (outAncho) outAncho.textContent = String(e.width);
     el.edgeDash.checked = Boolean(e.dash);
     el.edgeArrows.value = arrowsTexto(e);
+  }
+
+  /**
+   * La selección solo manda en la ventana con SELECT o NODO: con LÁPIZ o TEXTO activos, la
+   * ventana de la herramienta se queda como está.
+   */
+  function panelDeSeleccion() {
+    return tool === "select" || tool === "node";
   }
 
   /** Imagen o bloque de texto: selección simple. */
@@ -2600,6 +2626,9 @@
     selEdge = null;
     selUi = null;
     syncUiControls();
+    // Un bloque de texto enseña TEXTO, como la barra de antes. La imagen no tiene ajustes
+    // propios: no abre nada y no cierra lo que estuviera abierto. La paleta INTERFAZ manda.
+    if (o && o.type === "text" && panelAbierto !== "ui" && panelDeSeleccion()) abrirPanel("text");
     syncTextControls(o);
     syncNodoControls();
     syncOpciones();
@@ -2614,6 +2643,9 @@
     selEdge = null;
     selUi = null;
     syncUiControls();
+    // Cualquier nodo elegido enseña sus ajustes (con varios, también alinear y repartir). La
+    // paleta INTERFAZ manda: un clic en un nodo del diagrama no la cierra.
+    if (selNodes.length && panelAbierto !== "ui" && panelDeSeleccion()) abrirPanel("node");
     syncNodoControls();
     paintLayers();
     actualizarContexto();
@@ -2627,6 +2659,8 @@
     selUi = null;
     syncUiControls();
     syncEdgeControls();
+    // La paleta INTERFAZ es la única que no cede el sitio a la ventana del conector.
+    if (panelAbierto !== "ui") abrirPanel("edge");
     syncOpciones();
     paintLayers();
     actualizarContexto();
@@ -2640,6 +2674,9 @@
     selEdge = null;
     selUi = null;
     syncUiControls();
+    // La ventana que abrió la selección se va con ella: el CONECTOR, y NODO o TEXTO cuando se
+    // eligió con SELECT. Las que son de la herramienta (o la paleta INTERFAZ) se quedan.
+    if (panelAbierto && panelAbierto !== "ui" && panelAbierto !== PANEL_DE_HERRAMIENTA[tool]) abrirPanel(null);
     syncOpciones();
     paintLayers();
     if (habia) {
@@ -3012,6 +3049,9 @@
   }
 
   function openEditor(t) {
+    // La ventana taparía el área de edición: un clic en el hueco tapado la haría perder el foco
+    // y, con el texto todavía vacío, borraría el bloque recién creado.
+    abrirPanel(null);
     layout(t);
     editing = t;
     textoPrevio = t.text || "";
@@ -3093,6 +3133,8 @@
   }
 
   function abrirEditorNodo(n) {
+    // Igual que en el texto: la ventana no puede quedar encima del área de edición.
+    abrirPanel(null);
     if (editing) closeEditor();
     nodeEditing = n;
     nodeTextPrevio = n.text || "";
@@ -3175,6 +3217,8 @@
   }
 
   function abrirEditorArista(e) {
+    // Mismo motivo: el campo de la etiqueta va sobre el lienzo, no debajo de la ventana.
+    abrirPanel(null);
     if (editing) closeEditor();
     if (nodeEditing) confirmarEditorNodo();
     editingEdge = e;
@@ -4594,7 +4638,20 @@
 
   // ── Enlaces de interfaz ───────────────────────────────────
 
-  el.tools.forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
+  el.tools.forEach((b) =>
+    b.addEventListener("click", () => {
+      const siguiente = b.dataset.tool;
+      const propio = PANEL_DE_HERRAMIENTA[siguiente];
+      // Volver a pulsar la herramienta activa cierra su ventana y no cambia de herramienta.
+      if (siguiente === tool && propio && panelAbierto === propio) {
+        abrirPanel(null);
+        return;
+      }
+      setTool(siguiente);
+      // SELECT no tiene ajustes propios: cierra la ventana que hubiera, INTERFAZ incluida.
+      if (!propio) abrirPanel(null);
+    })
+  );
   el.btnNew.addEventListener("click", nuevaEnBlanco);
   el.btnPaste.addEventListener("click", desdePortapapeles);
   el.btnBoardAdd.addEventListener("click", anadirPizarra);
@@ -4606,18 +4663,13 @@
   el.btnMermaid.addEventListener("click", copiarMermaid);
   el.btnHelp.addEventListener("click", abrirAyuda);
   el.helpClose.addEventListener("click", cerrarAyuda);
-  // Cajón INTERFAZ: abre y cierra sin tocar la selección, así se puede seguir ajustando.
-  const pintaCajon = (abierto) => {
-    el.drawer.hidden = !abierto;
-    el.btnUi.classList.toggle("on", abierto);
-    el.btnUi.setAttribute("aria-pressed", abierto ? "true" : "false");
-  };
+  // Ventana flotante: abre y cierra sin tocar la selección, así se puede seguir ajustando.
   el.btnUi.addEventListener("click", () => {
-    const abierto = el.drawer.hidden;
-    pintaCajon(abierto);
+    const abierto = panelAbierto !== "ui";
+    abrirPanel(abierto ? "ui" : null);
     if (abierto && !PZUi) setStatus("La capa INTERFACES no está cargada: falta media/pizarraUi.js.", "error");
   });
-  el.drawerClose.addEventListener("click", () => pintaCajon(false));
+  el.drawerClose.addEventListener("click", () => abrirPanel(null));
   el.btnGrid.addEventListener("click", () => {
     rejilla = !rejilla;
     el.btnGrid.classList.toggle("on", rejilla);
@@ -4630,7 +4682,7 @@
   el.dists.forEach((b) => b.addEventListener("click", () => distribuir(b.dataset.dist)));
 
   // Cada deslizador pinta su número al moverlo (el `<output>` de al lado).
-  [el.penSize, el.erSize, el.erHard, el.txtSize, el.nodeSize].forEach((input) => {
+  [el.penSize, el.erSize, el.erHard, el.txtSize, el.nodeSize, el.edgeWidth].forEach((input) => {
     const out = document.getElementById(input.id + "-out");
     const pinta = () => {
       if (out) out.textContent = input.value;
@@ -5129,6 +5181,11 @@
     }
     if (event.key === "Escape") {
       event.preventDefault();
+      // La ventana abierta se cierra antes de soltar la selección; la herramienta no cambia.
+      if (panelAbierto) {
+        abrirPanel(null);
+        return;
+      }
       limpiarSeleccion();
       return;
     }
@@ -5159,6 +5216,8 @@
     if (atajos[letra]) {
       event.preventDefault();
       setTool(atajos[letra]);
+      // V no tiene panel: cierra el que hubiera, como el botón SELECT.
+      if (!PANEL_DE_HERRAMIENTA[atajos[letra]]) abrirPanel(null);
     }
   });
 

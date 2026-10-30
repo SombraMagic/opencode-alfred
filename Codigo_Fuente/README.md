@@ -82,7 +82,10 @@ botón la mete en el bloc como adjunto.
   (automático, sin fondo o color), borde y color y tamaño de su texto, y el menú en fila o en
   columna.
 - **Edición**: deshacer/rehacer de 50 pasos, multi-selección con alinear y distribuir, guías
-  y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles.
+  y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles. La barra es
+  una sola fila y cada herramienta abre su ventana de ajustes en un cajón superpuesto
+  (`NODO`, `CONECTOR`, `TEXTO`, `LÁPIZ`, `BORRADOR` e `INTERFAZ`), que se cierra con su ✕ o
+  con `Esc` y no le come alto al lienzo.
 - **Varias pizarras**: una tira de pestañas en la cabecera, con `+` para añadir y `−` para
   eliminar. La pizarra 1 no se puede borrar: es la que leen y editan los agentes. Las demás
   viven cada una en su carpeta dentro de los adjuntos, y cambiar de pestaña guarda lo dibujado

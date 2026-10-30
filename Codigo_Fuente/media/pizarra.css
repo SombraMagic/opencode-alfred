@@ -192,18 +192,18 @@ body.vscode-light .pz-tab.on {
 }
 
 /* ── Barra de herramientas ─────────────────────────────── */
-/* Dos filas en el mismo contenedor: herramientas y capas arriba, ajustes abajo. */
+/* Una sola fila: herramientas, capa de interfaz y chips de capa. Los ajustes de cada
+   herramienta viven en la ventana flotante del lienzo, no aquí. */
 .pz-tools {
   display: flex;
   flex: none;
-  flex-direction: column;
-  gap: 6px;
   padding: 8px 0 9px;
   border-bottom: 1px solid var(--line-soft);
 }
 
 .pz-row {
   display: flex;
+  flex: 1 1 auto;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 12px;
@@ -213,28 +213,7 @@ body.vscode-light .pz-tab.on {
   min-height: 32px;
 }
 
-/* La fila de ajustes tiene alto fijo: al cambiar de herramienta no se mueve el lienzo. Si el
-   marco es tan estrecho que los controles no caben, la fila se desplaza en horizontal; nunca
-   crece. */
-.pz-row-opts {
-  height: 36px;
-  margin-top: 8px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.pz-row-opts .pz-group {
-  flex: none;
-  flex-wrap: nowrap;
-}
-
-/* Barra fina: la de tokens (6 px) se comería el alto de la fila. */
-.pz-row-opts::-webkit-scrollbar {
-  height: 3px;
-}
-
-/* Una fila con `hidden` desaparece: la de ajustes ya no se oculta, siempre reserva su alto. */
+/* Una fila con `hidden` desaparece. */
 .pz-row[hidden] {
   display: none;
 }
@@ -245,15 +224,6 @@ body.vscode-light .pz-tab.on {
   align-items: center;
   gap: 4px;
   min-width: 0;
-}
-
-.pz-group.opt {
-  display: none;
-  max-width: 100%;
-}
-
-.pz-group.opt.show {
-  display: flex;
 }
 
 /* Botón de herramienta: cuadrado fijo de icono, sin texto. */
@@ -393,17 +363,24 @@ body.vscode-light .pz-tab.on {
   background: repeating-linear-gradient(45deg, transparent 0 3px, var(--line) 3px 4px);
 }
 
-/* Chip AUTO del color de texto: alto como los cuadraditos de la paleta. */
+/* AUTO del color de texto: botón de icono, cuadrado como el resto del cajón. */
 .pz-auto {
-  height: 24px;
-  padding: 0 7px;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   background: transparent;
   border: 1px solid var(--line);
   color: var(--text-soft);
-  font-family: inherit;
-  font-size: 10px;
-  letter-spacing: 1px;
   cursor: pointer;
+}
+
+.pz-auto svg {
+  width: 14px;
+  height: 14px;
 }
 
 .pz-auto:hover,
@@ -461,7 +438,21 @@ body.vscode-light .pz-tab.on {
   border-color: color-mix(in srgb, var(--amber) 55%, transparent);
 }
 
-/* Alinear y distribuir: solo aparece con varios nodos elegidos. */
+/* Alinear y distribuir: dentro del panel NODO, en rejilla de cuatro columnas, y solo con
+   varios nodos elegidos. El rótulo ocupa la fila entera. */
+.pz-align {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  align-items: center;
+  justify-items: center;
+}
+
+.pz-align > .pz-sec {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+}
+
 #align-group[hidden] {
   display: none;
 }
@@ -486,7 +477,7 @@ body.vscode-light .pz-tab.on {
   padding: 12px 0 6px;
   /* Contenedor de tamaño: da la medida justa del alto y del ancho a la vez. */
   container-type: size;
-  /* Ancla del cajón INTERFAZ, que va superpuesto al lienzo. */
+  /* Ancla de la ventana flotante de la herramienta, que va superpuesta al lienzo. */
   position: relative;
 }
 
@@ -621,12 +612,13 @@ body.vscode-light .pz-tab.on {
   display: none;
 }
 
-/* ── Cajón INTERFAZ ────────────────────────────────────── */
-/* Superpuesto al lienzo: no reflow, así el encuadre y la escala no se mueven al abrirlo.
-   Ojo al orden: `.pz-world` lleva `transform`, o sea que es un contexto de apilado propio. Por
-   eso el cajón (hijo del stage) queda por encima del lienzo y de las superposiciones de
-   edición que viven dentro del mundo (área de texto, etiqueta de conector). El modal (20) y la
-   ayuda (21) siguen por encima de todo. */
+/* ── Ventana de la herramienta ─────────────────────────── */
+/* Un solo cajón para todo: ajustes de la herramienta activa y, con el botón INTERFAZ, la
+   paleta de widgets. Superpuesto al lienzo: no reflow, así el encuadre y la escala no se
+   mueven al abrirlo. Ojo al orden: `.pz-world` lleva `transform`, o sea que es un contexto de
+   apilado propio. Por eso el cajón (hijo del stage) queda por encima del lienzo y de las
+   superposiciones de edición que viven dentro del mundo (área de texto, etiqueta de conector).
+   El modal (20) y la ayuda (21) siguen por encima de todo. */
 .pz-drawer {
   position: absolute;
   top: 10px;
@@ -634,10 +626,10 @@ body.vscode-light .pz-tab.on {
   z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   width: 280px;
   max-height: calc(100% - 20px);
-  padding: 10px;
+  padding: 12px;
   overflow: auto;
   background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
   border: 1px solid var(--line);
@@ -691,6 +683,90 @@ body.vscode-light .pz-tab.on {
 
 .pz-drawer-grp[hidden] {
   display: none;
+}
+
+/* Paneles de herramienta: un control por fila y aire de sobra entre bloques. */
+.pz-drawer-grp[data-panel] {
+  gap: 12px;
+}
+
+/* Rótulo corto de cada bloque; el filete lo separa del bloque anterior. */
+.pz-sec {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 9.5px;
+  letter-spacing: 1.4px;
+  color: var(--neon);
+}
+
+.pz-drawer-grp > .pz-sec:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* En el cajón cada campo es una fila con su rótulo encima y el control a lo ancho. */
+.pz-drawer .pz-field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  white-space: normal;
+}
+
+.pz-drawer .pz-field select {
+  width: 100%;
+}
+
+.pz-drawer .pz-field input[type="color"] {
+  align-self: flex-start;
+  width: 46px;
+  height: 26px;
+}
+
+.pz-drawer .pz-field input[type="checkbox"] {
+  align-self: flex-start;
+}
+
+.pz-drawer .pz-field input[type="range"] {
+  width: 100%;
+}
+
+.pz-drawer .pz-swatches {
+  gap: 6px;
+}
+
+/* Deslizador a lo ancho y su número a la derecha, siempre a la vista. */
+.pz-ctl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pz-ctl input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pz-ctl output {
+  flex: none;
+  min-width: 30px;
+  color: var(--neon);
+  font-size: 10.5px;
+  text-align: right;
+}
+
+/* Fila con el control y un botón de icono al lado (TEXTO + AUTO). */
+.pz-ctl-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.pz-ctl-row .pz-field {
+  flex: 1 1 auto;
 }
 
 /* Separador fino entre PALETA e INSPECTOR. */
