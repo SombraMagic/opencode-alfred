@@ -63,7 +63,7 @@ trazos con lápiz y goma, y textos. Zoom con la rueda y paneo con `Espacio` + ar
   solos al lado más cercano; arrastrar un codo mueve sus dos tramos sin tocar el resto de la
   ruta y arrastrar un tramo lo reorienta. Se agarra lo que se ve, sin saltos a la rejilla al
   pulsar. `Alt` + clic añade un codo y el doble clic en el codo lo quita o edita la etiqueta.
-  Cada arista elige sus flechas (`FLECHAS`: final, ambas o ninguna) y si la línea es
+  Cada arista elige sus flechas (`FLECHAS`: final, inicio, ambas o ninguna) y si la línea es
   discontinua. La etiqueta del nodo se ajusta dentro de su silueta (rombo, elipse, inicio/fin,
   icono), siempre centrada, y encoge antes de salirse; su color se fija con `TEXTO` o `AUTO`
   (contraste con el relleno). Mientras dibujas un nodo se ve su silueta y su medida; con el

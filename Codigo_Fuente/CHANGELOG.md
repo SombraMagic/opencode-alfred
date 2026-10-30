@@ -3,6 +3,30 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.3.5] - 2026-10-30
+
+- **Interfaz de la pizarra**: letra más grande y rótulos menos apagados. Los botones pasan
+  a 30-32 px con iconos SVG en lugar de texto (cabecera, herramientas y alinear/distribuir),
+  y la barra se parte en dos filas: herramientas y capas arriba, ajustes contextuales abajo.
+  La fila de ajustes tiene alto fijo y no se oculta ni cambia de alto al cambiar de
+  herramienta: con `SELECCIONAR` y nada elegido queda el hueco reservado, y si el marco es
+  muy estrecho se desplaza en horizontal. La capa `FONDO` enseña su color junto al chip
+  y `DISCONTINUA` es una casilla con el estilo del HUD.
+- **Asas de los conectores**: al seleccionar una arista solo se marcan los quiebres reales
+  de la ruta, así que ya no parece que la línea tenga nodos sueltos. Los codos materializados
+  se siguen marcando uno a uno.
+- **Flecha al inicio**: nueva punta `←` en `FLECHAS`, que invierte la dirección. Al copiar a
+  Mermaid se exporta cambiando de sitio los nodos, porque Mermaid no tiene flecha solo al
+  inicio.
+- **Aviso de multi-selección**: ya no habla del botón `ABAJO`, que ahora es un icono.
+- **MCP de la consola en el Explorador**: los servidores que solo existen en el runtime de
+  opencode (como `opencode_console`) ya salen en `GLOBAL`, leídos de `GET /api/mcp`, con el
+  interruptor sin mando y la marca «consola de opencode». Los de la config no cambian.
+- **Límites reales de OpenCode Go**: la tarjeta deja de estimar con las bases y lee el
+  consumo de `GET /api/experimental/usage/limits` (porcentajes de 5 h, semana y mes con su
+  reposición, y presupuestos en USD si los hay). La estimación local queda solo de
+  respaldo, y las reposiciones largas se cuentan en días.
+
 ## [0.3.4] - 2026-10-29
 
 - **Lápiz y borrador con `TRAZOS` oculta**: coger cualquiera de los dos enciende la capa

@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 29 de octubre de 2026 · versión **0.3.4**
+Última revisión: 30 de octubre de 2026 · versión **0.3.5**
 
 ## Resumen
 
@@ -26,7 +26,9 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 - **Contexto** con desglose de la ventana, compactación y medición para los tres CLIs.
 - **Estadísticas de agentes** (tokens, coste, tiempo, sesiones) y **de prompts**
   (línea de tiempo por prompt, con subagentes en paralelo).
-- **Límites de consumo** por proveedor (DeepSeek, OpenAI, GitHub Copilot, OpenCode Go).
+- **Límites de consumo** por proveedor (DeepSeek, OpenAI, GitHub Copilot, OpenCode Go);
+  OpenCode Go lee el consumo real de la consola (porcentajes con su reposición) y solo
+  estima con las bases si esa ruta no existe.
 - **Voz** (SAPI, Edge, OpenAI, ElevenLabs) con ecualizador de barras pixeladas, y **dictado**
   (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP viaja dentro
   de la extensión (`dist/voz-mcp.js`), no como paquete externo.
