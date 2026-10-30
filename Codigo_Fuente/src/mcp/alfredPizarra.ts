@@ -30,6 +30,8 @@ import type {
   SceneText,
 } from "../pizarra/scene";
 import { readSceneFile, SCENE_FILE, WORK_FILE, writeSceneFile } from "../pizarra/files";
+import { MAX_UI_ITEMS, MAX_UI_NODES, sanitizeUi, uiContent, uiDefaults, UI_KINDS } from "../pizarra/ui";
+import type { Ui, UiNode } from "../pizarra/ui";
 import { readEntorno } from "../voice/core/shared";
 
 /** Iconos de nodo del webview (`media/pizarraWorkflow.js`): aquí solo se validan los nombres. */
@@ -278,6 +280,8 @@ function vistaEscena(scene: Scene) {
       total: scene.strokes.length,
       puntos: scene.strokes.reduce((n, trazo) => n + trazo.pts.length, 0),
     },
+    // La capa INTERFACES va solo contada: el árbol entero es cosa de pizarra_ui_leer.
+    ui: recuentoUi(scene.ui),
   };
 }
 
@@ -498,6 +502,156 @@ async function aplicarImagen(imagen: SceneImage, args: Record<string, unknown>):
   if (giro !== undefined) imagen.rot = giro;
 }
 
+// ── Interfaces (capa `ui`) ─────────────────────────────────
+
+/** ¿Lo recibido es la capa INTERFACES? Solo `{ nodes: [...] }`: el resumen de `pizarra_leer` no vale. */
+function esCapaUi(raw: unknown): raw is { nodes: unknown[] } {
+  return isRecord(raw) && Array.isArray(raw.nodes);
+}
+
+/** Lista del argumento (`items`, `options` o `checked`), validada; `undefined` si no llega. */
+function listaDe(
+  args: Record<string, unknown>,
+  key: string,
+  indice = false,
+): string[] | number[] | undefined {
+  const raw = args[key];
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  const vale = (valor: unknown): boolean =>
+    indice ? typeof valor === "number" && Number.isFinite(valor) : typeof valor === "string";
+  if (!Array.isArray(raw) || !raw.every(vale)) {
+    throw new Error(`«${key}» tiene que ser una lista de ${indice ? "índices" : "textos"}.`);
+  }
+  return raw as string[] | number[];
+}
+
+/** `parent` del argumento: id de un widget que exista, `null` para la raíz, `undefined` si no llega. */
+function padreOf(
+  args: Record<string, unknown>,
+  ids: Set<string>,
+  propio?: string,
+): string | null | undefined {
+  const raw = args.parent;
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (raw === null) {
+    return null;
+  }
+  if (typeof raw !== "string" || !raw) {
+    throw new Error("«parent» tiene que ser el id de otro widget, o null para la raíz.");
+  }
+  if (raw === propio) {
+    throw new Error(`«parent» no puede ser el propio widget "${propio}".`);
+  }
+  if (!ids.has(raw)) {
+    throw new Error(
+      `«parent» apunta al widget "${raw}", que no existe: pizarra_ui_leer devuelve los ids.`,
+    );
+  }
+  return raw;
+}
+
+/** Campos de contenido de un widget; `sanitizeUi` recorta lo que se pase de largo. */
+function aplicarContenido(nodo: UiNode, args: Record<string, unknown>): void {
+  const title = strOf(args, "title");
+  if (title !== undefined) nodo.title = title;
+  const text = strOf(args, "text");
+  if (text !== undefined) nodo.text = text;
+  const placeholder = strOf(args, "placeholder");
+  if (placeholder !== undefined) nodo.placeholder = placeholder;
+  const items = listaDe(args, "items");
+  if (items) nodo.items = items as string[];
+  const active = numOf(args, "active", -1, MAX_UI_ITEMS);
+  if (active !== undefined) nodo.active = Math.round(active);
+  const options = listaDe(args, "options");
+  if (options) nodo.options = options as string[];
+  const checked = listaDe(args, "checked", true);
+  if (checked) nodo.checked = checked as number[];
+  const variant = strOf(args, "variant");
+  if (variant !== undefined) nodo.variant = variant;
+  const align = enumOf(args, "align", ALIGNS);
+  if (align !== undefined) nodo.align = align;
+  const icon = strOf(args, "icon");
+  if (icon !== undefined) nodo.icon = icon;
+  const src = strOf(args, "src");
+  if (src !== undefined) {
+    if (src && (!DATA_IMAGE.test(src) || src.length > MAX_IMAGE_CHARS)) {
+      throw new Error(
+        '«src» tiene que ser una imagen png, jpeg, webp o gif en base64 de menos de 6 MB, o "".',
+      );
+    }
+    nodo.src = src;
+  }
+  const disabled = boolOf(args, "disabled");
+  if (disabled !== undefined) nodo.disabled = disabled;
+}
+
+/**
+ * Caja absoluta de cada widget: su `x`/`y` más la caja útil (`uiContent`) de sus ancestros.
+ * `rama` corta un ciclo: la escena guardada viene saneada, pero aquí no se fía de ella.
+ */
+function cajasAbsolutas(nodos: UiNode[]): Map<string, { x: number; y: number }> {
+  const porId = new Map(nodos.map((nodo) => [nodo.id, nodo]));
+  const cajas = new Map<string, { x: number; y: number }>();
+  const calcular = (nodo: UiNode, rama: Set<string>): { x: number; y: number } => {
+    const hecha = cajas.get(nodo.id);
+    if (hecha) {
+      return hecha;
+    }
+    let caja = { x: nodo.x, y: nodo.y };
+    const padre = nodo.parent === null ? undefined : porId.get(nodo.parent);
+    if (padre && !rama.has(padre.id)) {
+      rama.add(nodo.id);
+      const base = calcular(padre, rama);
+      const util = uiContent(padre);
+      caja = { x: base.x + util.dx + nodo.x, y: base.y + util.dy + nodo.y };
+    }
+    cajas.set(nodo.id, caja);
+    return caja;
+  };
+  for (const nodo of nodos) {
+    calcular(nodo, new Set());
+  }
+  return cajas;
+}
+
+/** Recuento por tipo de widget, sin volcar el árbol. */
+function recuentoUi(ui: Ui): { total: number; kinds: Record<string, number> } {
+  const kinds: Record<string, number> = {};
+  for (const nodo of ui.nodes) {
+    kinds[nodo.kind] = (kinds[nodo.kind] ?? 0) + 1;
+  }
+  return { total: ui.nodes.length, kinds };
+}
+
+/** Vista de la capa INTERFACES para el agente: el árbol entero, con ids y caja absoluta. */
+function vistaUi(scene: Scene) {
+  const cajas = cajasAbsolutas(scene.ui.nodes);
+  return {
+    lienzo: { ancho: scene.canvas.w, alto: scene.canvas.h },
+    capa: scene.layers.ui,
+    total: scene.ui.nodes.length,
+    nodos: scene.ui.nodes.map((nodo) => ({ ...nodo, cajaAbsoluta: cajas.get(nodo.id) })),
+  };
+}
+
+/** Guarda la escena y devuelve el árbol de la capa INTERFACES. */
+async function saveUi(dir: string, scene: Scene, hecho: string): Promise<string> {
+  // Mismo techo de tamaño que el resto de escrituras (`saveScene`): el presupuesto cuenta
+  // imágenes y textos de los widgets, y por encima de él el panel descartaría la pizarra entera.
+  const saneada = sanitizeScene(scene);
+  if (!saneada) {
+    throw new Error(
+      "La escena resultante se pasa del tope de tamaño: acorta los textos de los widgets o quita alguno.",
+    );
+  }
+  await writeSceneFile(dir, saneada);
+  return JSON.stringify({ hecho, ...vistaUi(saneada) });
+}
+
 // ── Herramientas ───────────────────────────────────────────
 
 const CARPETA = {
@@ -510,6 +664,11 @@ const ACCION = {
   description: "Qué hacer con el elemento.",
 };
 const ID = { type: "string", description: "Id del elemento, tal como lo devuelve pizarra_leer." };
+const OP = {
+  type: "string",
+  enum: ["alta", "editar", "borrar"],
+  description: "Qué hacer con el widget.",
+};
 const X = { type: "number", description: "Coordenada x en píxeles, origen arriba a la izquierda." };
 const Y = { type: "number", description: "Coordenada y en píxeles, origen arriba a la izquierda." };
 const ANCHO = { type: "number", minimum: 1, description: "Ancho en píxeles." };
@@ -535,13 +694,18 @@ export const PIZARRA_TOOLS = [
   {
     name: "pizarra_escribir",
     description:
-      "Sustituye la pizarra entera por una escena completa (v, canvas, bg, flow, images, strokes, texts, layers), saneada. Sirve para restaurar o clonar una pizarra entera; en una que solo tenga el PNG aplanado, ese dibujo se pierde al reabrir. No vale lo que devuelve pizarra_leer: ese resumen omite las imágenes y los trazos. Para retocar lo leído, usa las demás herramientas.",
+      "Sustituye la pizarra entera por una escena completa (v, canvas, bg, flow, images, strokes, texts, layers), saneada. Sirve para restaurar o clonar una pizarra entera; en una que solo tenga el PNG aplanado, ese dibujo se pierde al reabrir. No vale lo que devuelve pizarra_leer: ese resumen omite las imágenes y los trazos. Para retocar lo leído, usa las demás herramientas. La capa INTERFACES (`ui`) se pasa como { nodes: [...] }; sin eso (el resumen { total, kinds } de pizarra_leer no vale) se conserva la que ya había. Para cambiar la capa, usa pizarra_ui_escribir.",
     inputSchema: {
       type: "object",
       properties: {
         escena: {
           type: "object",
           description: "Escena completa, con las imágenes en data URL.",
+        },
+        ui: {
+          type: "object",
+          description:
+            "Capa INTERFACES ({ nodes: [...] }) que sustituye a la de la escena; sin un array de nodos se conserva la que ya había.",
         },
         carpeta: CARPETA,
       },
@@ -739,6 +903,94 @@ export const PIZARRA_TOOLS = [
       required: ["accion"],
     },
   },
+  {
+    name: "pizarra_ui_leer",
+    description:
+      "Lee la capa INTERFACES de la pizarra: el árbol de widgets con sus ids, sus campos y la caja absoluta de cada uno (x, y sumando los ancestros). Léela antes de editar: los ids salen de aquí.",
+    inputSchema: { type: "object", properties: { carpeta: CARPETA } },
+  },
+  {
+    name: "pizarra_ui_escribir",
+    description:
+      "Sustituye la capa INTERFACES entera por una lista de widgets, saneada, y deja el resto de la escena como estaba. La pizarra no puede quedarse solo con el PNG aplanado: en ese caso, ábrela una vez en el panel para que se guarde su escena. Para añadir o retocar un widget suelto, usa pizarra_ui_nodo.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        nodos: {
+          type: "array",
+          description:
+            "Árbol completo de widgets; el orden es el z-order. Cada uno lleva id, kind, parent, x, y, w, h y sus campos.",
+          items: {
+            type: "object",
+            description:
+              "Widget: id, kind, parent (id o null), x, y, w, h (x e y relativos a la caja útil del padre), title, text, placeholder, items, active, options, checked, variant, align, icon, src, disabled.",
+          },
+        },
+        carpeta: CARPETA,
+      },
+      required: ["nodos"],
+    },
+  },
+  {
+    name: "pizarra_ui_nodo",
+    description:
+      "Da de alta, edita o borra un widget de la capa INTERFACES. Al dar de alta sin x/y se apila debajo de los hijos que ya tenga su padre; al borrar se lleva por delante sus descendientes. Devuelve el árbol resultante, igual que pizarra_ui_leer.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        op: OP,
+        id: {
+          type: "string",
+          description: "Id del widget, tal como lo devuelve pizarra_ui_leer.",
+        },
+        kind: {
+          type: "string",
+          enum: UI_KINDS,
+          description: "Tipo de widget; obligatorio al dar de alta.",
+        },
+        parent: {
+          type: ["string", "null"],
+          description: "Id del widget que lo contiene, o null para la raíz.",
+        },
+        x: { type: "number", description: "Coordenada x relativa a la caja útil del padre." },
+        y: { type: "number", description: "Coordenada y relativa a la caja útil del padre." },
+        w: ANCHO,
+        h: ALTO,
+        title: { type: "string", description: "Título: barra de la ventana, pestaña, fila…" },
+        text: { type: "string", description: "Texto del widget (etiqueta, contenido, botón)." },
+        placeholder: { type: "string", description: "Texto de ayuda de input y textarea." },
+        items: {
+          type: "array",
+          items: { type: "string" },
+          description: "Pestañas, filas o entradas del widget.",
+        },
+        active: {
+          type: "integer",
+          description: "Pestaña, fila o entrada resaltada; -1 es ninguna.",
+        },
+        options: {
+          type: "array",
+          items: { type: "string" },
+          description: "Opciones de un choice.",
+        },
+        checked: {
+          type: "array",
+          items: { type: "integer" },
+          description: "Índices marcados de un choice.",
+        },
+        variant: {
+          type: "string",
+          description: 'Estilo de un choice ("check", "radio") o de un button ("primary", "secondary").',
+        },
+        align: { type: "string", enum: ALIGNS, description: "Alineación del texto." },
+        icon: { type: "string", description: "Nombre del icono del widget." },
+        src: { type: "string", description: 'Imagen del widget en data URL, o "" sin imagen.' },
+        disabled: { type: "boolean", description: "Widget apagado." },
+        carpeta: CARPETA,
+      },
+      required: ["op"],
+    },
+  },
 ];
 
 // ── Llamadas ───────────────────────────────────────────────
@@ -767,7 +1019,20 @@ async function pizarraEscribir(args: Record<string, unknown>): Promise<string> {
   if (!isRecord(args.escena)) {
     throw new Error("«escena» tiene que ser el objeto de la escena completa.");
   }
-  return saveScene(dir, args.escena, "Pizarra escrita.");
+  const escena: Record<string, unknown> = { ...args.escena };
+  if (esCapaUi(args.ui)) {
+    escena.ui = args.ui;
+  }
+  if (!esCapaUi(escena.ui)) {
+    // Colar el resumen de `pizarra_leer` (`ui: { total, kinds }`) vaciaba la capa en silencio, y
+    // reconstruir la escena sin `ui` también: sin un `{ nodes: [...] }` de verdad, se queda la
+    // que ya había en disco.
+    const actual = await readSceneFile(dir);
+    if (actual) {
+      escena.ui = actual.ui;
+    }
+  }
+  return saveScene(dir, escena, "Pizarra escrita.");
 }
 
 async function pizarraLienzo(args: Record<string, unknown>): Promise<string> {
@@ -1002,6 +1267,152 @@ async function pizarraImagen(args: Record<string, unknown>): Promise<string> {
   return saveScene(dir, scene, `Imagen del índice ${indice} actualizada.`);
 }
 
+async function pizarraUiLeer(args: Record<string, unknown>): Promise<string> {
+  const scene = await loadScene(pizarraDir(args));
+  return JSON.stringify(vistaUi(scene));
+}
+
+async function pizarraUiEscribir(args: Record<string, unknown>): Promise<string> {
+  const dir = pizarraDir(args);
+  const scene = await loadScene(dir);
+  if (!Array.isArray(args.nodos)) {
+    throw new Error("«nodos» tiene que ser la lista de widgets del árbol.");
+  }
+  scene.ui = sanitizeUi({ nodes: args.nodos });
+  const fuera = args.nodos.length - scene.ui.nodes.length;
+  return saveUi(
+    dir,
+    scene,
+    fuera
+      ? `Interfaces escritas, pero ${cuenta(fuera, "widget se descartó", "widgets se descartaron")} por el saneado.`
+      : `Interfaces escritas: ${cuenta(scene.ui.nodes.length, "widget", "widgets")}.`,
+  );
+}
+
+/** Un widget de la capa INTERFACES: alta (apilada bajo los hijos del padre), edición o borrado. */
+async function pizarraUiNodo(args: Record<string, unknown>): Promise<string> {
+  const dir = pizarraDir(args);
+  const scene = await loadScene(dir);
+  const op = enumOf(args, "op", ["alta", "editar", "borrar"]);
+  if (!op) {
+    throw new Error("Falta «op»: alta, editar o borrar.");
+  }
+  const nodos = scene.ui.nodes;
+  const ids = new Set(nodos.map((nodo) => nodo.id));
+
+  if (op === "alta") {
+    if (nodos.length >= MAX_UI_NODES) {
+      throw new Error(
+        `La capa INTERFACES ya tiene el tope de ${MAX_UI_NODES} widgets: borra alguno antes de dar de alta otro.`,
+      );
+    }
+    const kind = enumOf(args, "kind", UI_KINDS);
+    if (!kind) {
+      throw new Error(`Para dar de alta un widget hace falta «kind»: ${UI_KINDS.join(", ")}.`);
+    }
+    const dado = strOf(args, "id");
+    if (dado !== undefined && ids.has(dado)) {
+      throw new Error(`Ya hay un widget con id "${dado}".`);
+    }
+    const id = dado ?? idNuevo("u", ids);
+    const parent = padreOf(args, ids) ?? null;
+    // Apilado: debajo de los hijos que ya tenga el padre, 8 px de aire. Sus coordenadas van
+    // relativas a la caja útil del padre (`uiContent`), así que su chrome no entra aquí.
+    const hermanos = nodos.filter((nodo) => nodo.parent === parent);
+    const tamano = uiDefaults(kind);
+    const nodo: UiNode = {
+      id,
+      kind,
+      parent,
+      x: numOf(args, "x", -MAX_COORD, MAX_COORD) ?? (hermanos.length ? hermanos[0].x : 0),
+      y:
+        numOf(args, "y", -MAX_COORD, MAX_COORD) ??
+        (hermanos.length ? Math.max(...hermanos.map((hijo) => hijo.y + hijo.h)) + 8 : 0),
+      w: numOf(args, "w", 1, MAX_COORD) ?? tamano.w,
+      h: numOf(args, "h", 1, MAX_COORD) ?? tamano.h,
+      title: "",
+      text: "",
+      placeholder: "",
+      items: [],
+      active: -1,
+      options: [],
+      checked: [],
+      variant: "",
+      align: "left",
+      icon: "",
+      src: "",
+      disabled: false,
+    };
+    aplicarContenido(nodo, args);
+    const saneada = sanitizeUi({ nodes: [...nodos, nodo] });
+    if (saneada.nodes.length !== nodos.length + 1) {
+      throw new Error(
+        "El widget no pasa el saneado: «id» admite letras, números, «_» y «-», hasta 32.",
+      );
+    }
+    scene.ui = saneada;
+    return saveUi(dir, scene, `Widget "${id}" (${kind}) creado en ${nodo.x}, ${nodo.y}.`);
+  }
+
+  const id = strOf(args, "id");
+  const actual = id === undefined ? undefined : nodos.find((nodo) => nodo.id === id);
+  if (!actual) {
+    throw new Error(`No hay ningún widget con id "${id ?? ""}": pizarra_ui_leer devuelve los ids.`);
+  }
+
+  if (op === "borrar") {
+    const fuera = new Set([actual.id]);
+    // Los descendientes caen con él: se cierra el conjunto hasta que deje de crecer.
+    for (let antes = 0; antes !== fuera.size; ) {
+      antes = fuera.size;
+      for (const nodo of nodos) {
+        if (nodo.parent !== null && fuera.has(nodo.parent)) {
+          fuera.add(nodo.id);
+        }
+      }
+    }
+    scene.ui = sanitizeUi({ nodes: nodos.filter((nodo) => !fuera.has(nodo.id)) });
+    const resto = fuera.size - 1;
+    return saveUi(
+      dir,
+      scene,
+      `Widget "${actual.id}" borrado${resto ? `, y con él ${cuenta(resto, "descendiente", "descendientes")}` : ""}.`,
+    );
+  }
+
+  const nuevo: UiNode = { ...actual };
+  const kind = enumOf(args, "kind", UI_KINDS);
+  if (kind !== undefined) nuevo.kind = kind;
+  const parent = padreOf(args, ids, actual.id);
+  if (parent !== undefined) {
+    // El árbol no puede cerrarse en ciclo: subiendo desde el nuevo padre no se puede llegar a él.
+    for (let sube: string | null = parent, pasos = 0; sube && pasos <= nodos.length; pasos += 1) {
+      if (sube === actual.id) {
+        throw new Error(`«parent» crearía un ciclo: "${parent}" ya cuelga de "${actual.id}".`);
+      }
+      sube = nodos.find((nodo) => nodo.id === sube)?.parent ?? null;
+    }
+    nuevo.parent = parent;
+  }
+  const x = numOf(args, "x", -MAX_COORD, MAX_COORD);
+  if (x !== undefined) nuevo.x = x;
+  const y = numOf(args, "y", -MAX_COORD, MAX_COORD);
+  if (y !== undefined) nuevo.y = y;
+  const w = numOf(args, "w", 1, MAX_COORD);
+  if (w !== undefined) nuevo.w = w;
+  const h = numOf(args, "h", 1, MAX_COORD);
+  if (h !== undefined) nuevo.h = h;
+  aplicarContenido(nuevo, args);
+  const saneada = sanitizeUi({
+    nodes: nodos.map((nodo) => (nodo === actual ? nuevo : nodo)),
+  });
+  if (!saneada.nodes.some((nodo) => nodo.id === actual.id)) {
+    throw new Error(`El widget "${actual.id}" no pasa el saneado con esos campos.`);
+  }
+  scene.ui = saneada;
+  return saveUi(dir, scene, `Widget "${actual.id}" actualizado en ${nuevo.x}, ${nuevo.y}.`);
+}
+
 const PIZARRA_CALLS: Record<string, (args: Record<string, unknown>) => Promise<string>> = {
   pizarra_leer: pizarraLeer,
   pizarra_escribir: pizarraEscribir,
@@ -1010,6 +1421,9 @@ const PIZARRA_CALLS: Record<string, (args: Record<string, unknown>) => Promise<s
   pizarra_arista: pizarraArista,
   pizarra_texto: pizarraTexto,
   pizarra_imagen: pizarraImagen,
+  pizarra_ui_leer: pizarraUiLeer,
+  pizarra_ui_escribir: pizarraUiEscribir,
+  pizarra_ui_nodo: pizarraUiNodo,
 };
 
 /** Ejecuta una herramienta de pizarra; `undefined` si el nombre no es suyo. */

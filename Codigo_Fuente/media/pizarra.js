@@ -12,6 +12,8 @@
   "use strict";
   const vscode = acquireVsCodeApi();
   const PZFlow = globalThis.PZFlow;
+  /** Widgets de wireframe de la capa INTERFACES (`pizarraUi.js`). Sin ella, la pizarra va igual. */
+  const PZUi = globalThis.PZUi || null;
 
   /** Alto del lienzo del panel: referencia de la escala. `W` sigue al marco; un lienzo fijado cambia los dos. */
   const SIZE = 1024;
@@ -108,6 +110,11 @@
     nodeIconField: document.getElementById("node-icon-field"),
     nodeText: document.getElementById("node-text"),
     nodeTextAuto: document.getElementById("node-text-auto"),
+    btnUi: document.getElementById("btn-ui"),
+    drawer: document.getElementById("ui-drawer"),
+    drawerClose: document.getElementById("ui-close"),
+    palette: document.getElementById("ui-palette"),
+    inspect: document.getElementById("ui-inspect"),
     edgeColor: document.getElementById("edge-color"),
     edgeWidth: document.getElementById("edge-width"),
     edgeDash: document.getElementById("edge-dash"),
@@ -140,10 +147,12 @@
   const state = {
     bg: { color: BG_DEFAULT, image: null },
     flow: { nodes: [], edges: [] },
+    /** Capa INTERFACES: widgets planos; `x`/`y` van relativos a la caja útil del padre. */
+    ui: { nodes: [] },
     images: [],
     strokes: [],
     texts: [],
-    layers: { flow: true, images: true, strokes: true, texts: true },
+    layers: { flow: true, ui: true, images: true, strokes: true, texts: true },
   };
 
   let tool = "select";
@@ -153,6 +162,8 @@
   let selNodes = [];
   /** Conector elegido: sus asas son los extremos y los codos. */
   let selEdge = null;
+  /** Widget de INTERFACES elegido: se mueve, se escala y se ajusta en el cajón INTERFAZ. */
+  let selUi = null;
   /** Nodo bajo el puntero: enseña sus asas de conexión. */
   let hoverNode = null;
   /** Último punto del puntero en el lienzo: lo usan los chivatos del overlay. */
@@ -307,6 +318,7 @@
     return Boolean(
       state.flow.nodes.length ||
         state.flow.edges.length ||
+        state.ui.nodes.length ||
         state.strokes.length ||
         state.images.length ||
         state.texts.length ||
@@ -534,6 +546,15 @@
       img = await imagenDe(src);
     } catch {
       setStatus("El portapapeles trae una imagen que no se puede leer.", "error");
+      return true;
+    }
+    // Con un widget IMAGEN elegido el pegado va a su `src`: no se crea capa IMÁGENES.
+    if (selUi && selUi.kind === "image" && state.ui.nodes.indexOf(selUi) >= 0) {
+      selUi.src = src;
+      changed();
+      commit();
+      syncUiControls();
+      setStatus("Imagen puesta en el widget de INTERFACES.", "ok");
       return true;
     }
     addImage(img, img.width, img.height, src);
@@ -847,6 +868,555 @@
     t.restore();
   }
 
+  // ── INTERFACES: widgets de wireframe ──────────────────────
+
+  /** Lado mínimo de un widget al escalarlo con un asa. */
+  const UI_MIN = 8;
+  /** Tope de widgets de la capa: el mismo que aplica el saneado del host (`MAX_UI_NODES`). */
+  const UI_MAX = 800;
+  /** Tipos que admiten hijos: un widget nuevo suelto encima nace dentro y apilado debajo. */
+  const UI_CONTENEDORES = ["container", "window", "tabs-h", "tabs-v", "accordion"];
+
+  /**
+   * Campos del inspector por tipo: solo los que `pizarraUi.js` lee de verdad en cada widget.
+   * `align` solo lo usa la etiqueta (el resto de controles alinea por su cuenta).
+   */
+  const UI_CAMPOS = {
+    container: ["title", "disabled"],
+    window: ["title", "disabled"],
+    "tabs-h": ["items", "active", "disabled"],
+    "tabs-v": ["items", "active", "disabled"],
+    accordion: ["items", "active", "disabled"],
+    menu: ["items", "active", "disabled"],
+    label: ["text", "align", "disabled"],
+    input: ["text", "placeholder", "disabled"],
+    textarea: ["text", "placeholder", "disabled"],
+    choice: ["options", "checked", "variant", "disabled"],
+    button: ["text", "variant", "disabled"],
+    icon: ["icon", "disabled"],
+    image: ["src", "disabled"],
+  };
+
+  /** Orden y rótulo de cada campo del inspector. */
+  const UI_EDITOR = {
+    title: { etiqueta: "TÍTULO", tag: "input" },
+    text: { etiqueta: "TEXTO", tag: "input" },
+    placeholder: { etiqueta: "PISTA", tag: "input" },
+    items: { etiqueta: "FILAS (una por línea)", tag: "textarea" },
+    active: { etiqueta: "ACTIVA / ABIERTA", tag: "select" },
+    options: { etiqueta: "OPCIONES (una por línea)", tag: "textarea" },
+    checked: { etiqueta: "MARCADAS (0, 2…)", tag: "input" },
+    variant: { etiqueta: "VARIANTE", tag: "select" },
+    align: { etiqueta: "ALINEAR", tag: "select" },
+    icon: { etiqueta: "ICONO", tag: "input" },
+    // Solo lectura: la data URL se pone pegando la imagen o desde el MCP, no escribiéndola.
+    src: { etiqueta: "IMAGEN", tag: "nota" },
+    disabled: { etiqueta: "APAGADO", tag: "checkbox" },
+  };
+  const UI_ORDEN = ["title", "text", "placeholder", "items", "active", "options", "checked", "variant", "align", "icon", "src", "disabled"];
+
+  /** Controles del inspector por campo; se crean una vez y se rellenan al elegir. */
+  const inspectorCampos = {};
+  const inspectorFilas = {};
+  /** Siguiente número de id de widget: `u1`, `u2`… sin repetir lo que ya haya. */
+  let uiSeq = 0;
+
+  /** Id nuevo de widget, sin pisar ninguno de la escena. */
+  function nuevoIdUi() {
+    let id;
+    do {
+      uiSeq += 1;
+      id = "u" + uiSeq;
+    } while (state.ui.nodes.some((n) => n.id === id));
+    return id;
+  }
+
+  /** Ids del widget y de todo lo que cuelga de él. */
+  function ramaUi(id) {
+    const ids = [id];
+    for (let i = 0; i < ids.length; i += 1) {
+      for (const n of state.ui.nodes) {
+        if (n.parent === ids[i] && ids.indexOf(n.id) < 0) ids.push(n.id);
+      }
+    }
+    return ids;
+  }
+
+  /** Origen de la caja útil del padre, en coordenadas del lienzo: los hijos van relativos a él. */
+  function uiOrigen(n) {
+    if (!n || n.parent == null || !PZUi) return { x: 0, y: 0 };
+    const padre = state.ui.nodes.find((m) => m.id === n.parent);
+    if (!padre) return { x: 0, y: 0 };
+    const caja = PZUi.place(state.ui.nodes, padre);
+    const util = PZUi.contentBox(padre);
+    return { x: caja.x + util.dx, y: caja.y + util.dy };
+  }
+
+  /** Centro del encuadre en coordenadas del lienzo: ahí nace un widget suelto. */
+  function centroVista() {
+    const fw = el.frame.clientWidth || W;
+    const fh = el.frame.clientHeight || H;
+    const k = layoutEscala() || 1;
+    return { x: (fw / 2 - view.tx) / view.z / k, y: (fh / 2 - view.ty) / view.z / k };
+  }
+
+  /** Widgets de una escena al modelo de la webview; lo que no encaja se cae, no aborta la carga. */
+  function uiDeEscena(raw) {
+    const usados = new Set();
+    const nodos = [];
+    for (const n of Array.isArray(raw) ? raw : []) {
+      if (!n || typeof n.id !== "string" || !/^[A-Za-z0-9_-]{1,32}$/.test(n.id) || usados.has(n.id)) continue;
+      usados.add(n.id);
+      nodos.push({
+        id: n.id,
+        kind: typeof n.kind === "string" ? n.kind : "container",
+        parent: typeof n.parent === "string" ? n.parent : null,
+        x: num(n.x, 0),
+        y: num(n.y, 0),
+        w: Math.max(1, num(n.w, 120)),
+        h: Math.max(1, num(n.h, 32)),
+        title: typeof n.title === "string" ? n.title : "",
+        text: typeof n.text === "string" ? n.text : "",
+        placeholder: typeof n.placeholder === "string" ? n.placeholder : "",
+        items: Array.isArray(n.items) ? n.items.filter((t) => typeof t === "string") : [],
+        active: num(n.active, -1),
+        options: Array.isArray(n.options) ? n.options.filter((t) => typeof t === "string") : [],
+        checked: Array.isArray(n.checked) ? n.checked.filter((i) => typeof i === "number") : [],
+        variant: typeof n.variant === "string" ? n.variant : "",
+        align: typeof n.align === "string" ? n.align : "left",
+        icon: typeof n.icon === "string" ? n.icon : "",
+        src: typeof n.src === "string" ? n.src : "",
+        disabled: n.disabled === true,
+      });
+    }
+    // Padre que no está: el widget se queda, pero en la raíz (igual que el saneado del host).
+    const ids = new Set(nodos.map((n) => n.id));
+    for (const n of nodos) {
+      if (n.parent !== null && !ids.has(n.parent)) n.parent = null;
+    }
+    return nodos;
+  }
+
+  /** Widget nuevo de la paleta: el tamaño lo manda la librería. */
+  function widgetNuevo(kind) {
+    const tam = PZUi.defaults(kind);
+    const items = [];
+    // Un par de filas de arranque: un contenedor vacío no se entiende hasta configurarlo.
+    if (kind === "tabs-h" || kind === "tabs-v") items.push("Pestaña 1", "Pestaña 2");
+    else if (kind === "accordion") items.push("Sección 1");
+    else if (kind === "menu") items.push("Opción 1");
+    const options = kind === "choice" ? ["Opción 1"] : [];
+    return {
+      id: nuevoIdUi(),
+      kind,
+      parent: null,
+      x: 0,
+      y: 0,
+      w: tam.w,
+      h: tam.h,
+      title: kind === "window" ? "Ventana" : "",
+      text: kind === "button" ? "Botón" : "",
+      placeholder: kind === "input" ? "Texto" : kind === "textarea" ? "Texto" : "",
+      items,
+      active: items.length ? 0 : -1,
+      options,
+      checked: [],
+      variant: "",
+      align: "left",
+      icon: kind === "icon" ? "user" : "",
+      src: "",
+      disabled: false,
+    };
+  }
+
+  /** Suelta un widget desde la paleta: dentro del contenedor elegido o en el centro de la vista. */
+  function insertarUi(kind) {
+    if (!PZUi) {
+      setStatus("La capa INTERFACES no está cargada.", "error");
+      return;
+    }
+    if (state.ui.nodes.length >= UI_MAX) {
+      setStatus("La capa INTERFACES llega al tope de 800 widgets.", "error");
+      return;
+    }
+    // Insertar a ciegas con la capa oculta no enseña nada: se enciende, como el lápiz con TRAZOS.
+    const capaApagada = state.layers.ui === false;
+    if (capaApagada) {
+      state.layers.ui = true;
+      paintLayers();
+    }
+    const nodo = widgetNuevo(kind);
+    const host = selUi && UI_CONTENEDORES.indexOf(selUi.kind) >= 0 ? selUi : null;
+    if (host) {
+      nodo.parent = host.id;
+      nodo.x = ajusta(8);
+      // Apilado debajo de los hijos que ya tenga el contenedor.
+      let fondo = 0;
+      for (const hijo of PZUi.children(state.ui.nodes, host.id)) fondo = Math.max(fondo, hijo.y + hijo.h);
+      nodo.y = ajusta(fondo + 8);
+      // Si no cabe en la caja útil, el contenedor crece: el widget nuevo tiene que verse.
+      const util = PZUi.contentBox(host);
+      if (nodo.y + nodo.h > util.h) host.h += nodo.y + nodo.h - util.h;
+    } else {
+      const centro = centroVista();
+      nodo.x = ajusta(centro.x - nodo.w / 2);
+      nodo.y = ajusta(centro.y - nodo.h / 2);
+    }
+    state.ui.nodes.push(nodo);
+    setTool("select");
+    selectUi(nodo);
+    changed();
+    commit();
+    setStatus(
+      capaApagada
+        ? "La capa INTERFACES estaba oculta: la enciendo. Widget añadido."
+        : `Interfaz: ${etiquetaUi(kind)} añadido.`,
+      "ok"
+    );
+  }
+
+  /** Nombre visible de un tipo de widget. */
+  function etiquetaUi(kind) {
+    if (!PZUi) return kind;
+    const entrada = PZUi.KINDS.find((k) => k.kind === kind);
+    return entrada ? entrada.label : kind;
+  }
+
+  /** Asa de tamaño del widget elegido, en coordenadas del lienzo. */
+  function hitAsaUi(n, p) {
+    const caja = PZUi.place(state.ui.nodes, n);
+    const radio = px(HANDLE_NODO);
+    for (const asa of PZUi.handlePoints(caja)) {
+      if (Math.abs(p.x - asa.x) <= radio && Math.abs(p.y - asa.y) <= radio) return asa;
+    }
+    return null;
+  }
+
+  /** Escalado desde un asa: los bordes se mueven en absoluto y el resultado vuelve al padre. */
+  function redimensionarUi(d, p) {
+    const n = d.nodo;
+    const b = d.caja;
+    let x0 = b.x;
+    let y0 = b.y;
+    let x1 = b.x + b.w;
+    let y1 = b.y + b.h;
+    if (d.part.indexOf("w") >= 0) x0 = ajusta(p.x);
+    if (d.part.indexOf("e") >= 0) x1 = ajusta(p.x);
+    if (d.part.indexOf("n") >= 0) y0 = ajusta(p.y);
+    if (d.part.indexOf("s") >= 0) y1 = ajusta(p.y);
+    // El asa no cruza el borde de enfrente: el widget se queda en su lado mínimo.
+    if (x1 - x0 < UI_MIN) {
+      if (d.part.indexOf("w") >= 0) x0 = x1 - UI_MIN;
+      else x1 = x0 + UI_MIN;
+    }
+    if (y1 - y0 < UI_MIN) {
+      if (d.part.indexOf("n") >= 0) y0 = y1 - UI_MIN;
+      else y1 = y0 + UI_MIN;
+    }
+    const x = x0 - d.origen.x;
+    const y = y0 - d.origen.y;
+    const w = x1 - x0;
+    const h = y1 - y0;
+    const cambia = n.x !== x || n.y !== y || n.w !== w || n.h !== h;
+    n.x = x;
+    n.y = y;
+    n.w = w;
+    n.h = h;
+    return cambia;
+  }
+
+  /** SUBIR/BAJAR: intercambia el sitio con el hermano de al lado en el orden de pintado. */
+  function moverUi(dir) {
+    if (!selUi || state.ui.nodes.indexOf(selUi) < 0) return;
+    const hermanos = PZUi.children(state.ui.nodes, selUi.parent);
+    const i = hermanos.indexOf(selUi);
+    const otro = hermanos[i + dir];
+    if (i < 0 || !otro) {
+      setStatus(dir > 0 ? "Ya es el widget de arriba." : "Ya es el widget de abajo.");
+      return;
+    }
+    const a = state.ui.nodes.indexOf(selUi);
+    const b = state.ui.nodes.indexOf(otro);
+    state.ui.nodes[a] = otro;
+    state.ui.nodes[b] = selUi;
+    changed();
+    commit();
+  }
+
+  /** EXTRAER: el widget pasa a la raíz sin moverse de donde se ve. */
+  function extraerUi() {
+    if (!selUi || state.ui.nodes.indexOf(selUi) < 0) return;
+    if (selUi.parent == null) {
+      setStatus("El widget ya está en la raíz de INTERFACES.");
+      return;
+    }
+    const caja = PZUi.place(state.ui.nodes, selUi);
+    selUi.parent = null;
+    selUi.x = red(caja.x);
+    selUi.y = red(caja.y);
+    changed();
+    commit();
+    syncUiControls();
+    setStatus("Widget sacado a la raíz de INTERFACES.");
+  }
+
+  /** Ctrl+D con un widget elegido: copia su subárbol, desplazado y con ids nuevos. */
+  function duplicarUi() {
+    const ids = new Set(ramaUi(selUi.id));
+    if (state.ui.nodes.length + ids.size > UI_MAX) {
+      setStatus("La capa INTERFACES llega al tope de 800 widgets.", "error");
+      return;
+    }
+    const copias = new Map();
+    for (const n of state.ui.nodes.slice()) {
+      if (!ids.has(n.id)) continue;
+      const copia = { ...n, id: nuevoIdUi(), items: n.items.slice(), options: n.options.slice(), checked: n.checked.slice() };
+      if (n === selUi) {
+        copia.x += 16;
+        copia.y += 16;
+      }
+      copias.set(n.id, copia);
+      state.ui.nodes.push(copia);
+    }
+    // Un padre que no viaja en la copia se queda el de siempre: la copia es su hermana.
+    for (const copia of copias.values()) {
+      const padre = copias.get(copia.parent);
+      if (padre) copia.parent = padre.id;
+    }
+    selectUi(copias.get(selUi.id));
+    changed();
+    commit();
+    setStatus(`${copias.size} widget(s) duplicados.`, "ok");
+  }
+
+  /** Rellena un `<select>` con pares valor/rótulo y deja elegido el que toque. */
+  function llenarOpciones(select, pares, actual) {
+    if (!select) return;
+    select.replaceChildren(...pares.map(([valor, texto]) => new Option(texto, valor)));
+    const hay = pares.some(([valor]) => valor === actual);
+    select.value = hay ? actual : pares.length ? pares[0][0] : "";
+  }
+
+  /** Selección de un widget: el cajón enseña su inspector. */
+  function selectUi(n) {
+    selUi = n;
+    sel = null;
+    selNodes = [];
+    selEdge = null;
+    syncUiControls();
+    syncOpciones();
+    paintLayers();
+    actualizarContexto();
+    redraw();
+  }
+
+  /** Inspector: se oculta sin widget elegido y, con él, enseña solo los campos de su tipo. */
+  function syncUiControls() {
+    const n = selUi && state.ui.nodes.indexOf(selUi) >= 0 ? selUi : null;
+    selUi = n;
+    if (!el.inspect) return;
+    el.inspect.hidden = !n;
+    if (!n) return;
+    const campos = UI_CAMPOS[n.kind] || [];
+    for (const clave of UI_ORDEN) {
+      const fila = inspectorFilas[clave];
+      if (fila) fila.hidden = campos.indexOf(clave) < 0;
+    }
+    const poner = (clave, valor) => {
+      const c = inspectorCampos[clave];
+      if (!c) return;
+      if (c.tagName === "SPAN") c.textContent = valor == null ? "" : String(valor);
+      else if (c.type === "checkbox") c.checked = Boolean(valor);
+      else c.value = valor == null ? "" : String(valor);
+    };
+    poner("title", n.title);
+    poner("text", n.text);
+    poner("placeholder", n.placeholder);
+    poner("items", n.items.join("\n"));
+    poner("options", n.options.join("\n"));
+    poner("checked", n.checked.join(", "));
+    poner("icon", n.icon);
+    poner("disabled", n.disabled);
+    poner("src", n.src ? "Con imagen. Ctrl+V la cambia." : "Sin imagen: Ctrl+V con el widget elegido.");
+    if (campos.indexOf("variant") >= 0) {
+      const pares =
+        n.kind === "choice"
+          ? [["", "NINGUNA"], ["check", "CASILLA"], ["radio", "RADIO"]]
+          : [["", "NINGUNA"], ["primary", "PRIMARIA"], ["secondary", "SECUNDARIA"]];
+      llenarOpciones(inspectorCampos.variant, pares, n.variant);
+    }
+    if (campos.indexOf("align") >= 0) {
+      llenarOpciones(
+        inspectorCampos.align,
+        [["left", "IZQUIERDA"], ["center", "CENTRO"], ["right", "DERECHA"]],
+        n.align
+      );
+    }
+    if (campos.indexOf("active") >= 0) {
+      const abierta = n.kind === "tabs-h" || n.kind === "tabs-v";
+      const pares = n.items.map((t, i) => [String(i), `${i + 1}. ${t || "fila"}`]);
+      llenarOpciones(inspectorCampos.active, abierta ? pares : [["-1", "NINGUNA"], ...pares], String(n.active));
+    }
+  }
+
+  /** Vuelca el inspector sobre el widget elegido. `changed` en cada tecla; `commit` al cerrar. */
+  function aplicarInspector() {
+    const n = selUi && state.ui.nodes.indexOf(selUi) >= 0 ? selUi : null;
+    if (!n) return;
+    const campos = UI_CAMPOS[n.kind] || [];
+    const valor = (clave) => {
+      const c = inspectorCampos[clave];
+      if (!c) return "";
+      if (c.tagName === "SPAN") return c.textContent;
+      return c.type === "checkbox" ? c.checked : String(c.value);
+    };
+    const listas = (clave) =>
+      valor(clave)
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
+    const iguales = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+    let cambia = false;
+    for (const clave of campos) {
+      // `src` es solo lectura: se rellena pegando la imagen o desde el MCP, no desde el campo.
+      if (clave === "src") continue;
+      if (clave === "items") {
+        const lista = listas("items");
+        if (!iguales(lista, n.items)) {
+          n.items = lista;
+          n.active = Math.min(n.active, lista.length - 1);
+          cambia = true;
+        }
+      } else if (clave === "options") {
+        const lista = listas("options");
+        if (!iguales(lista, n.options)) {
+          n.options = lista;
+          n.checked = n.checked.filter((i) => i < lista.length);
+          cambia = true;
+        }
+      } else if (clave === "active") {
+        const i = parseInt(valor("active"), 10);
+        const entero = Number.isFinite(i) ? i : -1;
+        if (n.active !== entero) {
+          n.active = entero;
+          cambia = true;
+        }
+      } else if (clave === "checked") {
+        const indices = valor("checked")
+          .split(",")
+          .map((s) => parseInt(s.trim(), 10))
+          .filter((i) => Number.isFinite(i) && i >= 0 && i < n.options.length);
+        if (!iguales(indices, n.checked)) {
+          n.checked = indices;
+          cambia = true;
+        }
+      } else if (clave === "disabled") {
+        if (n.disabled !== valor("disabled")) {
+          n.disabled = valor("disabled");
+          cambia = true;
+        }
+      } else if (n[clave] !== valor(clave)) {
+        n[clave] = valor(clave);
+        cambia = true;
+      }
+    }
+    if (cambia) changed();
+  }
+
+  /** Paleta del cajón: un botón por tipo, agrupados como los declara la librería. */
+  function construirPaleta() {
+    if (!el.palette) return;
+    if (!PZUi) {
+      const nota = document.createElement("p");
+      nota.className = "pz-ui-nota";
+      nota.textContent = "La capa INTERFACES no se ha cargado: no hay paleta de widgets.";
+      el.palette.append(nota);
+      return;
+    }
+    const grupos = new Map();
+    for (const k of PZUi.KINDS) {
+      if (!grupos.has(k.group)) grupos.set(k.group, []);
+      grupos.get(k.group).push(k);
+    }
+    for (const [grupo, lista] of grupos) {
+      const rotulo = document.createElement("div");
+      rotulo.className = "pz-ui-grp";
+      rotulo.textContent = grupo === "contenedor" ? "CONTENEDORES" : "CONTROLES";
+      const rejilla = document.createElement("div");
+      rejilla.className = "pz-ui-grid";
+      for (const k of lista) {
+        const boton = document.createElement("button");
+        boton.type = "button";
+        boton.className = "pz-ui-btn";
+        boton.textContent = k.label;
+        boton.title = `Insertar ${k.label.toLowerCase()} en la capa INTERFACES`;
+        boton.setAttribute("aria-label", boton.title);
+        boton.addEventListener("click", () => insertarUi(k.kind));
+        rejilla.append(boton);
+      }
+      el.palette.append(rotulo, rejilla);
+    }
+  }
+
+  /** Inspector del cajón: se crea una vez y se rellena al elegir widget. */
+  function construirInspector() {
+    if (!el.inspect) return;
+    for (const clave of UI_ORDEN) {
+      const editor = UI_EDITOR[clave];
+      const fila = document.createElement("label");
+      fila.className = clave === "disabled" ? "pz-ui-field pz-ui-check" : "pz-ui-field";
+      fila.hidden = true;
+      const rotulo = document.createElement("span");
+      rotulo.textContent = editor.etiqueta;
+      let control;
+      if (editor.tag === "textarea") {
+        control = document.createElement("textarea");
+        control.rows = 3;
+      } else if (editor.tag === "select") {
+        control = document.createElement("select");
+      } else if (editor.tag === "nota") {
+        // Valor de solo lectura (`src`): un span, no un campo que se pueda escribir.
+        control = document.createElement("span");
+        control.className = "pz-ui-valor";
+      } else {
+        control = document.createElement("input");
+        control.type = editor.tag === "checkbox" ? "checkbox" : "text";
+      }
+      control.title = editor.etiqueta;
+      control.setAttribute("aria-label", editor.etiqueta);
+      if (control.tagName === "INPUT" && control.type !== "checkbox") control.spellcheck = false;
+      fila.append(rotulo, control);
+      inspectorCampos[clave] = control;
+      inspectorFilas[clave] = fila;
+      el.inspect.append(fila);
+      if (control.tagName === "SPAN") continue;
+      control.addEventListener("input", () => aplicarInspector());
+      control.addEventListener("change", () => {
+        aplicarInspector();
+        commit();
+      });
+    }
+    const acciones = document.createElement("div");
+    acciones.className = "pz-ui-actions";
+    const accion = (texto, titulo, fn) => {
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.className = "pz-ui-act";
+      boton.textContent = texto;
+      boton.title = titulo;
+      boton.setAttribute("aria-label", titulo);
+      boton.addEventListener("click", fn);
+      return boton;
+    };
+    acciones.append(
+      accion("SUBIR", "Subir el widget un paso en el orden de pintado", () => moverUi(1)),
+      accion("BAJAR", "Bajar el widget un paso en el orden de pintado", () => moverUi(-1)),
+      accion("EXTRAER", "Sacar el widget a la raíz de la capa INTERFACES", extraerUi),
+      accion("BORRAR", "Borrar el widget y los que cuelgan de él", () => deleteSelected())
+    );
+    el.inspect.append(acciones);
+  }
+
   // ── Conectores ────────────────────────────────────────────
 
   function nodosPorId() {
@@ -1002,6 +1572,12 @@
       for (const e of state.flow.edges) dibujaArista(ctx, e);
       for (const n of state.flow.nodes) dibujaNodo(ctx, n);
     }
+    if (state.layers.ui !== false && PZUi) {
+      // El zoom que pide la librería es el mismo que usa `px()`: píxeles de pantalla por píxel
+      // de lienzo (el lienzo va estirado por CSS, así el trazo mide igual a cualquier zoom).
+      // El mapa de imágenes ya decodificadas es la misma caché que usan la escena y el pegado.
+      PZUi.draw(ctx, state.ui.nodes, pantallaEscala(), cacheImagenes);
+    }
     if (state.layers.images !== false) {
       for (const img of state.images) {
         ctx.save();
@@ -1132,6 +1708,29 @@
           labelOffset: { dx: red(e.labelOffset ? e.labelOffset.dx : 0), dy: red(e.labelOffset ? e.labelOffset.dy : 0) },
         })),
       },
+      ui: {
+        nodes: state.ui.nodes.map((n) => ({
+          id: n.id,
+          kind: n.kind,
+          parent: n.parent == null ? null : n.parent,
+          x: red(n.x),
+          y: red(n.y),
+          w: red(n.w),
+          h: red(n.h),
+          title: n.title || "",
+          text: n.text || "",
+          placeholder: n.placeholder || "",
+          items: n.items.slice(),
+          active: n.active,
+          options: n.options.slice(),
+          checked: n.checked.slice(),
+          variant: n.variant || "",
+          align: n.align || "left",
+          icon: n.icon || "",
+          src: n.src || "",
+          disabled: Boolean(n.disabled),
+        })),
+      },
       images: state.images
         .filter((i) => Boolean(i.src))
         .map((i) => ({ src: i.src, x: red(i.x), y: red(i.y), w: red(i.w), h: red(i.h), rot: i.rot })),
@@ -1155,6 +1754,7 @@
       })),
       layers: {
         flow: state.layers.flow !== false,
+        ui: state.layers.ui !== false,
         images: state.layers.images !== false,
         strokes: state.layers.strokes !== false,
         texts: state.layers.texts !== false,
@@ -1327,6 +1927,7 @@
     const capas = doc && doc.layers ? doc.layers : {};
     state.layers = {
       flow: capas.flow !== false,
+      ui: capas.ui !== false,
       images: capas.images !== false,
       strokes: capas.strokes !== false,
       texts: capas.texts !== false,
@@ -1371,6 +1972,20 @@
         });
       } catch {
         setStatus("Una imagen de la escena no se ha podido leer: se descarta.", "error");
+      }
+    }
+
+    // INTERFACES: la escena puede no traerla (pizarras de antes de la capa).
+    state.ui = { nodes: uiDeEscena(doc && doc.ui ? doc.ui.nodes : null) };
+    // Las imágenes de los widgets se decodifican aquí, en serie: `cacheImagenes` es el mapa que
+    // `compose` le pasa a la librería. Una que no se puede leer se queda sin `src` (marcador).
+    for (const widget of state.ui.nodes) {
+      if (!widget.src) continue;
+      try {
+        await imagenDe(widget.src);
+      } catch {
+        widget.src = "";
+        setStatus("La imagen de un widget no se ha podido leer: se queda sin ella.", "error");
       }
     }
 
@@ -1428,6 +2043,7 @@
     if (tool === "pen" || tool === "eraser") return "strokes";
     if (tool === "text") return "texts";
     if (tool === "node") return "flow";
+    if (selUi) return "ui";
     if (selEdge || selNodes.length) return "flow";
     if (!sel) return "";
     return sel.type === "image" ? "images" : "texts";
@@ -1479,6 +2095,10 @@
     else if (selEdge)
       setStatus(
         "CONECTOR: arrastra un tramo para desviarlo, un codo para moverlo, o un extremo para reengancharlo; Alt+clic añade un codo y doble clic en la etiqueta la edita."
+      );
+    else if (selUi)
+      setStatus(
+        "INTERFAZ: arrastra para mover y tira de un asa para el tamaño; otro clic sobre el widget simula su control."
       );
     else if (selNodes.length > 1)
       setStatus(
@@ -1673,6 +2293,8 @@
     sel = o;
     selNodes = [];
     selEdge = null;
+    selUi = null;
+    syncUiControls();
     syncTextControls(o);
     syncNodoControls();
     syncOpciones();
@@ -1685,6 +2307,8 @@
     selNodes = lista.slice();
     sel = null;
     selEdge = null;
+    selUi = null;
+    syncUiControls();
     syncNodoControls();
     paintLayers();
     actualizarContexto();
@@ -1695,6 +2319,8 @@
     selEdge = e;
     sel = null;
     selNodes = [];
+    selUi = null;
+    syncUiControls();
     syncEdgeControls();
     syncOpciones();
     paintLayers();
@@ -1703,10 +2329,12 @@
   }
 
   function limpiarSeleccion() {
-    const habia = sel || selNodes.length || selEdge;
+    const habia = sel || selNodes.length || selEdge || selUi;
     sel = null;
     selNodes = [];
     selEdge = null;
+    selUi = null;
+    syncUiControls();
     syncOpciones();
     paintLayers();
     if (habia) {
@@ -1716,6 +2344,17 @@
   }
 
   function deleteSelected() {
+    if (selUi) {
+      // Sus descendientes se van con él: un hijo huérfano quedaría en la raíz, no donde estaba.
+      const ids = new Set(ramaUi(selUi.id));
+      state.ui.nodes = state.ui.nodes.filter((n) => !ids.has(n.id));
+      selUi = null;
+      syncUiControls();
+      paintLayers();
+      changed();
+      commit();
+      return;
+    }
     if (selNodes.length) {
       const ids = new Set(selNodes.map((n) => n.id));
       state.flow.nodes = state.flow.nodes.filter((n) => !ids.has(n.id));
@@ -1891,6 +2530,18 @@
       octx.lineTo(rot.p.x, rot.p.y);
       octx.stroke();
       for (const h of hs) octx.fillRect(h.p.x - ladoImagen / 2, h.p.y - ladoImagen / 2, ladoImagen, ladoImagen);
+      octx.restore();
+    }
+
+    // INTERFACES: contorno y las ocho asas del widget elegido. El overlay es otro lienzo, así
+    // que nada de esto viaja en el PNG (`pngBase64` lee solo el lienzo del dibujo).
+    if (state.layers.ui !== false && PZUi && selUi && state.ui.nodes.indexOf(selUi) >= 0) {
+      const b = PZUi.place(state.ui.nodes, selUi);
+      octx.save();
+      octx.strokeStyle = "#00e5ff";
+      octx.lineWidth = px(2);
+      octx.strokeRect(b.x, b.y, b.w, b.h);
+      for (const asa of PZUi.handlePoints(b)) cuadro(octx, asa, px(HANDLE_NODO), "#00e5ff");
       octx.restore();
     }
 
@@ -2576,12 +3227,48 @@
       return;
     }
 
-    // SELECCIONAR: de arriba abajo, textos → imágenes → nodos → aristas.
+    // INTERFACES: las asas del widget elegido mandan sobre lo que tenga debajo.
+    if (PZUi && tool === "select" && state.layers.ui !== false) {
+      const asa = selUi && state.ui.nodes.indexOf(selUi) >= 0 ? hitAsaUi(selUi, p) : null;
+      if (asa) {
+        drag = {
+          kind: "ui-tamano",
+          nodo: selUi,
+          part: asa.part,
+          caja: PZUi.place(state.ui.nodes, selUi),
+          origen: uiOrigen(selUi),
+        };
+        return;
+      }
+    }
+
+    // SELECCIONAR: de arriba abajo, el orden de pintado al revés.
     const o = hitObject(p);
     if (o) {
       select(o);
       drag = { kind: "move", last: p, desde: p };
       return;
+    }
+
+    // INTERFACES va encima del diagrama y debajo de imágenes y textos, así que su golpe entra
+    // aquí: después de `hitObject` y antes de los nodos.
+    if (PZUi && tool === "select" && state.layers.ui !== false) {
+      const golpe = PZUi.hit(state.ui.nodes, p.x, p.y);
+      if (golpe) {
+        if (golpe.node !== selUi) {
+          selectUi(golpe.node);
+        } else {
+          // Segundo clic sobre el elegido: simula el control (pestaña, acordeón, casilla).
+          const antes = [golpe.node.active, golpe.node.checked.join(",")].join("|");
+          PZUi.click(golpe.node, golpe.part);
+          if ([golpe.node.active, golpe.node.checked.join(",")].join("|") !== antes) {
+            changed();
+            commit();
+          }
+        }
+        drag = { kind: "ui-mover", nodo: golpe.node, desde: p, inicio: { x: golpe.node.x, y: golpe.node.y } };
+        return;
+      }
     }
 
     const n = nodoEn(p);
@@ -2755,6 +3442,25 @@
       const destino = nodoEn(p);
       drag.destino = destino && destino !== drag.nodo ? destino : null;
       drag.destinoLado = drag.destino ? ladoCercano(drag.destino, p) : null;
+      redraw();
+      return;
+    }
+
+    if (drag.kind === "ui-mover") {
+      const x = ajusta(drag.inicio.x + (p.x - drag.desde.x));
+      const y = ajusta(drag.inicio.y + (p.y - drag.desde.y));
+      // Un temblor dentro de la misma celda de la rejilla no es un gesto: ni redibuja ni entra
+      // en el historial.
+      drag.movido = x !== drag.inicio.x || y !== drag.inicio.y;
+      if (!drag.movido) return;
+      drag.nodo.x = x;
+      drag.nodo.y = y;
+      redraw();
+      return;
+    }
+
+    if (drag.kind === "ui-tamano") {
+      if (redimensionarUi(drag, p)) drag.movido = true;
       redraw();
       return;
     }
@@ -3184,6 +3890,17 @@
       return;
     }
 
+    // Widgets de INTERFACES: sin movimiento no hay gesto.
+    if (d.kind === "ui-mover" || d.kind === "ui-tamano") {
+      if (!d.movido) {
+        redraw();
+        return;
+      }
+      changed();
+      commit();
+      return;
+    }
+
     // Objetos simples (imagen y texto): sin movimiento no hay gesto.
     if (!d.movido) {
       redraw();
@@ -3280,6 +3997,7 @@
     // La pizarra vacía se ve: el chip FONDO vuelve a encendido.
     fondoVisible = true;
     state.flow = { nodes: [], edges: [] };
+    state.ui = { nodes: [] };
     state.strokes = [];
     // Misma razón que en `deleteSelected`: los bitmaps pegados se cierran.
     for (const img of state.images) img.drawable.close?.();
@@ -3288,6 +4006,8 @@
     sel = null;
     selNodes = [];
     selEdge = null;
+    selUi = null;
+    syncUiControls();
     hoverNode = null;
     editing = null;
     nodeEditing = null;
@@ -3440,6 +4160,10 @@
   }
 
   function duplicar() {
+    if (selUi && state.ui.nodes.indexOf(selUi) >= 0) {
+      duplicarUi();
+      return;
+    }
     if (!selNodes.length) {
       setStatus("Duplicar pide al menos un nodo elegido.", "error");
       return;
@@ -3479,6 +4203,13 @@
 
   /** Flechas: 1 px; con Mayús, 10. */
   function moverSeleccion(dx, dy) {
+    if (selUi && state.ui.nodes.indexOf(selUi) >= 0) {
+      selUi.x += dx;
+      selUi.y += dy;
+      changed();
+      commit();
+      return;
+    }
     if (selNodes.length) {
       for (const n of selNodes) {
         n.x += dx;
@@ -3570,6 +4301,18 @@
   el.btnMermaid.addEventListener("click", copiarMermaid);
   el.btnHelp.addEventListener("click", abrirAyuda);
   el.helpClose.addEventListener("click", cerrarAyuda);
+  // Cajón INTERFAZ: abre y cierra sin tocar la selección, así se puede seguir ajustando.
+  const pintaCajon = (abierto) => {
+    el.drawer.hidden = !abierto;
+    el.btnUi.classList.toggle("on", abierto);
+    el.btnUi.setAttribute("aria-pressed", abierto ? "true" : "false");
+  };
+  el.btnUi.addEventListener("click", () => {
+    const abierto = el.drawer.hidden;
+    pintaCajon(abierto);
+    if (abierto && !PZUi) setStatus("La capa INTERFACES no está cargada: falta media/pizarraUi.js.", "error");
+  });
+  el.drawerClose.addEventListener("click", () => pintaCajon(false));
   el.btnGrid.addEventListener("click", () => {
     rejilla = !rejilla;
     el.btnGrid.classList.toggle("on", rejilla);
@@ -3602,6 +4345,7 @@
         state.layers[clave] = state.layers[clave] === false;
         if (state.layers[clave] === false) {
           if (clave === "flow") limpiarSeleccion();
+          if (clave === "ui" && selUi) limpiarSeleccion();
           if (clave === "texts" && sel && sel.type === "text") select(null);
           if (clave === "images" && sel && sel.type === "image") select(null);
         }
@@ -4072,7 +4816,7 @@
       return;
     }
     if (event.key === "Delete" || event.key === "Backspace") {
-      if (sel || selNodes.length || selEdge) {
+      if (sel || selNodes.length || selEdge || selUi) {
         event.preventDefault();
         deleteSelected();
       }
@@ -4300,6 +5044,9 @@
 
   // BG_DEFAULT es la única fuente del color por defecto: el HTML solo lleva el valor inicial.
   el.bgColor.value = BG_DEFAULT;
+  construirPaleta();
+  construirInspector();
+  syncUiControls();
   setTool("select");
   pintaPestanas(); // la 1 sola y con el `−` apagado hasta que el host mande su `init`
   aplicaVista();

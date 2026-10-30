@@ -41,10 +41,15 @@
           <button id="tool-eraser" class="tool" type="button" data-tool="eraser" title="Borrar trazos" aria-label="Borrador (B)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" /><path d="M22 21H7" /><path d="m5 11 9 9" /></svg></button>
         </div>
 
+        <div class="pz-group" role="group" aria-label="Capa de interfaz">
+          <button id="btn-ui" class="tool" type="button" title="Abrir o cerrar el cajón INTERFAZ: paleta de widgets y ajustes del elegido" aria-label="Cajón INTERFAZ" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M12 9h6" /><path d="M12 13h4" /></svg></button>
+        </div>
+
         <div class="pz-group pz-layers" role="group" aria-label="Capas">
           <label class="pz-field"><input id="bg-color" type="color" value="#ffffff" title="Color de fondo del lienzo" aria-label="Color de fondo del lienzo" /></label>
           <button type="button" class="pz-layer" id="ly-bg" data-layer="bg" aria-pressed="true" title="Mostrar u ocultar la capa FONDO"><svg viewBox="0 0 24 24" stroke="none" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" /></svg><span>FONDO</span></button>
           <button type="button" class="pz-layer" id="ly-flow" data-layer="flow" aria-pressed="true" title="Mostrar u ocultar la capa DIAGRAMA"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="7" height="6" rx="1" /><rect x="14" y="14" width="7" height="6" rx="1" /><path d="M10 7h3a2 2 0 0 1 2 2v5" /></svg><span>DIAGRAMA</span></button>
+          <button type="button" class="pz-layer" id="ly-ui" data-layer="ui" aria-pressed="true" title="Mostrar u ocultar la capa INTERFACES"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18" /><rect x="6" y="12" width="7" height="4" /><path d="M16 12h3" /><path d="M16 16h3" /></svg><span>INTERFACES</span></button>
           <button type="button" class="pz-layer" id="ly-images" data-layer="images" aria-pressed="true" title="Mostrar u ocultar la capa IMÁGENES"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M4 18l5-5 4 4 3-3 4 4" /></svg><span>IMÁGENES</span></button>
           <button type="button" class="pz-layer" id="ly-strokes" data-layer="strokes" aria-pressed="true" title="Mostrar u ocultar la capa TRAZOS"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 20l4-1 11-11a2.1 2.1 0 0 0-3-3L5 16z" /><path d="M14 5l3 3" /></svg><span>TRAZOS</span></button>
           <button type="button" class="pz-layer" id="ly-texts" data-layer="texts" aria-pressed="true" title="Mostrar u ocultar la capa TEXTOS"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5V3h16v2" /><path d="M12 3v18" /><path d="M9 21h6" /></svg><span>TEXTOS</span></button>
@@ -141,6 +146,16 @@
     </div>
 
     <main class="pz-stage" id="stage">
+      <!-- Cajón de la capa INTERFACES: paleta e inspector del widget elegido. Va superpuesto
+           al lienzo (no reflow) y su contenido lo construye el JS desde `PZUi.KINDS`. -->
+      <aside class="pz-drawer" id="ui-drawer" hidden aria-label="Interfaz">
+        <div class="pz-drawer-head">
+          <span class="pz-drawer-title">INTERFAZ</span>
+          <button id="ui-close" class="ghost-btn pz-drawer-x" type="button" title="Cerrar el cajón INTERFAZ" aria-label="Cerrar INTERFAZ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg></button>
+        </div>
+        <div class="pz-drawer-grp" id="ui-palette"></div>
+        <div class="pz-drawer-grp" id="ui-inspect" hidden></div>
+      </aside>
       <div class="pz-frame">
         <!-- El mundo lleva el zoom y el paneo; dentro, el lienzo mide 1024 de alto y el ancho
              que dicta el aspecto del marco (el JS lo ajusta al redimensionar), salvo que un
@@ -201,6 +216,7 @@
     </div>
   </div>
 <script nonce="%%NONCE%%" src="%%WORKFLOW%%"></script>
+<script nonce="%%NONCE%%" src="%%UI%%"></script>
 <script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
 </body>
 </html>

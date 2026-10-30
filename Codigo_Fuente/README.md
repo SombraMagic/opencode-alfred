@@ -57,10 +57,10 @@ fila de `CONECTORES`; solo sondea con la vista abierta.
 
 ### Pizarra
 
-Lienzo por capas, de abajo arriba: fondo (color o imagen), **diagrama**, imágenes movibles,
-trazos con lápiz y goma, y textos. Zoom con la rueda y paneo con `Espacio` + arrastrar. Se
-abre desde `SUBIR PIZARRA` en el bloc del dictado, y ese mismo botón la mete en el bloc como
-adjunto.
+Lienzo por capas, de abajo arriba: fondo (color o imagen), **diagrama**, **interfaces**,
+imágenes movibles, trazos con lápiz y goma, y textos. Zoom con la rueda y paneo con
+`Espacio` + arrastrar. Se abre desde `SUBIR PIZARRA` en el bloc del dictado, y ese mismo
+botón la mete en el bloc como adjunto.
 
 - **Diagrama**: capa para dibujar workflows con nodos (seis formas y doce iconos) y
   conectores ortogonales. Los conectores se crean arrastrando un asa del nodo y se enganchan
@@ -72,6 +72,13 @@ adjunto.
   icono), siempre centrada, y encoge antes de salirse; su color se fija con `TEXTO` o `AUTO`
   (contraste con el relleno). Mientras dibujas un nodo se ve su silueta y su medida; con el
   lápiz y el borrador, el círculo del grosor y el núcleo de la goma.
+- **Interfaces**: capa de wireframes. El botón `INTERFAZ` abre un cajón a la izquierda con la
+  paleta de widgets —trece tipos: contenedor, ventana, pestañas horizontales y verticales,
+  acordeón, menú, etiqueta, campo, área de texto, elección, botón, icono e imagen— y el
+  inspector del elegido. Los widgets se insertan en el contenedor seleccionado, se anidan
+  (hasta 8 niveles), se mueven, se redimensionan y se borran; un clic sobre el que ya está
+  elegido simula su control (pestañas, acordeón, casillas). Con un widget `image` elegido,
+  `Ctrl+V` le pone la imagen del portapapeles.
 - **Edición**: deshacer/rehacer de 50 pasos, multi-selección con alinear y distribuir, guías
   y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles.
 - **Varias pizarras**: una tira de pestañas en la cabecera, con `+` para añadir y `−` para
@@ -81,10 +88,10 @@ adjunto.
 - **Qué se guarda**: el PNG aplanado en `pizarra-ultima.png` y, junto a él, la escena
   editable en `pizarra.json` (misma carpeta de adjuntos). Al reabrir manda la escena; si no
   es válida, se descarta y queda el PNG. `GUARDAR` deja el PNG y su `.json` donde elijas. El
-  servidor MCP `mcp_alfred` expone siete
-  herramientas de pizarra (`pizarra_leer`, `pizarra_escribir`, `pizarra_lienzo`,
-  `pizarra_nodo`, `pizarra_arista`, `pizarra_texto`, `pizarra_imagen`) para leerla y
-  editarla desde un agente; el panel recarga el cambio solo.
+  servidor MCP `mcp_alfred` expone diez herramientas de pizarra (`pizarra_leer`,
+  `pizarra_escribir`, `pizarra_lienzo`, `pizarra_nodo`, `pizarra_arista`, `pizarra_texto`,
+  `pizarra_imagen`, `pizarra_ui_leer`, `pizarra_ui_escribir` y `pizarra_ui_nodo`) para leerla
+  y editarla desde un agente; el panel recarga el cambio solo.
 
 ### Mente local (Ollama)
 

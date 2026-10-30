@@ -25,7 +25,8 @@
 │  │  ├─ panels/             webviews (el HTML vive en el .ts de cada panel)
 │  │  ├─ providers/          lectores de config de Claude Code y Codex
 │  │  ├─ blender/            puente con la CLI de Blender: export a GLB y renders
-│  │  ├─ pizarra/            escena y ficheros de la pizarra (sin `vscode`)
+│  │  ├─ pizarra/            escena, capa INTERFACES (`ui.ts`) y ficheros de la pizarra
+│  │  │                      (sin `vscode`; la capa la pinta `media/pizarraUi.js`)
 │  │  ├─ ollama/             mente local: `client`, `process`, `provider` y `service`
 │  │  ├─ mcp/                servidor `mcp_alfred` (voz y pizarra) → `dist/alfred-mcp.js`
 │  │  ├─ voice/              motores de voz y dictado

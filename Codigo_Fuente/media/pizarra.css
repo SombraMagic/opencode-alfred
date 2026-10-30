@@ -486,6 +486,8 @@ body.vscode-light .pz-tab.on {
   padding: 12px 0 6px;
   /* Contenedor de tamaño: da la medida justa del alto y del ancho a la vez. */
   container-type: size;
+  /* Ancla del cajón INTERFAZ, que va superpuesto al lienzo. */
+  position: relative;
 }
 
 /* Llena el stage en los dos ejes: se aprovecha toda la ventana. El JS pone el ancho interno del
@@ -617,6 +619,230 @@ body.vscode-light .pz-tab.on {
 
 .pz-edge-editor[hidden] {
   display: none;
+}
+
+/* ── Cajón INTERFAZ ────────────────────────────────────── */
+/* Superpuesto al lienzo: no reflow, así el encuadre y la escala no se mueven al abrirlo.
+   Ojo al orden: `.pz-world` lleva `transform`, o sea que es un contexto de apilado propio. Por
+   eso el cajón (hijo del stage) queda por encima del lienzo y de las superposiciones de
+   edición que viven dentro del mundo (área de texto, etiqueta de conector). El modal (20) y la
+   ayuda (21) siguen por encima de todo. */
+.pz-drawer {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 196px;
+  max-height: calc(100% - 20px);
+  padding: 8px;
+  overflow: auto;
+  background: color-mix(in srgb, var(--bg-raised) 94%, transparent);
+  border: 1px solid var(--line);
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.5);
+}
+
+.pz-drawer[hidden] {
+  display: none;
+}
+
+.pz-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pz-drawer-title {
+  flex: 1 1 auto;
+  font-size: 10.5px;
+  letter-spacing: 2px;
+  color: var(--neon);
+}
+
+.pz-drawer-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--text-soft);
+}
+
+.pz-drawer-x svg {
+  width: 13px;
+  height: 13px;
+}
+
+.pz-drawer-x:hover,
+.pz-drawer-x:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+.pz-drawer-grp {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pz-drawer-grp[hidden] {
+  display: none;
+}
+
+/* Rótulo de grupo de la paleta: el mismo cian que los rótulos del HUD. */
+.pz-ui-grp {
+  margin-top: 2px;
+  font-size: 9.5px;
+  letter-spacing: 1.4px;
+  color: var(--neon);
+}
+
+.pz-ui-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.pz-ui-btn {
+  min-width: 0;
+  padding: 4px 5px;
+  overflow: hidden;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 0.4px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pz-ui-btn:hover,
+.pz-ui-btn:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+/* Inspector: un campo por fila, con su rótulo encima. */
+.pz-ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 9.5px;
+  letter-spacing: 1.1px;
+  color: var(--text);
+  text-transform: uppercase;
+}
+
+.pz-ui-field[hidden] {
+  display: none;
+}
+
+.pz-ui-field input[type="text"],
+.pz-ui-field textarea,
+.pz-ui-field select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 5px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.pz-ui-field textarea {
+  min-height: 46px;
+  resize: vertical;
+}
+
+.pz-ui-field input[type="text"]:focus-visible,
+.pz-ui-field textarea:focus-visible,
+.pz-ui-field select:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+/* Valor de solo lectura del inspector (IMAGEN): texto, no un campo editable. */
+.pz-ui-valor {
+  font-size: 11px;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-soft);
+}
+
+/* APAGADO va en fila: rótulo a la izquierda, casilla a la derecha. */
+.pz-ui-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.pz-ui-check input[type="checkbox"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.pz-ui-check input[type="checkbox"]:checked {
+  background: var(--neon);
+  box-shadow: inset 0 0 0 3px var(--bg-soft);
+}
+
+.pz-ui-check input[type="checkbox"]:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+/* Acciones del inspector: z-order, sacar a la raíz y borrar. */
+.pz-ui-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.pz-ui-act {
+  flex: 1 1 40%;
+  padding: 4px 6px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.pz-ui-act:hover,
+.pz-ui-act:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+/* Sin la librería cargada el cajón lo dice en vez de quedarse vacío. */
+.pz-ui-nota {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-soft);
 }
 
 /* ── Pie: estado + zoom ────────────────────────────────── */

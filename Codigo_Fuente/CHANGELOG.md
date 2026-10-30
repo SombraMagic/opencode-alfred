@@ -3,6 +3,23 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [Sin publicar]
+
+- **Capa INTERFACES en la pizarra**: wireframes funcionales, como árbol de widgets y no como
+  dibujo. Trece tipos (`container`, `window`, `tabs-h`, `tabs-v`, `accordion`, `menu`, `label`,
+  `input`, `textarea`, `choice`, `button`, `icon`, `image`), anidados por `parent` hasta 8
+  niveles y 800 widgets, con coordenadas relativas a la caja útil del padre. La capa va entre
+  `DIAGRAMA` e `IMÁGENES` y se enciende con su chip. El botón `INTERFAZ` abre un cajón con la
+  paleta y el inspector del widget elegido: se inserta en el contenedor seleccionado, se mueve,
+  se redimensiona, se anida y se borra. Un clic sobre el widget ya elegido simula su control
+  (pestaña, acordeón, casilla), y con un widget `image` elegido, `Ctrl+V` le pone la imagen del
+  portapapeles.
+- **Tres herramientas MCP nuevas** de pizarra, hasta diez: `pizarra_ui_leer` devuelve el árbol
+  de widgets con sus ids y su caja absoluta, `pizarra_ui_escribir` sustituye la capa entera y
+  `pizarra_ui_nodo` da de alta, edita o borra un widget (al borrar se lleva sus descendientes).
+  `pizarra_escribir` conserva la capa si no se le pasa, y `pizarra_leer` añade el recuento de
+  widgets por tipo.
+
 ## [0.5.0] - 2026-10-30
 
 - **Mente local (Ollama)**: pestaña central nueva, con botón `MENTE LOCAL` en el mando del

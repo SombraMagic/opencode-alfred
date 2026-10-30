@@ -623,6 +623,7 @@ export class PizarraPanel {
       .replaceAll("%%TOKENS%%", uriIn("tokens.css"))
       .replaceAll("%%STYLE%%", uriIn("pizarra.css"))
       .replaceAll("%%WORKFLOW%%", uriIn("pizarraWorkflow.js"))
+      .replaceAll("%%UI%%", uriIn("pizarraUi.js"))
       .replaceAll("%%SCRIPT%%", uriIn("pizarra.js"));
   }
 

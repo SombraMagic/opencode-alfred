@@ -6,8 +6,10 @@
  * `sanitizeScene` y de ahí sale lo que se escribe en disco y lo que se le devuelve en `init`.
  */
 
-/** Tope de la escena: texto JSON, con las imágenes ya embebidas en base64. */
-export const MAX_SCENE_BYTES = 8 * 1024 * 1024;
+import { emptyUi, sanitizeUi, Ui } from "./ui";
+
+/** Tope de la escena: texto JSON, con las imágenes ya embebidas en base64. Va por debajo del que corta el webview (`MAX_ESCENA` en `media/pizarra.js`): si el host acepta lo que la webview rechaza, el `snapshot` llega con `scene: null` y el panel borra la escena. */
+export const MAX_SCENE_BYTES = 7_500_000;
 
 /** Topes de la escena. Se descartan elementos uno a uno; la escena solo se rechaza entera por raíz, `v`, fondo ilegible o tamaño. */
 const MAX_NODES = 1500;
@@ -115,7 +117,9 @@ export interface Scene {
   images: SceneImage[];
   strokes: SceneStroke[];
   texts: SceneText[];
-  layers: { flow: boolean; images: boolean; strokes: boolean; texts: boolean };
+  /** Capa INTERFACES: wireframes como árbol de widgets (ver `ui.ts`). */
+  ui: Ui;
+  layers: { flow: boolean; images: boolean; strokes: boolean; texts: boolean; ui: boolean };
 }
 
 /** Escena vacía para una pizarra que aún no existe: lienzo fijo y coordenadas estables. */
@@ -128,7 +132,8 @@ export function emptyScene(): Scene {
     images: [],
     strokes: [],
     texts: [],
-    layers: { flow: true, images: true, strokes: true, texts: true },
+    ui: emptyUi(),
+    layers: { flow: true, images: true, strokes: true, texts: true, ui: true },
   };
 }
 
@@ -433,11 +438,29 @@ export function sanitizeScene(raw: unknown): Scene | undefined {
   }
   const nodes = sanitizeNodes(flow.nodes);
   const images = sanitizeImages(raw.images);
-  // Presupuesto de las imágenes, contado al vuelo: si no cabe, se corta aquí y no se llega
-  // a montar la escena ni a medir el JSON entero.
+  // La capa INTERFACES no rechaza la escena entera: se sanea widget a widget.
+  const ui = sanitizeUi(raw.ui);
+  // Presupuesto de imágenes y textos, contado al vuelo: si no cabe, se corta aquí y no se
+  // llega a montar la escena ni a medir el JSON entero.
   let chars = bgImage ? bgImage.length : 0;
   for (const image of images) {
     chars += image.src.length;
+    if (chars > MAX_SCENE_BYTES) {
+      return undefined;
+    }
+  }
+  // Los textos y las imágenes de los widgets cuentan en el mismo presupuesto: 800 widgets con
+  // textos largos también pasan del tope del webview, y ahí la escena se pierde entera.
+  for (const widget of ui.nodes) {
+    let largo =
+      widget.src.length + widget.title.length + widget.text.length + widget.placeholder.length;
+    for (const item of widget.items) {
+      largo += item.length;
+    }
+    for (const option of widget.options) {
+      largo += option.length;
+    }
+    chars += largo;
     if (chars > MAX_SCENE_BYTES) {
       return undefined;
     }
@@ -450,11 +473,13 @@ export function sanitizeScene(raw: unknown): Scene | undefined {
     images,
     strokes: sanitizeStrokes(raw.strokes),
     texts: sanitizeTexts(raw.texts),
+    ui,
     layers: {
       flow: boolFlag(layers.flow, true),
       images: boolFlag(layers.images, true),
       strokes: boolFlag(layers.strokes, true),
       texts: boolFlag(layers.texts, true),
+      ui: boolFlag(layers.ui, true),
     },
   };
   return scene;

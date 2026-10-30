@@ -9,6 +9,9 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
+La **0.5.0** está publicada. La capa **INTERFACES** de la pizarra está en el árbol,
+todavía sin publicar.
+
 **opencode es el centro del producto.** La extensión está pensada y orientada a opencode.
 Claude Code y Codex son **experimentales**: se exploran y se manejan en parte, pero su
 soporte todavía no funciona del todo bien y puede cambiar sin aviso.
@@ -32,15 +35,17 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 - **Voz** (SAPI, Edge, OpenAI, ElevenLabs) con ecualizador de barras pixeladas, y **dictado**
   (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP `mcp_alfred`
   viaja dentro de la extensión (`dist/alfred-mcp.js`), no como paquete externo: cubre la voz
-  (`speak`, `list_voices`) y la pizarra (siete herramientas sobre `pizarra.json`, que el panel
-  recarga solo).
+  (`speak`, `list_voices`) y la pizarra (diez herramientas sobre `pizarra.json`, tres de ellas
+  para la capa INTERFACES, y el panel recarga solo).
 - **Pizarra** por capas con lápiz, imágenes, textos, zoom y envío al prompt. Incluye una
   capa **DIAGRAMA** para dibujar workflows: nodos (formas e iconos) con la etiqueta encajada
   en la silueta y color propio, y conectores ortogonales con asas, codos arrastrables,
   etiquetas y flechas, agarrando lo que se ve; el lápiz y el borrador encienden la capa
   `TRAZOS` si estaba oculta; deshacer/rehacer, multi-selección, guías y
   rejilla, chivatos de dibujo, copia como Mermaid y escena editable persistida en
-  `pizarra.json` (además del PNG).
+  `pizarra.json` (además del PNG). La capa **INTERFACES** añade wireframes funcionales: trece
+  tipos de widget anidados por contenedor, cajón `INTERFAZ` con paleta e inspector, y clic
+  sobre el widget elegido que simula pestañas, acordeón y casillas.
 - **Visor Alfred 3D** por fichero `.blend` (doble clic en el Explorador o «Abrir en Alfred
   3D»): vista con three.js y órbita estilo Blender, objetos con ocultar, cámaras (la de
   escena bloquea la vista), luces con deslizador, animaciones con rango de frames editable,
@@ -70,17 +75,20 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
    se validaron los formularios y las rutas con datos reales simulados).
 3. **Pizarra de workflows en VS Code real**: puntero real de las asas, reenganche de
    conectores al mover el nodo, zoom con arrastre de tramos y la cabecera a poco ancho.
-4. **Lápiz real**: confirmar que los trazos no se cortan en un dispositivo táctil
+4. **Capa INTERFACES en VS Code real**: abrir el cajón `INTERFAZ` e insertar, anidar y mover
+   widgets; pegar una imagen con `Ctrl+V` sobre un widget `image`; y comprobar el aspecto con
+   tema claro y oscuro y a escalas de 125 y 150 %.
+5. **Lápiz real**: confirmar que los trazos no se cortan en un dispositivo táctil
    (depende del driver; el manejo de `pointercancel` ya está puesto).
-5. **Visor 3D en VS Code real**: el motor `VISOR` de punta a punta (del `.blend` al PNG en
+6. **Visor 3D en VS Code real**: el motor `VISOR` de punta a punta (del `.blend` al PNG en
    disco con la extensión instalada) y el sidecar `.glb` junto al `.blend`. Hasta ahora está
    probado con Chrome, Blender 4.4 real y stubs del host, no con la ventana de VS Code.
-6. **`modelo1.blend`**: Blender pinta 15 personajes apilados y su mundo anula el sol sobre
+7. **`modelo1.blend`**: Blender pinta 15 personajes apilados y su mundo anula el sol sobre
    lo visible, mientras el visor solo muestra lo visible. Rareza del `.blend`, no del visor:
    decidir si se documenta o se deja.
-7. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
+8. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
    usan en ejecución.
-8. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
+9. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
 
 ## Alcance
 
