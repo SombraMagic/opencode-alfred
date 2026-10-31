@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.13.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.14.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -15,6 +15,18 @@ No hace falta compilar nada ni instalar Node.
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.7.14
+
+- **La rejilla de `INTERFACES` encaja en el lienzo, no en el padre**: un widget guarda su
+  posición relativa a la caja útil de su contenedor (la barra de una ventana, la tira de las
+  pestañas), y el ajuste se aplicaba a esa coordenada. Dentro de un contenedor, los textos,
+  botones y campos caían fuera de la cuadrícula y el fantasma de la paleta no coincidía con el
+  sitio final. Ahora se encaja en absoluto en los cuatro caminos que colocan o mueven un widget:
+  soltar desde la paleta, arrastrar, las flechas y duplicar.
+- Un hijo nunca se sale de su padre (una raíz sí puede irse a negativo), las flechas solo ajustan
+  el eje que mueven y pulsar hacia fuera del borde no ensucia el historial ni la copia de trabajo.
+  Sin rejilla no se redondea nada.
 
 ## Novedades de la 0.7.13
 
@@ -134,19 +146,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.13.vsix`.
+3. Elige `opencode-alfred-0.7.14.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.13.vsix
+code --install-extension opencode-alfred-0.7.14.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.13.vsix --force
+code --install-extension opencode-alfred-0.7.14.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

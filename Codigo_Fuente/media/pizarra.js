@@ -1019,6 +1019,19 @@
     return { x: caja.x + util.dx, y: caja.y + util.dy };
   }
 
+  /**
+   * Widget ajustado a la rejilla. La cuadrícula es del lienzo, pero el hijo guarda `x`/`y`
+   * relativos a la caja útil del padre: se encaja en absoluto y se devuelve a relativo. Un hijo
+   * nunca se sale de su padre; una raíz (sin `origen`) sí puede irse a negativo.
+   */
+  function ajustaWidget(x, y, origen) {
+    const org = origen || { x: 0, y: 0 };
+    const encaja = (v, o) => ajusta(o + v) - o;
+    return origen
+      ? { x: Math.max(0, encaja(x, org.x)), y: Math.max(0, encaja(y, org.y)) }
+      : { x: encaja(x, 0), y: encaja(y, 0) };
+  }
+
   /** Widgets de una escena al modelo de la webview; lo que no encaja se cae, no aborta la carga. */
   function uiDeEscena(raw) {
     const usados = new Set();
@@ -1138,8 +1151,9 @@
     if (cont) {
       nodo.parent = cont.id;
       const util = PZUi.contentRect(state.ui.nodes, cont);
-      nodo.x = ajusta(Math.max(0, p.x - util.x));
-      nodo.y = ajusta(Math.max(0, p.y - util.y));
+      const sitio = ajustaWidget(p.x - util.x, p.y - util.y, util);
+      nodo.x = sitio.x;
+      nodo.y = sitio.y;
     } else {
       nodo.x = ajusta(p.x);
       nodo.y = ajusta(p.y);
@@ -1278,8 +1292,11 @@
       if (!ids.has(n.id)) continue;
       const copia = { ...copiaWidget(n), id: nuevoIdUi() };
       if (n === selUi) {
-        copia.x += 16;
-        copia.y += 16;
+        // Una celda de separación (16 px sin rejilla) y encajada al lienzo, no al padre.
+        const salto = rejilla ? rejillaTam : 16;
+        const sitio = ajustaWidget(n.x + salto, n.y + salto, n.parent == null ? null : uiOrigen(n));
+        copia.x = sitio.x;
+        copia.y = sitio.y;
       }
       copias.set(n.id, copia);
       state.ui.nodes.push(copia);
@@ -3763,7 +3780,7 @@
             commit();
           }
         }
-        drag = { kind: "ui-mover", nodo: golpe.node, desde: p, inicio: { x: golpe.node.x, y: golpe.node.y } };
+        drag = { kind: "ui-mover", nodo: golpe.node, desde: p, inicio: { x: golpe.node.x, y: golpe.node.y }, origen: golpe.node.parent == null ? null : uiOrigen(golpe.node) };
         return;
       }
     }
@@ -3949,16 +3966,18 @@
 
     if (drag.kind === "ui-mover") {
       drag.p = p;
-      const x = ajusta(drag.inicio.x + (p.x - drag.desde.x));
-      const y = ajusta(drag.inicio.y + (p.y - drag.desde.y));
-      // Un temblor dentro de la misma celda de la rejilla no es un gesto: ni redibuja ni entra
-      // en el historial.
-      drag.movido = x !== drag.inicio.x || y !== drag.inicio.y;
-      if (!drag.movido) return;
-      drag.nodo.x = x;
-      drag.nodo.y = y;
-      // Destino del reanidado, para la pista del overlay.
+      const sitio = ajustaWidget(
+        drag.inicio.x + (p.x - drag.desde.x),
+        drag.inicio.y + (p.y - drag.desde.y),
+        drag.origen
+      );
+      // Un temblor dentro de la misma celda no es un gesto: ni redibuja ni entra en el historial.
+      drag.movido = sitio.x !== drag.inicio.x || sitio.y !== drag.inicio.y;
+      // El destino del reanidado se refresca siempre: es una pista, no un cambio de geometría.
       drag.host = hostDestino(p, drag.nodo);
+      if (!drag.movido) return;
+      drag.nodo.x = sitio.x;
+      drag.nodo.y = sitio.y;
       redraw();
       return;
     }
@@ -5016,11 +5035,23 @@
     const unidad = rejilla ? rejillaTam : 1;
     const pasoX = Math.sign(dx) * unidad * (Math.abs(dx) === 10 ? 10 : 1);
     const pasoY = Math.sign(dy) * unidad * (Math.abs(dy) === 10 ? 10 : 1);
-    const mueve = (x, y) => (rejilla ? { dx: ajusta(x + pasoX) - x, dy: ajusta(y + pasoY) - y } : { dx: pasoX, dy: pasoY });
+    // Solo se ajusta el eje que se mueve: una flecha horizontal no recoloca la vertical.
+    const mueve = (x, y) => ({
+      dx: pasoX ? (rejilla ? ajusta(x + pasoX) - x : pasoX) : 0,
+      dy: pasoY ? (rejilla ? ajusta(y + pasoY) - y : pasoY) : 0,
+    });
     if (selUi && state.ui.nodes.indexOf(selUi) >= 0) {
-      const d = mueve(selUi.x, selUi.y);
-      selUi.x += d.dx;
-      selUi.y += d.dy;
+      const org = selUi.parent == null ? null : uiOrigen(selUi);
+      // Con rejilla se encaja en absoluto; sin ella no se redondea nada. Solo cuenta el eje que se mueve.
+      const sitio = rejilla
+        ? ajustaWidget(selUi.x + pasoX, selUi.y + pasoY, org)
+        : { x: selUi.x + pasoX, y: selUi.y + pasoY };
+      const x = pasoX ? (org && !rejilla ? Math.max(0, sitio.x) : sitio.x) : selUi.x;
+      const y = pasoY ? (org && !rejilla ? Math.max(0, sitio.y) : sitio.y) : selUi.y;
+      // El borde ya no deja moverse: ni historial ni copia de trabajo.
+      if (x === selUi.x && y === selUi.y) return;
+      selUi.x = x;
+      selUi.y = y;
       changed();
       commit();
       return;

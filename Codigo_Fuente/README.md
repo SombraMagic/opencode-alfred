@@ -101,7 +101,10 @@ botón la mete en el bloc como adjunto.
   Para anidar, suelta un widget sobre un contenedor (`container`, `window`, `tabs-h`, `tabs-v`,
   `accordion`): entra dentro, y arrastrando uno ya colocado cambia de contenedor o vuelve a la
   raíz sin moverse de donde se ve. La caja útil del destino se marca con un marco discontinuo
-  cian mientras arrastras o apuntas con la paleta.
+  cian mientras arrastras o apuntas con la paleta. Con la rejilla encendida, los widgets se
+  encajan al lienzo dentro de su contenedor: el ajuste se calcula en absoluto, así que un texto,
+  un botón o un campo anidado cae en la misma cuadrícula que uno de raíz y el fantasma de la
+  paleta marca el sitio final. Un hijo nunca se sale de la caja útil de su padre.
 - **Edición**: deshacer/rehacer de 50 pasos, `Ctrl+C`/`Ctrl+V` dentro del panel (nodos con sus
   conectores, conector suelto, widget con su subárbol, texto e imagen), multi-selección con
   alinear y distribuir, guías

@@ -3,6 +3,21 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.14] - 2026-10-31
+
+- **La rejilla encaja en el lienzo, no en el contenedor**: un widget de `INTERFACES` guarda su
+  `x`/`y` relativos a la caja útil de su padre (la barra de 28 px de una ventana, la tira de 26
+  de las pestañas, los 110 de las pestañas verticales), pero el ajuste se aplicaba a esa
+  coordenada relativa. Dentro de un contenedor, los textos, botones y campos caían fuera de la
+  cuadrícula y el fantasma de la paleta no coincidía con el sitio final. El ajuste nuevo
+  (`ajustaWidget`) se hace en absoluto y se devuelve a relativo, y vale para los cuatro caminos
+  que colocan o mueven un widget: soltar desde la paleta, arrastrar, las flechas y duplicar.
+- **Un hijo no se sale de su padre**: el ajuste nunca deja un widget anidado en negativo; una
+  raíz sí puede irse a negativo, como antes. Duplicar separa una celda entera de la rejilla.
+- Las flechas ajustan solo el eje que mueven (una horizontal ya no recoloca la vertical), y
+  pulsar hacia fuera del borde ni deja entrada de historial ni escribe la copia de trabajo. Sin
+  rejilla no se redondea nada.
+
 ## [0.7.13] - 2026-10-31
 
 - **El paso de la rejilla se elige**: junto al botón `REJILLA` hay un campo numérico

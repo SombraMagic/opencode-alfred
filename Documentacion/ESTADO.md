@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.13**
+Última revisión: 31 de octubre de 2026 · versión **0.7.14**
 
 ## Resumen
 
@@ -9,7 +9,18 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.13** está empaquetada, sin instalar y sin release: la rejilla de la pizarra tiene
+La **0.7.14** está empaquetada, sin instalar y sin release: los widgets de `INTERFACES` se
+**ajustan a la rejilla en absoluto**, no a la coordenada relativa de su contenedor. Como el
+widget guarda su `x`/`y` relativos a la caja útil del padre (la barra de 28 px de una ventana,
+la tira de 26 de las pestañas, los 110 de las pestañas verticales), el ajuste aplicado sobre esa
+coordenada dejaba los textos, botones y campos de dentro fuera de la cuadrícula, y el fantasma de
+la paleta no caía donde acababa el widget. El ajuste nuevo (`ajustaWidget`) encaja en el lienzo y
+vuelve a relativo, y vale en los cuatro caminos que colocan o mueven un widget: soltar desde la
+paleta, arrastrar, las flechas y duplicar. Un hijo nunca se sale de la caja útil de su padre; una
+raíz sí puede irse a negativo, como antes. Las flechas ajustan solo el eje que mueven y pulsar
+hacia fuera del borde no deja entrada de historial ni escribe la copia de trabajo; sin rejilla no
+se redondea nada. Va sobre la **0.7.13**, empaquetada, sin instalar y sin release, en la que la
+rejilla de la pizarra tiene
 **paso configurable** y el ajuste se hace por la **esquina superior izquierda**. Junto al botón
 `REJILLA` hay un campo numérico (`#grid-step`) que lleva el paso de 1 a 64 px, siempre cuadrado:
 vacío o `0` vuelve a 8 y lo que sale del rango se acota; el encendido y el paso se recuerdan al
