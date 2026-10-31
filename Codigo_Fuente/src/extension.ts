@@ -53,6 +53,8 @@ import { ClaudeAgentPanel } from "./panels/claudeAgentPanel";
 import { StatsPanel } from "./panels/statsPanel";
 import { PromptStatsPanel } from "./panels/promptStatsPanel";
 import { ContextViewProvider } from "./panels/contextPanel";
+import { ControlPanel } from "./panels/controlPanel";
+import type { ControlData } from "./panels/controlPanel";
 import { LimitsViewProvider } from "./panels/limitsPanel";
 import {
   collectLimits,
@@ -164,8 +166,16 @@ export function activate(context: vscode.ExtensionContext): void {
     onAction: (action) => handleAction(action),
     onReady: () => refresh(),
   });
+  const control = new ControlPanel(context.extensionUri, {
+    onAction: (action) => handleAction(action),
+    onReady: () => updateExplorer(),
+  });
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(ExplorerPanel.viewType, explorer, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
+
+    vscode.window.registerWebviewViewProvider(ControlPanel.viewType, control, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
 
@@ -456,7 +466,8 @@ export function activate(context: vscode.ExtensionContext): void {
     () => {
       limitsViewOpen = false;
       stopLimitsTimer();
-    }
+    },
+    context.globalState
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(LimitsViewProvider.viewType, limitsView, {
@@ -514,7 +525,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     if (on !== menteLocalOn) {
       menteLocalOn = on;
-      explorer.update(buildExplorerData());
+      updateExplorer(buildExplorerData());
     }
   }
   const menteLocalTimer = setInterval(probeMenteLocal, 5000);
@@ -723,7 +734,7 @@ export function activate(context: vscode.ExtensionContext): void {
     void refreshCatalog();
     void refreshModels();
     void refreshStats(true);
-    explorer.update(buildExplorerData());
+    updateExplorer(buildExplorerData());
     // Con el monitor apagado y la pestaña cerrada no hay nada que releer: se ahorra el escaneo.
     if (promptMonitor || PromptStatsPanel.current) {
       void refreshPrompts();
@@ -968,6 +979,17 @@ export function activate(context: vscode.ExtensionContext): void {
     };
   }
 
+  function controlData(data: ExplorerData): ControlData {
+    return { sessionAgent: data.sessionAgent, sessionAgents: data.sessionAgents, menteLocal: data.menteLocal };
+  }
+
+  /** Un solo camino: cada repintado del Explorador repinta también la vista Control. */
+  function updateExplorer(data?: ExplorerData): void {
+    const snapshot = data ?? buildExplorerData();
+    explorer.update(snapshot);
+    control.update(controlData(snapshot));
+  }
+
   /** Lista viva de opencode: `readConfigInfo` incluiría modelos vetados o deshabilitados. */
   async function refreshModels(): Promise<void> {
     if (sessionAgent !== "opencode") {
@@ -1014,7 +1036,7 @@ export function activate(context: vscode.ExtensionContext): void {
       .getConfiguration("opencodeAgents")
       .get<boolean>("showBuiltins", true);
     agentList = await listAgents(showBuiltins);
-    explorer.update(buildExplorerData());
+    updateExplorer(buildExplorerData());
     AssignPanel.current?.update(assignData());
   }
 
@@ -1504,7 +1526,7 @@ export function activate(context: vscode.ExtensionContext): void {
             // Sin pedir `/api/version` otra vez: la acción ya sabe cómo quedó el servidor.
             // Brilla con el servidor en marcha, esté o no el cerebro encendido (misma regla que la sonda).
             menteLocalOn = next.running;
-            explorer.update(buildExplorerData());
+            updateExplorer(buildExplorerData());
           }
         });
       },
@@ -1897,7 +1919,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     catalogData = { mcp, skills, plugins };
     autoAccept = accept;
-    explorer.update(buildExplorerData());
+    updateExplorer(buildExplorerData());
   }
 
   function recomputeTotals(agents: AgentActivity[]): AgentActivity {
@@ -1948,7 +1970,7 @@ export function activate(context: vscode.ExtensionContext): void {
       // actividad y color por nombre sin duplicar lecturas. Codex no publica agentes en vuelo.
       const claudeData =
         sessionAgent === "claude" ? claudeExplorer(projectRoot()) : undefined;
-      explorer.update(buildExplorerData(claudeData));
+      updateExplorer(buildExplorerData(claudeData));
       voicePanel?.updateAgents(
         claudeData
           ? claudeData.activity.map((a) => ({
@@ -1990,7 +2012,7 @@ export function activate(context: vscode.ExtensionContext): void {
     lastKey = key;
     display = disp;
     StatsPanel.current?.update(disp);
-    explorer.update(buildExplorerData());
+    updateExplorer(buildExplorerData());
   }
 
   async function resetAgent(agent: string): Promise<void> {
@@ -2884,7 +2906,7 @@ export function activate(context: vscode.ExtensionContext): void {
         try {
           await setAutoAccept(action.on);
           autoAccept = action.on;
-          explorer.update(buildExplorerData());
+          updateExplorer(buildExplorerData());
           void vscode.window.setStatusBarMessage(
             action.on
               ? "opencode: permisos automáticos activados. Se aplica sin reiniciar."

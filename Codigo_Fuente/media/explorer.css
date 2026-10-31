@@ -11,7 +11,7 @@
   --cat-cols: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-/* ── [MANDO]: una cabecera, tres filas ─────────────────── */
+/* ── [MANDO]: una cabecera, dos filas ─────────────────── */
 /* Sin título ni estado propios: el nombre de la vista ya lo pone VS Code arriba. */
 .mando {
   padding-bottom: 10px;
@@ -26,12 +26,6 @@
 
 .mando-row + .mando-row {
   margin-top: 6px;
-}
-
-/* La fila de opencode se esconde con una clase: el `display:flex` de `.mando-row`
-   ganaría al atributo `hidden`. */
-.mando-row.off {
-  display: none;
 }
 
 .brain-btn {
@@ -154,8 +148,8 @@
   color: var(--neon);
 }
 
-/* CONECTORES, ASIGNAR AGENTES y MENTE LOCAL: acciones de opencode en una barra estrecha.
-   Los tres son cajas flexibles: el de texto lleva solo su rótulo y MENTE LOCAL su cerebro. */
+/* Acciones de la barra estrecha (ASIGNAR AGENTES del Explorador; CONECTOR y MENTE GLOBAL en
+   Control, que también enlaza esta hoja): el de texto lleva solo su rótulo. */
 .assign-btn {
   flex: 0 1 auto;
   display: inline-flex;
@@ -222,6 +216,24 @@ body.vscode-light .assign-btn.on:hover,
 body.vscode-light .assign-btn.on:focus-visible {
   color: var(--text);
   box-shadow: 0 0 6px var(--neon-dim), 0 0 10px var(--neon-dim);
+}
+
+/* Sin acción posible (otro proveedor, o un hueco sin implementar): tono apagado y sin brillo.
+   Va después de `.on` para que un botón encendido y deshabilitado también se apague. */
+.assign-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: var(--text-dim);
+  background: transparent;
+  box-shadow: none;
+}
+
+.assign-btn:disabled:hover,
+.assign-btn:disabled:focus-visible {
+  border-color: var(--line);
+  color: var(--text-dim);
+  background: transparent;
+  box-shadow: none;
 }
 
 /* ── Secciones ─────────────────────────────────────────── */

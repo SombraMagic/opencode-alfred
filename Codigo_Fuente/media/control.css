@@ -1,0 +1,6 @@
+/* ALFRED // CONTROL — lo que explorer.css no cubre: la fila de controles de esta vista. */
+/* En una barra estrecha la fila se envuelve a dos líneas en vez de recortar los rótulos:
+   el selector de sesión no encoge y CONECTOR / MENTE GLOBAL acabarían en «…». */
+.mando-row {
+  flex-wrap: wrap;
+}

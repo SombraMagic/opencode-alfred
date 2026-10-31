@@ -163,8 +163,18 @@
   };
 
   let ultimo = 0;
-  // Plegado en memoria del webview: un id por tarjeta cerrada.
+  // Plegado: un id por tarjeta cerrada. Lo guarda el host entre sesiones.
   const plegados = new Set();
+  // El host es la fuente al abrir la vista; durante la sesión manda el clic local.
+  let sembrado = false;
+
+  function sembrar(colapsadas) {
+    if (sembrado) return;
+    sembrado = true;
+    for (const id of Array.isArray(colapsadas) ? colapsadas : []) {
+      if (typeof id === "string" && id) plegados.add(id);
+    }
+  }
 
   function nodo(tag, clase, texto) {
     const n = document.createElement(tag);
@@ -290,6 +300,8 @@
       toggle.setAttribute("aria-expanded", String(abrir));
       if (abrir) plegados.delete(p.id);
       else plegados.add(p.id);
+      const id = String(p.id || "");
+      if (id) vscode.postMessage({ type: "collapse", id, collapsed: !abrir });
     });
 
     return card;
@@ -305,7 +317,8 @@
     el.stamp.textContent = haceTexto(ultimo, Date.now());
   }
 
-  function render(lista) {
+  function render(lista, colapsadas) {
+    sembrar(colapsadas);
     const proveedores = Array.isArray(lista) ? lista : [];
     el.list.replaceChildren();
     ultimo = 0;
@@ -316,7 +329,7 @@
 
     if (proveedores.length === 0) {
       el.hint.hidden = false;
-      el.hint.textContent = "Ningún proveedor con límites activado. Actívalo en CONECTORES.";
+      el.hint.textContent = "Ningún proveedor con límites activado. Actívalo en CONECTOR, en la vista Control.";
       pintaSello();
       return;
     }
@@ -335,7 +348,7 @@
   window.addEventListener("message", (event) => {
     const message = event.data;
     if (message && message.type === "data") {
-      render(message.providers);
+      render(message.providers, message.collapsed);
     }
   });
 

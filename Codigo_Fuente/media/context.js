@@ -1,7 +1,7 @@
 (function () {
   const vscode = acquireVsCodeApi();
 
-  const TOTAL = 20 * 8;
+  const TOTAL = 10 * 16;
 
   const el = {
     title: document.getElementById("title"),
