@@ -48,6 +48,8 @@ export interface ExplorerData {
   sessionAgents: string[];
   /** El servidor de Ollama responde: el botón de Mente local brilla. */
   menteLocal: boolean;
+  /** El generador de imágenes está compartido con los agentes por el MCP. */
+  imageShare: boolean;
 }
 
 export type ExplorerAction =

@@ -5,6 +5,8 @@ export interface ControlData {
   sessionAgent: string;
   sessionAgents: string[];
   menteLocal: boolean;
+  /** El generador de imágenes está compartido con los agentes. */
+  imageShare: boolean;
 }
 
 /** Acciones que el webview tiene permitido pedir: el mando de Control y nada más. */

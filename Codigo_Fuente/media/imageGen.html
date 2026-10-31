@@ -46,6 +46,11 @@
       <span class="gen-status" id="status">Sin conexión</span>
       <span class="gen-message" id="message"></span>
     </p>
+
+    <div class="gen-share-row">
+      <label class="gen-check gen-share"><input id="share" type="checkbox" title="Los agentes pueden generar imágenes mientras ComfyUI responda o haya una clave guardada" />COMPARTIR CON ALFRED</label>
+      <span class="gen-share-note" id="share-note"></span>
+    </div>
   </header>
 
   <main class="gen-body">
@@ -56,8 +61,17 @@
       </div>
 
       <div class="gen-field">
-        <label class="label" for="model">MODELO</label>
-        <select id="model" class="gen-input"></select>
+        <span class="label" id="model-label">MODELO</span>
+        <div class="gen-model-row" id="model-row">
+          <select id="model" class="gen-input" aria-labelledby="model-label"></select>
+          <button id="btn-model-reload" class="gen-icon-btn" type="button" title="Recargar la lista de modelos" aria-label="Recargar la lista de modelos"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><path d="M20 5v6h-6" /></svg></button>
+        </div>
+        <input id="model-input" class="gen-input" type="text" list="model-suggestions" spellcheck="false" autocomplete="off" placeholder="gpt-image-1" aria-labelledby="model-label" hidden />
+        <datalist id="model-suggestions">
+          <option value="gpt-image-1"></option>
+          <option value="dall-e-3"></option>
+          <option value="dall-e-2"></option>
+        </datalist>
       </div>
 
       <div class="gen-field">
@@ -74,6 +88,18 @@
           </label>
         </div>
         <p class="gen-hint" id="size-hint" hidden>Lo fija la imagen de partida.</p>
+        <p class="gen-hint" id="size-openai-hint" hidden>Los modelos oficiales solo admiten sus tamaños; el host avisa si lo ajusta.</p>
+      </div>
+
+      <div class="gen-field" id="block-seed">
+        <span class="label" id="seed-label">SEMILLA</span>
+        <div class="gen-seed" role="group" aria-labelledby="seed-label">
+          <input id="seed" class="gen-input gen-num" type="number" min="0" max="4294967295" step="1" value="0" aria-label="Semilla" />
+          <button id="btn-seed" class="gen-icon-btn" type="button" title="Semilla aleatoria" aria-label="Semilla aleatoria"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="4" width="16" height="16" rx="3" /><circle cx="9.2" cy="9.2" r="1.15" fill="currentColor" stroke="none" /><circle cx="14.8" cy="14.8" r="1.15" fill="currentColor" stroke="none" /><circle cx="14.8" cy="9.2" r="1.15" fill="currentColor" stroke="none" /><circle cx="9.2" cy="14.8" r="1.15" fill="currentColor" stroke="none" /></svg></button>
+          <label class="gen-check"><input id="seed-random" type="checkbox" checked />ALEATORIA</label>
+          <label class="gen-tune"><span class="gen-mini">PASOS</span><input id="steps" class="gen-input gen-num gen-tune-input" type="number" min="1" max="150" step="1" value="20" aria-label="Pasos del muestreador" /></label>
+          <label class="gen-tune"><span class="gen-mini">GUÍA</span><input id="cfg" class="gen-input gen-num gen-tune-input" type="number" min="1" max="30" step="0.5" value="7" aria-label="Guía (CFG)" /></label>
+        </div>
       </div>
 
       <div class="gen-field" id="block-loras">
@@ -129,6 +155,7 @@
       <div class="gen-hist">
         <div class="gen-hist-head">
           <span class="label">HISTORIAL</span>
+          <button id="btn-clear-history" class="gen-icon-btn" type="button" title="Borrar todo el historial" aria-label="Borrar todo el historial"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 7h16" /><path d="M10 4h4" /><path d="M6.5 7l.9 12.1a2 2 0 0 0 2 1.9h5.2a2 2 0 0 0 2-1.9L17.5 7" /><path d="M10 11v6" /><path d="M14 11v6" /></svg></button>
           <button id="btn-folder" class="gen-icon-btn" type="button" title="Abrir la carpeta de imágenes" aria-label="Abrir la carpeta de imágenes"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg></button>
         </div>
         <div class="gen-hist-strip" id="history" role="group" aria-label="Imágenes generadas"></div>

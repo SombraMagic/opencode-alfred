@@ -38,9 +38,17 @@ import {
 import { AssignAction, AssignAgent, AssignData, AssignPanel, AssignProfile, FavoriteGroup, ModelEntry } from "./panels/assignPanel";
 import { ConnectorsPanel, ConnectorAction } from "./panels/connectorsPanel";
 import { MenteLocalPanel } from "./panels/menteLocalPanel";
-import { ImageGenPanel } from "./panels/imageGenPanel";
+import {
+  ImageGenPanel,
+  isImageShareEnabled,
+  onImageShareChange,
+  refreshImageShare,
+} from "./panels/imageGenPanel";
 import { collectState, liveState, MenteLocalState, readSettings, runAction } from "./ollama/service";
 import { startServer } from "./ollama/process";
+import { readWork, workFile } from "./images/share";
+import { onActivityChange, setActivity } from "./panels/activity";
+import { watchFile, unwatchFile } from "node:fs";
 import { ollamaVersion } from "./ollama/client";
 import { PizarraPanel, pizarraAdjuntosDir } from "./panels/pizarraPanel";
 import { BlendViewerProvider } from "./panels/blendViewerPanel";
@@ -513,6 +521,50 @@ export function activate(context: vscode.ExtensionContext): void {
   }
   context.subscriptions.push({ dispose: () => limitsTimer && clearInterval(limitsTimer) });
 
+  // ── Generador de imágenes compartido con los agentes ────────────────────
+  // El flag lo pone el panel; aquí solo se revalida cada 5 s y se repinta el mando.
+  let imageShareOn = isImageShareEnabled(context);
+
+  /**
+   * Tarjeta «GENERANDO IMAGEN» del MCP: otro proceso deja `imagen-trabajando.json`.
+   * Si el proceso muere a mitad, el sello de tiempo caduca la tarjeta.
+   */
+  function checkImageMcpWork(): void {
+    const work = readWork();
+    const on = !!work?.on && Date.now() - work.at < 15 * 60_000;
+    setActivity("imagen-mcp", on, "GENERANDO IMAGEN", "imagen");
+  }
+  watchFile(workFile(), { interval: 1000 }, checkImageMcpWork);
+  context.subscriptions.push({ dispose: () => unwatchFile(workFile()) });
+  checkImageMcpWork();
+
+  async function probeImageShare(): Promise<void> {
+    // Restos del MCP: si murió a mitad, la tarjeta se apaga aquí.
+    checkImageMcpWork();
+    // Se guarda antes de revalidar: el aviso a los oyentes ya deja `imageShareOn` al día.
+    const wasOn = imageShareOn;
+    const next = await refreshImageShare(context);
+    imageShareOn = next.on;
+    if (next.on !== wasOn) {
+      updateExplorer(buildExplorerData());
+      ImageGenPanel.current?.notifyChanged();
+      if (wasOn && !next.on) {
+        void vscode.window.showWarningMessage(
+          "Generador de imágenes: se dejó de compartir. " + next.detail
+        );
+      }
+    }
+  }
+  const imageShareTimer = setInterval(probeImageShare, 5000);
+  context.subscriptions.push(
+    { dispose: () => clearInterval(imageShareTimer) },
+    // El interruptor del panel surte efecto al instante: el sondeo tardaría 5 s.
+    onImageShareChange((on) => {
+      imageShareOn = on;
+      updateExplorer(buildExplorerData());
+    })
+  );
+
   // ── Mente local: brillo del botón del Explorador ─────────────────────────
   // Se sondea el servidor, no los ajustes: encendida y parada es un estado válido.
   let menteLocalOn = false;
@@ -914,6 +966,7 @@ export function activate(context: vscode.ExtensionContext): void {
         sessionAgent,
         sessionAgents: availableAgents,
         menteLocal: menteLocalOn,
+        imageShare: imageShareOn,
       };
     }
     if (sessionAgent === "codex") {
@@ -930,6 +983,7 @@ export function activate(context: vscode.ExtensionContext): void {
         sessionAgent,
         sessionAgents: availableAgents,
         menteLocal: menteLocalOn,
+        imageShare: imageShareOn,
       };
     }
     const totals = display?.totals;
@@ -977,11 +1031,17 @@ export function activate(context: vscode.ExtensionContext): void {
       sessionAgent,
       sessionAgents: availableAgents,
       menteLocal: menteLocalOn,
+      imageShare: imageShareOn,
     };
   }
 
   function controlData(data: ExplorerData): ControlData {
-    return { sessionAgent: data.sessionAgent, sessionAgents: data.sessionAgents, menteLocal: data.menteLocal };
+    return {
+      sessionAgent: data.sessionAgent,
+      sessionAgents: data.sessionAgents,
+      menteLocal: data.menteLocal,
+      imageShare: data.imageShare,
+    };
   }
 
   /** Un solo camino: cada repintado del Explorador repinta también la vista Control. */
@@ -1514,9 +1574,20 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     MenteLocalPanel.open(context, state, {
       onAction: (action) => {
+        // Las acciones largas se ven como una tarjeta más en el panel de voz.
+        const activity =
+          action.type === "pull"
+            ? "CARGANDO MODELO"
+            : action.type === "install"
+              ? "INSTALANDO OLLAMA"
+              : action.type === "uninstall"
+                ? "DESINSTALANDO OLLAMA"
+                : "";
+        if (activity) setActivity("ollama", true, activity, "ollama");
         // Mientras la acción dura, el estado vivo se repinta sin releer el disco.
         const timer = setInterval(() => MenteLocalPanel.current?.updateLive(liveState()), 500);
         void runAction(context, action).finally(async () => {
+          setActivity("ollama", false, "OLLAMA", "ollama");
           clearInterval(timer);
           const next = await collectState(context).catch(() => undefined);
           const panel = MenteLocalPanel.current;
@@ -3029,7 +3100,9 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(VozPanel.viewId, voiceProvider, {
       webviewOptions: { retainContextWhenHidden: true },
-    })
+    }),
+    // Actividades que no son agentes: repintan las tarjetas del panel de voz.
+    { dispose: onActivityChange(() => voicePanel?.refreshActivities()) }
   );
 
   // Panel inferior: dictado (voz a texto).

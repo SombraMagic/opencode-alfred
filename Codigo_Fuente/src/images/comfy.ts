@@ -33,6 +33,12 @@ export interface ComfyGenerateRequest extends ComfyServer {
   width: number;
   height: number;
   loras: ComfyLora[];
+  /** Semilla del KSampler (0..4294967295); si falta se sortea. */
+  seed?: number;
+  /** Pasos del KSampler (1..150); si falta, 20. */
+  steps?: number;
+  /** Guía del KSampler (1..30); si falta, 7. */
+  cfg?: number;
   /** Imagen de partida para img2img; sin ella el flujo es de texto a imagen. */
   source?: Buffer;
   /** Cuánto se aparta del original (0.1..1). Solo cuenta con imagen de partida. */
@@ -132,7 +138,7 @@ function sleep(ms: number): Promise<void> {
 
 /** Semilla del sampler: el servidor no la repite entre flujos por su cuenta. */
 function randomSeed(): number {
-  return Math.floor(Math.random() * 2 ** 31);
+  return Math.floor(Math.random() * 2 ** 32);
 }
 
 /** Flujo de texto a imagen (o img2img con `uploaded`) con los LoRA encadenados. */
@@ -183,9 +189,9 @@ function buildWorkflow(req: ComfyGenerateRequest, uploaded?: string): Workflow {
       positive: ["2", 0],
       negative: ["3", 0],
       latent_image: latent,
-      seed: randomSeed(),
-      steps: 20,
-      cfg: 7,
+      seed: req.seed ?? randomSeed(),
+      steps: req.steps ?? 20,
+      cfg: req.cfg ?? 7,
       sampler_name: "euler",
       scheduler: "normal",
       denoise,

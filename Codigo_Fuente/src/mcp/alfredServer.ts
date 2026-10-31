@@ -1,6 +1,6 @@
 /**
  * Servidor MCP `mcp_alfred` por stdio (JSON-RPC 2.0, un objeto por línea): cubre la voz
- * (`speak`, `list_voices`) y las herramientas de la pizarra.
+ * (`speak`, `list_voices`), las herramientas de la pizarra y el generador de imágenes.
  *
  * Corre como proceso propio, lanzado por el agente: aquí NO hay `vscode`.
  * stdout es solo protocolo; cualquier diagnóstico va a stderr. Reutiliza los
@@ -22,9 +22,10 @@ import {
 } from "../voice/core/index.js";
 import type { TtsMotor } from "../voice/core/index.js";
 import { callPizarraTool, PIZARRA_TOOLS } from "./alfredPizarra";
+import { callImageTool, IMAGE_TOOLS } from "./alfredImages";
 
 const PROTOCOL_VERSION = "2025-06-18";
-const SERVER_INFO = { name: "mcp_alfred", version: "1.1.0" };
+const SERVER_INFO = { name: "mcp_alfred", version: "1.2.0" };
 
 const ENGINES = ["sapi", "edge", "openai", "elevenlabs"];
 
@@ -57,8 +58,8 @@ const VOICE_TOOLS = [
   },
 ];
 
-/** Todo lo que publica el servidor: voz primero, luego la pizarra. */
-const TOOLS = [...VOICE_TOOLS, ...PIZARRA_TOOLS];
+/** Todo lo que publica el servidor: voz, pizarra e imágenes. */
+const TOOLS = [...VOICE_TOOLS, ...PIZARRA_TOOLS, ...IMAGE_TOOLS];
 
 /** Escribe un mensaje JSON-RPC en stdout. */
 function send(payload: unknown): void {
@@ -158,6 +159,10 @@ async function callTool(params: unknown): Promise<unknown> {
     const pizarra = typeof name === "string" ? await callPizarraTool(name, input) : undefined;
     if (pizarra !== undefined) {
       return { content: [{ type: "text", text: pizarra }] };
+    }
+    const imagen = typeof name === "string" ? await callImageTool(name, input) : undefined;
+    if (imagen !== undefined) {
+      return { content: [{ type: "text", text: imagen }] };
     }
     throw new Error(`Herramienta desconocida: ${String(name)}`);
   } catch (err) {

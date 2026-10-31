@@ -11,6 +11,7 @@ import {
   syncSharedConfig,
 } from "../voice/service.js";
 import { mcpState, setMcpEnabled } from "../voice/mcpInstaller.js";
+import { listActivities, type ActivityIcon } from "./activity";
 
 /** Fichero donde el MCP publica cada reproducción (misma ruta que voz-core). */
 const nowFile = join(
@@ -25,6 +26,8 @@ export interface WorkingAgent {
   streaming: boolean;
   /** Color del `.md` del agente (hex o nombre de la paleta de Claude); sin él, el acento. */
   color?: string;
+  /** Actividad que no es un agente (imagen, dictado, Ollama); sin él, es un agente. */
+  icon?: ActivityIcon;
 }
 
 /**
@@ -129,7 +132,7 @@ export class VozPanel {
     this.post({ type: "voices", voices, selected: settings.voice || voices[0]?.id });
     // Tras un recargo del webview, las tarjetas vuelven sin esperar al siguiente
     // sondeo: `pending` las guarda si aún no ha avisado de que está listo.
-    this.post({ type: "agents", agents: this.agents });
+    this.post({ type: "agents", agents: this.snapshotAgents() });
     // El interruptor del MCP se repinta al reabrir o recargar el panel.
     void this.pushMcp();
   }
@@ -158,7 +161,20 @@ export class VozPanel {
    */
   updateAgents(agents: WorkingAgent[]) {
     this.agents = agents;
-    this.post({ type: "agents", agents });
+    this.post({ type: "agents", agents: this.snapshotAgents() });
+  }
+
+  /** Agentes en vuelo más las actividades que no son agentes, como una tarjeta más. */
+  private snapshotAgents(): WorkingAgent[] {
+    return [
+      ...this.agents,
+      ...listActivities().map((a) => ({ name: a.name, streaming: true, icon: a.icon })),
+    ];
+  }
+
+  /** Repinta las tarjetas tras un cambio en las actividades de `./activity`. */
+  refreshActivities(): void {
+    this.post({ type: "agents", agents: this.snapshotAgents() });
   }
 
   /**

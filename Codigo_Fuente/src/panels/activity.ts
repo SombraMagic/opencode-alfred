@@ -1,0 +1,47 @@
+/**
+ * Actividades que no son agentes y que el panel de voz pinta como una tarjeta más:
+ * generar una imagen, transcribir voz y cargar/instalar modelos de Ollama. Sin
+ * `vscode`: los orígenes las encienden y el panel las lee.
+ */
+export type ActivityIcon = "imagen" | "dictado" | "ollama";
+
+export interface ActivityAgent {
+  key: string;
+  name: string;
+  icon: ActivityIcon;
+}
+
+const activities = new Map<string, ActivityAgent>();
+const listeners = new Set<() => void>();
+
+/** Enciende o apaga una actividad. Solo avisa si el mapa cambió de verdad. */
+export function setActivity(key: string, on: boolean, name: string, icon: ActivityIcon): void {
+  const current = activities.get(key);
+  if (on) {
+    if (current && current.name === name && current.icon === icon) {
+      return;
+    }
+    activities.set(key, { key, name, icon });
+  } else {
+    if (!current) {
+      return;
+    }
+    activities.delete(key);
+  }
+  for (const listener of listeners) {
+    listener();
+  }
+}
+
+/** Actividades encendidas, en el orden en que se encendieron. */
+export function listActivities(): ActivityAgent[] {
+  return Array.from(activities.values());
+}
+
+/** Alta de un oyente; devuelve la baja. */
+export function onActivityChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}

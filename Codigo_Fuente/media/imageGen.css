@@ -1,6 +1,9 @@
 /* Generador de imágenes — HUD de ComfyUI y OpenAI: conexión, ajustes y resultado.
    Todo sale de tokens.css; aquí solo el reparto y lo propio del panel. */
 
+/* Sin scanlines: ensucian las capturas que se copian fuera. */
+body::before { content: none; }
+
 :root {
   color-scheme: dark light;
 }
@@ -244,10 +247,38 @@ select.gen-input {
   display: none;
 }
 
+/* ── Compartir con ALFRED ─────────────────────────────── */
+/* El chip va en su propia fila: dentro del `role="status"` el lector anunciaría
+   cada cambio del check como un aviso de estado. */
+.gen-share-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+}
+
+.gen-share.on {
+  color: var(--neon);
+}
+
+.gen-share-note {
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  padding: 1px 5px;
+  border: 1px solid var(--neon-dim);
+  color: var(--neon);
+}
+
+.gen-share-note:empty {
+  display: none;
+}
+
 /* ── Cuerpo: ajustes a la izquierda, resultado a la derecha ── */
 .gen-body {
   display: grid;
-  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  /* La izquierda se estira con el hueco; la derecha conserva su tope por alto. */
+  grid-template-columns: minmax(320px, 1fr) minmax(0, max(280px, calc((100vh - 280px) * 1.6)));
   gap: 16px 18px;
   align-items: start;
 }
@@ -271,6 +302,17 @@ select.gen-input {
 .gen-lora-pick {
   flex: 1 1 auto;
   font-size: 10.5px;
+}
+
+/* Select de modelos con su recarga: el select se come el ancho. */
+.gen-model-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gen-model-row .gen-input {
+  flex: 1 1 auto;
 }
 
 .gen-loras {
@@ -337,6 +379,61 @@ select.gen-input {
 .gen-times {
   padding-bottom: 4px;
   color: var(--text-soft);
+}
+
+/* ── Semilla (solo ComfyUI) ───────────────────────────── */
+.gen-seed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  /* 5 px: con 6 los dos ajustes de la derecha no caben enteros en la columna de 393. */
+  gap: 5px;
+}
+
+.gen-seed .gen-input {
+  flex: 0 1 160px;
+  min-width: 0;
+}
+
+/* La semilla no se comprime por los dos ajustes que la acompañan. */
+.gen-seed #seed {
+  flex: 0 1 160px;
+  min-width: 96px;
+}
+
+/* PASOS y GUÍA caben en la fila de la semilla; si no, envuelven sin comprimirla. */
+.gen-tune {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gen-seed .gen-tune-input {
+  flex: 0 0 auto;
+  width: 58px;
+  text-align: right;
+}
+
+.gen-check {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 8.5px;
+  letter-spacing: 1px;
+  color: var(--text-soft);
+  cursor: pointer;
+  user-select: none;
+}
+
+.gen-check input[type="checkbox"] {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  accent-color: var(--neon);
+  cursor: pointer;
 }
 
 /* ── Imagen de partida ────────────────────────────────── */
@@ -526,6 +623,7 @@ select.gen-input {
 }
 
 .gen-hist-item {
+  display: block;
   flex: none;
   width: 78px;
   aspect-ratio: 16 / 10;
@@ -549,9 +647,91 @@ select.gen-input {
   outline: none;
 }
 
-.gen-hist-item.on {
+.gen-hist-cell {
+  position: relative;
+  flex: none;
+}
+
+.gen-hist-cell.on .gen-hist-item {
   border-color: var(--neon);
   box-shadow: 0 0 8px var(--neon-dim);
+}
+
+/* La × asoma al pasar el ratón; en la miniatura actual se queda a la vista. */
+.gen-hist-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.gen-hist-cell:hover .gen-hist-del,
+.gen-hist-cell.on .gen-hist-del,
+.gen-hist-del:focus-visible {
+  opacity: 1;
+}
+
+.gen-hist-del:hover,
+.gen-hist-del:focus-visible {
+  color: var(--magenta);
+  border-color: var(--magenta);
+  outline: none;
+}
+
+/* ── Ventanas bajas: la forma se aprieta, no se oculta ningún control ── */
+/* Con la cabecera, el historial y el formulario de ComfyUI, el panel mide 633 px
+   de alto; por debajo de eso sobra scroll aunque la vista previa ya esté topada. */
+@media (max-height: 680px) {
+  .gen-head {
+    padding-top: 6px;
+    margin-bottom: 8px;
+  }
+
+  .gen-brand { margin-bottom: 6px; }
+
+  .gen-statusline { margin-top: 6px; }
+
+  .gen-left { gap: 7px; }
+
+  /* `rows=7` por defecto; se sigue pudiendo redimensionar a mano. */
+  #prompt { height: 96px; }
+
+  .gen-textarea-sm { min-height: 30px; }
+}
+
+/* Muy bajas: los mismos controles, con el prompt en 72 px. A partir de 580 px de
+   alto ya entra la versión de arriba (mide 578), así que no hay salto entre tramos. */
+@media (max-height: 580px) {
+  .gen-head {
+    padding-bottom: 5px;
+    margin-bottom: 6px;
+  }
+
+  .gen-statusline { margin-top: 4px; }
+
+  .gen-share-row { margin-top: 3px; }
+
+  .gen-left { gap: 5px; }
+
+  .gen-left .gen-field { gap: 2px; }
+
+  #prompt { height: 72px; }
+
+  .gen-textarea-sm {
+    min-height: 26px;
+    height: 28px;
+  }
+
+  .gen-actions { padding-top: 0; }
 }
 
 /* ── Ancho escaso: las columnas se apilan, los ajustes arriba ── */

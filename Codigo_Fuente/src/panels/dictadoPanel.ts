@@ -13,6 +13,7 @@ import * as vscode from "vscode";
 import { readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
+import { setActivity } from "./activity";
 import {
   SapiDictado,
   STT_ENGINES,
@@ -516,6 +517,7 @@ export class VozDictado {
           })
         : wav;
       this.busy = true;
+      setActivity("dictado", true, "TRANSCRIBIENDO VOZ", "dictado");
       this.state("working", `Transcribiendo ${(durationMs / 1000).toFixed(1)} s…`);
       try {
         let text = "";
@@ -539,6 +541,7 @@ export class VozDictado {
         this.fail(err);
         this.state(this.handsFree ? "listening" : "idle");
       } finally {
+        setActivity("dictado", false, "TRANSCRIBIENDO VOZ", "dictado");
         this.busy = false;
       }
     };

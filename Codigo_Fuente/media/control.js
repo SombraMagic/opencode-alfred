@@ -59,6 +59,14 @@
     el.mente.classList.toggle("on", mente);
     el.mente.setAttribute("aria-pressed", mente ? "true" : "false");
 
+    // El botón de imágenes brilla cuando el generador está compartido con los agentes.
+    const imagenes = data.imageShare === true;
+    el.image.classList.toggle("on", imagenes);
+    el.image.setAttribute("aria-pressed", imagenes ? "true" : "false");
+    el.image.title = imagenes
+      ? "Generador de imágenes (compartido con los agentes)"
+      : "Generador de imágenes";
+
     // El chatbot es el único hueco sin implementar: se pinta apagado siempre.
     el.chatbot.disabled = true;
   }

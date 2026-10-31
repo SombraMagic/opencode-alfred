@@ -101,6 +101,34 @@
   image-rendering: pixelated;
 }
 
+/* Actividad del sistema (generar imagen, transcribir voz, cargar modelos de
+   Ollama): misma tarjeta, pero discontinua y sin el tinte del agente. */
+.agent.extra {
+  border-style: dashed;
+  border-color: var(--line);
+  background: linear-gradient(90deg, var(--bg-raised), transparent 70%);
+}
+
+/* El icono y el medidor no se comprimen: a 300 px cede el nombre. */
+.agent-icon {
+  flex: none;
+  display: flex;
+  width: 13px;
+  height: 13px;
+  color: var(--text);
+}
+
+.agent-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* No es un agente: nombre en texto normal, ni acento ni apagado. */
+.agent.extra .agent-name {
+  color: var(--text);
+}
+
 /* ── Lectura ──────────────────────────────────────────── */
 .readout {
   display: flex;

@@ -132,6 +132,45 @@
     cyan: "#39c5cf",
   };
 
+  /**
+   * Iconos de las actividades del sistema (imagen, dictado, Ollama). Son
+   * constantes de este fichero: del host solo llega el nombre, nunca el SVG.
+   */
+  const ICONS = {
+    imagen:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+      '<rect x="3" y="5" width="18" height="14" rx="2"/>' +
+      '<circle cx="8.5" cy="10" r="1.5"/>' +
+      '<path d="M4 17l5-5 4 4 3-3 4 4"/>' +
+      "</svg>",
+    dictado:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+      '<rect x="9" y="3" width="6" height="11" rx="3"/>' +
+      '<path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/>' +
+      '<path d="M12 18v3"/>' +
+      '<path d="M9 21h6"/>' +
+      "</svg>",
+    ollama:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+      '<rect x="6" y="6" width="12" height="12" rx="2"/>' +
+      '<path d="M9.5 9.5h5v5h-5z"/>' +
+      '<path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>' +
+      "</svg>",
+  };
+
+  /** Icono válido del contrato; cualquier otra cosa se ignora. */
+  function resolveIcon(value) {
+    return typeof value === "string" && Object.hasOwn(ICONS, value) ? value : "";
+  }
+
+  /** Envoltura del icono; el SVG entra después (siempre desde ICONS). */
+  function iconSpan(icon) {
+    const span = document.createElement("span");
+    span.className = "agent-icon";
+    span.innerHTML = ICONS[icon];
+    return span;
+  }
+
   /** Color de los píxeles: hex tal cual, nombre de la paleta de Claude o "" → acento. */
   function resolveColor(value) {
     if (typeof value !== "string") return "";
@@ -152,6 +191,11 @@
     canvas.height = H;
     canvas.className = "agent-meter";
     el.append(label, canvas);
+    // Actividad del sistema (imagen, dictado, Ollama): tarjeta aparte, con icono.
+    if (agent.icon) {
+      el.classList.add("extra");
+      el.insertBefore(iconSpan(agent.icon), label);
+    }
     // El nombre se tiñe con el mismo color que los píxeles; sin color, manda el tema.
     if (agent.color) el.style.setProperty("--agent-color", agent.color);
     // `cols` guarda la historia por columnas (x * ROWS + y) y se pinta como píxeles.
@@ -162,6 +206,7 @@
       next: 0,
       streaming: agent.streaming,
       color: agent.color,
+      icon: agent.icon,
     };
   }
 
@@ -236,7 +281,12 @@
           .filter((a) => a && a.name)
           .map((a) => [
             a.name,
-            { name: a.name, streaming: Boolean(a.streaming), color: resolveColor(a.color) },
+            {
+              name: a.name,
+              streaming: Boolean(a.streaming),
+              color: resolveColor(a.color),
+              icon: resolveIcon(a.icon),
+            },
           ]),
       ).values(),
     ];
@@ -270,6 +320,19 @@
         if (agent.color) card.el.style.setProperty("--agent-color", agent.color);
         else card.el.style.removeProperty("--agent-color");
         if (!raf && !document.hidden) drawCard(card);
+      }
+      // Icono nuevo o que desaparece: se cambia en su sitio, sin recrear la tarjeta
+      // (recrear reiniciaría el canvas y la estela).
+      if (card.icon !== agent.icon) {
+        card.icon = agent.icon;
+        card.el.classList.toggle("extra", Boolean(agent.icon));
+        const span = card.el.querySelector(".agent-icon");
+        if (agent.icon) {
+          if (span) span.innerHTML = ICONS[agent.icon];
+          else card.el.insertBefore(iconSpan(agent.icon), card.el.firstChild);
+        } else if (span) {
+          span.remove();
+        }
       }
     }
 

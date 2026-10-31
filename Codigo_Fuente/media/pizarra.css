@@ -1,5 +1,8 @@
 /* Pizarra — editor de imagen por capas. La base vive en tokens.css. */
 
+/* Sin scanlines: ensucian las capturas que se copian fuera. */
+body::before { content: none; }
+
 /* La vista ocupa el alto justo: scrollea nada, el lienzo llena el stage en los dos ejes. */
 html,
 body {
