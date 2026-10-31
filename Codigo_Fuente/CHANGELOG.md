@@ -3,6 +3,60 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.21] - 2026-11-01
+
+- **El generador de imágenes recuerda sus ajustes entre sesiones**: el modelo de cada proveedor,
+  el tamaño, los pasos, la guía, la semilla y si es aleatoria (`opencodeAgents.imageGen`).
+- **Al abrir la pestaña se comprueba el enlace con ComfyUI** y se recarga su catálogo sin pulsar
+  `CONECTAR`; `CONECTAR` sigue recargando la lista.
+- **Botón de recargar junto a `MODELO`** para volver a pedir el catálogo al servidor.
+- **`PASOS` y `GUÍA` (CFG) en la misma fila que `SEMILLA`**: viajan al muestreador de ComfyUI
+  (`KSampler`), 20 pasos y guía 7 por defecto.
+
+## [0.7.20] - 2026-10-31
+
+- **Generador de imágenes: la columna de ajustes se estira** y ocupa el hueco libre; la vista
+  previa mantiene su tamaño y su sitio a la derecha.
+
+## [0.7.19] - 2026-10-31
+
+- **Generador de imágenes: la vista previa y el historial se ajustan al alto de la ventana**
+  (sin scroll en pestañas anchas) y el formulario se compacta en ventanas bajas.
+
+## [0.7.18] - 2026-10-31
+
+- **El panel de VOZ suma a los agentes en vuelo tres actividades que no son agentes**:
+  generar una imagen, transcribir voz y cargar o instalar modelos de Ollama (también
+  descargar y borrar). La generación lanzada por el MCP entra igual: el proceso MCP deja
+  `imagen-trabajando.json` en `%APPDATA%\voz` y la extensión lo vigila.
+- Se pintan como una tarjeta más, pero con **borde discontinuo e icono delante del nombre**
+  para no confundirlas con un agente de verdad. Al terminar la actividad, su tarjeta
+  desaparece.
+
+## [0.7.17] - 2026-10-31
+
+- **Compartir con ALFRED**: casilla en la cabecera del generador de imágenes. Solo se comparte
+  si ComfyUI responde (con modelos) o hay clave de OpenAI; mientras está encendido se revalida
+  cada 5 s y se apaga sola al primer fallo. Con OpenAI, la clave viaja al fichero compartido
+  —el proceso del MCP no ve `secrets`— y se borra al apagar.
+- **El botón del generador en `CONTROL` se queda en verde** mientras está compartido.
+- **Dos herramientas nuevas del MCP `mcp_alfred`**: `generar_imagen` (prompt, prompt negativo y
+  tamaño) y `consultar_estado`, que dice si está compartido y operativo sin generar nada.
+- **La imagen que genera un agente va al historial** del panel, y sus dos prompts aparecen
+  rellenos en el panel al terminar.
+
+## [0.7.16] - 2026-10-31
+
+- **La pizarra y el generador de imágenes van sin las scanlines** del tema: no se pintan en
+  esos dos paneles, para que las capturas que se copian fuera salgan limpias.
+- **Semilla en el generador de ComfyUI**: el campo de semilla se puede fijar para repetir una
+  imagen; en modo `ALEATORIA` se sortea una nueva (0..4294967295) y el campo enseña la usada.
+- **Borrar imágenes del historial**: una a una desde su miniatura o todas de golpe, con
+  confirmación y sin tocar nada que esté fuera de `.alfred/imagenes`.
+- **OpenAI o cualquier servicio compatible**: campo de URL base propia (por ejemplo
+  `http://localhost:8000/v1`) además de `https://api.openai.com`, y modelos propios del
+  servicio; la clave sigue en `secrets` y nunca vuelve al webview.
+
 ## [0.7.15] - 2026-10-31
 
 - **Pestaña central «Generador de imágenes IA»**: el botón de imagen de la vista `Control` abre

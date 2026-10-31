@@ -39,7 +39,8 @@ La vista hermana del Explorador, en la misma barra. Sin plegado ni rótulo: una 
 elástica que ocupa toda la vista, con 6 px de aire. El grupo de sesión `‹ [terminal] ›` —el botón principal, abrir la sesión del
 proveedor activo y cambiar de agente— y cuatro botones de módulo **solo icono**: el enchufe
 de los conectores de opencode (apagado con otro proveedor), el cerebro de `OLLAMA` (la pestaña
-de Ollama, que brilla mientras el servidor responde), la foto del generador de imágenes y el
+de Ollama, que brilla mientras el servidor responde), la foto del generador de imágenes (en verde
+mientras está compartido con los agentes) y el
 bocadillo del chatbot, este último apagado, con su hueco reservado. Al estrechar la barra la
 fila salta a más líneas y los botones se estiran.
 
@@ -60,10 +61,14 @@ tarjeta de cada proveedor recuerda si estaba plegada.
 
 - Voz: ecualizador de barras pixeladas y cuatro motores (SAPI de Windows, Edge, OpenAI, ElevenLabs).
   `Ctrl+Alt+V` lee la selección. El ecualizador también reacciona a lo que diga el MCP; el
-  servidor MCP `mcp_alfred` (voz **y** pizarra) viaja dentro del paquete en
+  servidor MCP `mcp_alfred` (voz, pizarra e imágenes) viaja dentro del paquete en
   `dist/alfred-mcp.js` y se da de alta solo en los agentes que haya (opencode, Claude Code,
   Claude Desktop, Cursor). El botón `ALFRED MCP` del panel, con su punto verde o ámbar, lo
   enciende y lo apaga.
+- Las tarjetas del panel no son solo agentes: generar una imagen, transcribir voz y
+  cargar o instalar modelos de Ollama salen también, con la generación que lanza el MCP
+  incluida. Se distinguen por el borde discontinuo y el icono delante del nombre, y
+  desaparecen al terminar.
 - Dictado: bloc de notas con adjuntos (imágenes pegadas, ficheros arrastrados o `ADJUNTAR`),
   configuración plegable y tres motores (SAPI, Whisper local, nube compatible con OpenAI).
 
@@ -159,13 +164,32 @@ Pestaña central, desde el botón de foto de la vista `Control`. Dos motores:
 - **ComfyUI**: texto a imagen e imagen a imagen contra un servidor propio (URL, puerto y todo
   lo que haga falta en el panel; por defecto `http://localhost:8188`). Los checkpoints y las
   LoRAs salen del propio servidor (`/object_info`), y un trabajo muestra su progreso en la
-  barra sin reenviar la imagen de partida en cada tick.
-- **OpenAI**: texto a imagen con una clave propia, guardada en `secrets`
-  (`opencodeAgents.imageGen.openaiKey`); al panel solo vuelve si hay clave o no.
+  barra sin reenviar la imagen de partida en cada tick. La semilla se fija a mano o se sortea
+  (`ALEATORIA`), y la usada queda en el campo para repetir la toma. `PASOS` y `GUÍA` (CFG) van
+  en la misma fila que la semilla y viajan al muestreador del servidor (20 y 7 por defecto).
+- **El panel recuerda los ajustes entre sesiones**: el modelo de cada proveedor, el tamaño, los
+  pasos, la guía, la semilla y si es aleatoria. Al abrir la pestaña se comprueba el enlace con
+  ComfyUI y se recarga el catálogo sin pulsar `CONECTAR`; el botón de recargar que hay junto a
+  `MODELO` lo vuelve a pedir, y `CONECTAR` sigue recargando la lista.
+- **OpenAI o un servicio compatible**: texto a imagen con una clave propia, guardada en
+  `secrets` (`opencodeAgents.imageGen.openaiKey`); al panel solo vuelve si hay clave o no. La
+  URL base es configurable (`http://localhost:8000/v1`, etc.) y el modelo se escribe a mano.
 
 Los lados se recortan a 2048 px y a múltiplos de 8 en el host, con aviso. Las imágenes se
 guardan en `.alfred/imagenes` (sin proyecto abierto, en el almacén global) y el historial es esa
-carpeta: las 20 últimas, con miniatura y el motor que las hizo.
+carpeta: las 20 últimas, con miniatura y el motor que las hizo. Se borran una a una o todas de
+golpe, con confirmación. La pizarra y el generador no pintan las scanlines del tema: las
+capturas que salen de ellos van limpias. La columna de vista previa e historial se queda con el
+alto libre de la ventana (sin scroll en pestañas anchas) y el formulario se aprieta en ventanas
+bajas.
+
+La casilla **COMPARTIR CON ALFRED** de la cabecera deja que los agentes generen con este mismo
+generador. Solo se enciende si ComfyUI responde con modelos o si hay clave de OpenAI; mientras
+está compartido se revalida cada 5 s y se apaga sola al primer fallo (y el botón de `CONTROL`
+deja de brillar). El MCP `mcp_alfred` publica entonces `generar_imagen` (prompt, prompt negativo
+y tamaño, 64..2048 px; el negativo solo lo usa ComfyUI) y `consultar_estado`, que dice si está
+compartido y operativo sin generar nada. La imagen que genera un agente se guarda en el mismo
+historial y sus dos prompts aparecen en el panel.
 
 ### Visor Alfred 3D (`.blend`)
 

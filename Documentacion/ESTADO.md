@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.15**
+Última revisión: 1 de noviembre de 2026 · versión **0.7.21**
 
 ## Resumen
 
@@ -9,16 +9,59 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.15** está empaquetada e instalada (`--force`), sin release en GitHub: la pestaña
+La **0.7.21** está empaquetada e instalada (`--force`), sin release en GitHub: el
+**generador de imágenes IA** recuerda entre sesiones el modelo de cada proveedor, el tamaño, los
+pasos, la guía, la semilla y si es aleatoria (`opencodeAgents.imageGen`). Al abrir la pestaña se
+comprueba el enlace con ComfyUI y se recarga el catálogo sin pulsar `CONECTAR`, hay un botón de
+recargar junto a `MODELO` (y `CONECTAR` sigue recargando la lista), y `PASOS` y `GUÍA` (CFG)
+comparten fila con `SEMILLA` y viajan al `KSampler` del servidor, con 20 y 7 por defecto.
+**Sin ver en VS Code**: la webview real con un ComfyUI vivo, la persistencia tras recargar la
+ventana y el aspecto de la fila nueva. Va sobre la **0.7.20**, empaquetada e instalada
+(`--force`), sin release en GitHub: en el
+**generador de imágenes IA**, la columna izquierda (ajustes) se estira y ocupa el hueco que
+quedaba entre el formulario y la vista previa, mientras la derecha conserva su tope por alto y
+sigue pegada a la derecha. **Sin ver en VS Code**: la webview real a distintos anchos. Va sobre
+la **0.7.19**, empaquetada e instalada (`--force`), sin release en GitHub: en el
+**generador de imágenes IA**, la columna derecha (vista previa e historial) se limita al alto
+libre de la ventana, así que una pestaña ancha ya no fuerza scroll vertical, y sigue pegada a la
+derecha. El ancho lo topa el alto que queda (`max-width: max(280px, calc((100vh - 280px) * 1.6))`,
+`margin-left: auto`); en ventanas bajas (≤680 px y ≤580 px de alto) el formulario se aprieta —el
+prompt más bajo y los campos compactos— sin ocultar controles. **Sin ver en VS Code**: la
+webview real a distintos altos. Va sobre la **0.7.18**, empaquetada e instalada (`--force`), sin
+release en GitHub, en la que el panel de VOZ
+suma a los agentes en vuelo tres **actividades que no son agentes** —generar una imagen,
+transcribir voz y cargar, instalar o borrar modelos de Ollama—, incluida la imagen que lanza
+el MCP (deja `imagen-trabajando.json` en `%APPDATA%\voz` y la extensión lo vigila, con caducidad
+de 15 min). Se pintan como una tarjeta más del mapa de `src/panels/activity.ts`, con **borde
+discontinuo e icono** delante del nombre para no confundirlas con un agente de verdad, y
+desaparecen al terminar. **Sin ver en VS Code**: el repintado real del panel con las tres
+actividades encendidas a la vez y el camino MCP → tarjeta con el panel de voz abierto. Va sobre
+la **0.7.17**, empaquetada e instalada, sin release en GitHub: el generador de
+imágenes se puede **compartir con los agentes** con la casilla de su cabecera. Solo se enciende
+si ComfyUI responde con modelos o si hay clave de OpenAI; mientras está compartido se revalida
+cada 5 s y se apaga solo al primer fallo (la clave de OpenAI viaja al fichero compartido porque
+el proceso MCP no ve `secrets`, y se borra al apagar). El botón del generador en `CONTROL`
+brilla mientras está compartido. El MCP `mcp_alfred` publica dos herramientas nuevas,
+`generar_imagen` (prompt, negativo y tamaño 64..2048) y `consultar_estado`; lo que genera un
+agente cae en el historial y sus dos prompts aparecen en el panel. **Sin ver en VS Code**: la
+webview real, la comprobación cada 5 s contra un ComfyUI vivo y el bucle completo MCP → panel.
+Va sobre la **0.7.16**, empaquetada e instalada, en la que la pizarra y el **generador de
+imágenes** dejan de pintar las scanlines del tema (las capturas salen limpias), el generador de
+ComfyUI tiene **semilla fijable o aleatoria** (la usada queda en el campo), el historial se
+**borra** imagen a imagen o entero con confirmación —solo dentro de `.alfred/imagenes`— y el
+motor **OpenAI** admite cualquier servicio compatible con **URL base propia** y modelo escrito a
+mano. Esa versión tampoco se vio en VS Code: la webview real y los diálogos nativos de borrado.
+Va sobre la **0.7.15**, instalada, sin release, en la que nació la pestaña
 central **Generador de imágenes IA**, que abre el botón de foto de la vista `Control` (antes
 apagado). Dos motores: **ComfyUI** por su API HTTP (texto a imagen e imagen a imagen, con los
 checkpoints y las LoRAs que tenga el servidor) y **OpenAI** (texto a imagen, con la clave en
 `secrets`; al webview solo vuelve si hay clave o no). Las imágenes se guardan en
 `.alfred/imagenes` —sin proyecto, en el almacén global— y el historial es esa carpeta: las 20
 últimas. Los lados se recortan a 2048 px y a múltiplos de 8 en el host, con aviso, y el progreso
-de un trabajo va en mensaje aparte para no reenviar la imagen de partida en cada tick. **Sin ver
-en VS Code**: la webview real, la CSP, los diálogos nativos y el portapapeles. Va sobre la
-**0.7.14**, instalada, sin release, en la que los widgets de `INTERFACES` se
+de un trabajo va en mensaje aparte para no reenviar la imagen de partida en cada tick. Esa
+versión tampoco se vio en VS Code: la webview real, la CSP, los diálogos nativos y el
+portapapeles. Va sobre la **0.7.14**, instalada, sin release, en la que los widgets de
+`INTERFACES` se
 **ajustan a la rejilla en absoluto**, no a la coordenada relativa de su contenedor. Como el
 widget guarda su `x`/`y` relativos a la caja útil del padre (la barra de 28 px de una ventana,
 la tira de 26 de las pestañas, los 110 de las pestañas verticales), el ajuste aplicado sobre esa

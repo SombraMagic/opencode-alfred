@@ -53,13 +53,20 @@ Bienvenidos a Alfred.
   OpenCode Go, sin salir del editor.
 - **Voz.** Lee en voz alta lo que selecciones y dicta en un bloc con adjuntos,
   imágenes, pegar y arrastrar. Cuatro motores de voz y tres de dictado; funciona sin
-  conexión con lo que ya trae Windows.
+  conexión con lo que ya trae Windows. El panel enseña también lo que está en marcha aunque
+  no sea un agente: generar una imagen, transcribir voz o cargar modelos de Ollama salen con
+  borde discontinuo e icono.
 - **Mente local.** El cerebro Ollama, en su pestaña: instalar o desinstalar con `winget`,
   modelos con su tamaño y el espacio del disco, descargar, borrar y encender o apagar. Al
   encender, Ollama aparece en los conectores y en la asignación de modelos de opencode.
 - **Generador de imágenes.** Texto a imagen e imagen a imagen con un ComfyUI propio (con sus
-  checkpoints y LoRAs) o con OpenAI y tu clave. Las imágenes quedan en `.alfred/imagenes` y el
-  panel enseña las 20 últimas.
+  checkpoints y LoRAs, y semilla fijable para repetir una toma) o con OpenAI y cualquier
+  servicio compatible con URL base propia y tu clave. Recuerda tus ajustes entre sesiones,
+  comprueba el enlace con ComfyUI al abrir la pestaña y tiene pasos y guía propios. Las imágenes
+  quedan en `.alfred/imagenes`,
+  el panel enseña las 20 últimas y se borran una a una o todas. Con **COMPARTIR CON ALFRED**
+  los agentes generan con ese mismo motor por el MCP (`generar_imagen`, `consultar_estado`) y lo
+  que generan cae en el historial.
 - **Pizarra.** Dibuja, pega imágenes y mándalo al prompt como si fuera un adjunto. Tiene una
   capa de diagrama para dibujar workflows con nodos y conectores, una capa de interfaces para
   maquetar wireframes (los widgets se anidan soltándolos sobre un contenedor), y exporta el

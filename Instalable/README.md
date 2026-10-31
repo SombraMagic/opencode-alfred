@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.15.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.21.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -15,6 +15,58 @@ No hace falta compilar nada ni instalar Node.
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.7.21
+
+- **El generador de imágenes recuerda sus ajustes entre sesiones**: el modelo de cada proveedor,
+  el tamaño, los pasos, la guía, la semilla y si es aleatoria.
+- **Al abrir la pestaña se comprueba el enlace con ComfyUI** y se recarga su catálogo sin pulsar
+  `CONECTAR`; hay un botón de recargar junto a `MODELO` y `CONECTAR` sigue recargando la lista.
+- **`PASOS` y `GUÍA` (CFG) en la misma fila que `SEMILLA`**, y viajan al muestreador de ComfyUI
+  (20 y 7 por defecto).
+
+## Novedades de la 0.7.20
+
+- **Generador de imágenes: la columna de ajustes se estira** y ocupa el hueco que quedaba entre el
+  formulario y la vista previa. La columna derecha mantiene su tamaño tope por alto y sigue pegada
+  a la derecha.
+
+## Novedades de la 0.7.19
+
+- **Generador de imágenes: la vista previa y el historial ya no fuerzan scroll** en pestañas
+  anchas. La columna derecha se queda con el alto que sobra de la ventana y sigue pegada a la
+  derecha.
+- En ventanas bajas (**≤680 px** y **≤580 px** de alto) el formulario se aprieta un poco —prompt
+  más bajo y campos compactos— sin esconder ningún control.
+
+## Novedades de la 0.7.18
+
+- **El panel de VOZ enseña también las actividades que no son agentes**: generar una imagen,
+  transcribir voz y cargar o instalar modelos de Ollama, con la generación que lanza el MCP
+  incluida.
+- Salen como una tarjeta más, con **borde discontinuo e icono delante del nombre** para no
+  confundirlas con un agente de verdad. Al terminar, la tarjeta desaparece.
+
+## Novedades de la 0.7.17
+
+- **Compartir con ALFRED**: casilla en la cabecera del generador de imágenes para que los
+  agentes generen con él por el MCP. Solo se comparte si ComfyUI responde o hay clave de
+  OpenAI; se revalida cada 5 s y se apaga sola al fallar.
+- El botón del generador en **Control** se queda en verde mientras está compartido.
+- El MCP `mcp_alfred` gana `generar_imagen` (prompt, prompt negativo y tamaño) y
+  `consultar_estado`. Lo que genera un agente se guarda en el historial y sus prompts
+  aparecen en el panel.
+
+## Novedades de la 0.7.16
+
+- **La pizarra y el generador de imágenes pierden las scanlines** del tema: las capturas que se
+  copian fuera salen limpias.
+- **El generador guarda semilla**: se fija a mano para repetir una imagen o se sortea en modo
+  `ALEATORIA`; el campo enseña la que se usó (ComfyUI).
+- **Historial borrable**: imágenes una a una desde su miniatura, o todas con el botón de la
+  papelera y confirmación. Solo toca `.alfred/imagenes`.
+- **OpenAI o servicio compatible**: campo de URL base propia además de `https://api.openai.com`,
+  y modelo escribible a mano. La clave sigue en `secrets`.
 
 ## Novedades de la 0.7.15
 
@@ -155,19 +207,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.15.vsix`.
+3. Elige `opencode-alfred-0.7.21.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.15.vsix
+code --install-extension opencode-alfred-0.7.21.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.15.vsix --force
+code --install-extension opencode-alfred-0.7.21.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?
