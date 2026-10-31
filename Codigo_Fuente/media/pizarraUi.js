@@ -8,8 +8,8 @@
    `parent` a null (o ausente) cuelga de la escena.
 
    Personalización, plana junto a lo anterior: `fill` (`"auto"`, `"none"` o `#rrggbb`),
-   `stroke` (`#rrggbb` o `"none"`), `titleColor` (`#rrggbb`), `titleSize` (8..48) y
-   `orientation` (`"h"`/`"v"`, solo `menu`).
+   `stroke` (`#rrggbb` o `"none"`), `titleColor` (`#rrggbb`), `titleSize` (8..48),
+   `orientation` (`"h"`/`"v"`, solo `menu`), `icons` y `scroll` (booleanos, solo `list`).
 
    Se puede cargar con `require` en node para comprobarla sin navegador. */
 (function () {
@@ -23,6 +23,7 @@
     { kind: "tabs-v", group: "contenedor", label: "Pestañas V" },
     { kind: "accordion", group: "contenedor", label: "Acordeón" },
     { kind: "menu", group: "control", label: "Menú" },
+    { kind: "list", group: "control", label: "Lista" },
     { kind: "label", group: "control", label: "Etiqueta" },
     { kind: "input", group: "control", label: "Campo" },
     { kind: "textarea", group: "control", label: "Área de texto" },
@@ -40,6 +41,7 @@
     "tabs-v": { w: 360, h: 240 },
     accordion: { w: 320, h: 200 },
     menu: { w: 160, h: 140 },
+    list: { w: 220, h: 160 },
     label: { w: 160, h: 24 },
     input: { w: 200, h: 28 },
     textarea: { w: 240, h: 80 },
@@ -291,6 +293,14 @@
       const rows = count(n.options);
       const i = Math.floor(ly / ROW_H);
       return i >= 0 && i < rows ? "check:" + i : "body";
+    }
+    if (k === "list") {
+      // Misma fila que pinta `paintList`: el alto manda y lo que sobra por abajo es `body`.
+      const rows = count(n.items);
+      if (rows <= 0) return "body";
+      const i = Math.floor(ly / ROW_H);
+      // Una fila que `paintList` no llega a pintar porque el widget la corta no se golpea.
+      return i >= 0 && i < rows && (i + 1) * ROW_H <= num(n.h, 1) ? "row:" + i : "body";
     }
     return "body";
   }
@@ -629,6 +639,62 @@
     outerFrame(ctx, n, x, y, w, h, ink, true);
   }
 
+  /** Ancho del carril de la barra de desplazamiento simulada de `list`. */
+  const SCROLL_W = 6;
+
+  function paintList(ctx, n, x, y, w, h, ink) {
+    const items = n.items || [];
+    const act = idx(n.active);
+    const soft = n.disabled ? PAPER : SOFT;
+    const mark = markFill(n, soft);
+    const tcol = titleInk(n, ink);
+    const font = fontOf(n, 12);
+    const fg = strokeOf(n, ink);
+    const conIconos = n.icons === true;
+    const carril = n.scroll === true;
+    // El carril come del borde derecho del texto y le deja 8 px de margen.
+    const ancho = Math.max(2, w - (carril ? SCROLL_W + 8 : 0));
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
+    outerFrame(ctx, n, x, y, w, h, ink, true);
+    if (items.length === 0) {
+      // Lista vacía: la caja sola y, como ayuda de edición, la palabra que la nombra.
+      if (HINTS) text(ctx, "lista", x + 4, y + h / 2, Math.max(2, w - 8), MUTE, font, "center");
+      return;
+    }
+    const lado = Math.min(14, ROW_H - 8);
+    for (let i = 0; i < items.length; i++) {
+      const ry = y + i * ROW_H;
+      if (ry + ROW_H > y + h) break;
+      if (i === act) fillBox(ctx, x + LW, ry + LW, Math.max(1, w - LW * 2), ROW_H - LW, mark);
+      let tx = x + 8;
+      if (conIconos) {
+        const glifo = GLYPHS[n.icon];
+        if (Array.isArray(glifo)) trazaIcono(ctx, glifo, x + 8, ry + (ROW_H - lado) / 2, lado, tcol);
+        else if (typeof glifo === "string" && glifo) {
+          text(ctx, glifo, x + 8, ry + ROW_H / 2, lado, tcol, Math.round(lado) + "px sans-serif", "center");
+        } else {
+          // Sin icono elegido no hay glifo: un hueco de 8 px para que la fila no salga corrida.
+          frame(ctx, x + 8 + (lado - 8) / 2, ry + (ROW_H - 8) / 2, 8, 8, fg);
+        }
+        tx = x + 8 + lado + 6;
+      }
+      // En una caja más estrecha que el hueco del icono, el texto no cabe: se omite en vez de salir.
+      if (tx < x + ancho) {
+        text(ctx, items[i], tx, ry + ROW_H / 2, Math.max(2, x + ancho - tx), tcol, i === act ? "bold " + font : font, "left");
+      }
+      line(ctx, x, ry + ROW_H, x + w, ry + ROW_H, fg);
+    }
+    if (carril) {
+      // Carril pegado al borde derecho; el pulgar mide lo que cabe del contenido.
+      const rx = x + w - SCROLL_W - LW;
+      const ry0 = y + LW;
+      const rh = Math.max(1, h - LW * 2);
+      frame(ctx, rx, ry0, SCROLL_W, rh, fg);
+      const alto = rh * Math.min(1, Math.max(0.15, h / (items.length * ROW_H)));
+      fillBox(ctx, rx + LW, ry0 + LW, Math.max(1, SCROLL_W - LW * 2), Math.max(1, alto - LW * 2), fg);
+    }
+  }
+
   function paintLabel(ctx, n, x, y, w, h, ink) {
     fillBox(ctx, x, y, w, h, fillOf(n, null));
     outerFrame(ctx, n, x, y, w, h, ink, false);
@@ -806,6 +872,9 @@
           break;
         case "menu":
           paintMenu(ctx, node, x, y, w, h, ink);
+          break;
+        case "list":
+          paintList(ctx, node, x, y, w, h, ink);
           break;
         case "label":
           paintLabel(ctx, node, x, y, w, h, ink);

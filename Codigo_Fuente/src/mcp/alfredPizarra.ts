@@ -587,6 +587,10 @@ function aplicarContenido(nodo: UiNode, args: Record<string, unknown>): void {
   }
   const disabled = boolOf(args, "disabled");
   if (disabled !== undefined) nodo.disabled = disabled;
+  const icons = boolOf(args, "icons");
+  if (icons !== undefined) nodo.icons = icons;
+  const scroll = boolOf(args, "scroll");
+  if (scroll !== undefined) nodo.scroll = scroll;
   const fill = strOf(args, "fill");
   if (fill !== undefined) nodo.fill = fill;
   const stroke = strOf(args, "stroke");
@@ -954,7 +958,7 @@ export const PIZARRA_TOOLS = [
           items: {
             type: "object",
             description:
-              "Widget: id, kind, parent (id o null), x, y, w, h (x e y relativos a la caja útil del padre), title, text, placeholder, items, active, options, checked, variant, align, icon, src, disabled, fill, stroke, titleColor, titleSize y orientation.",
+              "Widget: id, kind, parent (id o null), x, y, w, h (x e y relativos a la caja útil del padre), title, text, placeholder, items, active, options, checked, variant, align, icon, src, disabled, icons, scroll, fill, stroke, titleColor, titleSize y orientation.",
             properties: {
               fill: FILL,
               stroke: STROKE,
@@ -972,7 +976,7 @@ export const PIZARRA_TOOLS = [
   {
     name: "pizarra_ui_nodo",
     description:
-      "Da de alta, edita o borra un widget de la capa INTERFACES. Al dar de alta sin x/y se apila debajo de los hijos que ya tenga su padre; al borrar se lleva por delante sus descendientes. «editar» cambia solo los campos del contrato que lleguen (geometría, parent, textos, listas y estilo) y deja el resto como estaba. Devuelve el árbol resultante, igual que pizarra_ui_leer.",
+      "Da de alta, edita o borra un widget de la capa INTERFACES. Al dar de alta sin x/y se apila debajo de los hijos que ya tenga su padre; al borrar se lleva por delante sus descendientes. «editar» cambia solo los campos del contrato que lleguen (geometría, parent, textos, listas, icons, scroll y estilo) y deja el resto como estaba. Devuelve el árbol resultante, igual que pizarra_ui_leer.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1024,6 +1028,8 @@ export const PIZARRA_TOOLS = [
         icon: { type: "string", description: "Nombre del icono del widget." },
         src: { type: "string", description: 'Imagen del widget en data URL, o "" sin imagen.' },
         disabled: { type: "boolean", description: "Widget apagado." },
+        icons: { type: "boolean", description: "Lista: icono en cada fila." },
+        scroll: { type: "boolean", description: "Lista: barra de desplazamiento." },
         fill: FILL,
         stroke: STROKE,
         titleColor: TITLE_COLOR,
@@ -1388,6 +1394,8 @@ async function pizarraUiNodo(args: Record<string, unknown>): Promise<string> {
       icon: "",
       src: "",
       disabled: false,
+      icons: false,
+      scroll: false,
     };
     aplicarContenido(nodo, args);
     const saneada = sanitizeUi({ nodes: [...nodos, nodo] });

@@ -162,6 +162,8 @@
   };
 
   let tool = "select";
+  /** Tipo de widget armado desde la paleta INTERFAZ: el siguiente clic en el lienzo lo coloca. */
+  let pendiente = null;
   /** Panel visible del cajón: `node`/`edge`/`text`/`pen`/`eraser`/`ui`, o `null` si está cerrado. */
   let panelAbierto = null;
   /** Imagen o bloque de texto elegido (selección simple, con asas propias). */
@@ -172,6 +174,11 @@
   let selEdge = null;
   /** Widget de INTERFACES elegido: se mueve, se escala y se ajusta en el cajón INTERFAZ. */
   let selUi = null;
+  /**
+   * Copia en memoria de Ctrl+C: foto profunda de la selección, nunca referencias a la escena.
+   * No cruza ventanas ni sobrevive al cierre de la pestaña.
+   */
+  let portapapeles = null;
   /** Nodo bajo el puntero: enseña sus asas de conexión. */
   let hoverNode = null;
   /** Último punto del puntero en el lienzo: lo usan los chivatos del overlay. */
@@ -882,8 +889,6 @@
   const UI_MIN = 8;
   /** Tope de widgets de la capa: el mismo que aplica el saneado del host (`MAX_UI_NODES`). */
   const UI_MAX = 800;
-  /** Tipos que admiten hijos: un widget nuevo suelto encima nace dentro y apilado debajo. */
-  const UI_CONTENEDORES = ["container", "window", "tabs-h", "tabs-v", "accordion"];
 
   /**
    * Campos del inspector por tipo: solo los que `pizarraUi.js` lee de verdad en cada widget.
@@ -896,6 +901,7 @@
     "tabs-v": ["items", "active", "disabled"],
     accordion: ["items", "active", "disabled"],
     menu: ["items", "active", "orientation", "disabled"],
+    list: ["items", "active", "icon", "icons", "scroll", "disabled"],
     label: ["text", "align", "disabled"],
     input: ["text", "placeholder", "disabled"],
     textarea: ["text", "placeholder", "disabled"],
@@ -920,11 +926,14 @@
     icon: { etiqueta: "ICONO", tag: "iconos" },
     // Dos botones de icono: el menú en fila o en columna.
     orientation: { etiqueta: "ORIENTACIÓN", tag: "orientacion" },
+    // Solo la lista: icono a la izquierda de cada fila y barra de desplazamiento a la derecha.
+    icons: { etiqueta: "ICONO EN CADA FILA", tag: "checkbox" },
+    scroll: { etiqueta: "BARRA DE DESPLAZAMIENTO", tag: "checkbox" },
     // Solo lectura: la data URL se pone pegando la imagen o desde el MCP, no escribiéndola.
     src: { etiqueta: "IMAGEN", tag: "nota" },
     disabled: { etiqueta: "APAGADO", tag: "checkbox" },
   };
-  const UI_ORDEN = ["title", "text", "placeholder", "items", "active", "options", "checked", "variant", "align", "icon", "orientation", "src", "disabled"];
+  const UI_ORDEN = ["title", "text", "placeholder", "items", "active", "options", "checked", "variant", "align", "icon", "orientation", "icons", "scroll", "src", "disabled"];
 
   /**
    * Paleta: icono y rótulo corto de cada tipo. La librería trae rótulos largos («Pestañas H»,
@@ -938,6 +947,7 @@
     "tabs-v": { label: "Tabs V", d: "M3 4h18v16H3zM9 4v16M3 9h6M3 15h6" },
     accordion: { label: "Acordeón", d: "M3 4h18v16H3zM3 10h18M3 16h18M6 7h4M6 13h4" },
     menu: { label: "Menú", d: "M4 7h16M4 12h16M4 17h16" },
+    list: { label: "Lista", d: "M4 6h16M4 12h16M4 18h10" },
     label: { label: "Etiqueta", d: "M5 6h14M12 6v13" },
     input: { label: "Campo", d: "M3 8h18v8H3zM7 10v4" },
     textarea: { label: "Área texto", d: "M3 6h18v12H3zM6 10h12M6 14h8" },
@@ -958,6 +968,8 @@
   /** Controles del inspector por campo; se crean una vez y se rellenan al elegir. */
   const inspectorCampos = {};
   const inspectorFilas = {};
+  /** Botones de la paleta INTERFAZ: el armado se marca con `.on` y `aria-pressed`. */
+  const paletaBotones = [];
   /** Chips y botones del bloque ESTILO y de los extras por tipo, para marcarlos al elegir. */
   const inspectorMarcas = {};
   /** Siguiente número de id de widget: `u1`, `u2`… sin repetir lo que ya haya. */
@@ -984,6 +996,11 @@
     return ids;
   }
 
+  /** Copia de un widget con sus listas clonadas: la copia no comparte arrays con la escena. */
+  function copiaWidget(n) {
+    return { ...n, items: n.items.slice(), options: n.options.slice(), checked: n.checked.slice() };
+  }
+
   /** Origen de la caja útil del padre, en coordenadas del lienzo: los hijos van relativos a él. */
   function uiOrigen(n) {
     if (!n || n.parent == null || !PZUi) return { x: 0, y: 0 };
@@ -992,14 +1009,6 @@
     const caja = PZUi.place(state.ui.nodes, padre);
     const util = PZUi.contentBox(padre);
     return { x: caja.x + util.dx, y: caja.y + util.dy };
-  }
-
-  /** Centro del encuadre en coordenadas del lienzo: ahí nace un widget suelto. */
-  function centroVista() {
-    const fw = el.frame.clientWidth || W;
-    const fh = el.frame.clientHeight || H;
-    const k = layoutEscala() || 1;
-    return { x: (fw / 2 - view.tx) / view.z / k, y: (fh / 2 - view.ty) / view.z / k };
   }
 
   /** Widgets de una escena al modelo de la webview; lo que no encaja se cae, no aborta la carga. */
@@ -1029,6 +1038,9 @@
         icon: typeof n.icon === "string" ? n.icon : "",
         src: typeof n.src === "string" ? n.src : "",
         disabled: n.disabled === true,
+        // Solo `list`: icono por fila y barra de desplazamiento simulada.
+        icons: n.icons === true,
+        scroll: n.scroll === true,
         // Estilo: mismas reglas que el saneado del host, por si la escena viene de un `init`
         // viejo o del historial de antes de estos campos.
         fill: n.fill === "none" || n.fill === "auto" ? n.fill : /^#[0-9a-f]{6}$/i.test(n.fill) ? n.fill.toLowerCase() : "auto",
@@ -1054,6 +1066,7 @@
     if (kind === "tabs-h" || kind === "tabs-v") items.push("Pestaña 1", "Pestaña 2");
     else if (kind === "accordion") items.push("Sección 1");
     else if (kind === "menu") items.push("Opción 1");
+    else if (kind === "list") items.push("Elemento 1", "Elemento 2", "Elemento 3");
     const options = kind === "choice" ? ["Opción 1"] : [];
     return {
       id: nuevoIdUi(),
@@ -1067,7 +1080,8 @@
       text: kind === "button" ? "Botón" : "",
       placeholder: kind === "input" ? "Texto" : kind === "textarea" ? "Texto" : "",
       items,
-      active: items.length ? 0 : -1,
+      // La lista no nace con una fila resaltada: se elige en el inspector.
+      active: kind === "list" ? -1 : items.length ? 0 : -1,
       options,
       checked: [],
       variant: "",
@@ -1075,6 +1089,8 @@
       icon: kind === "icon" ? "user" : "",
       src: "",
       disabled: false,
+      icons: false,
+      scroll: false,
       // Estilo obligatorio en el contrato: los defectos del saneado del host, tal cual.
       fill: "auto",
       stroke: "#111111",
@@ -1084,13 +1100,17 @@
     };
   }
 
-  /** Suelta un widget desde la paleta: dentro del contenedor elegido o en el centro de la vista. */
-  function insertarUi(kind) {
+  /**
+   * Suelta un widget desde la paleta: con su esquina superior izquierda en `p`.
+   */
+  function insertarUi(kind, p) {
     if (!PZUi) {
+      desarmar();
       setStatus("La capa INTERFACES no está cargada.", "error");
       return;
     }
     if (state.ui.nodes.length >= UI_MAX) {
+      desarmar();
       setStatus("La capa INTERFACES llega al tope de 800 widgets.", "error");
       return;
     }
@@ -1101,22 +1121,9 @@
       paintLayers();
     }
     const nodo = widgetNuevo(kind);
-    const host = selUi && UI_CONTENEDORES.indexOf(selUi.kind) >= 0 ? selUi : null;
-    if (host) {
-      nodo.parent = host.id;
-      nodo.x = ajusta(8);
-      // Apilado debajo de los hijos que ya tenga el contenedor.
-      let fondo = 0;
-      for (const hijo of PZUi.children(state.ui.nodes, host.id)) fondo = Math.max(fondo, hijo.y + hijo.h);
-      nodo.y = ajusta(fondo + 8);
-      // Si no cabe en la caja útil, el contenedor crece: el widget nuevo tiene que verse.
-      const util = PZUi.contentBox(host);
-      if (nodo.y + nodo.h > util.h) host.h += nodo.y + nodo.h - util.h;
-    } else {
-      const centro = centroVista();
-      nodo.x = ajusta(centro.x - nodo.w / 2);
-      nodo.y = ajusta(centro.y - nodo.h / 2);
-    }
+    // El clic manda siempre: la esquina superior izquierda cae donde se suelta.
+    nodo.x = ajusta(p.x);
+    nodo.y = ajusta(p.y);
     state.ui.nodes.push(nodo);
     setTool("select");
     selectUi(nodo);
@@ -1135,6 +1142,27 @@
     if (!PZUi) return kind;
     const entrada = PZUi.KINDS.find((k) => k.kind === kind);
     return entrada ? entrada.label : kind;
+  }
+
+  /** Arma la colocación de un widget: el siguiente clic en el lienzo lo pone donde caiga. */
+  function armarUi(kind, boton) {
+    pendiente = kind;
+    for (const b of paletaBotones) {
+      const activo = b === boton;
+      b.classList.toggle("on", activo);
+      b.setAttribute("aria-pressed", activo ? "true" : "false");
+    }
+    setStatus(`INTERFAZ: clic en el lienzo para colocar ${etiquetaUi(kind)}; Esc cancela.`, "ok");
+    redraw();
+  }
+
+  /** Desarma la colocación pendiente y apaga la marca de la paleta. */
+  function desarmar() {
+    pendiente = null;
+    for (const b of paletaBotones) {
+      b.classList.remove("on");
+      b.setAttribute("aria-pressed", "false");
+    }
   }
 
   /** Asa de tamaño del widget elegido, en coordenadas del lienzo. */
@@ -1225,7 +1253,7 @@
     const copias = new Map();
     for (const n of state.ui.nodes.slice()) {
       if (!ids.has(n.id)) continue;
-      const copia = { ...n, id: nuevoIdUi(), items: n.items.slice(), options: n.options.slice(), checked: n.checked.slice() };
+      const copia = { ...copiaWidget(n), id: nuevoIdUi() };
       if (n === selUi) {
         copia.x += 16;
         copia.y += 16;
@@ -1265,6 +1293,25 @@
     redraw();
   }
 
+  /**
+   * Lleva el foco al campo de etiqueta del widget: `title`, `text`, `placeholder` o `items`,
+   * el primero que su tipo tenga. Sin ninguno, solo queda la selección.
+   */
+  function enfocarEtiquetaUi(n) {
+    const campos = UI_CAMPOS[n.kind] || [];
+    const clave = ["title", "text", "placeholder", "items"].find((k) => campos.indexOf(k) >= 0);
+    const control = clave ? inspectorCampos[clave] : null;
+    if (!control || control.tagName === "SPAN") return;
+    control.focus();
+    if (control.tagName === "TEXTAREA") {
+      // Las filas se escriben por abajo: el caret va al final.
+      const fin = control.value.length;
+      control.setSelectionRange(fin, fin);
+    } else {
+      control.select();
+    }
+  }
+
   /** Inspector: se oculta sin widget elegido y, con él, enseña solo los campos de su tipo. */
   function syncUiControls() {
     const n = selUi && state.ui.nodes.indexOf(selUi) >= 0 ? selUi : null;
@@ -1291,6 +1338,8 @@
     poner("options", n.options.join("\n"));
     poner("checked", n.checked.join(", "));
     poner("disabled", n.disabled);
+    poner("icons", n.icons);
+    poner("scroll", n.scroll);
     poner("src", n.src ? "Cargada" : "Sin imagen");
     if (campos.indexOf("variant") >= 0) {
       const pares =
@@ -1533,9 +1582,11 @@
         const texto = document.createElement("span");
         texto.textContent = meta.label;
         boton.append(svgIcono(meta.d), texto);
-        boton.title = `Insertar ${meta.label.toLowerCase()} en la capa INTERFACES`;
+        boton.title = `Colocar ${meta.label.toLowerCase()} en la capa INTERFACES`;
         boton.setAttribute("aria-label", boton.title);
-        boton.addEventListener("click", () => insertarUi(k.kind));
+        boton.setAttribute("aria-pressed", "false");
+        paletaBotones.push(boton);
+        boton.addEventListener("click", () => armarUi(k.kind, boton));
         rejilla.append(boton);
       }
       el.palette.append(rotulo, rejilla);
@@ -1575,8 +1626,10 @@
       // Los campos compuestos (rejilla de iconos, orientación) van en un `div`: un `label` con
       // varios botones dentro reparte el clic al primero.
       const compuesto = editor.tag === "iconos" || editor.tag === "orientacion";
+      // Toda casilla va en fila, como APAGADO: rótulo a la izquierda y la casilla a la derecha.
+      const casilla = editor.tag === "checkbox";
       const fila = document.createElement(compuesto ? "div" : "label");
-      fila.className = clave === "disabled" ? "pz-ui-field pz-ui-check" : "pz-ui-field";
+      fila.className = casilla ? "pz-ui-field pz-ui-check" : "pz-ui-field";
       fila.hidden = true;
       const rotulo = document.createElement("span");
       rotulo.textContent = editor.etiqueta;
@@ -2037,6 +2090,8 @@
           icon: n.icon || "",
           src: n.src || "",
           disabled: Boolean(n.disabled),
+          icons: Boolean(n.icons),
+          scroll: Boolean(n.scroll),
           fill: n.fill || "auto",
           stroke: n.stroke || "#111111",
           titleColor: n.titleColor || "#111111",
@@ -2209,6 +2264,8 @@
     guias = [];
     hoverNode = null;
     limpiarSeleccion();
+    // Lo armado en la paleta no sobrevive a un cambio de escena: el clic caería en otra pizarra.
+    desarmar();
     const v0 = { z: view.z, tx: view.tx, ty: view.ty };
     const canvas = doc && doc.canvas ? doc.canvas : {};
     if (canvas.fixed) {
@@ -2424,11 +2481,13 @@
       setStatus("NODO: arrastra para mover; asas de esquina redimensionan y las azules conectan; doble clic edita.");
     else if (sel && sel.type === "text") setStatus("TEXTO: arrastra para mover; asas para el ancho y el giro.");
     else if (sel && sel.type === "image") setStatus("IMAGEN: arrastra para mover; asas para escalar y girar.");
-    else setStatus("SELECCIONAR: doble clic en el vacío crea un nodo; arrastra en el vacío para la marquesina.");
+    else setStatus("SELECCIONAR: doble clic edita lo que haya debajo; arrastra en el vacío para la marquesina.");
   }
 
   function setTool(next) {
     tool = next;
+    // Cambiar de herramienta desarma la colocación de la paleta: su marca no puede quedar viva.
+    desarmar();
     el.root.dataset.tool = next;
     for (const b of el.tools) b.classList.toggle("on", b.dataset.tool === next);
     // La ventana sigue a la herramienta. La paleta INTERFAZ no se cierra aquí: crear un widget
@@ -2718,7 +2777,8 @@
     const i = list.indexOf(sel);
     if (i >= 0) list.splice(i, 1);
     // Un ImageBitmap pegado ocupa memoria por su cuenta: se cierra antes de soltarlo.
-    if (sel.type === "image") sel.drawable.close?.();
+    // La copia de Ctrl+V comparte el suyo con el original: solo se cierra si nadie más lo usa.
+    if (sel.type === "image" && !state.images.some((m) => m.drawable === sel.drawable)) sel.drawable.close?.();
     sel = null;
     changed();
     commit();
@@ -2814,12 +2874,43 @@
     }
 
     // NODO sin gesto: dónde caería el próximo nodo, si el puntero está en el vacío.
-    if (flujoVisible && tool === "node" && puntero && !drag && !hoverNode) {
+    if (flujoVisible && tool === "node" && !pendiente && puntero && !drag && !hoverNode) {
       silueta(
         { shape: formaNueva, x: ajusta(puntero.x), y: ajusta(puntero.y), w: ultimoTamano.w, h: ultimoTamano.h },
         true,
         0.35
       );
+    }
+
+    // Fantasma de lo armado (TEXTO y la paleta INTERFAZ): dónde caería y qué sería. El overlay
+    // no es el lienzo del dibujo, así que esto no sale en el PNG.
+    const fantasma = (x, y, w, h, rotulo) => {
+      octx.save();
+      octx.globalAlpha = 0.5;
+      octx.strokeStyle = "#00e5ff";
+      octx.lineWidth = px(2);
+      octx.setLineDash([px(6), px(4)]);
+      octx.strokeRect(x, y, w, h);
+      octx.globalAlpha = 1;
+      octx.font = `600 ${px(11)}px sans-serif`;
+      octx.textAlign = "center";
+      octx.textBaseline = "middle";
+      octx.lineWidth = px(3);
+      octx.strokeStyle = "rgba(11, 20, 24, 0.85)";
+      octx.strokeText(rotulo, x + w / 2, y + h / 2);
+      octx.fillStyle = "#ffffff";
+      octx.fillText(rotulo, x + w / 2, y + h / 2);
+      octx.restore();
+    };
+    if (puntero && !drag) {
+      // Lo armado cae donde está el puntero: el fantasma enseña ese mismo punto.
+      if (pendiente && PZUi) {
+        const tam = PZUi.defaults(pendiente);
+        // El widget se coloca con `ajusta`, así que el recuadro también se pega a la rejilla.
+        fantasma(ajusta(puntero.x), ajusta(puntero.y), tam.w, tam.h, etiquetaUi(pendiente));
+      } else if (tool === "text") {
+        fantasma(puntero.x, puntero.y, Math.max(40, Math.min(420, W)), Math.max(20, Math.min(50, H)), "texto");
+      }
     }
 
     if (
@@ -3435,6 +3526,13 @@
       return;
     }
 
+    // Colocación armada en la paleta INTERFAZ: el clic pone el widget y vuelve a SELECCIONAR.
+    if (pendiente) {
+      insertarUi(pendiente, p);
+      redraw();
+      return;
+    }
+
     if (tool === "pen" || tool === "eraser") {
       if (state.layers.strokes === false) {
         setStatus("La capa TRAZOS está oculta: enciéndela con TRAZOS o no se verá lo que pintes.", "error");
@@ -3734,7 +3832,8 @@
       const cursorPrevio = el.root.dataset.cursor;
       hoverNode = nodoEn(p);
       pintaCursorCursor(p);
-      const chivato = tool === "pen" || tool === "eraser" || tool === "node";
+      const chivato =
+        tool === "pen" || tool === "eraser" || tool === "node" || tool === "text" || Boolean(pendiente);
       if (chivato || previo !== hoverNode || cursorPrevio !== el.root.dataset.cursor) redraw();
       return;
     }
@@ -4357,8 +4456,9 @@
     selEdge = null;
     selUi = null;
     syncUiControls();
+    // El widget armado en la paleta no sobrevive al vaciado: se desarma con la escena.
+    desarmar();
     hoverNode = null;
-    editing = null;
     nodeEditing = null;
     editingEdge = null;
     el.editor.hidden = true;
@@ -4541,6 +4641,236 @@
     setStatus(`${copias.size} nodo(s) duplicados.`, "ok");
   }
 
+  // ── Portapapeles de la selección ──────────────────────────────
+
+  /** Punto hacia el que mira un extremo, para elegir el lado del ancla al soltarlo de su nodo. */
+  function haciaDe(x) {
+    if (x.node) {
+      const n = state.flow.nodes.find((m) => m.id === x.node);
+      if (n) return { x: n.x + n.w / 2, y: n.y + n.h / 2 };
+    }
+    return typeof x.x === "number" ? { x: x.x, y: x.y } : { x: 0, y: 0 };
+  }
+
+  /** Extremo de una arista copiada: el nodo copiado se queda; el que no va pasa a punto fijo. */
+  function extremoCopia(x, ids, hacia) {
+    if (!x.node) return { x: x.x, y: x.y };
+    if (ids.has(x.node)) return { node: x.node, side: x.side || "auto" };
+    const n = state.flow.nodes.find((m) => m.id === x.node);
+    if (!n) return null;
+    const lado = x.side && x.side !== "auto" ? x.side : ladoCercano(n, hacia);
+    const p = PZFlow.anchorPoint(n, lado, hacia);
+    return { x: p.x, y: p.y };
+  }
+
+  /** Foto de una arista, o `null` si un extremo cuelga de un nodo que ya no está. */
+  function copiaArista(e, ids) {
+    const from = extremoCopia(e.from, ids, haciaDe(e.to));
+    const to = extremoCopia(e.to, ids, haciaDe(e.from));
+    if (!from || !to) return null;
+    return {
+      from,
+      to,
+      label: e.label || "",
+      color: e.color,
+      width: e.width,
+      dash: Boolean(e.dash),
+      startArrow: Boolean(e.startArrow),
+      endArrow: Boolean(e.endArrow),
+      waypoints: (e.waypoints || []).map((w) => ({ x: w.x, y: w.y })),
+      labelOffset: { dx: e.labelOffset ? e.labelOffset.dx : 0, dy: e.labelOffset ? e.labelOffset.dy : 0 },
+    };
+  }
+
+  /** Foto de lo elegido, sin referencias vivas. `null` si no hay nada: entonces copia el navegador. */
+  function fotoSeleccion() {
+    const ids = new Set(selNodes.map((n) => n.id));
+    const foto = { nodos: selNodes.map((n) => ({ ...n })), aristas: [], ui: [], objeto: null };
+    const vistas = new Set();
+    const meter = (e) => {
+      const copia = copiaArista(e, ids);
+      if (!copia) return;
+      vistas.add(e);
+      foto.aristas.push(copia);
+    };
+    for (const e of state.flow.edges) {
+      if (ids.size && ids.has(e.from.node) && ids.has(e.to.node)) meter(e);
+    }
+    // Conector elegido sin sus nodos: viaja solo, con las puntas donde estaban.
+    if (selEdge && !vistas.has(selEdge)) meter(selEdge);
+    if (selUi && state.ui.nodes.indexOf(selUi) >= 0) {
+      foto.ui = ramaUi(selUi.id)
+        .map((id) => state.ui.nodes.find((n) => n.id === id))
+        .filter(Boolean)
+        .map(copiaWidget);
+    }
+    if (sel && (sel.type === "text" || sel.type === "image")) foto.objeto = { ...sel };
+    return foto.nodos.length || foto.aristas.length || foto.ui.length || foto.objeto ? foto : null;
+  }
+
+  /** Ctrl+C: guarda la foto. Sin selección devuelve `false` y no intercepta la tecla. */
+  function copiarSeleccion() {
+    const foto = fotoSeleccion();
+    if (!foto) return false;
+    portapapeles = foto;
+    const partes = [];
+    if (foto.nodos.length) partes.push(`${foto.nodos.length} nodo(s)`);
+    if (foto.aristas.length) partes.push(`${foto.aristas.length} conector(es)`);
+    if (foto.ui.length) partes.push(`${foto.ui.length} widget(s)`);
+    if (foto.objeto) partes.push(foto.objeto.type === "text" ? "el bloque de texto" : "la imagen");
+    setStatus(`Copiado: ${partes.join(", ")}.`, "ok");
+    return true;
+  }
+
+  /** Caja de todo lo copiado, en coordenadas del lienzo: decide dónde cae el pegado. */
+  function cajaDeCopia(foto) {
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    const suma = (b) => {
+      x0 = Math.min(x0, b.x0);
+      y0 = Math.min(y0, b.y0);
+      x1 = Math.max(x1, b.x1);
+      y1 = Math.max(y1, b.y1);
+    };
+    if (foto.nodos.length) suma(cajaDeNodos(foto.nodos));
+    // Conector suelto: la caja son sus puntas y sus codos, para que caiga bajo el puntero.
+    if (!foto.nodos.length) {
+      for (const e of foto.aristas) {
+        for (const p of [e.from, e.to].concat(e.waypoints)) {
+          if (!p.node) suma({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+        }
+      }
+    }
+    if (PZUi) {
+      for (const n of foto.ui) {
+        const p = PZUi.place(state.ui.nodes, n);
+        suma({ x0: p.x, y0: p.y, x1: p.x + p.w, y1: p.y + p.h });
+      }
+    }
+    if (foto.objeto) suma(cajaDeObjeto(foto.objeto));
+    return Number.isFinite(x0) ? { x0, y0, x1, y1 } : { x0: 0, y0: 0, x1: 0, y1: 0 };
+  }
+
+  /** Nodos copiados con ids nuevos y sus aristas remapeadas. Devuelve el resumen o `null`. */
+  function pegarNodos(foto, dx, dy) {
+    const nuevos = new Map();
+    for (const n of foto.nodos) {
+      const copia = { ...n, id: PZFlow.newId("n"), x: red(n.x + dx), y: red(n.y + dy) };
+      nuevos.set(n.id, copia);
+      state.flow.nodes.push(copia);
+    }
+    const remapear = (x) => {
+      if (!x.node) return { x: red(x.x + dx), y: red(x.y + dy) };
+      const n = nuevos.get(x.node);
+      return n ? { node: n.id, side: x.side } : null;
+    };
+    let aristas = 0;
+    let ultima = null;
+    for (const e of foto.aristas) {
+      const from = remapear(e.from);
+      const to = remapear(e.to);
+      if (!from || !to) continue;
+      aristas += 1;
+      ultima = {
+        ...e,
+        id: PZFlow.newId("e"),
+        from,
+        to,
+        waypoints: e.waypoints.map((w) => ({ x: red(w.x + dx), y: red(w.y + dy) })),
+      };
+      state.flow.edges.push(ultima);
+    }
+    // Un conector suelto se pega solo: no hay nodos nuevos que seleccionar.
+    if (nuevos.size) selectNodos(Array.from(nuevos.values()));
+    else if (ultima) selectArista(ultima);
+    const partes = [];
+    if (nuevos.size) partes.push(`${nuevos.size} nodo(s)`);
+    if (aristas) partes.push(`${aristas} conector(es)`);
+    return partes.join(" y ");
+  }
+
+  /** Subárbol copiado de INTERFACES: ids nuevos, padres remapeados y solo la raíz desplazada. */
+  function pegarWidgets(foto, dx, dy) {
+    if (!PZUi) {
+      setStatus("La capa INTERFACES no está cargada.", "error");
+      return null;
+    }
+    if (state.ui.nodes.length + foto.ui.length > UI_MAX) {
+      setStatus("La capa INTERFACES llega al tope de 800 widgets.", "error");
+      return null;
+    }
+    const ids = new Map();
+    for (const n of foto.ui) ids.set(n.id, nuevoIdUi());
+    const copias = [];
+    for (const n of foto.ui) {
+      const copia = copiaWidget(n);
+      copia.id = ids.get(n.id);
+      // Un padre que no viaja en la copia deja el widget en la raíz, ya en su sitio absoluto.
+      const padre = n.parent != null && ids.has(n.parent) ? ids.get(n.parent) : null;
+      copia.parent = padre;
+      // Los hijos van relativos a la caja útil del padre: solo la raíz se desplaza, y desde su
+      // caja absoluta, que es la que midió `cajaDeCopia`.
+      if (padre === null) {
+        const caja = PZUi.place(state.ui.nodes, n);
+        copia.x = red(caja.x + dx);
+        copia.y = red(caja.y + dy);
+      }
+      copias.push(copia);
+      state.ui.nodes.push(copia);
+    }
+    selectUi(copias[0]);
+    return `${copias.length} widget(s)`;
+  }
+
+  /** Texto o imagen copiados. La imagen comparte el `drawable` del original. */
+  function pegarObjeto(foto, dx, dy) {
+    const o = foto.objeto;
+    const copia = { ...o, x: red(o.x + dx), y: red(o.y + dy) };
+    if (o.type === "image") {
+      // El ImageBitmap copiado es el del original: si ya se soltó, no hay nada que pintar.
+      if (!o.drawable || !o.drawable.width) {
+        setStatus("La imagen copiada ya no está disponible: vuelve a copiarla.", "error");
+        return null;
+      }
+      state.images.push(copia);
+    } else {
+      state.texts.push(copia);
+    }
+    select(copia);
+    return o.type === "image" ? "la imagen" : "el bloque de texto";
+  }
+
+  /**
+   * Ctrl+V: pega la copia en memoria con su esquina en el puntero (sin puntero, 16 px más
+   * abajo y a la derecha). Un pegado es una sola entrada del historial.
+   */
+  function pegarPortapapeles() {
+    const foto = portapapeles;
+    if (!foto) return false;
+    // Pegar widgets con la capa oculta no enseña nada: se enciende, como `insertarUi`.
+    const capaApagada = Boolean(foto.ui.length) && state.layers.ui === false;
+    if (capaApagada) {
+      state.layers.ui = true;
+      paintLayers();
+    }
+    const desde = cajaDeCopia(foto);
+    const destino = puntero || { x: desde.x0 + 16, y: desde.y0 + 16 };
+    const dx = ajusta(destino.x) - desde.x0;
+    const dy = ajusta(destino.y) - desde.y0;
+    const dicho = foto.nodos.length || foto.aristas.length
+      ? pegarNodos(foto, dx, dy)
+      : foto.ui.length
+        ? pegarWidgets(foto, dx, dy)
+        : pegarObjeto(foto, dx, dy);
+    if (!dicho) return true;
+    changed();
+    commit();
+    setStatus(`${capaApagada ? "La capa INTERFACES estaba oculta: la enciendo. " : ""}Pegado: ${dicho}.`, "ok");
+    return true;
+  }
+
   function seleccionarTodos() {
     if (!state.flow.nodes.length) {
       setStatus("El diagrama está vacío.", "error");
@@ -4667,9 +4997,14 @@
   el.btnUi.addEventListener("click", () => {
     const abierto = panelAbierto !== "ui";
     abrirPanel(abierto ? "ui" : null);
+    // Cerrar la paleta es decir «no quiero colocar nada»: el armado se va con ella.
+    if (!abierto) desarmar();
     if (abierto && !PZUi) setStatus("La capa INTERFACES no está cargada: falta media/pizarraUi.js.", "error");
   });
-  el.drawerClose.addEventListener("click", () => abrirPanel(null));
+  el.drawerClose.addEventListener("click", () => {
+    abrirPanel(null);
+    desarmar();
+  });
   el.btnGrid.addEventListener("click", () => {
     rejilla = !rejilla;
     el.btnGrid.classList.toggle("on", rejilla);
@@ -4962,7 +5297,7 @@
     // Doble clic dentro de un área de edición: es el del navegador seleccionando texto.
     if (event.target === el.editor || event.target === el.edgeEditor) return;
     const p = toCanvas(event);
-    // Mismo orden que el golpe de puntero: textos → imágenes → nodos → aristas.
+    // Mismo orden que el golpe de puntero: textos → imágenes → INTERFACES → nodos → aristas.
     const o = hitObject(p);
     if (o && o.type === "text") {
       setTool("select");
@@ -4974,6 +5309,17 @@
       setTool("select");
       select(o);
       return;
+    }
+    // INTERFACES: doble clic en un widget lleva a su etiqueta en el inspector.
+    if (PZUi && state.layers.ui !== false) {
+      const golpe = PZUi.hit(state.ui.nodes, p.x, p.y);
+      if (golpe) {
+        setTool("select");
+        selectUi(golpe.node);
+        abrirPanel("ui");
+        enfocarEtiquetaUi(golpe.node);
+        return;
+      }
     }
     const n = nodoEn(p);
     if (n) {
@@ -5020,15 +5366,7 @@
       abrirEditorArista(e);
       return;
     }
-    if (tool !== "select") return;
-    // Doble clic en vacío con SELECCIONAR: nodo nuevo con la etiqueta abierta.
-    const nuevo = crearNodo(p.x - NODO_W / 2, p.y - NODO_H / 2, NODO_W, NODO_H);
-    crecerNodo(nuevo);
-    state.flow.nodes.push(nuevo);
-    selectNodos([nuevo]);
-    changed();
-    commit();
-    abrirEditorNodo(nuevo);
+    // En el vacío no crea nada: los objetos se crean desde un botón.
   });
 
   /** Deja un nodo elegido en solitario con la herramienta de selección. */
@@ -5126,6 +5464,15 @@
     // BUTTON y no los filtra el guard de arriba.
     if (cerrarModal || !el.help.hidden) return;
 
+    // Colocación armada: Escape la desarma antes de tocar ventana o selección.
+    if (event.key === "Escape" && pendiente) {
+      event.preventDefault();
+      desarmar();
+      redraw();
+      setStatus("Colocación cancelada.");
+      return;
+    }
+
     const ctrl = event.ctrlKey || event.metaKey;
     if (ctrl && !event.altKey) {
       const clave = String(event.key).toLowerCase();
@@ -5143,6 +5490,19 @@
       if (clave === "d") {
         event.preventDefault();
         duplicar();
+        return;
+      }
+      if (clave === "c") {
+        // Sin selección no se intercepta: en las áreas de edición copia el navegador.
+        if (!copiarSeleccion()) return;
+        event.preventDefault();
+        return;
+      }
+      if (clave === "v") {
+        // Sin copia propia, el evento `paste` de siempre trae la imagen del portapapeles.
+        if (!portapapeles) return;
+        event.preventDefault();
+        pegarPortapapeles();
         return;
       }
       if (clave === "a") {

@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 30 de octubre de 2026 · versión **0.6.2**
+Última revisión: 31 de octubre de 2026 · versión **0.7.0**
 
 ## Resumen
 
@@ -9,10 +9,12 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.6.2** está empaquetada e instalada en local: la pizarra pierde la segunda fila de
-ajustes y cada herramienta abre su ventana en un cajón único. Encima de la **INTERFACES** de
-la 0.6.1 (estilo por widget y cajón `INTERFAZ` remozado). Sigue sin release publicada en
-GitHub.
+La **0.7.0** está empaquetada e instalada en local: el doble clic de la pizarra edita en vez
+de crear, los widgets de `INTERFACES` se colocan armados al clic, `Ctrl+C`/`Ctrl+V` copian
+dentro del panel, entra el widget `LISTA`, el panel de Contexto estrena maqueta y leyenda
+común, y el dictado ya no duplica saltos de línea al pegar. Encima de la **0.6.2**, que quitó
+la segunda fila de ajustes de la pizarra y metió cada herramienta en su ventana. Sigue sin
+release publicada en GitHub.
 
 **opencode es el centro del producto.** La extensión está pensada y orientada a opencode.
 Claude Code y Codex son **experimentales**: se exploran y se manejan en parte, pero su
@@ -45,8 +47,12 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   etiquetas y flechas, agarrando lo que se ve; el lápiz y el borrador encienden la capa
   `TRAZOS` si estaba oculta; deshacer/rehacer, multi-selección, guías y
   rejilla, chivatos de dibujo, copia como Mermaid y escena editable persistida en
-  `pizarra.json` (además del PNG). La capa **INTERFACES** añade wireframes funcionales: trece
-  tipos de widget anidados por contenedor, cajón `INTERFAZ` con paleta e inspector, y clic
+  `pizarra.json` (además del PNG); `Ctrl+C`/`Ctrl+V` copian dentro del panel nodos con sus
+  conectores, conectores sueltos, widgets con su subárbol, textos e imágenes. La capa
+  **INTERFACES** añade wireframes funcionales: catorce tipos de widget anidados por contenedor
+  (el último, `LISTA`, con filas, fila resaltada, icono y barra de desplazamiento opcionales),
+  cajón `INTERFAZ` con paleta e inspector, colocación armada al clic con fantasma bajo el
+  puntero (`Esc` o cerrar la paleta cancela), edición de la etiqueta con doble clic y clic
   sobre el widget elegido que simula pestañas, acordeón y casillas.
 - **Visor Alfred 3D** por fichero `.blend` (doble clic en el Explorador o «Abrir en Alfred
   3D»): vista con three.js y órbita estilo Blender, objetos con ocultar, cámaras (la de

@@ -73,15 +73,20 @@ botón la mete en el bloc como adjunto.
   (contraste con el relleno). Mientras dibujas un nodo se ve su silueta y su medida; con el
   lápiz y el borrador, el círculo del grosor y el núcleo de la goma.
 - **Interfaces**: capa de wireframes. El botón `INTERFAZ` abre un cajón a la izquierda con la
-  paleta de widgets —trece tipos: contenedor, ventana, pestañas horizontales y verticales,
-  acordeón, menú, etiqueta, campo, área de texto, elección, botón, icono e imagen— y el
-  inspector del elegido. Los widgets se insertan en el contenedor seleccionado, se anidan
+  paleta de widgets —catorce tipos: contenedor, ventana, pestañas horizontales y verticales,
+  acordeón, menú, lista, etiqueta, campo, área de texto, elección, botón, icono e imagen— y el
+  inspector del elegido. La colocación va armada: eliges la forma, el botón queda luminoso y el
+  widget cae con su esquina donde haces clic, con un fantasma bajo el puntero (`Esc` o cerrar
+  la paleta cancela). Los widgets se insertan en el contenedor seleccionado, se anidan
   (hasta 8 niveles), se mueven, se redimensionan y se borran; un clic sobre el que ya está
-  elegido simula su control (pestañas, acordeón, casillas). Con un widget `image` elegido,
+  elegido simula su control (pestañas, acordeón, casillas) y el doble clic edita su etiqueta,
+  como la de un texto, un nodo o un conector. Con un widget `image` elegido,
   `Ctrl+V` le pone la imagen del portapapeles. Cada widget se pinta como quieras: fondo
   (automático, sin fondo o color), borde y color y tamaño de su texto, y el menú en fila o en
-  columna.
-- **Edición**: deshacer/rehacer de 50 pasos, multi-selección con alinear y distribuir, guías
+  columna; la `LISTA` lleva además icono y barra de desplazamiento opcionales por widget.
+- **Edición**: deshacer/rehacer de 50 pasos, `Ctrl+C`/`Ctrl+V` dentro del panel (nodos con sus
+  conectores, conector suelto, widget con su subárbol, texto e imagen), multi-selección con
+  alinear y distribuir, guías
   y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles. La barra es
   una sola fila y cada herramienta abre su ventana de ajustes en un cajón superpuesto
   (`NODO`, `CONECTOR`, `TEXTO`, `LÁPIZ`, `BORRADOR` e `INTERFAZ`), que se cierra con su ✕ o

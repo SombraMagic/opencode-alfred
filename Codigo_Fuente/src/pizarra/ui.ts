@@ -24,6 +24,7 @@ export const UI_KINDS: readonly string[] = [
   "tabs-v",
   "accordion",
   "menu",
+  "list",
   "label",
   "input",
   "textarea",
@@ -88,6 +89,10 @@ export interface UiNode {
   icon: string;
   src: string;
   disabled: boolean;
+  /** `list`: pinta un icono a la izquierda de cada fila. */
+  icons: boolean;
+  /** `list`: pinta una barra de desplazamiento simulada a la derecha. */
+  scroll: boolean;
   /** Fondo: `"auto"` es el relleno del tipo, `"none"` transparente, o `#rrggbb`. */
   fill: string;
   /** Borde: `#rrggbb` o `"none"`. */
@@ -324,6 +329,8 @@ export function sanitizeUi(raw: unknown): Ui {
       icon: typeof item.icon === "string" && ICON_NAME.test(item.icon) ? item.icon : "",
       src: srcImage(item.src),
       disabled: boolFlag(item.disabled, false),
+      icons: boolFlag(item.icons, false),
+      scroll: boolFlag(item.scroll, false),
       fill: fillOf(item.fill),
       stroke: strokeOf(item.stroke),
       titleColor: titleColorOf(item.titleColor),
@@ -379,6 +386,8 @@ export function uiDefaults(kind: string): { w: number; h: number } {
       return { w: 320, h: 200 };
     case "menu":
       return { w: 160, h: 140 };
+    case "list":
+      return { w: 220, h: 160 };
     case "label":
       return { w: 160, h: 24 };
     case "input":

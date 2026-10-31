@@ -1,59 +1,58 @@
-/* Contexto — HUD de la ventana de contexto (rejilla de celdas + leyenda) */
+/* Contexto — HUD de la ventana de contexto (matriz de celdas + leyenda fija) */
 
 :root {
-  --k-env: #2bd9b0;
-  --k-date: #ffd166;
-  --k-unattr: #6b8ba3;
+  --text-soft: #9db6c6;
+  /* Un color por grupo de la leyenda; el mismo en la matriz y en la leyenda. */
+  --g-sistema: var(--neon);
+  --g-conversacion: var(--magenta);
+  --g-sin-atribuir: var(--amber);
+  --g-libre: #7f97a8;
 }
 
-/* Un color por slice, mapeado por la clave que llega del backend. */
-.k-core-instructions { --k: var(--neon); }
-.k-core-skill-guidance { --k: var(--violet); }
-.k-core-codemode { --k: var(--amber); }
-.k-core-reference-guidance { --k: var(--green); }
-.k-core-environment { --k: var(--k-env); }
-.k-core-date { --k: var(--k-date); }
-.k-conversation { --k: var(--magenta); }
-.k-unattributed { --k: var(--k-unattr); }
-
-/* tokens.css no oscurece el violeta en tema claro: aquí sí. */
+/* tokens.css no oscurece todo en tema claro: aquí sí. */
 body.vscode-light {
-  --k-env: #0b7d68;
-  --k-date: #8a6100;
-  --k-unattr: #6b7f8d;
-  --violet: #6b3fd4;
+  --text-soft: #47606f;
+  --g-libre: #8aa0ac;
 }
+
+/* El color de cada grupo lo consumen las celdas y el cuadradito de la leyenda. */
+.g-sistema { --k: var(--g-sistema); }
+.g-conversacion { --k: var(--g-conversacion); }
+.g-sin-atribuir { --k: var(--g-sin-atribuir); }
+.g-libre { --k: var(--g-libre); }
 
 .hud {
   padding: 0 10px 14px;
 }
 
-/* ── Cabecera ─────────────────────────────────────────── */
-.hud-title {
+/* ── Cabecera: título de la sesión a la izquierda, cifras a la derecha ── */
+.hud-header .hud-title {
   min-width: 0;
+  letter-spacing: 1.2px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* ── Lectura en una línea: porcentaje, cifras y compactar ── */
-.usage-row {
+.ctx-meta {
+  flex: none;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.8px;
+  color: var(--text);
+  white-space: nowrap;
 }
 
-.pct {
-  flex: none;
-  font-size: 17px;
-  line-height: 1;
-  letter-spacing: 1px;
-  color: var(--text-dim);
+.ctx-meta .pct {
+  font-size: 12.5px;
+  font-weight: bold;
 }
 
 .pct.ok {
   color: var(--neon);
-  text-shadow: 0 0 12px var(--neon-dim);
+  text-shadow: 0 0 10px var(--neon-dim);
 }
 
 .pct.busy {
@@ -64,20 +63,118 @@ body.vscode-light {
   color: var(--magenta);
 }
 
-.tokens {
+.ctx-meta .sep {
+  color: var(--text-soft);
+}
+
+.ctx-meta .figs {
+  color: var(--text-soft);
+}
+
+/* ── Matriz y leyenda, dos cajas a la misma altura ────── */
+.ctx-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.85fr);
+  gap: 8px;
+}
+
+.ctx-box {
+  min-width: 0;
+  border: 1px solid var(--line);
+  padding: 6px;
+  background: var(--bg-soft);
+}
+
+/* ── Rejilla de celdas (20 × 8 = 160, igual que TOTAL en context.js) ── */
+.cells {
+  display: grid;
+  grid-template-columns: repeat(20, minmax(0, 1fr));
+  gap: 2px;
+  align-content: start;
+}
+
+.cell {
+  aspect-ratio: 1 / 1;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+}
+
+.cell.on {
+  background: var(--k, var(--neon));
+  border-color: var(--k, var(--neon));
+  box-shadow: 0 0 3px var(--k, var(--neon));
+}
+
+/* ── Leyenda: siempre visible, cuatro filas fijas ─────── */
+.legend-head {
+  margin-bottom: 4px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--neon);
+}
+
+.legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 0;
+  font-size: 10.5px;
+}
+
+.legend li + li {
+  border-top: 1px solid var(--line-soft);
+}
+
+.sw {
+  flex: none;
+  width: 9px;
+  height: 11px;
+  background: var(--k, var(--neon));
+  box-shadow: 0 0 6px var(--k, var(--neon));
+  border-radius: 1px;
+}
+
+.lg-name {
   flex: 1;
   min-width: 0;
-  font-size: 11.5px;
-  letter-spacing: 0.8px;
+  line-height: 1.3;
+  letter-spacing: 0.4px;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.compact-btn {
+.lg-num {
   flex: none;
-  margin-left: auto;
+  line-height: 1.3;
+  letter-spacing: 0.6px;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+abbr {
+  text-decoration: none;
+  cursor: help;
+}
+
+/* ── Compactar, bajo la caja de la leyenda ────────────── */
+.ctx-actions {
+  grid-column: 2;
+  justify-self: end;
+  align-self: start;
+}
+
+.compact-btn {
   background: color-mix(in srgb, var(--neon) 14%, transparent);
   border: 1px solid var(--neon-dim);
   color: var(--neon);
@@ -100,117 +197,20 @@ body.vscode-light {
   background: color-mix(in srgb, var(--neon) 38%, transparent);
 }
 
-/* ── Rejilla de celdas (20 × 8 = 160, igual que TOTAL en context.js) ── */
-.cells {
-  display: grid;
-  grid-template-columns: repeat(20, minmax(0, 1fr));
-  gap: 2px;
-  margin: 10px 0 8px;
-}
+/* Barra lateral estrecha: matriz arriba, leyenda y botón debajo. */
+@media (max-width: 420px) {
+  .ctx-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
-.cell {
-  aspect-ratio: 1 / 1;
-  background: var(--bg-soft);
-  border: 1px solid var(--line-soft);
-  border-radius: 2px;
-}
-
-.cell.on {
-  background: var(--k, var(--neon));
-  border-color: var(--k, var(--neon));
-  box-shadow: 0 0 3px var(--k, var(--neon));
-}
-
-/* ── Leyenda colapsable (una columna, para leerla sin forzar la vista) ── */
-.legend-box {
-  border-top: 1px solid var(--line);
-}
-
-.legend-box > summary {
-  padding: 4px 0 2px;
-  font-size: 9.5px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  cursor: pointer;
-  list-style: none;
-}
-
-.legend-box > summary::-webkit-details-marker {
-  display: none;
-}
-
-.legend-box > summary::before {
-  content: "▸ ";
-  color: var(--neon);
-}
-
-.legend-box[open] > summary::before {
-  content: "▾ ";
-}
-
-.legend-box > summary:hover,
-.legend-box > summary:focus-visible {
-  color: var(--neon);
-  outline: none;
-}
-
-.legend {
-  margin: 2px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.legend li {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  padding: 3px 0;
-}
-
-.legend li + li {
-  border-top: 1px solid var(--line-soft);
-}
-
-.sw {
-  flex: none;
-  width: 10px;
-  height: 12px;
-  background: var(--k, var(--neon));
-  box-shadow: 0 0 6px var(--k, var(--neon));
-  border-radius: 1px;
-}
-
-.lg-name {
-  flex: 1;
-  font-size: 11px;
-  line-height: 1.3;
-  letter-spacing: 0.4px;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.lg-num {
-  flex: none;
-  font-size: 10px;
-  line-height: 1.3;
-  letter-spacing: 0.6px;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
-abbr {
-  text-decoration: none;
-  cursor: help;
+  .ctx-actions {
+    grid-column: 1;
+  }
 }
 
 /* ── Error ────────────────────────────────────────────── */
 .banner {
-  margin: 10px 0 0;
+  margin: 0 0 10px;
   padding: 8px;
   border-left: 3px solid var(--magenta);
   background: rgba(255, 45, 149, 0.1);

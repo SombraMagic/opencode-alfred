@@ -844,6 +844,13 @@ body.vscode-light .pz-tab.on {
   outline: none;
 }
 
+/* Armado: el clic siguiente en el lienzo coloca este widget. */
+.pz-ui-btn.on {
+  background: color-mix(in srgb, var(--neon) 26%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+}
+
 /* Inspector: un campo por fila, con su rótulo encima. */
 .pz-ui-field {
   display: flex;

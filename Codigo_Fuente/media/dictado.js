@@ -373,7 +373,8 @@
   function setNote(texto) {
     nota.textContent = "";
     // El tipo viaja como grupo: split devuelve [texto, tipo, ruta, texto, ...].
-    const parts = String(texto ?? "").split(/\[\[(img|file):([^\]]+)\]\]/);
+    // CRLF guardado con el pegando antiguo: se normaliza al restaurar.
+    const parts = String(texto ?? "").replace(/\r\n?/g, "\n").split(/\[\[(img|file):([^\]]+)\]\]/);
     const paths = [];
     for (let i = 0; i < parts.length; i += 3) {
       if (parts[i]) nota.appendChild(document.createTextNode(parts[i]));
@@ -413,7 +414,8 @@
 
   /** Inserta texto pegado en el cursor; execCommand("insertText") no es fiable en el webview. */
   function insertPlainText(text) {
-    insertNodeAtCaret(document.createTextNode(text));
+    // Windows pega con CRLF y `pre-wrap` pinta el CR y el LF por separado: línea doble.
+    insertNodeAtCaret(document.createTextNode(String(text).replace(/\r\n?/g, "\n")));
     updateCount();
     saveNoteSoon();
   }
