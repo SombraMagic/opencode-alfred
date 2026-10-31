@@ -105,7 +105,12 @@ botón la mete en el bloc como adjunto.
 - **Edición**: deshacer/rehacer de 50 pasos, `Ctrl+C`/`Ctrl+V` dentro del panel (nodos con sus
   conectores, conector suelto, widget con su subárbol, texto e imagen), multi-selección con
   alinear y distribuir, guías
-  y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles. El ajuste
+  y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles. La rejilla tiene
+  paso configurable (1 a 64 px, campo junto al botón `REJILLA`): con pasos pequeños pinta una
+  línea de cada `n` para distinguirse, y el ajuste usa siempre el paso fino. Encendida, el ajuste
+  va por la esquina superior izquierda (textos e imágenes incluidos, y la caja entera de una
+  selección de nodos); las flechas mueven una celda (con `Mayús`, diez) y las guías inteligentes
+  no desplazan nada. Apagada vuelven las guías y el movimiento de 1/10 px. El ajuste
   encaja también la capa INTERFACES: la caja absoluta de cada widget entra en la medida, así
   que una pizarra solo de widgets se encaja y el PNG que sube al bloc los incluye. La barra es
   una sola fila y cada herramienta abre su ventana de ajustes en un cajón superpuesto

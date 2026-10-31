@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.12**
+Última revisión: 31 de octubre de 2026 · versión **0.7.13**
 
 ## Resumen
 
@@ -9,7 +9,19 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.12** está empaquetada, sin instalar y sin release: el `Campo` de la capa `INTERFACES`
+La **0.7.13** está empaquetada, sin instalar y sin release: la rejilla de la pizarra tiene
+**paso configurable** y el ajuste se hace por la **esquina superior izquierda**. Junto al botón
+`REJILLA` hay un campo numérico (`#grid-step`) que lleva el paso de 1 a 64 px, siempre cuadrado:
+vacío o `0` vuelve a 8 y lo que sale del rango se acota; el encendido y el paso se recuerdan al
+reabrir la pestaña. Con pasos pequeños la cuadrícula no desaparece —pinta una línea de cada `n`
+hasta que se distinguen— y el ajuste sigue usando el paso fino. Mover un texto o una imagen
+encaja su esquina (antes iba libre), mover varios nodos encaja la caja entera de la selección
+(antes la del primer nodo), dibujar un nodo encaja sus dos esquinas y la silueta previa enseña
+esa misma caja, `TEXTO` nace en la rejilla y las flechas mueven una celda (con `Mayús`, diez) en
+vez de 1 px. Encendida, manda la rejilla y las guías inteligentes no desplazan nada; apagada
+vuelven las guías y el movimiento de 1/10 px. Un temblor dentro de la misma celda ya no deja
+entrada de historial. Va sobre la **0.7.12**, empaquetada, sin instalar y sin release, en la
+que el `Campo` de la capa `INTERFACES`
 puede verse como desplegable. El flag booleano `dropdown` (apagado por defecto) solo cambia el
 aspecto —el mismo marco y la misma caja, con una flecha al final y el texto 20 px más corto para
 no pisarla—; no hay lista de opciones ni comportamiento de lista. Se enciende con la casilla

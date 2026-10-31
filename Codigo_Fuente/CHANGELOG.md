@@ -3,6 +3,22 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.13] - 2026-10-31
+
+- **El paso de la rejilla se elige**: junto al botón `REJILLA` hay un campo numérico
+  (`#grid-step`) que lo cambia de 1 a 64 px, siempre cuadrado. Vacío o `0` vuelve a 8 y lo que
+  sale del rango se acota. El encendido y el paso se recuerdan al reabrir la pestaña
+  (`vscode.setState`). Con pasos pequeños la cuadrícula no desaparece: pinta una línea de cada
+  `n` hasta que se distinguen, y el ajuste sigue usando el paso fino.
+- **El ajuste busca la esquina superior izquierda**: mover un texto o una imagen la encaja (antes
+  iba libre), mover varios nodos encaja la caja de toda la selección (antes la del primer nodo),
+  dibujar un nodo encaja sus dos esquinas y la silueta previa enseña esa misma caja, la
+  herramienta `TEXTO` nace en la rejilla y las flechas mueven una celda (con `Mayús`, diez) en
+  vez de 1 px.
+- Con la rejilla encendida mandan las celdas y no las guías inteligentes (antes desplazaban el
+  borde fuera de la cuadrícula); apagada vuelven las guías y el movimiento de 1/10 px. Un temblor
+  dentro de la misma celda ya no deja entrada de historial.
+
 ## [0.7.12] - 2026-10-31
 
 - **El `Campo` de `INTERFACES` puede verse como desplegable**: nuevo flag booleano `dropdown`,

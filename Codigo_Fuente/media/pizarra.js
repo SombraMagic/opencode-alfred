@@ -39,8 +39,10 @@
   const MIN_Z = 0.15;
   const MAX_Z = 8;
   const ZOOM_PASO = 1.15;
-  /** Rejilla visible y de ajuste, en píxeles de lienzo. */
-  const REJILLA = 8;
+  /** Paso por defecto de la rejilla, en píxeles de lienzo: las celdas son cuadradas. */
+  const REJILLA_DEF = 8;
+  const REJILLA_MIN = 1;
+  const REJILLA_MAX = 64;
   /** Umbral de las guías inteligentes (bordes y centros de otros nodos). */
   const GUIA = 5;
   /** Tamaño con el que nace un nodo al hacer clic con la herramienta NODO. */
@@ -84,6 +86,7 @@
     btnUndo: document.getElementById("btn-undo"),
     btnRedo: document.getElementById("btn-redo"),
     btnGrid: document.getElementById("btn-grid"),
+    gridStep: document.getElementById("grid-step"),
     btnFit: document.getElementById("btn-fit"),
     btnMermaid: document.getElementById("btn-mermaid"),
     btnHelp: document.getElementById("btn-help"),
@@ -221,6 +224,8 @@
 
   /** Rejilla a la vista y de ajuste (el botón REJILLA la apaga y la enciende). */
   let rejilla = true;
+  /** Paso de la rejilla, en píxeles de lienzo (1 a 64). */
+  let rejillaTam = REJILLA_DEF;
   /** La capa FONDO también se puede ocultar; no viaja en la escena porque el contrato no la lleva. */
   let fondoVisible = true;
   /** El último relleno elegido; `"none"` no cabe en un `input[type=color]`. */
@@ -261,7 +266,7 @@
 
   /** Ajuste a la rejilla cuando está encendida. */
   function ajusta(v) {
-    return rejilla ? Math.round(v / REJILLA) * REJILLA : Math.round(v);
+    return rejilla ? Math.round(v / rejillaTam) * rejillaTam : Math.round(v);
   }
 
   /** Puntero a coordenadas del lienzo: mide el rect del canvas, que ya refleja el zoom y el paneo. */
@@ -1917,16 +1922,20 @@
 
   function dibujaRejilla(t) {
     if (!rejilla) return;
-    if (REJILLA * pantallaEscala() < 3) return; // a 15 % serían una mancha
+    const pasoPx = rejillaTam * pantallaEscala();
+    if (pasoPx < 1) return; // más juntas que un píxel: solo sería una mancha
+    // Con pasos pequeños no se apaga la rejilla: se pintan celdas de n en n hasta que las
+    // líneas se distingan. El ajuste sigue usando el paso fino.
+    const salto = rejillaTam * Math.max(1, Math.ceil(3 / pasoPx));
     t.save();
     t.strokeStyle = "rgba(0, 229, 255, 0.12)";
     t.lineWidth = Math.max(0.5, px(1));
     t.beginPath();
-    for (let x = 0; x <= W; x += REJILLA) {
+    for (let x = 0; x <= W; x += salto) {
       t.moveTo(x + 0.5, 0);
       t.lineTo(x + 0.5, H);
     }
-    for (let y = 0; y <= H; y += REJILLA) {
+    for (let y = 0; y <= H; y += salto) {
       t.moveTo(0, y + 0.5);
       t.lineTo(W, y + 0.5);
     }
@@ -2852,13 +2861,16 @@
 
     // NODO arrastrando: silueta del nodo que se va a crear + medida exacta.
     if (flujoVisible && drag && drag.kind === "nodo-dibujar") {
+      // La silueta enseña la caja que va a crear `onUp`: esquinas ajustadas, mismo umbral.
       const brutoW = Math.abs(drag.p.x - drag.desde.x);
       const brutoH = Math.abs(drag.p.y - drag.desde.y);
       const dibujando = brutoW > 8 && brutoH > 8;
       let prev;
       if (dibujando) {
-        let w = brutoW;
-        let h = brutoH;
+        const ax = ajusta(drag.desde.x);
+        const ay = ajusta(drag.desde.y);
+        let w = Math.abs(ajusta(drag.p.x) - ax);
+        let h = Math.abs(ajusta(drag.p.y) - ay);
         if (drag.shift) {
           const ladoMayor = Math.max(w, h);
           w = ladoMayor;
@@ -2866,8 +2878,8 @@
         }
         prev = {
           shape: formaNueva,
-          x: ajusta(Math.min(drag.desde.x, drag.p.x)),
-          y: ajusta(Math.min(drag.desde.y, drag.p.y)),
+          x: Math.min(ax, ajusta(drag.p.x)),
+          y: Math.min(ay, ajusta(drag.p.y)),
           w: Math.max(NODO_MIN_W, Math.round(w)),
           h: Math.max(NODO_MIN_H, Math.round(h)),
         };
@@ -2942,7 +2954,7 @@
         const cont = hostDestino(puntero, null);
         if (cont) cajaHost(PZUi.contentRect(state.ui.nodes, cont));
       } else if (tool === "text") {
-        fantasma(puntero.x, puntero.y, Math.max(40, Math.min(420, W)), Math.max(20, Math.min(50, H)), "texto");
+        fantasma(ajusta(puntero.x), ajusta(puntero.y), Math.max(40, Math.min(420, W)), Math.max(20, Math.min(50, H)), "texto");
       }
     }
 
@@ -3589,8 +3601,8 @@
       const t = {
         type: "text",
         text: "",
-        x: p.x,
-        y: p.y,
+        x: ajusta(p.x),
+        y: ajusta(p.y),
         // En un lienzo de 100 × 100 el bloque no puede nacer cuatro veces más ancho que el lienzo.
         w: Math.max(40, Math.min(420, W)),
         h: Math.max(20, Math.min(50, H)),
@@ -3705,7 +3717,7 @@
         } else {
           selectNodos([n]);
         }
-        drag = { kind: "nodo-mover", objetivo: n, nodos: selNodes.slice(), desde: p, inicios: iniciosDe(selNodes) };
+        drag = { kind: "nodo-mover", objetivo: n, nodos: selNodes.slice(), desde: p, inicios: iniciosDe(selNodes), caja: cajaDeNodos(selNodes) };
         return;
       }
       drag = { kind: "nodo-dibujar", desde: p, p, shift: event.shiftKey };
@@ -3731,7 +3743,7 @@
     const o = hitObject(p);
     if (o) {
       select(o);
-      drag = { kind: "move", last: p, desde: p };
+      drag = { kind: "move", desde: p, ini: { x: o.x, y: o.y } };
       return;
     }
 
@@ -3770,7 +3782,7 @@
       } else if (selNodes.indexOf(n) < 0) {
         selectNodos([n]);
       }
-      drag = { kind: "nodo-mover", objetivo: n, nodos: selNodes.slice(), desde: p, inicios: iniciosDe(selNodes) };
+      drag = { kind: "nodo-mover", objetivo: n, nodos: selNodes.slice(), desde: p, inicios: iniciosDe(selNodes), caja: cajaDeNodos(selNodes) };
       return;
     }
 
@@ -3911,8 +3923,11 @@
     }
 
     if (drag.kind === "nodo-mover") {
-      if (Math.hypot(p.x - drag.desde.x, p.y - drag.desde.y) >= 1) drag.movido = true;
       moverNodos(drag, p);
+      // Un temblor dentro de la misma celda no mueve nada: ni gesto ni historial.
+      drag.movido = drag.nodos.some(
+        (n) => n.x !== drag.inicios.get(n).x || n.y !== drag.inicios.get(n).y
+      );
       redraw();
       return;
     }
@@ -3956,7 +3971,7 @@
 
     // Desplazamiento del gesto: redondeado a la rejilla si está encendida, crudo si no.
     // Se aplica siempre sobre la base, así un temblor de 1 px no pega el punto a la rejilla.
-    const delta = (d) => (rejilla ? Math.round(d / REJILLA) * REJILLA : d);
+    const delta = (d) => (rejilla ? Math.round(d / rejillaTam) * rejillaTam : d);
 
     if (drag.kind === "arista-tramo") {
       const e = drag.arista;
@@ -4099,12 +4114,14 @@
     if (o.type === "text") layout(o);
 
     if (drag.kind === "move") {
-      // Cualquier desplazamiento real cuenta: con el zoom del sistema al 125/150 % un arrastre
-      // lento puede no llegar a 1 px de lienzo entre dos eventos.
-      if (p.x !== drag.desde.x || p.y !== drag.desde.y) drag.movido = true;
-      o.x += p.x - drag.last.x;
-      o.y += p.y - drag.last.y;
-      drag.last = p;
+      // La esquina superior izquierda del objeto es la que encaja en la rejilla: ni el puntero
+      // ni el centro. Sin rejilla, píxel entero. Un temblor dentro de la misma celda no es gesto.
+      const nx = ajusta(drag.ini.x + (p.x - drag.desde.x));
+      const ny = ajusta(drag.ini.y + (p.y - drag.desde.y));
+      if (nx === o.x && ny === o.y) return;
+      drag.movido = true;
+      o.x = nx;
+      o.y = ny;
       redraw();
       return;
     }
@@ -4196,11 +4213,11 @@
     const brutoY = p.y - d.desde.y;
     let dx = brutoX;
     let dy = brutoY;
-    const primero = d.nodos[0];
-    if (primero && rejilla) {
-      const ini = d.inicios.get(primero);
-      dx = ajusta(ini.x + brutoX) - ini.x;
-      dy = ajusta(ini.y + brutoY) - ini.y;
+    if (d.nodos.length && rejilla) {
+      // Encaja la esquina superior izquierda de la selección, no la del primer nodo.
+      const caja = d.caja || cajaDeNodos(d.nodos);
+      dx = ajusta(caja.x0 + brutoX) - caja.x0;
+      dy = ajusta(caja.y0 + brutoY) - caja.y0;
     }
     // Caja provisional para buscar guías.
     let x0 = Infinity;
@@ -4214,7 +4231,8 @@
       x1 = Math.max(x1, ini.x + dx + n.w);
       y1 = Math.max(y1, ini.y + dy + n.h);
     }
-    const ajuste = snapAGuias({ x0, y0, x1, y1 }, d.nodos);
+    // Con rejilla manda la cuadrícula: una guía movería el borde fuera de ella.
+    const ajuste = rejilla ? { dx: 0, dy: 0, lineas: [] } : snapAGuias({ x0, y0, x1, y1 }, d.nodos);
     dx += ajuste.dx;
     dy += ajuste.dy;
     guias = ajuste.lineas;
@@ -4282,10 +4300,14 @@
       return;
     }
     if (d.kind === "nodo-dibujar") {
-      const bruto = { w: Math.abs(d.p.x - d.desde.x), h: Math.abs(d.p.y - d.desde.y) };
-      let w = bruto.w;
-      let h = bruto.h;
-      const dibujando = w > 8 && h > 8;
+      // El umbral de «es un clic» mira el arrastre crudo; la caja, las esquinas ajustadas.
+      const dibujando = Math.abs(d.p.x - d.desde.x) > 8 && Math.abs(d.p.y - d.desde.y) > 8;
+      const ax = ajusta(d.desde.x);
+      const ay = ajusta(d.desde.y);
+      const bx = ajusta(d.p.x);
+      const by = ajusta(d.p.y);
+      let w = Math.abs(bx - ax);
+      let h = Math.abs(by - ay);
       if (dibujando && (d.shift || (event && event.shiftKey))) {
         const lado = Math.max(w, h);
         w = lado;
@@ -4297,9 +4319,7 @@
       } else {
         ultimoTamano = { w: Math.round(w), h: Math.round(h) };
       }
-      const x = Math.min(d.desde.x, d.p.x);
-      const y = Math.min(d.desde.y, d.p.y);
-      const n = crearNodo(dibujando ? x : d.desde.x, dibujando ? y : d.desde.y, w, h);
+      const n = crearNodo(dibujando ? Math.min(ax, bx) : ax, dibujando ? Math.min(ay, by) : ay, w, h);
       state.flow.nodes.push(n);
       selectNodos([n]);
       changed();
@@ -4311,6 +4331,11 @@
       // Un clic sin arrastre sobre un nodo ya elegido deja la selección en ese nodo.
       if (!d.movido && d.objetivo && selNodes.length > 1) {
         selectNodos([d.objetivo]);
+        return;
+      }
+      // Sin desplazamiento real (temblor dentro de la misma celda) no hay gesto ni historial.
+      if (!d.movido) {
+        redraw();
         return;
       }
       changed();
@@ -4986,27 +5011,36 @@
     selectNodos(state.flow.nodes.slice());
   }
 
-  /** Flechas: 1 px; con Mayús, 10. */
+  /** Flechas: 1 px; con Mayús, 10. Con rejilla, una celda (Mayús, diez) y la esquina encaja. */
   function moverSeleccion(dx, dy) {
+    const unidad = rejilla ? rejillaTam : 1;
+    const pasoX = Math.sign(dx) * unidad * (Math.abs(dx) === 10 ? 10 : 1);
+    const pasoY = Math.sign(dy) * unidad * (Math.abs(dy) === 10 ? 10 : 1);
+    const mueve = (x, y) => (rejilla ? { dx: ajusta(x + pasoX) - x, dy: ajusta(y + pasoY) - y } : { dx: pasoX, dy: pasoY });
     if (selUi && state.ui.nodes.indexOf(selUi) >= 0) {
-      selUi.x += dx;
-      selUi.y += dy;
+      const d = mueve(selUi.x, selUi.y);
+      selUi.x += d.dx;
+      selUi.y += d.dy;
       changed();
       commit();
       return;
     }
     if (selNodes.length) {
+      // Una sola vez desde la caja: la selección se mueve entera, sin deformarse.
+      const caja = cajaDeNodos(selNodes);
+      const d = mueve(caja.x0, caja.y0);
       for (const n of selNodes) {
-        n.x += dx;
-        n.y += dy;
+        n.x += d.dx;
+        n.y += d.dy;
       }
       changed();
       commit();
       return;
     }
     if (sel) {
-      sel.x += dx;
-      sel.y += dy;
+      const d = mueve(sel.x, sel.y);
+      sel.x += d.dx;
+      sel.y += d.dy;
       changed();
       commit();
     }
@@ -5113,13 +5147,28 @@
     abrirPanel(null);
     desarmar();
   });
+  /** Estado de rejilla en la webview: se recuerda al reabrir la pestaña, como el encendido. */
+  function guardaRejilla() {
+    vscode.setState({ grid: rejilla, gridStep: rejillaTam });
+  }
+
   el.btnGrid.addEventListener("click", () => {
     rejilla = !rejilla;
     el.btnGrid.classList.toggle("on", rejilla);
     el.btnGrid.setAttribute("aria-pressed", rejilla ? "true" : "false");
-    vscode.setState({ grid: rejilla });
+    guardaRejilla();
     changed();
-    setStatus(rejilla ? "Rejilla encendida: 8 px, con ajuste." : "Rejilla apagada: sin guías de 8 px.");
+    setStatus(rejilla ? `Rejilla encendida: ${rejillaTam} px, con ajuste.` : "Rejilla apagada: sin guías ni ajuste.");
+  });
+  el.gridStep.addEventListener("change", () => {
+    // Un campo vacío o un cero no pueden dejar la rejilla sin paso: se acota al rango.
+    const valor = clamp(Math.round(Number(el.gridStep.value) || REJILLA_DEF), REJILLA_MIN, REJILLA_MAX);
+    el.gridStep.value = String(valor);
+    if (valor === rejillaTam) return;
+    rejillaTam = valor;
+    guardaRejilla();
+    redraw();
+    setStatus(`Rejilla de ${rejillaTam} px.`, "ok");
   });
   el.aligns.forEach((b) => b.addEventListener("click", () => alinear(b.dataset.align)));
   el.dists.forEach((b) => b.addEventListener("click", () => distribuir(b.dataset.dist)));
@@ -5546,6 +5595,9 @@
   window.addEventListener("paste", (event) => {
     // Dentro de un área de edición se pega el texto, no la imagen.
     if (editing || nodeEditing || editingEdge) return;
+    // Con el foco en un control (el paso de la rejilla, un deslizador) el pegado es suyo.
+    const objetivo = event.target;
+    if (objetivo && /^(?:INPUT|SELECT|TEXTAREA)$/.test(String(objetivo.tagName))) return;
     event.preventDefault();
     void pasteImage(event.clipboardData).then((habia) => {
       if (!habia) setStatus("El portapapeles no trae ninguna imagen.", "error");
@@ -5889,6 +5941,8 @@
 
   const guardado = vscode.getState() || {};
   rejilla = guardado.grid !== false;
+  rejillaTam = clamp(Math.round(Number(guardado.gridStep) || REJILLA_DEF), REJILLA_MIN, REJILLA_MAX);
+  el.gridStep.value = String(rejillaTam);
   el.btnGrid.classList.toggle("on", rejilla);
   el.btnGrid.setAttribute("aria-pressed", rejilla ? "true" : "false");
 

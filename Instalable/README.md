@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.12.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.13.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -15,6 +15,17 @@ No hace falta compilar nada ni instalar Node.
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.7.13
+
+- **La rejilla tiene paso configurable**: junto al botón `REJILLA` hay un campo numérico que lo
+  lleva de 1 a 64 px, siempre cuadrado. Vacío o `0` vuelve a 8; fuera de rango se acota. El
+  encendido y el paso se recuerdan al reabrir la pestaña. Con pasos pequeños la cuadrícula pinta
+  una línea de cada `n` para distinguirse, y el ajuste sigue usando el paso fino.
+- **El ajuste va por la esquina superior izquierda**: textos e imágenes se encajan al moverlos,
+  una selección de varios nodos encaja su caja entera y el nodo nuevo encaja sus dos esquinas.
+  Las flechas mueven una celda (con `Mayús`, diez), `TEXTO` nace en la rejilla y, con la rejilla
+  encendida, las guías inteligentes no desplazan nada; apagada vuelven las guías y el 1/10 px.
 
 ## Novedades de la 0.7.12
 
@@ -123,19 +134,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.12.vsix`.
+3. Elige `opencode-alfred-0.7.13.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.12.vsix
+code --install-extension opencode-alfred-0.7.13.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.12.vsix --force
+code --install-extension opencode-alfred-0.7.13.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?
