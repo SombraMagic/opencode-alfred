@@ -12,11 +12,11 @@
  * y solo se cae al PNG cuando no hay escena válida (pizarras de antes de existir).
  */
 import * as vscode from "vscode";
-import { readFileSync, unwatchFile, watchFile } from "node:fs";
+import { existsSync, readFileSync, unwatchFile, watchFile } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
-import { readFile, rm } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { isRecord, Scene, sanitizeScene } from "../pizarra/scene";
 import { readSceneFile, readSceneText, SCENE_FILE, WORK_FILE, writeAtomic, writeSceneFile } from "../pizarra/files";
@@ -37,6 +37,10 @@ const KEY_BOARDS = "opencodeAgents.pizarra.boards";
 const KEY_BOARD = "opencodeAgents.pizarra.board";
 /** Tope de id de pizarra: por encima no hay nombre de carpeta razonable. */
 const MAX_BOARD = 9999;
+/** Último nombre con el que se guardó una pizarra (ámbito de ventana). */
+const KEY_SAVED_NAME = "opencodeAgents.pizarra.savedName";
+/** Tope del nombre de una pizarra guardada. */
+const MAX_SAVED_NAME = 60;
 /** Cuánto espera `requestPng` al webview antes de conformarse con lo que haya. */
 const CAPTURE_TIMEOUT_MS = 5000;
 /** Cabecera de todo PNG: lo que manda el webview tiene que ser de verdad una imagen. */
@@ -55,6 +59,22 @@ export function pizarraAdjuntosDir(context: vscode.ExtensionContext): string {
 /** Carpeta de una pizarra: la 1 vive en la raíz de adjuntos, que es la que lee el MCP. */
 function carpetaPizarra(base: string, board: number): string {
   return board === 1 ? base : join(base, `pizarra-${board}`);
+}
+
+/** Pizarras guardadas con nombre: en el proyecto, o en el almacén global sin carpeta abierta. */
+function pizarraSavedDir(context: vscode.ExtensionContext): string {
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  return root ? join(root, ".alfred", ".pizarras") : join(context.globalStorageUri.fsPath, "pizarras");
+}
+
+/** Nombre de pizarra guardada: sin separadores ni caracteres de Windows, sin punto final, hasta 60. */
+function validSavedName(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const name = raw.trim();
+  if (!name || name.length > MAX_SAVED_NAME) return undefined;
+  if (/[\\/:*?"<>|]/.test(name) || name.startsWith(".") || /[. ]$/.test(name)) return undefined;
+  if (/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(name)) return undefined;
+  return name;
 }
 
 /** Lista saneada de pizarras: enteros, sin repetidos, ascendentes y con la 1 dentro. */
@@ -470,6 +490,12 @@ export class PizarraPanel {
       case "deleteBoard":
         await this.deleteBoard(decodeBoard(message.board));
         return;
+      case "saveBoard":
+        await this.saveBoard(message.scene, message.png);
+        return;
+      case "loadBoard":
+        await this.loadBoard();
+        return;
     }
   }
 
@@ -522,6 +548,109 @@ export class PizarraPanel {
         await rm(dir, { recursive: true, force: true });
       }
     });
+  }
+
+  /**
+   * Guarda la pizarra activa con un nombre en `.alfred/.pizarras/<nombre>/`: la escena y, si
+   * llega, el PNG aplanado. La carpeta se basta sola para volver a cargarla.
+   */
+  private async saveBoard(rawScene: unknown, rawPng: unknown): Promise<void> {
+    // `null` explícito lo avisa el webview por su barra de estado: aquí no se repite.
+    if (rawScene === null) {
+      return;
+    }
+    const scene = isRecord(rawScene) ? sanitizeScene(rawScene) : undefined;
+    if (!scene) {
+      void vscode.window.showErrorMessage(
+        "La pizarra no se puede guardar entera: la escena pasa del tope o no es válida. Reduce las imágenes e inténtalo otra vez."
+      );
+      return;
+    }
+    const elegido = await vscode.window.showInputBox({
+      prompt: "Nombre de la pizarra guardada",
+      placeHolder: "p. ej. Arquitectura",
+      value: this.context.workspaceState.get<string>(KEY_SAVED_NAME) ?? "",
+      validateInput: (v) =>
+        validSavedName(v)
+          ? undefined
+          : 'Nombre no válido: sin \\ / : * ? " < > |, sin punto final y hasta 60 caracteres.',
+    });
+    if (elegido === undefined) {
+      return;
+    }
+    const name = validSavedName(elegido);
+    if (!name) {
+      return;
+    }
+    const dir = join(pizarraSavedDir(this.context), name);
+    if (existsSync(dir)) {
+      const respuesta = await vscode.window.showWarningMessage(
+        `Ya existe una pizarra guardada con el nombre «${name}». ¿Sobrescribirla?`,
+        { modal: true },
+        "SOBRESCRIBIR"
+      );
+      if (respuesta !== "SOBRESCRIBIR") {
+        return;
+      }
+    }
+    try {
+      await writeSceneFile(dir, scene);
+      const bytes = decodePng(rawPng);
+      if (bytes) {
+        await writeAtomic(join(dir, "pizarra.png"), bytes);
+      } else {
+        // El aplanado no vale (o pasa del tope): que la carpeta no se quede con uno viejo.
+        // Si el borrado falla, la escena ya está escrita: el aviso no puede decir lo contrario.
+        await rm(join(dir, "pizarra.png"), { force: true }).catch(() => undefined);
+        void vscode.window.showWarningMessage(
+          `La pizarra «${name}» se guardó sin imagen aplanada: el PNG no llegó o pasa del tope de 20 MiB.`
+        );
+      }
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        `No se pudo guardar la pizarra «${name}»: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return;
+    }
+    await this.context.workspaceState.update(KEY_SAVED_NAME, name);
+    this.post({ type: "boardSaved", name, dir });
+  }
+
+  /**
+   * Carga una pizarra guardada en la activa. La escena no se escribe aquí: la aplica el
+   * webview y su siguiente `snapshot` la deja en la pizarra activa.
+   */
+  private async loadBoard(): Promise<void> {
+    const base = pizarraSavedDir(this.context);
+    let nombres: string[] = [];
+    try {
+      const entradas = await readdir(base, { withFileTypes: true });
+      nombres = entradas
+        .filter((entrada) => entrada.isDirectory())
+        .map((entrada) => entrada.name)
+        .filter((nombre) => validSavedName(nombre) !== undefined)
+        .sort((a, b) => a.localeCompare(b, "es"));
+    } catch {
+      // Sin carpeta todavía no hay nada guardado: el aviso de abajo lo dice igual.
+    }
+    if (!nombres.length) {
+      void vscode.window.showInformationMessage(`No hay pizarras guardadas todavía en ${base}.`);
+      return;
+    }
+    const nombre = await vscode.window.showQuickPick(nombres, {
+      placeHolder: "Cargar una pizarra guardada (sustituye todo lo que hay en la pizarra activa)",
+    });
+    if (nombre === undefined) {
+      return;
+    }
+    const scene = await readSceneFile(join(base, nombre));
+    if (!scene) {
+      void vscode.window.showWarningMessage(
+        `La pizarra «${nombre}» no tiene escena válida (pizarra.json): no se puede cargar.`
+      );
+      return;
+    }
+    this.post({ type: "boardLoaded", name: nombre, scene });
   }
 
   private settleWaiters(bytes: Buffer | undefined): void {

@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.10**
+Última revisión: 31 de octubre de 2026 · versión **0.7.11**
 
 ## Resumen
 
@@ -9,7 +9,18 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.10** está empaquetada, sin instalar y sin release: los widgets de `INTERFACES` se
+La **0.7.11** está empaquetada, sin instalar y sin release: la pizarra se puede **guardar y
+cargar con nombre**. Dos botones de icono en la tira de pizarras, junto al `+` y el `−`:
+`GUARDAR` (`#btn-board-save`, disquete) pide un nombre y escribe la pizarra activa —cualquier
+pestaña, también la 1— en `<raíz>/.alfred/.pizarras/<Nombre>/` con `pizarra.json` (escena
+completa) y `pizarra.png` (aplanado), o en el almacén global sin carpeta de proyecto; el nombre
+se valida (sin `\ / : * ? " < > |`, sin punto inicial ni final, hasta 60, sin reservados de
+Windows) y si ya existe un modal confirma antes de sobrescribir, y si el PNG no llega se borra
+el anterior y se avisa. `CARGAR` (`#btn-board-load`, carpeta) lista las guardadas en un
+`showQuickPick` y sustituye **todo** lo que hay en la pizarra activa (lienzo, fondo, capas,
+diagrama, imágenes, `INTERFACES`, trazos y textos), dejando una entrada de historial para
+deshacer y escribiendo el resultado en la pizarra activa; la barra de estado dice la ruta real.
+Va sobre la **0.7.10**, que está empaquetada, sin instalar y sin release: los widgets de `INTERFACES` se
 anidan (soltar uno de la paleta sobre un contenedor —`container`, `window`, `tabs-h`, `tabs-v`,
 `accordion`— lo mete dentro con coordenadas relativas a su caja útil; arrastrar uno colocado lo
 reanida y, sacado fuera, vuelve a la raíz sin saltar de sitio; la caja útil del destino se marca

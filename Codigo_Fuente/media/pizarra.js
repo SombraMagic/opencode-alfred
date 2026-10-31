@@ -91,6 +91,8 @@
     tabs: document.getElementById("pz-tabs"),
     btnBoardAdd: document.getElementById("btn-board-add"),
     btnBoardDel: document.getElementById("btn-board-del"),
+    btnBoardSave: document.getElementById("btn-board-save"),
+    btnBoardLoad: document.getElementById("btn-board-load"),
     modalText: document.getElementById("modal-text"),
     modalOk: document.getElementById("modal-ok"),
     modalCancel: document.getElementById("modal-cancel"),
@@ -4499,6 +4501,27 @@
     );
   }
 
+  /** Copia con nombre de la pizarra activa: el host pide el nombre y escribe la carpeta. */
+  function guardarPizarra() {
+    // Sin el `init` aplicado, la escena sería un lienzo vacío: guardaría lo que no hay.
+    if (!iniciada) {
+      setStatus("La pizarra aún se está cargando.", "error");
+      return;
+    }
+    if (!hasContent()) {
+      setStatus("La pizarra está vacía: no hay nada que guardar.", "error");
+      return;
+    }
+    // El contrato de `saveBoard` pide data URL (el `snapshot` de siempre va en base64 pelado).
+    vscode.postMessage({ type: "saveBoard", png: `data:image/png;base64,${pngBase64()}`, scene: escenaParaEnviar() });
+  }
+
+  /** Sustituye la pizarra activa por una guardada: el host elige el nombre y manda la escena. */
+  function cargarPizarra() {
+    flushSnapshot();
+    vscode.postMessage({ type: "loadBoard" });
+  }
+
   /** Tira el diagrama, los trazos, las imágenes y los textos y conserva el color de fondo. */
   function vaciar() {
     // El color es una preferencia: vaciar no lo devuelve al blanco.
@@ -5063,6 +5086,8 @@
   el.btnPaste.addEventListener("click", desdePortapapeles);
   el.btnBoardAdd.addEventListener("click", anadirPizarra);
   el.btnBoardDel.addEventListener("click", eliminarPizarra);
+  el.btnBoardSave.addEventListener("click", guardarPizarra);
+  el.btnBoardLoad.addEventListener("click", cargarPizarra);
   el.btnSave.addEventListener("click", guardar);
   el.btnUndo.addEventListener("click", () => void deshacer());
   el.btnRedo.addEventListener("click", () => void rehacer());
@@ -5786,6 +5811,20 @@
       }
       return;
     }
+    if (m.type === "boardLoaded") {
+      const doc = m.scene && typeof m.scene === "object" ? m.scene : null;
+      if (!doc) return;
+      // Como `sceneReload`: si la copia de trabajo aún se está aplicando, la carga espera.
+      if (cargando) await cargando;
+      // Sustituye TODO (lienzo, fondo, capas, diagrama, imágenes, INTERFACES, trazos y textos).
+      // `mantenerVista` deja el zoom y el paneo donde estaban, también con lienzo fijado.
+      await aplicarEscena(doc, { mantenerVista: true });
+      // Una entrada de historial: deshacer devuelve lo que había antes de cargar.
+      changed();
+      commit();
+      setStatus(`Pizarra «${m.name || "guardada"}» cargada: ${W} × ${H}.`, "ok");
+      return;
+    }
     if (m.type === "clipboardImage") {
       // Como con `capture`: si la copia de trabajo aún se está cargando, se espera; si no, la
       // carga terminaría pisando el fondo que acabamos de poner.
@@ -5819,6 +5858,10 @@
       clearTimeout(snapshotTimer);
       dirty = false;
       vscode.postMessage({ type: "snapshot", board: pizarraActual, png: pngBase64(), scene: escenaParaEnviar() });
+      return;
+    }
+    if (m.type === "boardSaved") {
+      setStatus(`Pizarra guardada como «${m.name}»${m.dir ? ` en ${m.dir}` : ""}.`, "ok");
       return;
     }
     if (m.type === "saved") {

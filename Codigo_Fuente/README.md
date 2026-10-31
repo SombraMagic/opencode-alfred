@@ -112,7 +112,10 @@ botón la mete en el bloc como adjunto.
 - **Varias pizarras**: una tira de pestañas en la cabecera, con `+` para añadir y `−` para
   eliminar. La pizarra 1 no se puede borrar: es la que leen y editan los agentes. Las demás
   viven cada una en su carpeta dentro de los adjuntos, y cambiar de pestaña guarda lo dibujado
-  en la que se deja.
+  en la que se deja. Junto al `+` y el `−`, dos botones de icono: el disquete (`#btn-board-save`)
+  guarda la pizarra activa con un nombre y la carpeta (`#btn-board-load`) carga una guardada y
+  sustituye todo lo que haya, con deshacer. Se guardan en `<raíz>/.alfred/.pizarras/<Nombre>/`
+  (sin proyecto, en el almacén global) con `pizarra.json` y `pizarra.png`.
 - **Qué se guarda**: el PNG aplanado en `pizarra-ultima.png` y, junto a él, la escena
   editable en `pizarra.json` (misma carpeta de adjuntos). Al reabrir manda la escena; si no
   es válida, se descarta y queda el PNG. `GUARDAR` deja el PNG y su `.json` donde elijas. El

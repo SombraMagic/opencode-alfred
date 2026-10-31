@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.10.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.11.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -15,6 +15,15 @@ No hace falta compilar nada ni instalar Node.
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.7.11
+
+- **Guardar y cargar pizarras con nombre**: dos botones de icono en la tira de pizarras, junto
+  al `+` y el `−`. El disquete guarda la pizarra activa con un nombre y la carpeta se queda con
+  la escena completa (`pizarra.json`) y el aplanado (`pizarra.png`); la carpeta o los ficheros
+  piden confirmación antes de pisar una guardada. La carpeta lista las guardadas y sustituye
+  todo lo que hay en la pizarra activa, con deshacer.
+- Se guardan en `<raíz>/.alfred/.pizarras/<Nombre>/` (sin proyecto, en el almacén global).
 
 ## Novedades de la 0.7.10
 
@@ -107,19 +116,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.10.vsix`.
+3. Elige `opencode-alfred-0.7.11.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.10.vsix
+code --install-extension opencode-alfred-0.7.11.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.10.vsix --force
+code --install-extension opencode-alfred-0.7.11.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

@@ -3,6 +3,20 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.11] - 2026-10-31
+
+- **Guardar y cargar pizarras con nombre**: dos botones de icono en la tira de pizarras, junto
+  al `+` y el `−`. `GUARDAR` (disquete, `#btn-board-save`) pide un nombre y escribe la pizarra
+  **activa** —cualquiera de las pestañas, también la 1— en `<raíz>/.alfred/.pizarras/<Nombre>/`
+  con `pizarra.json` (la escena completa: lienzo y si es fijo, fondo, capas, diagrama, imágenes
+  e `INTERFACES` como data URLs, trazos y textos) y `pizarra.png` (el aplanado); sin carpeta de
+  proyecto, en el almacén global. El nombre se valida: sin `\ / : * ? " < > |`, sin punto
+  inicial ni final, hasta 60 caracteres y sin nombres reservados de Windows. Si ya existe, un
+  modal confirma antes de sobrescribir; si el PNG no llega, se borra el anterior y se avisa.
+  `CARGAR` (carpeta, `#btn-board-load`) lista las guardadas en un `showQuickPick` y sustituye
+  **todo** lo que hay en la pizarra activa, dejando una entrada de historial para deshacer. La
+  barra de estado del panel dice la ruta real.
+
 ## [0.7.10] - 2026-10-31
 
 - **Los widgets de `INTERFACES` se anidan**: soltar uno de la paleta sobre un contenedor

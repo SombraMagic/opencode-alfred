@@ -62,7 +62,8 @@ Bienvenidos a Alfred.
   maquetar wireframes (los widgets se anidan soltándolos sobre un contenedor), y exporta el
   diagrama como Mermaid. Una sola barra: cada herramienta
   abre su ventana de ajustes sobre el lienzo. Varias pizarras en pestañas: la
-  primera es la que ven los agentes.
+  primera es la que ven los agentes. Se guardan y se cargan con nombre desde la tira de
+  pestañas (disquete y carpeta), en `.alfred/.pizarras/`.
 - **Visor Alfred 3D.** Abre ficheros `.blend` como pestaña de edición: órbita, objetos,
   cámaras, luces, animaciones y render de un frame o de toda la tirada. Con Blender o sin él.
 
