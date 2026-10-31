@@ -3,6 +3,20 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.1] - 2026-10-31
+
+- **Vista `Control`** en el grupo ALFRED de la barra de actividades: acordeón `CONTROLES` con
+  `‹ [terminal] ›` (abrir la sesión y cambiar de agente), `CONECTOR` y `MENTE GLOBAL`. Debajo,
+  `GEN. IMÁGENES` y `CHATBOT` apagados con su hueco «Próximamente».
+- **El Explorador se queda con lo suyo**: el lanzador de terminales, `CONECTORES` y
+  `MENTE LOCAL` se mudan a `Control`. El mando queda en `GLOBAL` · `PROYECTO` ·
+  `ASIGNAR AGENTES`, con el interruptor `ACEPTAR TODOS LOS PERMISOS` debajo. `ASIGNAR AGENTES`
+  se apaga cuando el proveedor activo no es opencode.
+- **Contexto con casillas más grandes**: la matriz pasa de 20 × 8 a 10 × 16, las mismas 160
+  celdas en menos columnas, así que cada casilla crece en vez de estrecharse.
+- **Límites de consumo**: el despliegue de cada proveedor se recuerda entre sesiones
+  (`opencodeAgents.limitsCollapsed`), sin volver a abrirlas todas al reabrir la vista.
+
 ## [0.7.0] - 2026-10-31
 
 - **El doble clic ya no crea nada**: edita la etiqueta de lo que haya debajo (un texto, un

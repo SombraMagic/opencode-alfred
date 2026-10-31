@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.0.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.1.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -16,21 +16,17 @@ No hace falta compilar nada ni instalar Node.
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
 
-## Novedades de la 0.7.0
+## Novedades de la 0.7.1
 
-- **Pizarra, doble clic**: ya no crea nada; edita la etiqueta de lo que haya debajo (texto,
-  widget, nodo o conector) y en el vacío no hace nada.
-- **Pizarra, widgets de `INTERFACES`**: se colocan por botón. El botón queda luminoso, el
-  widget sigue al puntero como fantasma y cae con su esquina donde se hace clic. `Esc` o
-  cerrar la paleta cancela.
-- **Pizarra, copiar y pegar**: `Ctrl+C`/`Ctrl+V` copian nodos con sus conectores, conectores
-  sueltos, widgets con su subárbol, textos e imágenes. La copia vive en el panel.
-- **Pizarra, widget `LISTA`**: filas, fila resaltada, icono por fila y barra de
-  desplazamiento, las dos opcionales. Son catorce tipos de widget.
-- **Contexto**: maqueta nueva (sesión y datos en la cabecera, matriz y leyenda lado a lado,
-  `COMPACTAR` bajo la leyenda) y leyenda común a opencode, Claude Code y Codex: Sistema,
-  Conversación, Sin atribuir y Libre.
-- **Dictado**: pegar texto ya no duplica saltos de línea.
+- **Vista `Control`** en la barra ALFRED: acordeón `CONTROLES` con `‹ [terminal] ›` para abrir
+  la sesión y cambiar de agente, `CONECTOR` y `MENTE GLOBAL`. Debajo, `GEN. IMÁGENES` y
+  `CHATBOT` apagados con su hueco «Próximamente».
+- **Explorador más corto**: el lanzador de terminales, `CONECTORES` y `MENTE LOCAL` se mudan a
+  `Control`. Queda `GLOBAL` · `PROYECTO` · `ASIGNAR AGENTES` y, debajo, `ACEPTAR TODOS LOS
+  PERMISOS`. `ASIGNAR AGENTES` se apaga cuando el proveedor activo no es opencode.
+- **Contexto**: la matriz pasa de 20 × 8 a 10 × 16, las mismas 160 celdas con casillas más
+  grandes.
+- **Límites de consumo**: cada tarjeta recuerda si estaba plegada entre sesiones.
 
 ## Instalar
 
@@ -38,26 +34,27 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.0.vsix`.
+3. Elige `opencode-alfred-0.7.1.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.0.vsix
+code --install-extension opencode-alfred-0.7.1.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.0.vsix --force
+code --install-extension opencode-alfred-0.7.1.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?
 
 - **ALFRED** en la barra de actividad (izquierda): el centro de control. Explorador de
-  agentes, MCP, skills y plugins; arriba, el mando con los botones de conectores,
-  asignación de modelos, mente local y sesión.
+  agentes, MCP, skills y plugins, con `GLOBAL` · `PROYECTO` · `ASIGNAR AGENTES` y el
+  interruptor de permisos arriba; **Control**, con la sesión, los conectores y Mente local;
+  Contexto y Límites de consumo.
 - **VOZ** en la barra lateral derecha: ecualizador de barras y ajustes de voz.
 - **DICTADO** en el panel inferior: bloc de notas, configuración y micrófono.
 - **Visor Alfred 3D**: haz doble clic en un `.blend` desde el Explorador (o menú contextual →

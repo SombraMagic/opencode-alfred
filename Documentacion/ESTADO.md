@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.0**
+Última revisión: 31 de octubre de 2026 · versión **0.7.1**
 
 ## Resumen
 
@@ -9,12 +9,13 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.0** está empaquetada e instalada en local: el doble clic de la pizarra edita en vez
-de crear, los widgets de `INTERFACES` se colocan armados al clic, `Ctrl+C`/`Ctrl+V` copian
-dentro del panel, entra el widget `LISTA`, el panel de Contexto estrena maqueta y leyenda
-común, y el dictado ya no duplica saltos de línea al pegar. Encima de la **0.6.2**, que quitó
-la segunda fila de ajustes de la pizarra y metió cada herramienta en su ventana. Sigue sin
-release publicada en GitHub.
+La **0.7.1** está empaquetada, sin instalar y sin release: la barra ALFRED estrena la vista
+**Control** con el lanzador de sesión, los conectores y Mente local, el Explorador se queda con
+`GLOBAL` · `PROYECTO` · `ASIGNAR AGENTES` y el interruptor de permisos, la matriz de Contexto
+pasa a 10 × 16 (mismas 160 celdas, más grandes) y las tarjetas de Límites de consumo recuerdan
+si estaban plegadas. Encima de la **0.7.0**, que arregló el doble clic de la pizarra, la
+colocación armada de widgets, el copiar/pegar del panel, el widget `LISTA`, la maqueta de
+Contexto y el pegado del dictado. Sigue sin release publicada en GitHub.
 
 **opencode es el centro del producto.** La extensión está pensada y orientada a opencode.
 Claude Code y Codex son **experimentales**: se exploran y se manejan en parte, pero su
@@ -22,8 +23,9 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 
 ## Qué está hecho
 
-- **Explorador** de agentes, MCP, skills y plugins para opencode, Claude Code y Codex,
-  con selector de proveedor activo y una terminal por agente.
+- **Explorador** de agentes, MCP, skills y plugins para opencode, Claude Code y Codex, con
+  selector de proveedor activo, y **vista Control** con el lanzador de sesión, los conectores
+  y Mente local (más dos huecos apagados para imágenes y chatbot).
 - **Editor de agentes** de opencode (permisos por herramienta y patrón) y **editor de
   subagentes** de Claude con su propio formulario.
 - **Tablero de asignación** agentes ↔ modelos, con grupos de favoritos, precios y
@@ -33,9 +35,9 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 - **Contexto** con desglose de la ventana, compactación y medición para los tres CLIs.
 - **Estadísticas de agentes** (tokens, coste, tiempo, sesiones) y **de prompts**
   (línea de tiempo por prompt, con subagentes en paralelo).
-- **Límites de consumo** por proveedor (DeepSeek, OpenAI, GitHub Copilot, OpenCode Go);
-  OpenCode Go lee el consumo real de la consola (porcentajes con su reposición) y solo
-  estima con las bases si esa ruta no existe.
+- **Límites de consumo** por proveedor (DeepSeek, OpenAI, GitHub Copilot, OpenCode Go), con el
+  despliegue de cada tarjeta recordado entre sesiones; OpenCode Go lee el consumo real de la
+  consola (porcentajes con su reposición) y solo estima con las bases si esa ruta no existe.
 - **Voz** (SAPI, Edge, OpenAI, ElevenLabs) con ecualizador de barras pixeladas, y **dictado**
   (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP `mcp_alfred`
   viaja dentro de la extensión (`dist/alfred-mcp.js`), no como paquete externo: cubre la voz
@@ -101,6 +103,11 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 9. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
    usan en ejecución.
 10. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
+11. **0.7.1 sin ver en vivo**: abrir la vista `Control` y comprobar el acordeón, el botón de
+    sesión con sus flechas, `CONECTOR` apagado fuera de opencode y `MENTE GLOBAL` con su
+    brillo; los dos huecos `Próximamente`; que `ASIGNAR AGENTES` se apaga con Claude o Codex;
+    la matriz de Contexto a 10 × 16 en panel estrecho y ancho; y que las tarjetas plegadas de
+    Límites de consumo siguen plegadas tras recargar la ventana.
 
 ## Alcance
 

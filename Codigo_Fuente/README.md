@@ -20,17 +20,26 @@ nunca. El detalle está en la tabla del
 
 ### ALFRED — Explorador (barra de actividad)
 
-- **Mando**: `GLOBAL` / `PROYECTO`, el selector del agente de sesión (opencode, Claude o
-  Codex), `ACEPTAR TODO` y los botones `CONECTORES`, `ASIGNAR AGENTES` y `MENTE LOCAL`.
+- **Mando**: `GLOBAL` / `PROYECTO`, `ASIGNAR AGENTES` y, debajo, el interruptor
+  `ACEPTAR TODOS LOS PERMISOS`. `ASIGNAR AGENTES` es de opencode: con Claude Code o Codex
+  queda apagado.
 - **Explorador**: agentes de proyecto y globales, con su modelo, animación de vuelo cuando
   trabajan y tokens (sesión y total). `VER` abre su formulario.
-- **Control**: MCP, skills y plugins de cada proveedor, con interruptor para activar y
+- **MCP, skills y plugins**: los de cada proveedor, con interruptor para activar y
   desactivar. Para Claude los MCP de usuario y locales se conmutan inyectando
   `/mcp disable|enable` en la terminal viva; los `.mcp.json` van por
   `disabledMcpjsonServers`.
 
 CLIC en `VER` sobre un integrado con override abre **su `.md`**, no el integrado, así que su
 sobrescritura se puede borrar desde el propio formulario.
+
+### Control
+
+La vista hermana del Explorador, en la misma barra. Un acordeón `CONTROLES` con `‹ [terminal] ›`
+para abrir la sesión del proveedor activo y cambiar de agente, `CONECTOR` (los conectores de
+opencode; apagado con otro proveedor) y `MENTE GLOBAL` (la pestaña de Ollama, que brilla
+mientras el servidor responde). Debajo quedan `GEN. IMÁGENES` y `CHATBOT`, apagados: su hueco
+está reservado.
 
 ### Contexto
 
@@ -41,8 +50,9 @@ su base SQLite; Claude y Codex por sus ficheros de sesión.
 ### Límites de consumo
 
 Saldo o topes por proveedor: DeepSeek (saldo), OpenAI (coste del mes), GitHub Copilot
-(cuotas del plan) y OpenCode Go (estimación por tokens). Se enciende por proveedor en la
-fila de `CONECTORES`; solo sondea con la vista abierta.
+(cuotas del plan) y OpenCode Go (estimación por tokens). Se enciende por proveedor en el panel
+de conectores (`CONECTOR`, en la vista `Control`); solo sondea con la vista abierta. La tarjeta
+de cada proveedor recuerda si estaba plegada.
 
 ### Voz (barra lateral derecha) y Dictado (panel inferior)
 
@@ -105,8 +115,8 @@ botón la mete en el bloc como adjunto.
 
 ### Mente local (Ollama)
 
-El cerebro local del equipo, en una pestaña central (`MENTE LOCAL` en el mando del
-Explorador). Comprueba si Ollama está instalado y lo instala o desinstala con `winget`;
+El cerebro local del equipo, en una pestaña central (`MENTE GLOBAL` en la vista `Control`).
+Comprueba si Ollama está instalado y lo instala o desinstala con `winget`;
 encender arranca `ollama serve` si hace falta y apagar para el proceso. El bloque `SERVIDOR`
 tiene además `ARRANCAR` y `PARAR` propios, para gobernar el proceso sin tocar el interruptor
 ni el proveedor de opencode. Lista los modelos con
