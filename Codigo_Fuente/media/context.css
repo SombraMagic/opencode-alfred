@@ -77,10 +77,10 @@ body.vscode-light {
   color: var(--text-soft);
 }
 
-/* ── Matriz y leyenda a la misma altura; COMPACTAR a la derecha ── */
+/* ── Matriz y leyenda a la misma altura ── */
 .ctx-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(110px, 1fr) auto;
+  grid-template-columns: minmax(0, 1.2fr) minmax(110px, 1fr);
   gap: 8px;
 }
 
@@ -120,7 +120,12 @@ body.vscode-light {
 }
 
 /* ── Leyenda: cuatro filas fijas que reparten el alto de su caja ── */
+/* La cabecera lleva COMPACTAR dentro, justificado a la derecha. */
 .legend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   margin-bottom: 3px;
   font-size: 9px;
   letter-spacing: 2px;
@@ -185,22 +190,16 @@ abbr {
   cursor: help;
 }
 
-/* ── Compactar, a la derecha de la caja de la leyenda ─── */
-.ctx-actions {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: end;
-  align-self: start;
-}
-
+/* ── Compactar: dentro de la cabecera de la leyenda, a la derecha ─── */
 .compact-btn {
+  flex: none;
   background: color-mix(in srgb, var(--neon) 14%, transparent);
   border: 1px solid var(--neon-dim);
   color: var(--neon);
   font-family: inherit;
-  font-size: 9px;
-  letter-spacing: 1px;
-  padding: 4px 7px;
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  padding: 2px 4px;
   cursor: pointer;
   text-transform: uppercase;
 }
@@ -220,11 +219,6 @@ abbr {
 @media (max-width: 460px) {
   .ctx-body {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .ctx-actions {
-    grid-column: 1;
-    grid-row: auto;
   }
 }
 

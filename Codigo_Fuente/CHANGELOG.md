@@ -3,6 +3,15 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.4] - 2026-10-31
+
+- **`COMPACTAR` dentro de la leyenda**: deja de ser una tercera columna fuera de la caja y
+  vive en la cabecera de `Leyenda`, justificado a la derecha, más pequeño (8 px,
+  `padding: 2px 4px`). `.ctx-body` vuelve a dos columnas y `.ctx-actions` desaparece del CSS
+  y del HTML.
+- El resto de la 0.7.3 se queda igual: matriz 10 × 10 achatada (`16 / 9`), cabecera apretada
+  y leyenda repartiendo su alto.
+
 ## [0.7.3] - 2026-10-31
 
 - **Matriz de Contexto achatada**: sigue en 10 × 10 casillas, pero cada una es ancha y baja

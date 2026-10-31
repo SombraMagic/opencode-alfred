@@ -111,11 +111,11 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
         <div id="cells" class="cells" role="img" aria-label="Ocupación de la ventana de contexto"></div>
       </div>
       <div class="ctx-box ctx-legend">
-        <div class="legend-head">Leyenda</div>
+        <div class="legend-head">
+          <span>Leyenda</span>
+          <button id="compact" class="compact-btn" type="button" title="Compactar la conversación (equivale a /compact)">COMPACTAR</button>
+        </div>
         <ul id="legend" class="legend"></ul>
-      </div>
-      <div class="ctx-actions">
-        <button id="compact" class="compact-btn" type="button" title="Compactar la conversación (equivale a /compact)">COMPACTAR</button>
       </div>
     </div>
   </section>
