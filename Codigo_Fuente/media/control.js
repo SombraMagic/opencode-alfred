@@ -59,8 +59,7 @@
     el.mente.classList.toggle("on", mente);
     el.mente.setAttribute("aria-pressed", mente ? "true" : "false");
 
-    // Los dos huecos están sin implementar: se pintan apagados siempre.
-    el.image.disabled = true;
+    // El chatbot es el único hueco sin implementar: se pinta apagado siempre.
     el.chatbot.disabled = true;
   }
 
@@ -69,6 +68,7 @@
   el.agentNext.addEventListener("click", () => act({ type: "cycleAgent", delta: 1 }));
   el.connectors.addEventListener("click", () => act({ type: "openConnectors" }));
   el.mente.addEventListener("click", () => act({ type: "openMenteLocal" }));
+  el.image.addEventListener("click", () => act({ type: "openImageGen" }));
 
   window.addEventListener("message", (event) => {
     const message = event.data;

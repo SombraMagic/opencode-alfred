@@ -1,0 +1,567 @@
+/* Generador de imágenes — HUD de ComfyUI y OpenAI: conexión, ajustes y resultado.
+   Todo sale de tokens.css; aquí solo el reparto y lo propio del panel. */
+
+:root {
+  color-scheme: dark light;
+}
+
+body {
+  /* Secundario que no es estado apagado. `--text-dim` se reserva para `:disabled`,
+     placeholder, «—» y lo que está parado. */
+  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
+  padding: 0 12px 18px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Los rótulos son texto secundario, no estado apagado: tokens.css los deja en `--text-dim`. */
+.label {
+  color: var(--text-soft);
+}
+
+/* ── Cabecera ─────────────────────────────────────────── */
+.gen-head {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  padding: 9px 0 6px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+.gen-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.gen-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.gen-dot.on {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+
+.gen-kicker {
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  color: var(--neon);
+  text-shadow: 0 0 10px var(--neon-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gen-conn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 10px;
+}
+
+/* ── Campos ───────────────────────────────────────────── */
+.gen-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.gen-field-prov {
+  flex: 0 0 110px;
+}
+
+#field-url {
+  flex: 0 1 300px;
+  min-width: 140px;
+}
+
+#field-port {
+  flex: 0 0 84px;
+}
+
+#field-key {
+  flex: 1 1 300px;
+}
+
+.gen-input {
+  min-width: 0;
+  padding: 4px 7px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.gen-input::placeholder {
+  color: var(--text-dim);
+}
+
+.gen-input:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.gen-input:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+}
+
+select.gen-input {
+  cursor: pointer;
+}
+
+.gen-textarea {
+  resize: vertical;
+  min-height: 74px;
+  line-height: 1.45;
+}
+
+.gen-textarea-sm {
+  min-height: 34px;
+}
+
+.gen-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.gen-keyrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gen-keyrow .gen-input {
+  flex: 1 1 auto;
+}
+
+.gen-key-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.gen-key-dot.on {
+  background: var(--green);
+  box-shadow: 0 0 7px var(--green);
+}
+
+/* ── Botones ──────────────────────────────────────────── */
+.gen-btn {
+  flex: none;
+  padding: 5px 9px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.gen-btn:hover:not(:disabled),
+.gen-btn:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+.gen-btn:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.gen-btn:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+  cursor: default;
+}
+
+.gen-icon-btn {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.gen-icon-btn:hover:not(:disabled),
+.gen-icon-btn:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+.gen-icon-btn:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+  cursor: default;
+}
+
+/* ── Estado y aviso ───────────────────────────────────── */
+.gen-statusline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 8px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.gen-status {
+  color: var(--text-soft);
+}
+
+.gen-message {
+  flex: 1 1 100%;
+  color: var(--text);
+}
+
+.gen-message:empty {
+  display: none;
+}
+
+/* ── Cuerpo: ajustes a la izquierda, resultado a la derecha ── */
+.gen-body {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 16px 18px;
+  align-items: start;
+}
+
+.gen-col {
+  min-width: 0;
+}
+
+.gen-left {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gen-head-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gen-lora-pick {
+  flex: 1 1 auto;
+  font-size: 10.5px;
+}
+
+.gen-loras {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gen-loras:empty {
+  display: none;
+}
+
+.gen-lora {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gen-lora-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 10.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gen-lora-weight {
+  flex: 0 0 74px;
+  text-align: right;
+}
+
+.gen-lora .gen-icon-btn {
+  width: 20px;
+  height: 20px;
+}
+
+/* ── Tamaño ───────────────────────────────────────────── */
+.gen-size {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.gen-sizefield {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+.gen-mini {
+  font-size: 8.5px;
+  letter-spacing: 1px;
+  color: var(--text-soft);
+}
+
+.gen-size .gen-input {
+  width: 100%;
+}
+
+.gen-times {
+  padding-bottom: 4px;
+  color: var(--text-soft);
+}
+
+/* ── Imagen de partida ────────────────────────────────── */
+.gen-source {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gen-thumb {
+  position: relative;
+  flex: none;
+  width: 76px;
+  aspect-ratio: 16 / 10;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+}
+
+.gen-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gen-thumb-x {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.gen-thumb-x:hover,
+.gen-thumb-x:focus-visible {
+  color: var(--magenta);
+  border-color: var(--magenta);
+  outline: none;
+}
+
+#field-denoise {
+  flex: 0 0 74px;
+}
+
+#field-denoise .gen-input {
+  width: 100%;
+}
+
+/* ── Generar ──────────────────────────────────────────── */
+.gen-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+
+.gen-generate {
+  flex: 1 1 auto;
+  padding: 9px 12px;
+  font-size: 10.5px;
+  letter-spacing: 2.2px;
+  border-color: var(--neon);
+  color: var(--neon);
+}
+
+.gen-generate:hover:not(:disabled),
+.gen-generate:focus-visible {
+  color: var(--bg);
+  background: var(--neon);
+}
+
+.gen-progress {
+  flex: 0 0 auto;
+  min-width: 0;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.gen-progress:empty {
+  display: none;
+}
+
+/* ── Vista previa ─────────────────────────────────────── */
+.gen-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gen-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+
+.gen-preview > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.gen-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+
+.gen-tools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.gen-tools .gen-icon-btn {
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+}
+
+/* Medidas de la imagen que se ve: una línea corta bajo el marco. */
+.gen-meta {
+  margin: 0;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+}
+
+.gen-meta:empty {
+  display: none;
+}
+
+/* Pista del bloque TAMAÑO cuando manda la imagen de partida. */
+.gen-hint {
+  margin: 4px 0 0;
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+
+/* ── Historial ────────────────────────────────────────── */
+.gen-hist-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.gen-hist-head .label {
+  flex: 1 1 auto;
+}
+
+.gen-hist-strip {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.gen-hist-strip:empty {
+  display: none;
+}
+
+.gen-hist-item {
+  flex: none;
+  width: 78px;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.gen-hist-item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gen-hist-item:hover,
+.gen-hist-item:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.gen-hist-item.on {
+  border-color: var(--neon);
+  box-shadow: 0 0 8px var(--neon-dim);
+}
+
+/* ── Ancho escaso: las columnas se apilan, los ajustes arriba ── */
+@media (max-width: 720px) {
+  .gen-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gen-field-prov,
+  #field-port {
+    flex: 1 1 96px;
+  }
+}

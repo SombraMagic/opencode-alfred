@@ -38,6 +38,7 @@ import {
 import { AssignAction, AssignAgent, AssignData, AssignPanel, AssignProfile, FavoriteGroup, ModelEntry } from "./panels/assignPanel";
 import { ConnectorsPanel, ConnectorAction } from "./panels/connectorsPanel";
 import { MenteLocalPanel } from "./panels/menteLocalPanel";
+import { ImageGenPanel } from "./panels/imageGenPanel";
 import { collectState, liveState, MenteLocalState, readSettings, runAction } from "./ollama/service";
 import { startServer } from "./ollama/process";
 import { ollamaVersion } from "./ollama/client";
@@ -2243,6 +2244,10 @@ export function activate(context: vscode.ExtensionContext): void {
       void openMenteLocalPanel()
     ),
 
+    vscode.commands.registerCommand("opencodeAgents.imageGenerator", () =>
+      void ImageGenPanel.open(context)
+    ),
+
     vscode.commands.registerCommand(
       "opencodeAgents.openInAlfred3D",
       async (uri?: vscode.Uri) => {
@@ -2931,6 +2936,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
       case "openMenteLocal":
         await openMenteLocalPanel();
+        return;
+
+      case "openImageGen":
+        await ImageGenPanel.open(context);
         return;
     }
   }

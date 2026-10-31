@@ -64,7 +64,8 @@ export type ExplorerAction =
   | { type: "cycleAgent"; delta: 1 | -1 }
   | { type: "openAssign" }
   | { type: "openConnectors" }
-  | { type: "openMenteLocal" };
+  | { type: "openMenteLocal" }
+  | { type: "openImageGen" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
@@ -82,6 +83,7 @@ const ACTION_TYPES = new Set<string>([
   "openAssign",
   "openConnectors",
   "openMenteLocal",
+  "openImageGen",
 ]);
 
 export class ExplorerPanel implements vscode.WebviewViewProvider {
