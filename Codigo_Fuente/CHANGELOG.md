@@ -3,6 +3,13 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.9] - 2026-10-31
+
+- **La vista `Control` pierde el plegado `CONTROLES`**: fuera el `<details>`/`<summary>`, la fila
+  de botones ocupa toda la vista. El contenedor se estira al 100 % del ancho y del alto, con
+  borde transparente y 6 px de margen arriba, izquierda y derecha (abajo, 0), así que no deja
+  franja muerta ni barra de desplazamiento.
+
 ## [0.7.8] - 2026-10-31
 
 - **El saldo de DeepSeek y el coste de OpenAI se quedaban clavados en el de la primera

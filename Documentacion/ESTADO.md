@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.8**
+Última revisión: 31 de octubre de 2026 · versión **0.7.9**
 
 ## Resumen
 
@@ -9,7 +9,10 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.8** está empaquetada, sin instalar y sin release: la vista `Límites de consumo` lee la
+La **0.7.9** está empaquetada, sin instalar y sin release: la vista **Control** pierde el plegado
+`CONTROLES` (fuera `<details>`/`<summary>`) y la fila de botones ocupa toda la vista, con borde
+transparente y 6 px de margen arriba, izquierda y derecha (abajo, 0), sin scroll. Va sobre la
+**0.7.8**, que está empaquetada, sin instalar y sin release: la vista `Límites de consumo` lee la
 clave de DeepSeek y de OpenAI de la tabla `credential` de las bases de opencode (`active = 1`,
 la fila más reciente) y solo cae a `~/.local/share/opencode/auth.json` si no hay. opencode v2 ya
 no actualiza ese fichero al cambiar la clave, así que el saldo se quedaba clavado en el de la
@@ -131,11 +134,12 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 9. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
    usan en ejecución.
 10. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
-11. **0.7.3, 0.7.4, 0.7.5, 0.7.6 y 0.7.7 sin ver en vivo**: abrir la vista `Control` y comprobar el
-    acordeón, la fila elástica de la 0.7.7 —grupo de sesión como botón principal, la fila de
+11. **0.7.3 a 0.7.9 sin ver en vivo**: abrir la vista `Control` y comprobar la fila elástica de
+    la 0.7.7 —grupo de sesión como botón principal, la fila de
     iconos con el enchufe (apagado fuera de opencode), el cerebro `OLLAMA` con su brillo y los
     dos módulos apagados— sin barra de desplazamiento a 300/380/480 px (verificado en navegador
-    headless, falta VS Code real); que `ASIGNAR AGENTES` se apaga con Claude o Codex;
+    headless, falta VS Code real), y la 0.7.9 sin el rótulo `CONTROLES`, con la fila ocupando
+    todo el alto y los 6 px de margen; que `ASIGNAR AGENTES` se apaga con Claude o Codex;
     la matriz de Contexto a 10 × 10 achatada en panel estrecho y ancho (verificado en
     navegador a 450/500/640 px, falta VS Code real), el corte de 300 px de la 0.7.5 (matriz y
     leyenda en horizontal a 360/400/430/500/640 px, apiladas solo por debajo de 300), la barra

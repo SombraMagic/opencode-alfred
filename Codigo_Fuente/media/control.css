@@ -1,27 +1,36 @@
 /* ALFRED // CONTROL — lo que explorer.css no cubre: el mando de esta vista. */
-/* Una sola fila elástica: los botones se estiran y saltan de línea en barra estrecha,
-   en vez de recortar el rótulo o esconderse. */
-.mando-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 8px;
-}
-
-/* Aquí no hay nada debajo de la fila que separar: sin borde ni margen, la vista
-   no genera barra de desplazamiento con los botones en una línea. */
-.mando {
-  padding-bottom: 0;
-  margin-bottom: 0;
-  border-bottom: none;
+/* La vista es solo el mando: ocupa el ancho y el alto enteros, con 6 px de aire
+   arriba y a los lados y ninguna franja muerta debajo. */
+html,
+body {
+  height: 100%;
 }
 
 .hud {
-  padding-bottom: 0;
+  height: 100%;
+  padding: 6px 6px 0;
+  display: flex;
 }
 
-.fold {
-  margin-bottom: 0;
+/* Caja transparente: sin rótulo ni separador, solo el marco que da la holgura. */
+.mando {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  border: 1px solid transparent;
+  padding: 0;
+  margin: 0;
+}
+
+/* Una sola fila elástica: los botones se estiran y saltan de línea en barra estrecha,
+   en vez de recortar el rótulo o esconderse. */
+.mando-row {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: stretch;
+  gap: 8px;
 }
 
 /* ── Terminal: el botón principal ──────────────────────── */

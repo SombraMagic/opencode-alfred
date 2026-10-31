@@ -35,8 +35,8 @@ sobrescritura se puede borrar desde el propio formulario.
 
 ### Control
 
-La vista hermana del Explorador, en la misma barra. Un acordeón `CONTROLES` con una sola fila
-elástica: el grupo de sesión `‹ [terminal] ›` —el botón principal, abrir la sesión del
+La vista hermana del Explorador, en la misma barra. Sin plegado ni rótulo: una sola fila
+elástica que ocupa toda la vista, con 6 px de aire. El grupo de sesión `‹ [terminal] ›` —el botón principal, abrir la sesión del
 proveedor activo y cambiar de agente— y cuatro botones de módulo **solo icono**: el enchufe
 de los conectores de opencode (apagado con otro proveedor), el cerebro de `OLLAMA` (la pestaña
 de Ollama, que brilla mientras el servidor responde) y los dos apagados del generador de

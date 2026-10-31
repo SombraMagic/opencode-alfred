@@ -136,22 +136,19 @@ export class ControlPanel implements vscode.WebviewViewProvider {
 </head>
 <body>
 <div class="hud">
-  <details class="fold" open>
-    <summary>CONTROLES</summary>
-    <div class="mando">
-      <div class="mando-row">
-        <div class="session-group">
-          <button id="agent-prev" class="agent-arrow" type="button" title="Agente anterior" aria-label="Agente anterior" disabled>‹</button>
-          <button id="btn-session" class="ghost-btn session-btn" type="button" title="Abrir o enfocar la terminal del agente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 24H2V0h20zM17 4.8H7v14.4h10z" fill-rule="evenodd" clip-rule="evenodd"></path></svg><span id="agent-label" hidden>OPEN</span></button>
-          <button id="agent-next" class="agent-arrow" type="button" title="Agente siguiente" aria-label="Agente siguiente" disabled>›</button>
-        </div>
-        <button id="btn-connectors" class="icon-btn" type="button" title="Conectores de opencode" aria-label="Conectores de opencode" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/></svg></button>
-        <button id="btn-mente" class="icon-btn" type="button" title="Ollama (mente local)" aria-label="Ollama (mente local)" aria-pressed="false"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.3 2.3a2 2 0 0 0-2 1.9 2 2 0 0 0-1.1 3.6 2 2 0 0 0 1.4 3.4 2 2 0 0 0 3.3 1.4V3.2a1.7 1.7 0 0 0-1.6-.9Z"/><path d="M9.7 2.3a2 2 0 0 1 2 1.9 2 2 0 0 1 1.1 3.6 2 2 0 0 1-1.4 3.4 2 2 0 0 1-3.3 1.4V3.2a1.7 1.7 0 0 1 1.6-.9Z"/><path d="M4.7 5.4h1.5M4.3 9.1h1.7M11.3 5.4H9.8M11.7 9.1H10"/></svg></button>
-        <button id="btn-image" class="icon-btn" type="button" title="Generador de imágenes (próximamente)" aria-label="Generador de imágenes (próximamente)" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M8.5 9.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg></button>
-        <button id="btn-chatbot" class="icon-btn" type="button" title="Chatbot (próximamente)" aria-label="Chatbot (próximamente)" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z"/></svg></button>
+  <div class="mando">
+    <div class="mando-row">
+      <div class="session-group">
+        <button id="agent-prev" class="agent-arrow" type="button" title="Agente anterior" aria-label="Agente anterior" disabled>‹</button>
+        <button id="btn-session" class="ghost-btn session-btn" type="button" title="Abrir o enfocar la terminal del agente"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 24H2V0h20zM17 4.8H7v14.4h10z" fill-rule="evenodd" clip-rule="evenodd"></path></svg><span id="agent-label" hidden>OPEN</span></button>
+        <button id="agent-next" class="agent-arrow" type="button" title="Agente siguiente" aria-label="Agente siguiente" disabled>›</button>
       </div>
+      <button id="btn-connectors" class="icon-btn" type="button" title="Conectores de opencode" aria-label="Conectores de opencode" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/></svg></button>
+      <button id="btn-mente" class="icon-btn" type="button" title="Ollama (mente local)" aria-label="Ollama (mente local)" aria-pressed="false"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.3 2.3a2 2 0 0 0-2 1.9 2 2 0 0 0-1.1 3.6 2 2 0 0 0 1.4 3.4 2 2 0 0 0 3.3 1.4V3.2a1.7 1.7 0 0 0-1.6-.9Z"/><path d="M9.7 2.3a2 2 0 0 1 2 1.9 2 2 0 0 1 1.1 3.6 2 2 0 0 1-1.4 3.4 2 2 0 0 1-3.3 1.4V3.2a1.7 1.7 0 0 1 1.6-.9Z"/><path d="M4.7 5.4h1.5M4.3 9.1h1.7M11.3 5.4H9.8M11.7 9.1H10"/></svg></button>
+      <button id="btn-image" class="icon-btn" type="button" title="Generador de imágenes (próximamente)" aria-label="Generador de imágenes (próximamente)" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M8.5 9.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg></button>
+      <button id="btn-chatbot" class="icon-btn" type="button" title="Chatbot (próximamente)" aria-label="Chatbot (próximamente)" disabled><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z"/></svg></button>
     </div>
-  </details>
+  </div>
 </div>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
