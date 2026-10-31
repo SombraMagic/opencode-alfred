@@ -816,7 +816,17 @@
     const color = tieneTexto ? titleInk(n, ink) : n.disabled ? OFF : MUTE;
     fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
     outerFrame(ctx, n, x, y, w, h, ink, true);
-    text(ctx, str, x + 8, y + h / 2, Math.max(2, w - 16), color, fontOf(n, 12), "left");
+    // Flecha al final: el mismo campo con aspecto de desplegable. No abre nada, y en una caja
+    // más estrecha que la flecha no se pinta: se saldría del marco.
+    const flecha = Boolean(n.dropdown) && w >= 24;
+    if (flecha) {
+      const ax = x + w - 16;
+      const ay = y + h / 2 - 2;
+      const tinta = n.disabled ? OFF : strokeOf(n, ink);
+      line(ctx, ax, ay, ax + 4, ay + 4, tinta);
+      line(ctx, ax + 4, ay + 4, ax + 8, ay, tinta);
+    }
+    text(ctx, str, x + 8, y + h / 2, Math.max(2, w - 16 - (flecha ? 20 : 0)), color, fontOf(n, 12), "left");
   }
 
   function paintTextarea(ctx, n, x, y, w, h, ink) {

@@ -3,6 +3,17 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.12] - 2026-10-31
+
+- **El `Campo` de `INTERFACES` puede verse como desplegable**: nuevo flag booleano `dropdown`,
+  apagado por defecto, que solo cambia su aspecto —el mismo marco y la misma caja, con una
+  flecha al final y el texto 20 px más corto para no pisarla—. No hay lista de opciones ni
+  comportamiento de lista. Se enciende con la casilla **DESPLEGABLE** del inspector del cajón
+  `INTERFAZ`, que solo sale para ese tipo; con el widget apagado la flecha va en gris, y en cajas
+  de menos de 24 px no se pinta para no salirse del marco. El flag viaja en `pizarra.json` y en
+  el saneado (`sanitizeUi`), así que sobrevive a guardar, cargar e `init`; las escenas anteriores
+  quedan en `false`.
+
 ## [0.7.11] - 2026-10-31
 
 - **Guardar y cargar pizarras con nombre**: dos botones de icono en la tira de pizarras, junto

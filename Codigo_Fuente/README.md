@@ -95,7 +95,9 @@ botón la mete en el bloc como adjunto.
   como la de un texto, un nodo o un conector. Con un widget `image` elegido,
   `Ctrl+V` le pone la imagen del portapapeles. Cada widget se pinta como quieras: fondo
   (automático, sin fondo o color), borde y color y tamaño de su texto, y el menú en fila o en
-  columna; la `LISTA` lleva además icono y barra de desplazamiento opcionales por widget.
+  columna; la `LISTA` lleva además icono y barra de desplazamiento opcionales por widget, y el
+  `CAMPO` una casilla `DESPLEGABLE` que le pinta la flecha final y acorta el texto para no
+  pisarla (solo aspecto: no abre ninguna lista).
   Para anidar, suelta un widget sobre un contenedor (`container`, `window`, `tabs-h`, `tabs-v`,
   `accordion`): entra dentro, y arrastrando uno ya colocado cambia de contenedor o vuelve a la
   raíz sin moverse de donde se ve. La caja útil del destino se marca con un marco discontinuo

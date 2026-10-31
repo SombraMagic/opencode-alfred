@@ -89,6 +89,8 @@ export interface UiNode {
   icon: string;
   src: string;
   disabled: boolean;
+  /** Solo `input`: se pinta como desplegable, con flecha al final. */
+  dropdown: boolean;
   /** `list`: pinta un icono a la izquierda de cada fila. */
   icons: boolean;
   /** `list`: pinta una barra de desplazamiento simulada a la derecha. */
@@ -329,6 +331,7 @@ export function sanitizeUi(raw: unknown): Ui {
       icon: typeof item.icon === "string" && ICON_NAME.test(item.icon) ? item.icon : "",
       src: srcImage(item.src),
       disabled: boolFlag(item.disabled, false),
+      dropdown: boolFlag(item.dropdown, false),
       icons: boolFlag(item.icons, false),
       scroll: boolFlag(item.scroll, false),
       fill: fillOf(item.fill),

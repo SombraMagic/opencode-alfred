@@ -905,7 +905,7 @@
     menu: ["items", "active", "orientation", "disabled"],
     list: ["items", "active", "icon", "icons", "scroll", "disabled"],
     label: ["text", "align", "disabled"],
-    input: ["text", "placeholder", "disabled"],
+    input: ["text", "placeholder", "dropdown", "disabled"],
     textarea: ["text", "placeholder", "disabled"],
     choice: ["options", "checked", "variant", "disabled"],
     button: ["text", "variant", "disabled"],
@@ -918,6 +918,7 @@
     title: { etiqueta: "TÍTULO", tag: "input" },
     text: { etiqueta: "TEXTO", tag: "input" },
     placeholder: { etiqueta: "PISTA", tag: "input" },
+    dropdown: { etiqueta: "DESPLEGABLE", tag: "checkbox" },
     items: { etiqueta: "FILAS (una por línea)", tag: "textarea" },
     active: { etiqueta: "ACTIVA / ABIERTA", tag: "select" },
     options: { etiqueta: "OPCIONES (una por línea)", tag: "textarea" },
@@ -935,7 +936,7 @@
     src: { etiqueta: "IMAGEN", tag: "nota" },
     disabled: { etiqueta: "APAGADO", tag: "checkbox" },
   };
-  const UI_ORDEN = ["title", "text", "placeholder", "items", "active", "options", "checked", "variant", "align", "icon", "orientation", "icons", "scroll", "src", "disabled"];
+  const UI_ORDEN = ["title", "text", "placeholder", "dropdown", "items", "active", "options", "checked", "variant", "align", "icon", "orientation", "icons", "scroll", "src", "disabled"];
 
   /**
    * Paleta: icono y rótulo corto de cada tipo. La librería trae rótulos largos («Pestañas H»,
@@ -1040,6 +1041,8 @@
         icon: typeof n.icon === "string" ? n.icon : "",
         src: typeof n.src === "string" ? n.src : "",
         disabled: n.disabled === true,
+        // Solo `input`: se pinta con flecha al final.
+        dropdown: n.dropdown === true,
         // Solo `list`: icono por fila y barra de desplazamiento simulada.
         icons: n.icons === true,
         scroll: n.scroll === true,
@@ -1091,6 +1094,7 @@
       icon: kind === "icon" ? "user" : "",
       src: "",
       disabled: false,
+      dropdown: false,
       icons: false,
       scroll: false,
       // Estilo obligatorio en el contrato: los defectos del saneado del host, tal cual.
@@ -1352,6 +1356,7 @@
     poner("options", n.options.join("\n"));
     poner("checked", n.checked.join(", "));
     poner("disabled", n.disabled);
+    poner("dropdown", n.dropdown);
     poner("icons", n.icons);
     poner("scroll", n.scroll);
     poner("src", n.src ? "Cargada" : "Sin imagen");
@@ -2104,6 +2109,7 @@
           icon: n.icon || "",
           src: n.src || "",
           disabled: Boolean(n.disabled),
+          dropdown: Boolean(n.dropdown),
           icons: Boolean(n.icons),
           scroll: Boolean(n.scroll),
           fill: n.fill || "auto",

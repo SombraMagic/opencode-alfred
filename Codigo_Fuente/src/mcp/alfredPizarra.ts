@@ -958,7 +958,7 @@ export const PIZARRA_TOOLS = [
           items: {
             type: "object",
             description:
-              "Widget: id, kind, parent (id o null), x, y, w, h (x e y relativos a la caja útil del padre), title, text, placeholder, items, active, options, checked, variant, align, icon, src, disabled, icons, scroll, fill, stroke, titleColor, titleSize y orientation.",
+              "Widget: id, kind, parent (id o null), x, y, w, h (x e y relativos a la caja útil del padre), title, text, placeholder, items, active, options, checked, variant, align, icon, src, disabled, dropdown (input como desplegable), icons, scroll, fill, stroke, titleColor, titleSize y orientation.",
             properties: {
               fill: FILL,
               stroke: STROKE,
@@ -1394,6 +1394,7 @@ async function pizarraUiNodo(args: Record<string, unknown>): Promise<string> {
       icon: "",
       src: "",
       disabled: false,
+      dropdown: false,
       icons: false,
       scroll: false,
     };

@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.11**
+Última revisión: 31 de octubre de 2026 · versión **0.7.12**
 
 ## Resumen
 
@@ -9,7 +9,15 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.11** está empaquetada, sin instalar y sin release: la pizarra se puede **guardar y
+La **0.7.12** está empaquetada, sin instalar y sin release: el `Campo` de la capa `INTERFACES`
+puede verse como desplegable. El flag booleano `dropdown` (apagado por defecto) solo cambia el
+aspecto —el mismo marco y la misma caja, con una flecha al final y el texto 20 px más corto para
+no pisarla—; no hay lista de opciones ni comportamiento de lista. Se enciende con la casilla
+**DESPLEGABLE** del inspector del cajón `INTERFAZ`, que solo sale para ese tipo: con el widget
+apagado la flecha va en gris y en cajas de menos de 24 px no se pinta, para no salirse del marco.
+Viaja en `pizarra.json` y en el saneado (`sanitizeUi`), así que sobrevive a guardar, cargar e
+`init`, y las escenas anteriores quedan en `false`. Va sobre la **0.7.11**, que está empaquetada, sin
+instalar y sin release: la pizarra se puede **guardar y
 cargar con nombre**. Dos botones de icono en la tira de pizarras, junto al `+` y el `−`:
 `GUARDAR` (`#btn-board-save`, disquete) pide un nombre y escribe la pizarra activa —cualquier
 pestaña, también la 1— en `<raíz>/.alfred/.pizarras/<Nombre>/` con `pizarra.json` (escena
