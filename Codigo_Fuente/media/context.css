@@ -85,7 +85,7 @@ body.vscode-light {
   background: var(--bg-soft);
 }
 
-/* ── Rejilla de celdas (10 × 16 = 160, igual que TOTAL en context.js) ── */
+/* ── Rejilla de celdas (10 × 10 = 100, igual que TOTAL en context.js) ── */
 .cells {
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));

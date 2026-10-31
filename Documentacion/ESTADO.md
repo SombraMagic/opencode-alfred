@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.1**
+Última revisión: 31 de octubre de 2026 · versión **0.7.2**
 
 ## Resumen
 
@@ -9,13 +9,14 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.1** está empaquetada, sin instalar y sin release: la barra ALFRED estrena la vista
-**Control** con el lanzador de sesión, los conectores y Mente local, el Explorador se queda con
-`GLOBAL` · `PROYECTO` · `ASIGNAR AGENTES` y el interruptor de permisos, la matriz de Contexto
-pasa a 10 × 16 (mismas 160 celdas, más grandes) y las tarjetas de Límites de consumo recuerdan
-si estaban plegadas. Encima de la **0.7.0**, que arregló el doble clic de la pizarra, la
-colocación armada de widgets, el copiar/pegar del panel, el widget `LISTA`, la maqueta de
-Contexto y el pegado del dictado. Sigue sin release publicada en GitHub.
+La **0.7.2** está empaquetada, sin instalar y sin release: corrige la matriz de Contexto a
+10 × 10 (100 casillas de un 1 %, más baja y cuadrada, sin tocar el ancho de la caja) sobre la
+**0.7.1**, que estrenó la vista **Control** con el lanzador de sesión, los conectores y Mente
+local, dejó al Explorador con `GLOBAL` · `PROYECTO` · `ASIGNAR AGENTES` y el interruptor de
+permisos, y recordó las tarjetas plegadas de Límites de consumo. Encima de la **0.7.0**, que
+arregló el doble clic de la pizarra, la colocación armada de widgets, el copiar/pegar del
+panel, el widget `LISTA`, la maqueta de Contexto y el pegado del dictado. Sigue sin release
+publicada en GitHub.
 
 **opencode es el centro del producto.** La extensión está pensada y orientada a opencode.
 Claude Code y Codex son **experimentales**: se exploran y se manejan en parte, pero su
@@ -103,11 +104,12 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 9. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
    usan en ejecución.
 10. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
-11. **0.7.1 sin ver en vivo**: abrir la vista `Control` y comprobar el acordeón, el botón de
+11. **0.7.2 sin ver en vivo**: abrir la vista `Control` y comprobar el acordeón, el botón de
     sesión con sus flechas, `CONECTOR` apagado fuera de opencode y `MENTE GLOBAL` con su
     brillo; los dos huecos `Próximamente`; que `ASIGNAR AGENTES` se apaga con Claude o Codex;
-    la matriz de Contexto a 10 × 16 en panel estrecho y ancho; y que las tarjetas plegadas de
-    Límites de consumo siguen plegadas tras recargar la ventana.
+    la matriz de Contexto a 10 × 10 cuadrada en panel estrecho y ancho (que no se estire ni
+    aplaste la caja); y que las tarjetas plegadas de Límites de consumo siguen plegadas tras
+    recargar la ventana.
 
 ## Alcance
 

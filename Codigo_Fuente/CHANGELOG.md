@@ -3,6 +3,11 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.2] - 2026-10-31
+
+- **Matriz de Contexto cuadrada**: pasa a 10 × 10 (100 celdas de un 1 %), así que la caja
+  queda más baja sin cambiar de ancho; corrige el 10 × 16 de la 0.7.1.
+
 ## [0.7.1] - 2026-10-31
 
 - **Vista `Control`** en el grupo ALFRED de la barra de actividades: acordeón `CONTROLES` con
