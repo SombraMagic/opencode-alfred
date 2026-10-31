@@ -3,6 +3,18 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.7] - 2026-10-31
+
+- **Vista `Control` en una sola fila elástica**: el grupo de sesión (`‹ [terminal] ›`) pasa a
+  ser el botón principal —más grande, con relleno cian y halo— y a su lado van cuatro botones
+  de módulo **solo icono**: el enchufe de conectores, el cerebro de Ollama y los dos apagados
+  (generador de imágenes y chatbot). Al estrechar, la fila salta a más líneas y los botones se
+  estiran; por debajo no queda nada, así que el panel no saca barra de desplazamiento.
+- **`MENTE GLOBAL` pasa a llamarse `OLLAMA`** en esa vista (título y `aria-label`): el botón ya
+  dice lo que abre.
+- Conserva lo de la 0.7.1: el Explorador sigue sin el lanzador de terminales, `CONECTORES` ni
+  `MENTE LOCAL`.
+
 ## [0.7.6] - 2026-10-31
 
 - **El sello del último sondeo sale de su propia línea**: «hace X min» pasa a la cabecera del

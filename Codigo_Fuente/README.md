@@ -35,11 +35,13 @@ sobrescritura se puede borrar desde el propio formulario.
 
 ### Control
 
-La vista hermana del Explorador, en la misma barra. Un acordeón `CONTROLES` con `‹ [terminal] ›`
-para abrir la sesión del proveedor activo y cambiar de agente, `CONECTOR` (los conectores de
-opencode; apagado con otro proveedor) y `MENTE GLOBAL` (la pestaña de Ollama, que brilla
-mientras el servidor responde). Debajo quedan `GEN. IMÁGENES` y `CHATBOT`, apagados: su hueco
-está reservado.
+La vista hermana del Explorador, en la misma barra. Un acordeón `CONTROLES` con una sola fila
+elástica: el grupo de sesión `‹ [terminal] ›` —el botón principal, abrir la sesión del
+proveedor activo y cambiar de agente— y cuatro botones de módulo **solo icono**: el enchufe
+de los conectores de opencode (apagado con otro proveedor), el cerebro de `OLLAMA` (la pestaña
+de Ollama, que brilla mientras el servidor responde) y los dos apagados del generador de
+imágenes y el chatbot, con su hueco reservado. Al estrechar la barra la fila salta a más
+líneas y los botones se estiran.
 
 ### Contexto
 
@@ -51,8 +53,8 @@ su base SQLite; Claude y Codex por sus ficheros de sesión.
 
 Saldo o topes por proveedor: DeepSeek (saldo), OpenAI (coste del mes), GitHub Copilot
 (cuotas del plan) y OpenCode Go (estimación por tokens). Se enciende por proveedor en el panel
-de conectores (`CONECTOR`, en la vista `Control`); solo sondea con la vista abierta. La tarjeta
-de cada proveedor recuerda si estaba plegada.
+de conectores (el botón de enchufe de la vista `Control`); solo sondea con la vista abierta. La
+tarjeta de cada proveedor recuerda si estaba plegada.
 
 ### Voz (barra lateral derecha) y Dictado (panel inferior)
 
@@ -115,7 +117,8 @@ botón la mete en el bloc como adjunto.
 
 ### Mente local (Ollama)
 
-El cerebro local del equipo, en una pestaña central (`MENTE GLOBAL` en la vista `Control`).
+El cerebro local del equipo, en una pestaña central (el botón de cerebro, `OLLAMA`, en la vista
+`Control`).
 Comprueba si Ollama está instalado y lo instala o desinstala con `winget`;
 encender arranca `ollama serve` si hace falta y apagar para el proceso. El bloque `SERVIDOR`
 tiene además `ARRANCAR` y `PARAR` propios, para gobernar el proceso sin tocar el interruptor

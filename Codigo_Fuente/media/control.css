@@ -1,6 +1,136 @@
-/* ALFRED // CONTROL — lo que explorer.css no cubre: la fila de controles de esta vista. */
-/* En una barra estrecha la fila se envuelve a dos líneas en vez de recortar los rótulos:
-   el selector de sesión no encoge y CONECTOR / MENTE GLOBAL acabarían en «…». */
+/* ALFRED // CONTROL — lo que explorer.css no cubre: el mando de esta vista. */
+/* Una sola fila elástica: los botones se estiran y saltan de línea en barra estrecha,
+   en vez de recortar el rótulo o esconderse. */
 .mando-row {
+  display: flex;
   flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/* Aquí no hay nada debajo de la fila que separar: sin borde ni margen, la vista
+   no genera barra de desplazamiento con los botones en una línea. */
+.mando {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.hud {
+  padding-bottom: 0;
+}
+
+.fold {
+  margin-bottom: 0;
+}
+
+/* ── Terminal: el botón principal ──────────────────────── */
+/* Manda por tamaño y por color; las flechas lo acompañan sin competir. */
+.session-group {
+  flex: 2 1 150px;
+  align-items: stretch;
+}
+
+.session-btn {
+  flex: 1 1 auto;
+  min-height: 36px;
+  padding: 7px 10px;
+  background: color-mix(in srgb, var(--neon) 30%, transparent);
+  border: 1px solid var(--neon);
+  color: var(--neon);
+}
+
+.session-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.session-btn:hover,
+.session-btn:focus-visible {
+  background: color-mix(in srgb, var(--neon) 44%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+  box-shadow: 0 0 8px var(--neon-dim);
+}
+
+/* 20 px de ancho y el alto del grupo: siguen pareciendo parte del botón. */
+.agent-arrow {
+  width: 20px;
+  min-height: 36px;
+  background: transparent;
+  border-color: var(--neon-dim);
+}
+
+/* ── Módulos: solo icono ───────────────────────────────── */
+.icon-btn {
+  flex: 1 1 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.icon-btn svg {
+  flex: none;
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  background: color-mix(in srgb, var(--neon) 18%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+  outline: none;
+}
+
+/* OLLAMA encendida: el servidor responde. Solo cambian color, borde y brillo
+   (nunca `border-width` ni el padding): el botón mide lo mismo encendido que apagado. */
+.icon-btn.on {
+  background: color-mix(in srgb, var(--neon) 22%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+  box-shadow: 0 0 6px var(--neon-dim), 0 0 10px var(--neon-dim);
+}
+
+/* Encendida no se apaga con el ratón: el hover sube el tinte y el halo. */
+.icon-btn.on:hover,
+.icon-btn.on:focus-visible {
+  background: color-mix(in srgb, var(--neon) 32%, transparent);
+  border-color: var(--neon);
+  color: var(--neon);
+  box-shadow: 0 0 8px var(--neon-dim), 0 0 14px var(--neon-dim);
+}
+
+/* Tema claro: el cian oscuro de ese tema no aguanta un trazo de 15 px sobre el tinte.
+   Ahí el encendido va en el relleno, el borde y el halo, y el icono queda en `--text`. */
+body.vscode-light .icon-btn.on,
+body.vscode-light .icon-btn.on:hover,
+body.vscode-light .icon-btn.on:focus-visible {
+  color: var(--text);
+  box-shadow: 0 0 6px var(--neon-dim), 0 0 10px var(--neon-dim);
+}
+
+/* Sin acción posible (otro proveedor, o un hueco sin implementar): apagado y sin brillo.
+   Va después de `.on` para que un botón encendido y deshabilitado también se apague. */
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: var(--text-dim);
+  background: transparent;
+  box-shadow: none;
+}
+
+.icon-btn:disabled:hover,
+.icon-btn:disabled:focus-visible {
+  border-color: var(--line);
+  color: var(--text-dim);
+  background: transparent;
+  box-shadow: none;
 }

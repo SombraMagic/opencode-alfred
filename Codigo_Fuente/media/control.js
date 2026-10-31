@@ -1,4 +1,4 @@
-/* ALFRED // CONTROL — el mando de la vista Control: sesión, conectores y mente local. */
+/* ALFRED // CONTROL — el mando de la vista Control: sesión, conectores y Ollama. */
 (function () {
   const vscode = acquireVsCodeApi();
 
@@ -54,7 +54,7 @@
       ? "Gestionar los conectores de opencode"
       : "Solo con opencode";
 
-    // MENTE GLOBAL brilla mientras el servidor de Ollama responde.
+    // OLLAMA brilla mientras el servidor de Ollama responde.
     const mente = data.menteLocal === true;
     el.mente.classList.toggle("on", mente);
     el.mente.setAttribute("aria-pressed", mente ? "true" : "false");

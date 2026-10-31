@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.6.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.7.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -15,6 +15,15 @@ No hace falta compilar nada ni instalar Node.
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.7.7
+
+- **Vista `Control` en una sola fila elástica**: el grupo de sesión (`‹ [terminal] ›`) pasa a
+  ser el botón principal —más grande, con relleno cian y halo— y a su lado van cuatro botones
+  de módulo **solo icono**: el enchufe de los conectores, el cerebro de `OLLAMA` y los dos
+  apagados del generador de imágenes y el chatbot. Al estrechar, la fila salta a más líneas y
+  los botones se estiran; por debajo no queda nada, así que no sale barra de desplazamiento.
+- **`MENTE GLOBAL` ahora se llama `OLLAMA`** en esa vista, título y `aria-label`.
 
 ## Novedades de la 0.7.6
 
@@ -58,9 +67,10 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 ## Novedades de la 0.7.1
 
 - **Vista `Control`** en la barra ALFRED: acordeón `CONTROLES` con `‹ [terminal] ›` para abrir
-  la sesión y cambiar de agente, `CONECTOR` y `MENTE GLOBAL`. Debajo, `GEN. IMÁGENES` y
-  `CHATBOT` apagados con su hueco «Próximamente».
-- **Explorador más corto**: el lanzador de terminales, `CONECTORES` y `MENTE LOCAL` se mudan a
+  la sesión y cambiar de agente, los conectores y Ollama (hoy, una fila de iconos: enchufe,
+  cerebro de `OLLAMA` y los dos módulos apagados, generador de imágenes y chatbot, con su hueco
+  «Próximamente»).
+- **Explorador más corto**: el lanzador de terminales, los conectores y Ollama se mudan a
   `Control`. Queda `GLOBAL` · `PROYECTO` · `ASIGNAR AGENTES` y, debajo, `ACEPTAR TODOS LOS
   PERMISOS`. `ASIGNAR AGENTES` se apaga cuando el proveedor activo no es opencode.
 - **Contexto**: la matriz pasa de 20 × 8 a 10 × 16, las mismas 160 celdas con casillas más
@@ -73,19 +83,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.6.vsix`.
+3. Elige `opencode-alfred-0.7.7.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.6.vsix
+code --install-extension opencode-alfred-0.7.7.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.6.vsix --force
+code --install-extension opencode-alfred-0.7.7.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

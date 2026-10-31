@@ -41,8 +41,9 @@ Bienvenidos a Alfred.
   patrón, con vista previa del YAML.
 - **Un explorador para tres CLIs.** opencode, Claude Code y Codex en la misma barra:
   agentes, MCP, skills y plugins de cada uno, con interruptores para activar y
-  desactivar. Y una vista **Control** con una terminal por agente, la sesión que toca, los
-  conectores y Mente local.
+  desactivar. Y una vista **Control** con el grupo de sesión (`‹ [terminal] ›`) y una fila de
+  botones de icono: los conectores y `OLLAMA` (Mente local), más los huecos apagados del
+  generador de imágenes y el chatbot.
 - **Contexto bajo control.** Cuánto has gastado de la ventana del modelo, qué parte es
   prompt fijo, y un botón para compactar antes de que reviente.
 - **Estadísticas de verdad.** Tokens, coste, tiempo y sesiones por agente, leídos en
