@@ -3,6 +3,15 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.5] - 2026-10-31
+
+- **El apilado de Contexto baja de 460 a 300 px**: solo en barra absurda la matriz pasa
+  arriba y la leyenda debajo. Entre 300 y 500 px siguen en horizontal y encogen juntas
+  (`.ctx-body` a `minmax(0, 1.2fr)` / `minmax(110px, 1fr)`), así que al estrechar el panel
+  la matriz ya no ocupa todo el ancho ni se come la vista.
+- El resto de la 0.7.4 se queda igual: matriz 10 × 10 achatada (`16 / 9`), `COMPACTAR` en la
+  cabecera de la leyenda y cabecera apretada.
+
 ## [0.7.4] - 2026-10-31
 
 - **`COMPACTAR` dentro de la leyenda**: deja de ser una tercera columna fuera de la caja y

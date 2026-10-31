@@ -215,8 +215,9 @@ abbr {
   background: color-mix(in srgb, var(--neon) 38%, transparent);
 }
 
-/* Barra lateral estrecha: matriz arriba, leyenda y botón debajo. */
-@media (max-width: 460px) {
+/* Solo en barra absurda (menos de 300 px) se apilan: así, al estrechar, la matriz
+   encoge con el panel en vez de estirarse a lo ancho y comerse la vista. */
+@media (max-width: 300px) {
   .ctx-body {
     grid-template-columns: minmax(0, 1fr);
   }

@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.4**
+Última revisión: 31 de octubre de 2026 · versión **0.7.5**
 
 ## Resumen
 
@@ -9,10 +9,13 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.4** está empaquetada, sin instalar y sin release: `COMPACTAR` vuelve a vivir dentro
-de la caja de la leyenda, en su cabecera y a la derecha (más pequeño), y `.ctx-body` vuelve a
-dos columnas; el resto de la 0.7.3 se mantiene (matriz de Contexto 10 × 10 achatada, casillas
-`16 / 9`, cabecera apretada y leyenda repartiendo su alto). Va sobre la **0.7.3**, que aplana
+La **0.7.5** está empaquetada, sin instalar y sin release: el apilado de Contexto pasa de
+460 a 300 px, así que entre 300 y 500 px la matriz y la leyenda siguen en horizontal y
+encogen juntas (`.ctx-body` a `minmax(0, 1.2fr)` / `minmax(110px, 1fr)`) en vez de apilarse
+con la matriz a todo lo ancho. El resto de la 0.7.4 se mantiene: `COMPACTAR` en la cabecera
+de la leyenda, matriz de Contexto 10 × 10 achatada (casillas `16 / 9`), cabecera apretada y
+leyenda repartiendo su alto. Va sobre la **0.7.4**, que devolvió `COMPACTAR` a la caja de la
+leyenda y `.ctx-body` a dos columnas, y sobre la **0.7.3**, que aplana
 la matriz de Contexto
 (casillas anchas y bajas, 10 × 10, la caja baja de ~335 px a ~135-160 px), mueve `COMPACTAR`
 a la derecha de la leyenda y aprieta la cabecera del HUD. Y sobre la **0.7.2**, que corrigió
@@ -110,11 +113,13 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 9. **Limpieza menor**: el `.vsix` arrastra ~1.6 MB de fuentes C++ de `koffi` que no se
    usan en ejecución.
 10. **Claude y Codex en estadísticas de prompts**: hoy solo se miden prompts de opencode.
-11. **0.7.3 y 0.7.4 sin ver en vivo**: abrir la vista `Control` y comprobar el acordeón, el
+11. **0.7.3, 0.7.4 y 0.7.5 sin ver en vivo**: abrir la vista `Control` y comprobar el acordeón, el
     botón de sesión con sus flechas, `CONECTOR` apagado fuera de opencode y `MENTE GLOBAL` con
     su brillo; los dos huecos `Próximamente`; que `ASIGNAR AGENTES` se apaga con Claude o Codex;
     la matriz de Contexto a 10 × 10 achatada en panel estrecho y ancho (verificado en
-    navegador a 450/500/640 px, falta VS Code real) y que `COMPACTAR` vive dentro de la
+    navegador a 450/500/640 px, falta VS Code real), el corte de 300 px de la 0.7.5 (matriz y
+    leyenda en horizontal a 360/400/430/500/640 px, apiladas solo por debajo de 300) y que
+    `COMPACTAR` vive dentro de la
     cabecera de la leyenda, a la derecha, sin desbordarla a 450/500/640 px; y que las tarjetas
     plegadas de Límites de consumo siguen plegadas tras recargar la ventana.
 
