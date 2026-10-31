@@ -3,6 +3,17 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.8] - 2026-10-31
+
+- **El saldo de DeepSeek y el coste de OpenAI se quedaban clavados en el de la primera
+  clave**: la vista `Límites de consumo` leía la clave de `~/.local/share/opencode/auth.json`,
+  que opencode v2 ya no actualiza al cambiar la clave. Ahora `readProviderKey(id)` mira primero
+  la tabla `credential` de las bases de opencode (`active = 1`, la fila más reciente) y solo
+  cae al `auth.json` si no hay. Comprobado en vivo: DeepSeek pasó de 55,38 USD a 5,74 USD, el
+  saldo real.
+- La sonda de `supportsLimits` usa el mismo helper, así que un proveedor con la clave solo en
+  `credential` deja de salir como no soportado.
+
 ## [0.7.7] - 2026-10-31
 
 - **Vista `Control` en una sola fila elástica**: el grupo de sesión (`‹ [terminal] ›`) pasa a

@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.7.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.8.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -15,6 +15,16 @@ No hace falta compilar nada ni instalar Node.
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.7.8
+
+- **El saldo de DeepSeek y el coste de OpenAI ya no se quedan en el de la primera clave**: la
+  vista `Límites de consumo` lee la clave de la tabla `credential` de las bases de opencode (la
+  fila activa más reciente) y solo cae a `auth.json` si no hay. opencode v2 ya no actualiza ese
+  fichero al cambiar la clave, que era la causa. De 55,38 USD a los 5,74 USD reales, comprobado
+  en vivo.
+- Un proveedor cuya clave solo viva en `credential` deja de salir como no soportado por los
+  límites.
 
 ## Novedades de la 0.7.7
 
@@ -83,19 +93,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.7.vsix`.
+3. Elige `opencode-alfred-0.7.8.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.7.vsix
+code --install-extension opencode-alfred-0.7.8.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.7.vsix --force
+code --install-extension opencode-alfred-0.7.8.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

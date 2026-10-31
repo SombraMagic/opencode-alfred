@@ -148,6 +148,54 @@ async function readAuthField(id: string, field: string): Promise<string> {
   return typeof value === "string" ? value : "";
 }
 
+/**
+ * Clave `api` de un proveedor: primero la tabla `credential` (donde opencode v2 guarda
+ * las claves nuevas), luego el auth.json heredado. Nunca se loguea ni viaja al webview.
+ */
+async function readProviderKey(id: string): Promise<string> {
+  let best: { key: string; updated: number } | undefined;
+  for (const file of listDbFiles(opencodeDataDir())) {
+    const db = openSqliteReadOnly(file);
+    if (!db) {
+      continue;
+    }
+    try {
+      const row = db
+        .prepare(
+          "SELECT value, time_updated FROM credential WHERE integration_id = ? AND active = 1 ORDER BY time_updated DESC LIMIT 1"
+        )
+        .get(id) as { value?: unknown; time_updated?: unknown } | undefined;
+      if (!row || typeof row.value !== "string") {
+        continue;
+      }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(row.value);
+      } catch {
+        continue; // `value` ilegible: se prueba con la siguiente BD
+      }
+      const key = (parsed as Record<string, unknown> | undefined)?.key;
+      if (typeof key !== "string" || !key.trim()) {
+        continue;
+      }
+      // Varias bases con clave: manda la fila actualizada más tarde (epoch ms).
+      const updated = finiteNumber(row.time_updated) ?? 0;
+      if (!best || updated > best.updated) {
+        best = { key, updated };
+      }
+    } catch {
+      // BD sin tabla `credential` (esquema v1): se ignora y sigue
+    } finally {
+      try {
+        db.close();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return best ? best.key : await readAuthField(id, "key");
+}
+
 // ── DeepSeek ────────────────────────────────────────────────────────────────
 
 /** Respuesta verificada: { is_available, balance_infos: [{ currency, total_balance, ... }] }. */
@@ -175,7 +223,7 @@ export function parseDeepseekBalance(body: unknown, updatedAt: number): Provider
 }
 
 async function deepseekLimits(at: number): Promise<ProviderLimits> {
-  const key = await readAuthField("deepseek", "key");
+  const key = await readProviderKey("deepseek");
   if (!key) {
     throw new Error("Sin clave de DeepSeek.");
   }
@@ -256,7 +304,7 @@ export function parseOpenaiRateHeaders(
 }
 
 async function openaiLimits(at: number): Promise<ProviderLimits> {
-  const key = await readAuthField("openai", "key");
+  const key = await readProviderKey("openai");
   if (!key) {
     throw new Error("Sin clave de OpenAI.");
   }
@@ -1020,7 +1068,7 @@ export async function supportsLimits(id: string): Promise<boolean> {
 async function probeSupport(id: string): Promise<boolean> {
   try {
     if (id === "deepseek" || id === "openai") {
-      return (await readAuthField(id, "key")) !== "";
+      return (await readProviderKey(id)) !== "";
     }
     if (id === "github-copilot") {
       const access = await readAuthField("github-copilot", "access");

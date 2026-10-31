@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.7**
+Última revisión: 31 de octubre de 2026 · versión **0.7.8**
 
 ## Resumen
 
@@ -9,7 +9,12 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.7** está empaquetada, sin instalar y sin release: la vista **Control** pasa a una sola
+La **0.7.8** está empaquetada, sin instalar y sin release: la vista `Límites de consumo` lee la
+clave de DeepSeek y de OpenAI de la tabla `credential` de las bases de opencode (`active = 1`,
+la fila más reciente) y solo cae a `~/.local/share/opencode/auth.json` si no hay. opencode v2 ya
+no actualiza ese fichero al cambiar la clave, así que el saldo se quedaba clavado en el de la
+primera clave (55,38 USD en vez de 5,74 USD, comprobado en vivo). Va sobre la **0.7.7**,
+paquete sin instalar y sin release, que pasó la vista **Control** a una sola
 fila elástica (`flex-wrap`) con el grupo de sesión `‹ [terminal] ›` como botón principal —más
 grande, relleno cian y halo— y cuatro botones de módulo **solo icono** al lado: el enchufe de
 los conectores, el cerebro de `OLLAMA` y los dos apagados (generador de imágenes y chatbot). Al
