@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.5.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.6.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -15,6 +15,15 @@ No hace falta compilar nada ni instalar Node.
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.7.6
+
+- **Límites de consumo, una línea por ventana**: cada ventana muestra rótulo, barra y `%` en la
+  misma fila. Las de peticiones (Copilot) añaden `hechas / tope` antes del `%`; con la ventana al
+  tope, la barra deja su sitio al tiempo de reanudación en rojo. El saldo o el gasto (DeepSeek,
+  OpenAI) se queda como estaba.
+- **Sello del último sondeo en la cabecera**: «hace X min» deja su línea y pasa a la izquierda de
+  `REFRESCAR`, así que las tarjetas ganan ese alto.
 
 ## Novedades de la 0.7.5
 
@@ -64,19 +73,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.5.vsix`.
+3. Elige `opencode-alfred-0.7.6.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.5.vsix
+code --install-extension opencode-alfred-0.7.6.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.5.vsix --force
+code --install-extension opencode-alfred-0.7.6.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

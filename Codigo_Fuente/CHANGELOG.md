@@ -3,6 +3,17 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.6] - 2026-10-31
+
+- **El sello del último sondeo sale de su propia línea**: «hace X min» pasa a la cabecera del
+  HUD, a la izquierda de `REFRESCAR`, así que la lista de tarjetas gana ese alto.
+- **Cada ventana ocupa una sola línea**: rótulo, barra y `%` a la derecha. Las de peticiones
+  (Copilot) añaden `hechas / tope` antes del `%`; cuando la ventana está al tope, la barra se
+  sustituye por el tiempo de reanudación en rojo, y la ventana sin tope (saldo o gasto) se
+  queda igual.
+- Se borran las reglas huérfanas del CSS (`.win-top`, `.win-foot`, `.win-rest`) y `fmtCorto`
+  de `media/limits.js`, que solo servía al pie «quedan X».
+
 ## [0.7.5] - 2026-10-31
 
 - **El apilado de Contexto baja de 460 a 300 px**: solo en barra absurda la matriz pasa

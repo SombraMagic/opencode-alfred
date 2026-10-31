@@ -1,7 +1,7 @@
 /* Límites de consumo — tarjetas por proveedor con barras de porcentaje */
 
 :root {
-  /* Secundario que no es estado apagado: rótulos de ventana, pie y aviso. */
+  /* Secundario que no es estado apagado: rótulos de ventana y avisos. */
   --text-soft: #8fb4c9;
 }
 
@@ -25,12 +25,13 @@ body.vscode-light {
 }
 
 /* ── Sello del último sondeo ───────────────────────────── */
+/* Va en la cabecera, a la izquierda de REFRESCAR: no ocupa línea propia. */
 .stamp {
-  margin: -6px 0 8px;
+  flex: none;
   font-size: 9px;
   letter-spacing: 1.1px;
   color: var(--text-soft);
-  text-align: right;
+  white-space: nowrap;
 }
 
 /* ── Avisos ────────────────────────────────────────────── */
@@ -134,7 +135,7 @@ body.vscode-light {
 }
 
 .card-body {
-  padding: 6px 6px 8px;
+  padding: 5px 6px 6px;
 }
 
 .card-body[hidden] {
@@ -160,20 +161,22 @@ body.vscode-light {
 }
 
 /* ── Ventanas ──────────────────────────────────────────── */
+/* Cada ventana es una sola línea: rótulo, barra o reanudación, cifras y %. */
+.win {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .win + .win {
-  margin-top: 7px;
-  padding-top: 7px;
+  margin-top: 4px;
+  padding-top: 4px;
   border-top: 1px solid var(--line-soft);
 }
 
-.win-top {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
 .win-label {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   font-size: 10px;
   letter-spacing: 0.7px;
@@ -185,6 +188,16 @@ body.vscode-light {
 
 .win-num {
   flex: none;
+  /* Sin barra (ventana sin tope) la cifra se va al borde derecho. */
+  margin-left: auto;
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.win-pct {
+  flex: none;
   font-size: 10.5px;
   letter-spacing: 0.5px;
   color: var(--text);
@@ -192,8 +205,9 @@ body.vscode-light {
 }
 
 .bar {
+  flex: 1 1 auto;
+  min-width: 32px;
   height: 6px;
-  margin: 4px 0 3px;
   padding: 0;
   background: var(--bg-raised);
   border: 1px solid var(--line-soft);
@@ -216,25 +230,14 @@ body.vscode-light {
   box-shadow: 0 0 6px color-mix(in srgb, var(--magenta) 60%, transparent);
 }
 
-.win-foot {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 9px;
-  letter-spacing: 0.5px;
-  color: var(--text-soft);
-}
-
-.win-rest,
+/* Al tope: el tiempo de reanudación ocupa el sitio de la barra, en rojo. */
 .win-reset {
+  flex: 1 1 auto;
   min-width: 0;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--magenta);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.win-reset {
-  margin-left: auto;
-  text-align: right;
 }

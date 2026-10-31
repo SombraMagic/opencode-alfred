@@ -42,18 +42,11 @@
     return fmtTokens(n);
   }
 
-  // Restante: sin la palabra de la unidad (el rótulo ya dice de qué va).
-  function fmtCorto(n, unidad, moneda) {
-    if (unidad === "usd") return monedaTexto(n, moneda);
-    if (unidad === "solicitudes") return String(Math.round(Number(n) || 0));
-    if (unidad === "porcentaje") return Math.round(Number(n) || 0) + " %";
-    return fmtTokens(n);
-  }
-
   // "usado / tope" con la unidad una sola vez cuando el número la lleva pegada.
+  // En peticiones va sin la palabra: el rótulo de la línea ya dice de qué va.
   function fmtPar(usado, tope, unidad, moneda) {
     if (unidad === "solicitudes") {
-      return Math.round(Number(usado) || 0) + " / " + Math.round(Number(tope) || 0) + " peticiones";
+      return Math.round(Number(usado) || 0) + " / " + Math.round(Number(tope) || 0);
     }
     // En porcentaje el tope siempre es 100: repetirlo no dice nada.
     if (unidad === "porcentaje") return Math.round(Number(usado) || 0) + " %";
@@ -133,7 +126,6 @@
     fmtTokens,
     monedaTexto,
     fmtValor,
-    fmtCorto,
     fmtPar,
     porcentaje,
     tramo,
@@ -193,21 +185,27 @@
     const etiqueta = String(w.label || "Ventana");
     const moneda = w.currency;
 
+    // Una sola línea: rótulo, barra (o el tiempo de reanudación), cifras y %.
     const fila = nodo("div", "win");
 
-    const cabeza = nodo("div", "win-top");
     const nombre = nodo("span", "win-label", etiqueta);
     nombre.title = etiqueta;
-    const num = nodo(
-      "span",
-      "win-num",
-      tope > 0 ? fmtPar(usado, tope, unidad, moneda) : fmtValor(usado, unidad, moneda)
-    );
-    cabeza.append(nombre, num);
-    fila.appendChild(cabeza);
+    fila.appendChild(nombre);
 
-    if (tope > 0) {
-      const pct = porcentaje(usado, tope);
+    // Sin tope no hay barra ni %: se queda el dato a secas (saldo o gasto).
+    if (!(tope > 0)) {
+      fila.appendChild(nodo("span", "win-num", fmtValor(usado, unidad, moneda)));
+      return fila;
+    }
+
+    const pct = porcentaje(usado, tope);
+
+    if (usado >= tope) {
+      // Al tope la barra no dice nada: su sitio lo ocupa cuándo vuelve a haber cuota.
+      fila.appendChild(
+        nodo("span", "win-reset", reponeTexto(w.resetsAt, Date.now()) || "al límite")
+      );
+    } else {
       const barra = nodo("div", "bar");
       barra.setAttribute("role", "progressbar");
       barra.setAttribute("aria-label", etiqueta);
@@ -221,16 +219,11 @@
       fila.appendChild(barra);
     }
 
-    const pie = nodo("div", "win-foot");
-    // En porcentaje el número de arriba ya es el consumo: «quedan 0 %» sobra.
-    if (tope > 0 && unidad !== "porcentaje") {
-      pie.appendChild(
-        nodo("span", "win-rest", "quedan " + fmtCorto(Math.max(0, tope - usado), unidad, moneda))
-      );
+    // Solo las ventanas por peticiones necesitan las cifras: el % no dice cuánto queda.
+    if (unidad === "solicitudes") {
+      fila.appendChild(nodo("span", "win-num", fmtPar(usado, tope, unidad, moneda)));
     }
-    const repone = reponeTexto(w.resetsAt, Date.now());
-    if (repone) pie.appendChild(nodo("span", "win-reset", repone));
-    if (pie.childNodes.length > 0) fila.appendChild(pie);
+    fila.appendChild(nodo("span", "win-pct", Math.round(pct) + " %"));
 
     return fila;
   }
