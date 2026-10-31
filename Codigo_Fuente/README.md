@@ -96,10 +96,16 @@ botón la mete en el bloc como adjunto.
   `Ctrl+V` le pone la imagen del portapapeles. Cada widget se pinta como quieras: fondo
   (automático, sin fondo o color), borde y color y tamaño de su texto, y el menú en fila o en
   columna; la `LISTA` lleva además icono y barra de desplazamiento opcionales por widget.
+  Para anidar, suelta un widget sobre un contenedor (`container`, `window`, `tabs-h`, `tabs-v`,
+  `accordion`): entra dentro, y arrastrando uno ya colocado cambia de contenedor o vuelve a la
+  raíz sin moverse de donde se ve. La caja útil del destino se marca con un marco discontinuo
+  cian mientras arrastras o apuntas con la paleta.
 - **Edición**: deshacer/rehacer de 50 pasos, `Ctrl+C`/`Ctrl+V` dentro del panel (nodos con sus
   conectores, conector suelto, widget con su subárbol, texto e imagen), multi-selección con
   alinear y distribuir, guías
-  y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles. La barra es
+  y rejilla, ajuste del lienzo al contenido y `COPIAR MERMAID` al portapapeles. El ajuste
+  encaja también la capa INTERFACES: la caja absoluta de cada widget entra en la medida, así
+  que una pizarra solo de widgets se encaja y el PNG que sube al bloc los incluye. La barra es
   una sola fila y cada herramienta abre su ventana de ajustes en un cajón superpuesto
   (`NODO`, `CONECTOR`, `TEXTO`, `LÁPIZ`, `BORRADOR` e `INTERFAZ`), que se cierra con su ✕ o
   con `Esc` y no le come alto al lienzo.

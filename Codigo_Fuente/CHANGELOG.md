@@ -3,6 +3,20 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.10] - 2026-10-31
+
+- **Los widgets de `INTERFACES` se anidan**: soltar uno de la paleta sobre un contenedor
+  (`container`, `window`, `tabs-h`, `tabs-v`, `accordion`) lo mete dentro, con coordenadas
+  relativas a su caja útil; arrastrar uno ya colocado lo reanida entre contenedores y, sacado
+  fuera, vuelve a la raíz sin moverse de donde se ve. La caja útil del destino se marca con un
+  marco discontinuo cian mientras se arrastra o se apunta con la paleta. Tope de 8 niveles, el
+  mismo del saneado. Nuevos ayudantes en `PZUi`: `hosts`, `depthOf`, `contentRect`, `hostAt`,
+  `adopt`, `detach` y `MAX_DEPTH`.
+- **Encajar (`#btn-fit`) mide también `INTERFACES`**: `ajustarLienzo()` suma la caja absoluta de
+  cada widget y desplaza solo las raíces (los hijos van relativos), así que una pizarra solo de
+  widgets ya se encaja, ningún widget queda fuera del lienzo nuevo y el PNG que se pega en el
+  bloc de notas (`requestPng` → «subirPizarra») los incluye.
+
 ## [0.7.9] - 2026-10-31
 
 - **La vista `Control` pierde el plegado `CONTROLES`**: fuera el `<details>`/`<summary>`, la fila

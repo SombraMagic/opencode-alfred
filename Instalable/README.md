@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.9.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.10.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -15,6 +15,14 @@ No hace falta compilar nada ni instalar Node.
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.7.10
+
+- **Los widgets de interfaces se anidan**: suelta uno de la paleta sobre un contenedor y entra
+  dentro; arrastra uno ya colocado y cambia de contenedor, o sale a la raíz sin moverse de donde
+  se ve. Un marco discontinuo cian marca la caja útil que lo va a recibir. Tope de 8 niveles.
+- **`Encajar` cuenta los widgets**: el lienzo se ajusta también a la capa de interfaces, así que
+  una pizarra solo de widgets se encaja y el PNG que se pega en el bloc los incluye.
 
 ## Novedades de la 0.7.9
 
@@ -99,19 +107,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.9.vsix`.
+3. Elige `opencode-alfred-0.7.10.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.9.vsix
+code --install-extension opencode-alfred-0.7.10.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.9.vsix --force
+code --install-extension opencode-alfred-0.7.10.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

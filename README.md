@@ -59,7 +59,8 @@ Bienvenidos a Alfred.
   encender, Ollama aparece en los conectores y en la asignación de modelos de opencode.
 - **Pizarra.** Dibuja, pega imágenes y mándalo al prompt como si fuera un adjunto. Tiene una
   capa de diagrama para dibujar workflows con nodos y conectores, una capa de interfaces para
-  maquetar wireframes, y exporta el diagrama como Mermaid. Una sola barra: cada herramienta
+  maquetar wireframes (los widgets se anidan soltándolos sobre un contenedor), y exporta el
+  diagrama como Mermaid. Una sola barra: cada herramienta
   abre su ventana de ajustes sobre el lienzo. Varias pizarras en pestañas: la
   primera es la que ven los agentes.
 - **Visor Alfred 3D.** Abre ficheros `.blend` como pestaña de edición: órbita, objetos,

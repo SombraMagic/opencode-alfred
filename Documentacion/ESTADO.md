@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.9**
+Última revisión: 31 de octubre de 2026 · versión **0.7.10**
 
 ## Resumen
 
@@ -9,8 +9,15 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.9** está empaquetada, sin instalar y sin release: la vista **Control** pierde el plegado
-`CONTROLES` (fuera `<details>`/`<summary>`) y la fila de botones ocupa toda la vista, con borde
+La **0.7.10** está empaquetada, sin instalar y sin release: los widgets de `INTERFACES` se
+anidan (soltar uno de la paleta sobre un contenedor —`container`, `window`, `tabs-h`, `tabs-v`,
+`accordion`— lo mete dentro con coordenadas relativas a su caja útil; arrastrar uno colocado lo
+reanida y, sacado fuera, vuelve a la raíz sin saltar de sitio; la caja útil del destino se marca
+con un marco discontinuo cian y hay tope de 8 niveles, el del saneado) y encajar (`#btn-fit`)
+mide también esa capa: `ajustarLienzo()` suma la caja absoluta de cada widget y desplaza solo
+las raíces, así que una pizarra solo de widgets se encaja y el PNG de `requestPng` los incluye.
+Va sobre la **0.7.9**, que está empaquetada, sin instalar y sin release: la vista **Control**
+pierde el plegado `CONTROLES` (fuera `<details>`/`<summary>`) y la fila de botones ocupa toda la vista, con borde
 transparente y 6 px de margen arriba, izquierda y derecha (abajo, 0), sin scroll. Va sobre la
 **0.7.8**, que está empaquetada, sin instalar y sin release: la vista `Límites de consumo` lee la
 clave de DeepSeek y de OpenAI de la tabla `credential` de las bases de opencode (`active = 1`,

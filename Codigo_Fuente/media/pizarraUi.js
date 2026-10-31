@@ -243,6 +243,107 @@
     return out;
   }
 
+  // ── Anidado: quién puede contener y quién entra dónde ─────
+
+  /** Tipos que pueden contener hijos. El resto (label, button, list, menu, input...) nunca. */
+  const HOST_KINDS = ["container", "window", "tabs-h", "tabs-v", "accordion"];
+
+  /** Tope de anidado: el mismo `MAX_UI_DEPTH` de `src/pizarra/ui.ts`. */
+  const MAX_DEPTH = 8;
+
+  /** `true` si el widget puede contener hijos. */
+  function hosts(node) {
+    return !!node && HOST_KINDS.indexOf(node.kind) >= 0;
+  }
+
+  /** Número de ancestros: la raíz tiene 0. */
+  function depthOf(nodes, node) {
+    let d = 0;
+    let cur = node;
+    // El tope de vueltas es el mismo que el de `place`: un ciclo no cuelga el panel.
+    while (cur && cur.parent != null && d < 64) {
+      const p = find(nodes, cur.parent);
+      if (!p) break;
+      d += 1;
+      cur = p;
+    }
+    return d;
+  }
+
+  /** Caja útil en absoluto: donde se coloca un hijo y a lo que van relativas sus `x`/`y`. */
+  function contentRect(nodes, node) {
+    if (!node) return { x: 0, y: 0, w: 0, h: 0 };
+    const b = place(nodes, node);
+    const cb = contentBox(node);
+    return { x: b.x + cb.dx, y: b.y + cb.dy, w: cb.w, h: cb.h };
+  }
+
+  /** El widget y todo lo que cuelga de él: nadie se mete dentro de sí mismo ni de un hijo. */
+  function rama(nodes, node) {
+    const ids = {};
+    if (!node) return ids;
+    const all = nodes || [];
+    const pila = [node.id];
+    while (pila.length) {
+      const id = pila.pop();
+      if (ids[id]) continue;
+      ids[id] = true;
+      for (let i = 0; i < all.length; i++) {
+        if (all[i] && all[i].parent === id) pila.push(all[i].id);
+      }
+    }
+    return ids;
+  }
+
+  /**
+   * Contenedor hospedable más cercano bajo el punto: parte del golpe y sube por `parent`.
+   * `excluir` veta ese widget y su rama; los vetados se saltan en el golpe, no valen como
+   * tapadera. `null` si no hay ninguno.
+   *
+   * Aquí no sirve `hit`: al arrastrar, el widget sigue al puntero y siempre está encima, así
+   * que el golpe devolvería el que se mueve y su rama vetada taparía el destino de debajo.
+   */
+  function hostAt(nodes, x, y, excluir) {
+    const vetado = excluir ? rama(nodes, excluir) : null;
+    const order = paintOrder(nodes);
+    // Mismo criterio que `hit`: el último pintado es el primero en recibir el golpe.
+    for (let i = order.length - 1; i >= 0; i--) {
+      const n = order[i];
+      if (vetado && vetado[n.id]) continue;
+      const b = place(nodes, n);
+      if (b.w <= 0 || b.h <= 0) continue;
+      if (x < b.x || y < b.y || x > b.x + b.w || y > b.y + b.h) continue;
+      let cur = n;
+      let guard = 0;
+      while (cur && guard++ < 64) {
+        if (hosts(cur) && !(vetado && vetado[cur.id])) return cur;
+        cur = cur.parent == null ? null : find(nodes, cur.parent);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Reparenta conservando la posición: `x`/`y` absolutos del punto donde se suelta.
+   * Con `host` nulo el widget vuelve a la raíz y se queda con coordenadas absolutas; dentro,
+   * quedan relativas a la caja útil del contenedor y nunca por debajo de 0.
+   */
+  function adopt(nodes, node, host, x, y) {
+    if (!node) return;
+    if (host && rama(nodes, node)[host.id]) return;
+    const util = host ? contentRect(nodes, host) : null;
+    node.parent = host ? host.id : null;
+    node.x = host ? Math.max(0, num(x, 0) - util.x) : num(x, 0);
+    node.y = host ? Math.max(0, num(y, 0) - util.y) : num(y, 0);
+  }
+
+  /** Saca el widget a la raíz sin moverlo de donde se ve. */
+  function detach(nodes, node) {
+    if (!node) return;
+    const caja = place(nodes, node);
+    adopt(nodes, node, null, caja.x, caja.y);
+  }
+
   // ── Golpe y simulación de clic ─────────────────────────────
 
   /**
@@ -938,9 +1039,16 @@
       return s ? { w: s.w, h: s.h } : { w: 120, h: 32 };
     },
     contentBox: contentBox,
+    contentRect: contentRect,
     children: children,
     place: place,
     hit: hit,
+    hosts: hosts,
+    depthOf: depthOf,
+    hostAt: hostAt,
+    adopt: adopt,
+    detach: detach,
+    MAX_DEPTH: MAX_DEPTH,
     click: click,
     draw: draw,
     handlePoints: handlePoints,

@@ -1121,20 +1121,35 @@
       paintLayers();
     }
     const nodo = widgetNuevo(kind);
-    // El clic manda siempre: la esquina superior izquierda cae donde se suelta.
-    nodo.x = ajusta(p.x);
-    nodo.y = ajusta(p.y);
+    // El clic manda: sobre un contenedor el widget entra dentro y sus `x`/`y` pasan a ser
+    // relativas a la caja útil; en el vacío, la esquina cae donde se suelta.
+    const cont = hostDestino(p, null);
+    if (cont) {
+      nodo.parent = cont.id;
+      const util = PZUi.contentRect(state.ui.nodes, cont);
+      nodo.x = ajusta(Math.max(0, p.x - util.x));
+      nodo.y = ajusta(Math.max(0, p.y - util.y));
+    } else {
+      nodo.x = ajusta(p.x);
+      nodo.y = ajusta(p.y);
+    }
     state.ui.nodes.push(nodo);
     setTool("select");
     selectUi(nodo);
     changed();
     commit();
+    const añadido = `${etiquetaUi(kind)} añadido${cont ? ` dentro de ${etiquetaUi(cont.kind)}` : ""}.`;
     setStatus(
-      capaApagada
-        ? "La capa INTERFACES estaba oculta: la enciendo. Widget añadido."
-        : `Interfaz: ${etiquetaUi(kind)} añadido.`,
+      capaApagada ? `La capa INTERFACES estaba oculta: la enciendo. Interfaz: ${añadido}` : `Interfaz: ${añadido}`,
       "ok"
     );
+  }
+
+  /** Contenedor que recibiría un widget soltado en `p`, si aún cabe un nivel más. */
+  function hostDestino(p, excluir) {
+    if (!PZUi) return null;
+    const cont = PZUi.hostAt(state.ui.nodes, p.x, p.y, excluir);
+    return cont && PZUi.depthOf(state.ui.nodes, cont) + 1 <= PZUi.MAX_DEPTH ? cont : null;
   }
 
   /** Nombre visible de un tipo de widget. */
@@ -1233,10 +1248,7 @@
       setStatus("El widget ya está en la raíz de INTERFACES.");
       return;
     }
-    const caja = PZUi.place(state.ui.nodes, selUi);
-    selUi.parent = null;
-    selUi.x = red(caja.x);
-    selUi.y = red(caja.y);
+    PZUi.detach(state.ui.nodes, selUi);
     changed();
     commit();
     syncUiControls();
@@ -2902,15 +2914,33 @@
       octx.fillText(rotulo, x + w / 2, y + h / 2);
       octx.restore();
     };
+    // Caja útil del contenedor que va a recibir un widget: mismo trazo discontinuo, sin rótulo.
+    const cajaHost = (r) => {
+      octx.save();
+      octx.globalAlpha = 0.6;
+      octx.strokeStyle = "#00e5ff";
+      octx.lineWidth = px(2);
+      octx.setLineDash([px(6), px(4)]);
+      octx.strokeRect(r.x, r.y, r.w, r.h);
+      octx.restore();
+    };
     if (puntero && !drag) {
       // Lo armado cae donde está el puntero: el fantasma enseña ese mismo punto.
       if (pendiente && PZUi) {
         const tam = PZUi.defaults(pendiente);
         // El widget se coloca con `ajusta`, así que el recuadro también se pega a la rejilla.
         fantasma(ajusta(puntero.x), ajusta(puntero.y), tam.w, tam.h, etiquetaUi(pendiente));
+        // Sobre un contenedor entrará dentro: se enseña la caja útil que lo va a recibir.
+        const cont = hostDestino(puntero, null);
+        if (cont) cajaHost(PZUi.contentRect(state.ui.nodes, cont));
       } else if (tool === "text") {
         fantasma(puntero.x, puntero.y, Math.max(40, Math.min(420, W)), Math.max(20, Math.min(50, H)), "texto");
       }
+    }
+
+    // Arrastrando un widget: la caja útil del contenedor que lo recogerá al soltar.
+    if (drag && drag.kind === "ui-mover" && drag.host) {
+      cajaHost(PZUi.contentRect(state.ui.nodes, drag.host));
     }
 
     if (
@@ -3895,6 +3925,7 @@
     }
 
     if (drag.kind === "ui-mover") {
+      drag.p = p;
       const x = ajusta(drag.inicio.x + (p.x - drag.desde.x));
       const y = ajusta(drag.inicio.y + (p.y - drag.desde.y));
       // Un temblor dentro de la misma celda de la rejilla no es un gesto: ni redibuja ni entra
@@ -3903,6 +3934,8 @@
       if (!drag.movido) return;
       drag.nodo.x = x;
       drag.nodo.y = y;
+      // Destino del reanidado, para la pista del overlay.
+      drag.host = hostDestino(p, drag.nodo);
       redraw();
       return;
     }
@@ -4338,8 +4371,36 @@
       return;
     }
 
-    // Widgets de INTERFACES: sin movimiento no hay gesto.
-    if (d.kind === "ui-mover" || d.kind === "ui-tamano") {
+    // Widgets de INTERFACES: al soltar, el widget se reanida en el contenedor que tenga debajo.
+    if (d.kind === "ui-mover") {
+      if (!d.movido) {
+        redraw();
+        return;
+      }
+      // El arrastre dejó `x`/`y` en coordenadas del padre de antes, pero `adopt`/`detach`
+      // parten de la caja absoluta: el widget no salta de donde se ve.
+      const cand = PZUi.hostAt(state.ui.nodes, d.p.x, d.p.y, d.nodo);
+      if (cand && cand.id !== d.nodo.parent) {
+        if (PZUi.depthOf(state.ui.nodes, cand) + 1 <= PZUi.MAX_DEPTH) {
+          // Se reparenta con la caja absoluta de antes, no con el puntero: la esquina no salta.
+          const caja = PZUi.place(state.ui.nodes, d.nodo);
+          PZUi.adopt(state.ui.nodes, d.nodo, cand, caja.x, caja.y);
+          setStatus(`Widget metido dentro de ${etiquetaUi(cand.kind)}.`);
+        } else {
+          setStatus(`No caben más de ${PZUi.MAX_DEPTH} niveles de widgets.`, "error");
+        }
+      } else if (!cand && d.nodo.parent != null) {
+        PZUi.detach(state.ui.nodes, d.nodo);
+        setStatus("Widget sacado a la raíz de INTERFACES.");
+      }
+      redraw();
+      changed();
+      commit();
+      return;
+    }
+
+    // Tamaño del widget: sin movimiento no hay gesto.
+    if (d.kind === "ui-tamano") {
       if (!d.movido) {
         redraw();
         return;
@@ -4525,6 +4586,13 @@
       }
       cajas.push({ x0: sx0, y0: sy0, x1: sx1, y1: sy1 });
     }
+    // La capa INTERFACES también manda: si un widget queda fuera del lienzo, no sale en el PNG.
+    if (PZUi) {
+      for (const n of state.ui.nodes) {
+        const c = PZUi.place(state.ui.nodes, n);
+        cajas.push({ x0: c.x, y0: c.y, x1: c.x + c.w, y1: c.y + c.h });
+      }
+    }
     if (!cajas.length) {
       setStatus("No hay nada que encajar todavía.", "error");
       return;
@@ -4567,6 +4635,15 @@
         for (const p of s.pts) {
           p.x += dx;
           p.y += dy;
+        }
+      }
+      // Los hijos siguen a su padre: solo se desplazan las raíces.
+      if (PZUi) {
+        for (const n of state.ui.nodes) {
+          if (n.parent == null) {
+            n.x += dx;
+            n.y += dy;
+          }
         }
       }
     }
