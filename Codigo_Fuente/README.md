@@ -39,9 +39,9 @@ La vista hermana del Explorador, en la misma barra. Sin plegado ni rótulo: una 
 elástica que ocupa toda la vista, con 6 px de aire. El grupo de sesión `‹ [terminal] ›` —el botón principal, abrir la sesión del
 proveedor activo y cambiar de agente— y cuatro botones de módulo **solo icono**: el enchufe
 de los conectores de opencode (apagado con otro proveedor), el cerebro de `OLLAMA` (la pestaña
-de Ollama, que brilla mientras el servidor responde) y los dos apagados del generador de
-imágenes y el chatbot, con su hueco reservado. Al estrechar la barra la fila salta a más
-líneas y los botones se estiran.
+de Ollama, que brilla mientras el servidor responde), la foto del generador de imágenes y el
+bocadillo del chatbot, este último apagado, con su hueco reservado. Al estrechar la barra la
+fila salta a más líneas y los botones se estiran.
 
 ### Contexto
 
@@ -151,6 +151,21 @@ Ollama sale en `CONECTORES` y en `ASIGNAR AGENTES`; al apagar lo retira. Descarg
 con el cerebro encendido reescribe el proveedor, y al activar la extensión el servidor vuelve
 solo si estaba encendido. No toca credenciales ni los demás proveedores, y el config se edita
 con `jsonc-parser` conservando los comentarios.
+
+### Generador de imágenes IA
+
+Pestaña central, desde el botón de foto de la vista `Control`. Dos motores:
+
+- **ComfyUI**: texto a imagen e imagen a imagen contra un servidor propio (URL, puerto y todo
+  lo que haga falta en el panel; por defecto `http://localhost:8188`). Los checkpoints y las
+  LoRAs salen del propio servidor (`/object_info`), y un trabajo muestra su progreso en la
+  barra sin reenviar la imagen de partida en cada tick.
+- **OpenAI**: texto a imagen con una clave propia, guardada en `secrets`
+  (`opencodeAgents.imageGen.openaiKey`); al panel solo vuelve si hay clave o no.
+
+Los lados se recortan a 2048 px y a múltiplos de 8 en el host, con aviso. Las imágenes se
+guardan en `.alfred/imagenes` (sin proyecto abierto, en el almacén global) y el historial es esa
+carpeta: las 20 últimas, con miniatura y el motor que las hizo.
 
 ### Visor Alfred 3D (`.blend`)
 

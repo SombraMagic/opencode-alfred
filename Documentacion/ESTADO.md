@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 31 de octubre de 2026 · versión **0.7.14**
+Última revisión: 31 de octubre de 2026 · versión **0.7.15**
 
 ## Resumen
 
@@ -9,7 +9,16 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.14** está empaquetada, sin instalar y sin release: los widgets de `INTERFACES` se
+La **0.7.15** está empaquetada e instalada (`--force`), sin release en GitHub: la pestaña
+central **Generador de imágenes IA**, que abre el botón de foto de la vista `Control` (antes
+apagado). Dos motores: **ComfyUI** por su API HTTP (texto a imagen e imagen a imagen, con los
+checkpoints y las LoRAs que tenga el servidor) y **OpenAI** (texto a imagen, con la clave en
+`secrets`; al webview solo vuelve si hay clave o no). Las imágenes se guardan en
+`.alfred/imagenes` —sin proyecto, en el almacén global— y el historial es esa carpeta: las 20
+últimas. Los lados se recortan a 2048 px y a múltiplos de 8 en el host, con aviso, y el progreso
+de un trabajo va en mensaje aparte para no reenviar la imagen de partida en cada tick. **Sin ver
+en VS Code**: la webview real, la CSP, los diálogos nativos y el portapapeles. Va sobre la
+**0.7.14**, instalada, sin release, en la que los widgets de `INTERFACES` se
 **ajustan a la rejilla en absoluto**, no a la coordenada relativa de su contenedor. Como el
 widget guarda su `x`/`y` relativos a la caja útil del padre (la barra de 28 px de una ventana,
 la tira de 26 de las pestañas, los 110 de las pestañas verticales), el ajuste aplicado sobre esa
@@ -197,6 +206,10 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
     `COMPACTAR` vive dentro de la
     cabecera de la leyenda, a la derecha, sin desbordarla a 450/500/640 px; y que las tarjetas
     plegadas de Límites de consumo siguen plegadas tras recargar la ventana.
+12. **Generador de imágenes en VS Code real**: el botón de foto de `Control` y su pestaña, la
+    CSP de la webview, los diálogos nativos y el portapapeles, y un trabajo de punta a punta con
+    ComfyUI y con OpenAI. ComfyUI se levantó a mano para probar el código
+    (`main.py --port 8188`), pero la vista no se ha abierto en VS Code.
 
 ## Alcance
 

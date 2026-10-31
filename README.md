@@ -42,8 +42,8 @@ Bienvenidos a Alfred.
 - **Un explorador para tres CLIs.** opencode, Claude Code y Codex en la misma barra:
   agentes, MCP, skills y plugins de cada uno, con interruptores para activar y
   desactivar. Y una vista **Control** con el grupo de sesión (`‹ [terminal] ›`) y una fila de
-  botones de icono: los conectores y `OLLAMA` (Mente local), más los huecos apagados del
-  generador de imágenes y el chatbot.
+  botones de icono: los conectores, `OLLAMA` (Mente local) y el generador de imágenes, más
+  el hueco apagado del chatbot.
 - **Contexto bajo control.** Cuánto has gastado de la ventana del modelo, qué parte es
   prompt fijo, y un botón para compactar antes de que reviente.
 - **Estadísticas de verdad.** Tokens, coste, tiempo y sesiones por agente, leídos en
@@ -57,6 +57,9 @@ Bienvenidos a Alfred.
 - **Mente local.** El cerebro Ollama, en su pestaña: instalar o desinstalar con `winget`,
   modelos con su tamaño y el espacio del disco, descargar, borrar y encender o apagar. Al
   encender, Ollama aparece en los conectores y en la asignación de modelos de opencode.
+- **Generador de imágenes.** Texto a imagen e imagen a imagen con un ComfyUI propio (con sus
+  checkpoints y LoRAs) o con OpenAI y tu clave. Las imágenes quedan en `.alfred/imagenes` y el
+  panel enseña las 20 últimas.
 - **Pizarra.** Dibuja, pega imágenes y mándalo al prompt como si fuera un adjunto. Tiene una
   capa de diagrama para dibujar workflows con nodos y conectores, una capa de interfaces para
   maquetar wireframes (los widgets se anidan soltándolos sobre un contenedor), y exporta el
@@ -85,12 +88,13 @@ formato que el CLI espera, sin pisar comentarios ni claves que no gestiona la ex
 | `config.toml` de Codex | Solo si usas Codex (experimental) |
 | `%APPDATA%\voz\config.json` | Ajustes de voz para que el MCP los vea |
 | `<raíz>/.alfred/adjuntos` | Adjuntos del dictado; sin proyecto, en el almacenamiento global |
+| `<raíz>/.alfred/imagenes` | Imágenes generadas por el panel de imágenes; sin proyecto, en el almacenamiento global |
 | `<almacén global>/alfred3d/` y `<nombre>.glb` junto al `.blend` | Caché del visor 3D y sidecar que se lee cuando no hay Blender; el `.blend` nunca se guarda |
 
 No escribe `~/.claude.json` (las conmutaciones de MCP pasan por el propio CLI) y nunca
 manda credenciales al webview: las claves viven en `secrets` de VS Code. Solo sale a la
-red si lo pides, al consultar límites de consumo o al elegir un motor de voz o dictado en
-la nube.
+red si lo pides, al consultar límites de consumo, al generar imágenes o al elegir un motor
+de voz o dictado en la nube.
 
 ## Instalación
 

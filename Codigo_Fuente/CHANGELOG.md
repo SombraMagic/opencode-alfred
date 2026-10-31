@@ -3,6 +3,21 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.15] - 2026-10-31
+
+- **Pestaña central «Generador de imágenes IA»**: el botón de imagen de la vista `Control` abre
+  el panel (`imageGenPanel` + `media/imageGen.*`), antes apagado. Dos motores: **ComfyUI** por su
+  API HTTP en el servidor que se indique (defecto `http://localhost:8188`), con **texto a
+  imagen** e **imagen a imagen** (prompt, imagen de partida y fuerza de denoise), y los
+  **checkpoints** y **LoRAs** que tenga instalados el servidor, leídos de `/object_info`; y
+  **OpenAI** para texto a imagen con clave propia, guardada en `secrets`
+  (`opencodeAgents.imageGen.openaiKey`) y nunca devuelta al webview (solo `hasKey`).
+- **Las imágenes se guardan solas en `.alfred/imagenes`** (sin proyecto abierto, en el almacén
+  global) y el historial es esa carpeta: las 20 últimas, con su miniatura y el motor que las
+  hizo. El progreso de un trabajo de ComfyUI llega en mensajes aparte, así que la vista previa de
+  la imagen de partida no se reenvía en cada tick.
+- Los lados se recortan a 2048 px y a múltiplos de 8 en el host, con aviso en el panel.
+
 ## [0.7.14] - 2026-10-31
 
 - **La rejilla encaja en el lienzo, no en el contenedor**: un widget de `INTERFACES` guarda su
