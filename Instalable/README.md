@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.6.2.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.0.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -16,20 +16,21 @@ No hace falta compilar nada ni instalar Node.
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
 
-## Novedades de la 0.5.0
+## Novedades de la 0.7.0
 
-- **Mente local**: pestaña nueva con el cerebro Ollama del equipo. El botón `MENTE LOCAL` del
-  mando del Explorador la abre. Instala o desinstala Ollama con `winget`, enciende y apaga el
-  servidor, lista los modelos con su tamaño y el espacio del disco, descarga con progreso y
-  cancelación, borra y marca un modelo preferido.
-- **Ollama en opencode**: al encender escribe el proveedor `ollama` en el `opencode.json(c)`
-  global, así que sale en `CONECTORES` y en `ASIGNAR AGENTES`; al apagar lo retira. Si quedó
-  encendido, el servidor vuelve al activar la extensión.
-- **Multipizarra**: la pizarra pasa a tener una tira de pestañas, con `+` para añadir y `−`
-  para eliminar. La pizarra 1 no se puede borrar: es la que leen y editan los agentes. Las
-  demás viven cada una en su carpeta; cambiar de pestaña guarda lo dibujado en la que se deja.
-  `GUARDAR` escribe el PNG y la escena editable (`.json`).
-- La `PIZARRA` sigue en su sitio: ahora se abre desde `SUBIR PIZARRA`, en el bloc del dictado.
+- **Pizarra, doble clic**: ya no crea nada; edita la etiqueta de lo que haya debajo (texto,
+  widget, nodo o conector) y en el vacío no hace nada.
+- **Pizarra, widgets de `INTERFACES`**: se colocan por botón. El botón queda luminoso, el
+  widget sigue al puntero como fantasma y cae con su esquina donde se hace clic. `Esc` o
+  cerrar la paleta cancela.
+- **Pizarra, copiar y pegar**: `Ctrl+C`/`Ctrl+V` copian nodos con sus conectores, conectores
+  sueltos, widgets con su subárbol, textos e imágenes. La copia vive en el panel.
+- **Pizarra, widget `LISTA`**: filas, fila resaltada, icono por fila y barra de
+  desplazamiento, las dos opcionales. Son catorce tipos de widget.
+- **Contexto**: maqueta nueva (sesión y datos en la cabecera, matriz y leyenda lado a lado,
+  `COMPACTAR` bajo la leyenda) y leyenda común a opencode, Claude Code y Codex: Sistema,
+  Conversación, Sin atribuir y Libre.
+- **Dictado**: pegar texto ya no duplica saltos de línea.
 
 ## Instalar
 
@@ -37,19 +38,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.6.2.vsix`.
+3. Elige `opencode-alfred-0.7.0.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.6.2.vsix
+code --install-extension opencode-alfred-0.7.0.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.6.2.vsix --force
+code --install-extension opencode-alfred-0.7.0.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

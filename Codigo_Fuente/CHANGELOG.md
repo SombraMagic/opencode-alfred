@@ -3,6 +3,24 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.0] - 2026-10-31
+
+- **El doble clic ya no crea nada**: edita la etiqueta de lo que haya debajo (un texto, un
+  widget de `INTERFAZ`, un nodo o un conector) y en el vacío no hace nada.
+- **Colocar un widget es por botón**: se elige la forma en la paleta, el botón queda luminoso,
+  el widget sigue al puntero como fantasma y cae con su esquina donde se hace clic. `Esc` o
+  cerrar la paleta cancela.
+- **Copiar y pegar dentro de la pizarra**: `Ctrl+C`/`Ctrl+V` copian nodos con sus conectores,
+  un conector suelto, un widget con su subárbol, un texto o una imagen. La copia vive en el
+  panel, no en el portapapeles del sistema.
+- **Widget `LISTA`** en `INTERFACES`, con filas, fila resaltada, icono por fila opcional y
+  barra de desplazamiento opcional. Son **catorce** tipos, y los campos `icons` y `scroll`
+  viajan en el contrato de la escena y en el MCP.
+- **Contexto con maqueta nueva**: sesión y datos en la cabecera, matriz y leyenda lado a lado
+  y `COMPACTAR` bajo la leyenda. La leyenda es la misma para opencode, Claude Code y Codex:
+  Sistema, Conversación, Sin atribuir y Libre.
+- **Dictado**: pegar texto ya no duplica saltos de línea (el CRLF se normaliza a LF).
+
 ## [0.6.2] - 2026-10-30
 
 - **Una sola barra en la pizarra**: desaparece la segunda fila de ajustes (36 px fijos) y con
