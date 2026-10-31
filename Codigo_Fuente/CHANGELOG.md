@@ -3,6 +3,17 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.3] - 2026-10-31
+
+- **Matriz de Contexto achatada**: sigue en 10 × 10 casillas, pero cada una es ancha y baja
+  (`16 / 9`) en vez de cuadrada, así que la caja baja de ~335 px a ~135-160 px de alto sin
+  perder columnas ni casillas.
+- **`COMPACTAR` a la derecha de la leyenda**: pasa a la tercera columna de la maqueta,
+  alineado con la parte alta de la caja de la leyenda; en barra estrecha (≤ 460 px) se apila
+  debajo, alineado a la derecha.
+- **Menos alto en total**: la cabecera del HUD va más apretada y la leyenda reparte sus
+  cuatro filas por el alto de su caja en vez de dejar hueco al final.
+
 ## [0.7.2] - 2026-10-31
 
 - **Matriz de Contexto cuadrada**: pasa a 10 × 10 (100 celdas de un 1 %), así que la caja
