@@ -203,6 +203,8 @@
   /** Guías inteligentes que hay que pintar mientras se arrastra. */
   let guias = [];
   let snapshotTimer = 0;
+  /** Respiro del estilo: un control tocado a ráfagas manda un solo mensaje. */
+  let estiloTimer = 0;
   let dirty = false;
   /** `init` ya aplicado: hasta entonces no se guarda nada (la escena aún no está). */
   let iniciada = false;
@@ -232,6 +234,10 @@
   let rellenoSin = false;
   /** El próximo nodo nace con texto automático salvo que se fije un color a mano. */
   let textoAuto = true;
+  /** Estilo del bloque ESTILO con el que nacen los widgets nuevos; lo recuerda el host. */
+  let estiloWidget = { fill: "auto", stroke: "#111111", titleColor: "#111111", titleSize: 12 };
+  /** Claves del ESTILO de INTERFACES que viajan como preferencia entre sesiones. */
+  const CLAVES_ESTILO_UI = new Set(["fill", "stroke", "titleColor", "titleSize"]);
   /** Último tamaño dibujado con la herramienta NODO: el clic lo reutiliza. */
   let ultimoTamano = { w: NODO_W, h: NODO_H };
   /** Pila de deshacer/rehacer: escenas completas, una entrada por gesto. */
@@ -1118,11 +1124,12 @@
       dropdown: false,
       icons: false,
       scroll: false,
-      // Estilo obligatorio en el contrato: los defectos del saneado del host, tal cual.
-      fill: "auto",
-      stroke: "#111111",
-      titleColor: "#111111",
-      titleSize: 12,
+      // Estilo obligatorio en el contrato: el último elegido en el bloque ESTILO, que se
+      // recuerda entre sesiones (con los defectos del saneado del host de arranque).
+      fill: estiloWidget.fill,
+      stroke: estiloWidget.stroke,
+      titleColor: estiloWidget.titleColor,
+      titleSize: estiloWidget.titleSize,
       // La barra nace horizontal (su eje largo) y el resto vertical, como el saneado del host.
       orientation: kind === "bar" ? "h" : "v",
     };
@@ -1488,6 +1495,11 @@
       }
     }
     if (cambia) changed();
+    // Lo elegido en ESTILO también es el estilo con el que nace el próximo widget.
+    if (cambia && CLAVES_ESTILO_UI.has(clave)) {
+      estiloWidget[clave] = n[clave];
+      guardaEstilo();
+    }
     if (cerrar) pintaEstilo();
   }
 
@@ -1505,6 +1517,11 @@
       n.h = ancho;
     }
     n[clave] = valor;
+    // Un chip del ESTILO es también la preferencia del próximo widget.
+    if (CLAVES_ESTILO_UI.has(clave)) {
+      estiloWidget[clave] = valor;
+      guardaEstilo();
+    }
     changed();
     commit();
     pintaEstilo();
@@ -2734,6 +2751,120 @@
     if (outAncho) outAncho.textContent = String(e.width);
     el.edgeDash.checked = Boolean(e.dash);
     el.edgeArrows.value = arrowsTexto(e);
+  }
+
+  // ── Estilo recordado entre sesiones ───────────────────────
+
+  /** Estilo de las herramientas y de los widgets nuevos: lo que se devuelve al host. */
+  function leerEstilo() {
+    return {
+      node: {
+        shape: el.nodeShape.value,
+        icon: el.nodeIcon.value,
+        fill: el.nodeFill.value,
+        none: rellenoSin,
+        stroke: el.nodeStroke.value,
+        text: el.nodeText.value,
+        auto: textoAuto,
+        size: Number(el.nodeSize.value),
+      },
+      // Los conectores nuevos salen de `EDGE_STYLE`: los controles lo reflejan, no al revés.
+      edge: { color: EDGE_STYLE.color, width: EDGE_STYLE.width, dash: EDGE_STYLE.dash, arrows: EDGE_STYLE.arrows },
+      text: { color: el.txtColor.value, family: el.txtFamily.value, size: Number(el.txtSize.value) },
+      pen: { color: el.penColor.value, size: Number(el.penSize.value) },
+      eraser: { size: Number(el.erSize.value), hard: Number(el.erHard.value) },
+      ui: {
+        fill: estiloWidget.fill,
+        stroke: estiloWidget.stroke,
+        titleColor: estiloWidget.titleColor,
+        titleSize: estiloWidget.titleSize,
+      },
+    };
+  }
+
+  /** Nada más tocar un control de estilo se manda; el respiro evita un mensaje por tecla. */
+  function guardaEstilo() {
+    clearTimeout(estiloTimer);
+    estiloTimer = setTimeout(() => vscode.postMessage({ type: "style", style: leerEstilo() }), 200);
+  }
+
+  /**
+   * Vuelca el estilo recordado en los controles y en el estado del módulo. Asigna `value`,
+   * `checked` y listo: no dispara `input`/`change`, así que restaurar no marca `dirty` ni deja
+   * entrada de historial. Un mensaje viejo (sin una rama o sin un campo) deja lo que hubiera.
+   */
+  function aplicaEstilo(s) {
+    if (!s || typeof s !== "object") return;
+    const hex = (valor) => typeof valor === "string" && /^#[0-9a-f]{6}$/i.test(valor);
+    const ponColor = (control, valor) => {
+      if (control && hex(valor)) control.value = valor.toLowerCase();
+    };
+    const ponRango = (control, salida, valor, lo, hi) => {
+      if (!control || typeof valor !== "number" || !Number.isFinite(valor)) return;
+      const v = String(clamp(Math.round(valor), lo, hi));
+      control.value = v;
+      const out = salida ? document.getElementById(salida) : null;
+      if (out) out.textContent = v;
+    };
+    const ponOpcion = (control, valor) => {
+      if (!control || typeof valor !== "string") return;
+      if (Array.from(control.options).some((o) => o.value === valor)) control.value = valor;
+    };
+    const n = s.node;
+    if (n && typeof n === "object") {
+      ponOpcion(el.nodeShape, n.shape);
+      ponOpcion(el.nodeIcon, n.icon);
+      ponColor(el.nodeFill, n.fill);
+      if (typeof n.none === "boolean") rellenoSin = n.none;
+      ponColor(el.nodeStroke, n.stroke);
+      ponColor(el.nodeText, n.text);
+      if (typeof n.auto === "boolean") textoAuto = n.auto;
+      el.nodeTextAuto.classList.toggle("on", textoAuto);
+      el.nodeTextAuto.setAttribute("aria-pressed", textoAuto ? "true" : "false");
+      ponRango(el.nodeSize, "node-size-out", n.size, 8, 72);
+      // Mismo criterio que el resto de controles: «sin relleno» marca su propio swatch.
+      const relleno = rellenoSin ? "none" : String(el.nodeFill.value).toLowerCase();
+      for (const sw of el.swatches) sw.classList.toggle("on", sw.dataset.fill === relleno);
+    }
+    const e = s.edge;
+    if (e && typeof e === "object") {
+      if (hex(e.color)) EDGE_STYLE.color = e.color.toLowerCase();
+      if (typeof e.width === "number" && Number.isFinite(e.width)) EDGE_STYLE.width = clamp(Math.round(e.width), 1, 8);
+      if (typeof e.dash === "boolean") EDGE_STYLE.dash = e.dash;
+      if (["arrow", "back", "both", "none"].includes(e.arrows)) EDGE_STYLE.arrows = e.arrows;
+    }
+    // Los controles del conector enseñan siempre el estilo vigente, venga o no en el mensaje.
+    ponColor(el.edgeColor, EDGE_STYLE.color);
+    ponRango(el.edgeWidth, "edge-width-out", EDGE_STYLE.width, 1, 8);
+    el.edgeDash.checked = EDGE_STYLE.dash;
+    ponOpcion(el.edgeArrows, EDGE_STYLE.arrows);
+    const t = s.text;
+    if (t && typeof t === "object") {
+      ponColor(el.txtColor, t.color);
+      ponOpcion(el.txtFamily, t.family);
+      ponRango(el.txtSize, "txt-size-out", t.size, 10, 200);
+    }
+    const p = s.pen;
+    if (p && typeof p === "object") {
+      ponColor(el.penColor, p.color);
+      ponRango(el.penSize, "pen-size-out", p.size, 1, 80);
+    }
+    const er = s.eraser;
+    if (er && typeof er === "object") {
+      ponRango(el.erSize, "er-size-out", er.size, 4, 200);
+      ponRango(el.erHard, "er-hard-out", er.hard, 0, 100);
+    }
+    const u = s.ui;
+    if (u && typeof u === "object") {
+      if (u.fill === "auto" || u.fill === "none" || hex(u.fill)) estiloWidget.fill = u.fill.toLowerCase();
+      if (u.stroke === "none" || hex(u.stroke)) estiloWidget.stroke = u.stroke.toLowerCase();
+      if (hex(u.titleColor)) estiloWidget.titleColor = u.titleColor.toLowerCase();
+      if (typeof u.titleSize === "number" && Number.isFinite(u.titleSize)) {
+        estiloWidget.titleSize = clamp(Math.round(u.titleSize), 8, 48);
+      }
+    }
+    // ICONO depende de la silueta: con la forma ya puesta, el campo se enseña o se oculta.
+    syncOpciones();
   }
 
   /**
@@ -5396,6 +5527,7 @@
     el.nodeTextAuto.classList.add("on");
     el.nodeTextAuto.setAttribute("aria-pressed", "true");
     if (selNodes.length) el.nodeText.value = colorTextoNodo(selNodes[0]);
+    guardaEstilo();
     if (cambia) {
       changed();
       commit();
@@ -5419,6 +5551,7 @@
       }
       for (const s of el.swatches) s.classList.toggle("on", s === sw);
       if (textoAuto && selNodes.length) el.nodeText.value = colorTextoNodo(selNodes[0]);
+      guardaEstilo();
       if (!cambia) return;
       changed();
       commit();
@@ -5457,6 +5590,31 @@
     commit();
   });
   [el.edgeColor, el.edgeWidth].forEach((c) => c.addEventListener("change", () => commit()));
+
+  // Cualquier control de estilo se recuerda al tocarlo. Este bucle va después de los oyentes de
+  // arriba para leer el estado que dejan (`rellenoSin`, `textoAuto`, `EDGE_STYLE`).
+  [
+    el.nodeShape,
+    el.nodeIcon,
+    el.nodeFill,
+    el.nodeStroke,
+    el.nodeText,
+    el.nodeSize,
+    el.txtColor,
+    el.txtFamily,
+    el.txtSize,
+    el.penColor,
+    el.penSize,
+    el.erSize,
+    el.erHard,
+    el.edgeColor,
+    el.edgeWidth,
+    el.edgeDash,
+    el.edgeArrows,
+  ].forEach((c) => {
+    c.addEventListener("input", guardaEstilo);
+    c.addEventListener("change", guardaEstilo);
+  });
 
   el.frame.addEventListener("pointerdown", onDown);
   el.frame.addEventListener("pointermove", onMove);
@@ -5862,6 +6020,9 @@
           reiniciarHistorial();
         }
         pizarraVisible = pizarraActual;
+        // El estilo de las herramientas es preferencia, no escena: se aplica en cualquier `init`
+        // (también al cambiar de pizarra) y antes de la escena, que no lo toca.
+        aplicaEstilo(m.style);
         const doc = m.scene && typeof m.scene === "object" ? m.scene : null;
         if (doc) {
           await aplicarEscena(doc, { mantenerVista: false });

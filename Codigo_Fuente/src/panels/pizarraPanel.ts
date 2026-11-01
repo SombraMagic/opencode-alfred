@@ -31,6 +31,8 @@ const MAX_COPY_BYTES = 2 * 1024 * 1024;
 const KEY_LAST_URI = "opencodeAgents.pizarra.lastUri";
 /** Color de fondo elegido en la pizarra (preferencia de instalación, no del proyecto). */
 const KEY_BG_COLOR = "opencodeAgents.pizarra.bgColor";
+/** Estilo de las herramientas y de INTERFACES (preferencia de instalación, no del proyecto). */
+const KEY_STYLE = "opencodeAgents.pizarra.style";
 /** Pizarras de la ventana: la 1 es la de la carpeta de adjuntos, la que leen los agentes. */
 const KEY_BOARDS = "opencodeAgents.pizarra.boards";
 /** Pizarra activa en el panel (ámbito de ventana, igual que `KEY_LAST_URI`). */
@@ -122,6 +124,175 @@ function decodeColor(raw: unknown): string | undefined {
   return typeof raw === "string" && /^#[0-9a-f]{6}$/i.test(raw) ? raw.toLowerCase() : undefined;
 }
 
+/** Formas de nodo del diagrama. */
+const NODE_SHAPES = ["rect", "round", "stadium", "diamond", "ellipse", "icon"] as const;
+/** Iconos que ofrece el cajón de NODO. */
+const NODE_ICONS = [
+  "mail",
+  "key",
+  "user",
+  "database",
+  "cloud",
+  "api",
+  "clock",
+  "gear",
+  "doc",
+  "lock",
+  "globe",
+  "terminal",
+] as const;
+/** Puntas del conector. */
+const EDGE_ARROWS = ["arrow", "back", "both", "none"] as const;
+/** Familias tipográficas del bloque ESTILO: cadenas exactas, no nombres libres. */
+const TEXT_FAMILIES = [
+  "sans-serif",
+  "serif",
+  "monospace",
+  "Georgia, serif",
+  "'Palatino Linotype', Palatino, serif",
+  "'Segoe UI', sans-serif",
+  "'Times New Roman', serif",
+  "'Courier New', monospace",
+] as const;
+
+type NodeShape = (typeof NODE_SHAPES)[number];
+type NodeIcon = (typeof NODE_ICONS)[number];
+type EdgeArrows = (typeof EDGE_ARROWS)[number];
+type TextFamily = (typeof TEXT_FAMILIES)[number];
+
+/**
+ * Configuración de las herramientas de dibujo y del bloque ESTILO de INTERFACES. El webview
+ * nuevo la manda en cada toque y la espera en el `init`; los nombres son el contrato.
+ */
+interface PizarraStyle {
+  node: {
+    shape: NodeShape;
+    icon: NodeIcon;
+    fill: string;
+    none: boolean;
+    stroke: string;
+    text: string;
+    auto: boolean;
+    size: number;
+  };
+  edge: { color: string; width: number; dash: boolean; arrows: EdgeArrows };
+  text: { color: string; family: TextFamily; size: number };
+  pen: { color: string; size: number };
+  eraser: { size: number; hard: number };
+  ui: { fill: string; stroke: string; titleColor: string; titleSize: number };
+}
+
+/** Lo que se usa cuando el valor recibido no vale (o no hay nada guardado). */
+const DEFAULT_STYLE: PizarraStyle = {
+  node: {
+    shape: "rect",
+    icon: "mail",
+    fill: "#4f9db5",
+    none: false,
+    stroke: "#2e6f82",
+    text: "#ffffff",
+    auto: true,
+    size: 18,
+  },
+  edge: { color: "#3d5566", width: 2, dash: false, arrows: "arrow" },
+  text: { color: "#12303f", family: "sans-serif", size: 40 },
+  pen: { color: "#12303f", size: 6 },
+  eraser: { size: 36, hard: 80 },
+  ui: { fill: "auto", stroke: "#111111", titleColor: "#111111", titleSize: 12 },
+};
+
+/** Número acotado; si no es finito, el defecto. */
+function numOr(raw: unknown, min: number, max: number, fallback: number): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, raw));
+}
+
+/** Entero acotado: redondea y luego acota. */
+function intOr(raw: unknown, min: number, max: number, fallback: number): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, Math.round(raw)));
+}
+
+/** Una de las cadenas permitidas; cualquier otra cosa, el defecto. */
+function enumOr<T extends string>(raw: unknown, values: readonly T[], fallback: T): T {
+  return typeof raw === "string" && (values as readonly string[]).includes(raw) ? (raw as T) : fallback;
+}
+
+/** Booleano estricto: solo `true` enciende; si no llega, manda el defecto. */
+function boolOr(raw: unknown, fallback: boolean): boolean {
+  return raw === undefined ? fallback : raw === true;
+}
+
+/** Hex saneado o el defecto. */
+function colorOr(raw: unknown, fallback: string): string {
+  return decodeColor(raw) ?? fallback;
+}
+
+/** Relleno de un widget: `auto` (el del tipo), `none` o un hex. */
+function decodeFill(raw: unknown): string | undefined {
+  return raw === "auto" || raw === "none" ? raw : decodeColor(raw);
+}
+
+/** Trazo de un widget: `none` o un hex. */
+function decodeStroke(raw: unknown): string | undefined {
+  return raw === "none" ? "none" : decodeColor(raw);
+}
+
+/**
+ * Sanea el estilo que manda el webview (o el guardado). Devuelve siempre el objeto completo:
+ * un campo malo cae a su defecto sin descartar el resto.
+ */
+function decodeStyle(raw: unknown): PizarraStyle {
+  const src = isRecord(raw) ? raw : {};
+  const node = isRecord(src.node) ? src.node : {};
+  const edge = isRecord(src.edge) ? src.edge : {};
+  const text = isRecord(src.text) ? src.text : {};
+  const pen = isRecord(src.pen) ? src.pen : {};
+  const eraser = isRecord(src.eraser) ? src.eraser : {};
+  const ui = isRecord(src.ui) ? src.ui : {};
+  return {
+    node: {
+      shape: enumOr(node.shape, NODE_SHAPES, DEFAULT_STYLE.node.shape),
+      icon: enumOr(node.icon, NODE_ICONS, DEFAULT_STYLE.node.icon),
+      fill: colorOr(node.fill, DEFAULT_STYLE.node.fill),
+      none: boolOr(node.none, DEFAULT_STYLE.node.none),
+      stroke: colorOr(node.stroke, DEFAULT_STYLE.node.stroke),
+      text: colorOr(node.text, DEFAULT_STYLE.node.text),
+      auto: boolOr(node.auto, DEFAULT_STYLE.node.auto),
+      size: intOr(node.size, 8, 72, DEFAULT_STYLE.node.size),
+    },
+    edge: {
+      color: colorOr(edge.color, DEFAULT_STYLE.edge.color),
+      width: numOr(edge.width, 1, 8, DEFAULT_STYLE.edge.width),
+      dash: boolOr(edge.dash, DEFAULT_STYLE.edge.dash),
+      arrows: enumOr(edge.arrows, EDGE_ARROWS, DEFAULT_STYLE.edge.arrows),
+    },
+    text: {
+      color: colorOr(text.color, DEFAULT_STYLE.text.color),
+      family: enumOr(text.family, TEXT_FAMILIES, DEFAULT_STYLE.text.family),
+      size: numOr(text.size, 10, 200, DEFAULT_STYLE.text.size),
+    },
+    pen: {
+      color: colorOr(pen.color, DEFAULT_STYLE.pen.color),
+      size: numOr(pen.size, 1, 80, DEFAULT_STYLE.pen.size),
+    },
+    eraser: {
+      size: numOr(eraser.size, 4, 200, DEFAULT_STYLE.eraser.size),
+      hard: numOr(eraser.hard, 0, 100, DEFAULT_STYLE.eraser.hard),
+    },
+    ui: {
+      fill: decodeFill(ui.fill) ?? DEFAULT_STYLE.ui.fill,
+      stroke: decodeStroke(ui.stroke) ?? DEFAULT_STYLE.ui.stroke,
+      titleColor: colorOr(ui.titleColor, DEFAULT_STYLE.ui.titleColor),
+      titleSize: intOr(ui.titleSize, 8, 48, DEFAULT_STYLE.ui.titleSize),
+    },
+  };
+}
+
 /** Mensajes del webview: llegan sin tipar y se validan campo a campo. */
 interface PanelMessage {
   type?: string;
@@ -130,6 +301,7 @@ interface PanelMessage {
   color?: unknown;
   text?: unknown;
   board?: unknown;
+  style?: unknown;
 }
 
 export class PizarraPanel {
@@ -354,6 +526,7 @@ export class PizarraPanel {
       png,
       scene: scene ?? null,
       bgColor: this.context.globalState.get<string>(KEY_BG_COLOR) ?? null,
+      style: decodeStyle(this.context.globalState.get(KEY_STYLE)),
       board: this.board,
       boards: this.boards,
     });
@@ -436,6 +609,15 @@ export class PizarraPanel {
         // El selector nativo dispara `input` en cada paso del arrastre: solo se escribe si cambia.
         if (color && color !== this.context.globalState.get<string>(KEY_BG_COLOR)) {
           await this.context.globalState.update(KEY_BG_COLOR, color);
+        }
+        return;
+      }
+      case "style": {
+        const style = decodeStyle(message.style);
+        // El webview manda el bloque entero en cada toque: solo se escribe si cambió de verdad.
+        const guardado = JSON.stringify(decodeStyle(this.context.globalState.get(KEY_STYLE)));
+        if (JSON.stringify(style) !== guardado) {
+          await this.context.globalState.update(KEY_STYLE, style);
         }
         return;
       }
