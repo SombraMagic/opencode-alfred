@@ -8,6 +8,9 @@
      contenido, el pie se va debajo y nada se comprime. */
   height: 100vh;
   padding: 0 10px 18px;
+  /* `--text-dim` SOLO para lo apagado (`:disabled`, `.off`, vacíos, placeholder);
+     los rótulos del monitor van en este intermedio. */
+  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
 }
 
 /* Solo el stage cede alto cuando la vista es corta: el resto, intacto. */
@@ -25,6 +28,96 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+}
+
+/* ── Monitor del equipo (CPU, RAM, GPU, VRAM) ─────────── */
+/* Encima del ecualizador: dos filas de dos celdas que no crecen ni empujan
+   el pie. Cada celda: RÓTULO · valor · USO · barra de bloques · %. */
+.sysmon {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 6px;
+  margin: 2px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Barra lateral estrecha: una celda por fila.
+   Dos columnas con el peor caso ("7,8 GB" + "100%") piden 280,2 px de vista
+   (celdas de 127,1 px + hueco + márgenes); por debajo de 281 se desborda. */
+@media (max-width: 280px) {
+  .sysmon {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sysmon-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sm-label {
+  flex: none;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-soft);
+  text-transform: uppercase;
+}
+
+/* Ancho mínimo: los valores ("52°", "7,8 GB") no mueven la barra al cambiar. */
+.sm-value {
+  flex: none;
+  min-width: 32px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.sm-use {
+  flex: none;
+  font-size: 8.5px;
+  letter-spacing: 0.8px;
+  color: var(--text-soft);
+}
+
+/* Barra de segmentos: relleno a bloques duros, como los píxeles del ecualizador. */
+.sm-bar {
+  flex: 1 1 6px;
+  min-width: 6px;
+  height: 9px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+
+.sm-bar > i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--neon) 0 3px,
+    transparent 3px 5px
+  );
+}
+
+.sm-pct {
+  flex: none;
+  min-width: 24px;
+  font-size: 9.5px;
+  letter-spacing: 0.4px;
+  color: var(--neon);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Sin muestra (o sin ese dato): guiones y barra vacía, nada apagado de más. */
+.sysmon-cell.off .sm-value,
+.sysmon-cell.off .sm-pct,
+.sm-value.off,
+.sm-pct.off {
+  color: var(--text-dim);
 }
 
 /* ── Ecualizador de barras ────────────────────────────── */

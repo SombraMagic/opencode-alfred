@@ -23,6 +23,7 @@ import {
   type SttEngine,
 } from "../voice/stt.js";
 import { mcpState, setMcpEnabled } from "../voice/mcpInstaller.js";
+import { SysMonitor, type SysSample } from "../sysmon/monitor.js";
 import { listActivities, type ActivityIcon } from "./activity";
 
 /** Fichero donde el MCP publica cada reproducción (misma ruta que voz-core). */
@@ -31,6 +32,9 @@ const nowFile = join(
     join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "voz"),
   "now.json",
 );
+
+/** El aviso del UAC del monitor sale una sola vez por sesión de VS Code. */
+let sysmonWarned = false;
 
 /** Agente que está trabajando ahora mismo, tal como lo pinta el panel. */
 export interface WorkingAgent {
@@ -56,6 +60,12 @@ export class VozPanel {
   private agents: WorkingAgent[] = [];
   /** El interruptor del MCP: dice qué hacer al pulsarlo. */
   private mcpEnabled = false;
+  /** Monitor del equipo (CPU, RAM, GPU y VRAM); solo lee el fichero de muestras. */
+  private monitor?: SysMonitor;
+  /** Sondeo de 2 s: corre solo mientras la vista se ve. */
+  private sysTimer?: ReturnType<typeof setInterval>;
+  /** Última muestra buena, para no dejar el monitor vacío al reabrir o recargar. */
+  private lastSample: SysSample | null = null;
 
   constructor(
     view: vscode.WebviewView,
@@ -75,15 +85,58 @@ export class VozPanel {
     // en cuanto arranca y ese mensaje no se puede perder.
     this.disposables.push(
       view.webview.onDidReceiveMessage((msg) => void this.onMessage(msg)),
+      // La vista se destruye con la ventana o al moverla de sitio, y el panel se
+      // crea de nuevo en cada `resolveWebviewView`: sin esto quedan dos sondeos
+      // de 2 s vivos, uno de ellos hablando con un webview que ya no existe.
+      view.onDidDispose(() => this.dispose()),
       view.onDidChangeVisibility(() => {
-        if (view.visible) void this.pushInitial();
+        if (view.visible) {
+          void this.pushInitial();
+          // El proceso sigue vivo aunque la vista esté oculta: relanzarlo pediría
+          // otro UAC, así que aquí solo se reanuda el sondeo.
+          this.startSysPolling();
+        } else {
+          this.stopSysPolling();
+        }
       }),
     );
     this.context.subscriptions.push(...this.disposables);
 
+    this.monitor = new SysMonitor({
+      script: join(this.context.extensionUri.fsPath, "resources", "sysmon-lhm.ps1"),
+      outFile: join(this.context.globalStorageUri.fsPath, "sysmon.json"),
+    });
+    // La temperatura de la CPU necesita administrador. Se avisa antes del primer
+    // arranque (el mensaje no bloquea: el monitor sale detrás) y una sola vez.
+    if (!sysmonWarned) {
+      sysmonWarned = true;
+      void vscode.window.showInformationMessage(
+        "El monitor del equipo pedirá permisos de administrador para leer la temperatura de la CPU. Sin ellos se leen igual las cargas, la memoria y la GPU.",
+      );
+    }
+
     view.webview.html = this.html(view.webview);
     await this.pushInitial();
     this.watchPlayback();
+    if (view.visible) this.startSysPolling();
+  }
+
+  /** Arranca el sondeo del monitor con una muestra ya, sin esperar los 2 s. */
+  private startSysPolling() {
+    if (!this.monitor || this.sysTimer) return;
+    this.pushSysmon();
+    this.sysTimer = setInterval(() => this.pushSysmon(), 2000);
+  }
+
+  private stopSysPolling() {
+    if (this.sysTimer) clearInterval(this.sysTimer);
+    this.sysTimer = undefined;
+  }
+
+  private pushSysmon() {
+    const data = this.monitor?.poll() ?? null;
+    if (data) this.lastSample = data;
+    this.post({ type: "sysmon", data });
   }
 
   /**
@@ -226,6 +279,9 @@ export class VozPanel {
     switch (msg?.type) {
       case "ready":
         this.flush();
+        // El monitor no puede esperar al primer sondeo: la última muestra se
+        // reenvía en cuanto el webview está listo.
+        this.post({ type: "sysmon", data: this.lastSample });
         break;
       case "speak":
         await this.doSpeak(msg);
@@ -432,6 +488,26 @@ export class VozPanel {
     <!-- Zona flexible: crece con los agentes y es lo único que se comprime
          (con scroll propio) cuando la vista es corta. -->
     <div class="stage">
+      <!-- Monitor del equipo: se pinta en panel.js con las muestras de sysmon. -->
+      <div class="sysmon" id="sysmon">
+        <div class="sysmon-cell">
+          <span class="sm-label">CPU</span><span class="sm-value" id="sm-cpu-temp">—</span>
+          <span class="sm-use">USO</span><span class="sm-bar" id="sm-cpu-bar"><i></i></span><span class="sm-pct" id="sm-cpu-load">—</span>
+        </div>
+        <div class="sysmon-cell">
+          <span class="sm-label">RAM</span><span class="sm-value" id="sm-ram-total">—</span>
+          <span class="sm-use">USO</span><span class="sm-bar" id="sm-ram-bar"><i></i></span><span class="sm-pct" id="sm-ram-load">—</span>
+        </div>
+        <div class="sysmon-cell">
+          <span class="sm-label">GPU</span><span class="sm-value" id="sm-gpu-temp">—</span>
+          <span class="sm-use">USO</span><span class="sm-bar" id="sm-gpu-bar"><i></i></span><span class="sm-pct" id="sm-gpu-load">—</span>
+        </div>
+        <div class="sysmon-cell">
+          <span class="sm-label">VRAM</span><span class="sm-value" id="sm-vram-total">—</span>
+          <span class="sm-use">USO</span><span class="sm-bar" id="sm-vram-bar"><i></i></span><span class="sm-pct" id="sm-vram-load">—</span>
+        </div>
+      </div>
+
       <canvas id="equalizer" width="128" height="72"></canvas>
 
       <!-- Agentes en vuelo: panel.js lo rellena y lo vacía (vacío = sin hueco). -->
@@ -513,6 +589,9 @@ export class VozPanel {
   }
 
   dispose() {
+    this.stopSysPolling();
+    // No mata el proceso: va elevado y se va solo al morir su -ParentPid.
+    this.monitor?.dispose();
     unwatchFile(nowFile);
     for (const d of this.disposables) d.dispose();
   }

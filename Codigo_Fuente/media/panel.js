@@ -491,6 +491,126 @@
     ensureLoop();
   }
 
+  // ── Monitor del equipo (CPU, RAM, GPU, VRAM) ────────────
+  // Llega una muestra cada 2 s: se guarda una firma de lo ya pintado para no
+  // tocar el DOM cuando no cambió nada.
+  const SM_STALE_MS = 15000;
+  let smSignature = "";
+
+  const smCpu = {
+    cell: $("sm-cpu-temp").closest(".sysmon-cell"),
+    value: $("sm-cpu-temp"),
+    load: $("sm-cpu-load"),
+    fill: $("sm-cpu-bar").firstElementChild,
+  };
+  const smRam = {
+    cell: $("sm-ram-total").closest(".sysmon-cell"),
+    value: $("sm-ram-total"),
+    load: $("sm-ram-load"),
+    fill: $("sm-ram-bar").firstElementChild,
+  };
+  const smGpu = {
+    cell: $("sm-gpu-temp").closest(".sysmon-cell"),
+    value: $("sm-gpu-temp"),
+    load: $("sm-gpu-load"),
+    fill: $("sm-gpu-bar").firstElementChild,
+  };
+  // La celda de VRAM comparte el `title` con la de GPU: el nombre es uno solo.
+  const smVram = {
+    cell: $("sm-vram-total").closest(".sysmon-cell"),
+    value: $("sm-vram-total"),
+    load: $("sm-vram-load"),
+    fill: $("sm-vram-bar").firstElementChild,
+  };
+
+  /** Número usable o null: el helper puede mandar huecos por campo. */
+  const smNum = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+  /** Temperatura: "52°". */
+  function smTemp(v) {
+    const n = smNum(v);
+    return n == null ? "—" : Math.round(n) + "°";
+  }
+
+  /** Carga: "23%". */
+  function smLoad(v) {
+    const n = smNum(v);
+    return n == null ? "—" : Math.max(0, Math.min(100, Math.round(n))) + "%";
+  }
+
+  /** Bytes en GB con coma decimal: "32 GB", "7,8 GB". */
+  function smGb(v) {
+    const n = smNum(v);
+    if (n == null || n <= 0) return "—";
+    const gb = n / 1073741824;
+    return (gb < 10 ? gb.toFixed(1).replace(".", ",") : String(Math.round(gb))) + " GB";
+  }
+
+  /** Escribe el valor; el guion es estado apagado, no un valor normal. */
+  function smWrite(el, text) {
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle("off", text === "—");
+  }
+
+  /** Porcentaje de un par usado/total; sin total no hay barra. */
+  function smRatio(used, total) {
+    const u = smNum(used);
+    const t = smNum(total);
+    return u == null || !t ? null : (u / t) * 100;
+  }
+
+  /** Pinta una celda: valor, carga, ancho de la barra y estado apagado. */
+  function smPaintCell(cell, value, loadText) {
+    smWrite(cell.value, value);
+    smWrite(cell.load, loadText);
+    const pct = loadText === "—" ? 0 : parseFloat(loadText);
+    const width = pct + "%";
+    if (cell.fill.style.width !== width) cell.fill.style.width = width;
+    cell.cell.classList.toggle("off", loadText === "—");
+  }
+
+  /** `title` del modelo de GPU en las dos celdas que lo comparten. */
+  function smPaintTitle(name) {
+    const text = typeof name === "string" ? name.trim() : "";
+    for (const cell of [smGpu.cell, smVram.cell]) {
+      if (text) {
+        if (cell.title !== text) cell.title = text;
+      } else if (cell.hasAttribute("title")) {
+        cell.removeAttribute("title");
+      }
+    }
+  }
+
+  /** Pinta el monitor; sin muestra fresca queda todo en guiones. */
+  function paintSysmon(data) {
+    const at = smNum(data?.at);
+    const fresh = at != null && Date.now() - at <= SM_STALE_MS ? data : null;
+    const cpu = fresh?.cpu ?? {};
+    const ram = fresh?.ram ?? {};
+    const gpu = fresh?.gpu ?? {};
+
+    const cpuTemp = smTemp(cpu.temp);
+    const cpuLoad = fresh ? smLoad(cpu.load) : "—";
+    const ramTotal = fresh ? smGb(ram.total) : "—";
+    const ramLoad = fresh ? smLoad(smRatio(ram.used, ram.total)) : "—";
+    const gpuTemp = smTemp(gpu.temp);
+    const gpuLoad = fresh ? smLoad(gpu.load) : "—";
+    const vramTotal = fresh ? smGb(gpu.vramTotal) : "—";
+    const vramLoad = fresh ? smLoad(smRatio(gpu.vramUsed, gpu.vramTotal)) : "—";
+    const gpuName = typeof gpu.name === "string" ? gpu.name.trim() : "";
+
+    // El `at` cambia siempre: la firma va con lo que se ve.
+    const signature = [cpuTemp, cpuLoad, ramTotal, ramLoad, gpuTemp, gpuLoad, vramTotal, vramLoad, gpuName].join("|");
+    if (signature === smSignature) return;
+    smSignature = signature;
+
+    smPaintCell(smCpu, cpuTemp, cpuLoad);
+    smPaintCell(smRam, ramTotal, ramLoad);
+    smPaintCell(smGpu, gpuTemp, gpuLoad);
+    smPaintCell(smVram, vramTotal, vramLoad);
+    smPaintTitle(gpuName);
+  }
+
   // ── Mensajes desde la extensión ─────────────────────────
   /** Cuenta atrás del tiempo restante; avisa al llegar a cero. */
   function startCountdown(total) {
@@ -621,6 +741,10 @@
 
       case "agents":
         renderAgents(msg.agents);
+        break;
+
+      case "sysmon":
+        paintSysmon(msg.data);
         break;
 
       case "floorLock":
