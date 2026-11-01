@@ -7,6 +7,8 @@ export interface ControlData {
   menteLocal: boolean;
   /** El generador de imágenes está compartido con los agentes. */
   imageShare: boolean;
+  /** Mente local encendida (ajuste, no «servidor responde»): habilita el Chatbot. */
+  chatbot: boolean;
 }
 
 /** Acciones que el webview tiene permitido pedir: el mando de Control y nada más. */
@@ -16,6 +18,7 @@ const ACTION_TYPES = new Set<string>([
   "openConnectors",
   "openMenteLocal",
   "openImageGen",
+  "openChatbot",
 ]);
 
 /** El webview no es de fiar: solo pasan las cinco acciones del mando, con su forma exacta. */
@@ -40,6 +43,8 @@ function parseAction(raw: unknown): ExplorerAction | undefined {
       return { type: "openMenteLocal" };
     case "openImageGen":
       return { type: "openImageGen" };
+    case "openChatbot":
+      return { type: "openChatbot" };
   }
   return undefined;
 }

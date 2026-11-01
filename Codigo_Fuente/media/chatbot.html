@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data:; style-src %%CSP%% 'unsafe-inline'; script-src 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link href="%%TOKENS%%" rel="stylesheet" />
+<link href="%%STYLE%%" rel="stylesheet" />
+<title>ALFRED // CHATBOT</title>
+</head>
+<body>
+<div class="cb-app" id="app">
+  <header class="cb-top">
+    <button id="btn-side" class="cb-btn cb-icon" type="button" aria-label="Mostrar u ocultar conversaciones" title="Conversaciones" aria-expanded="true">☰</button>
+    <span class="cb-title">ALFRED // CHATBOT</span>
+    <div class="cb-field">
+      <label class="cb-label" for="model">MODELO</label>
+      <select id="model" class="cb-input" aria-label="Modelo"></select>
+    </div>
+    <div class="cb-chips" id="caps" role="group" aria-label="Capacidades del modelo">
+      <span class="cb-chip" data-cap="tools" title="El modelo puede llamar herramientas">HERRAMIENTAS</span>
+      <span class="cb-chip" data-cap="thinking" title="El modelo razona antes de responder">PENSAMIENTO</span>
+      <span class="cb-chip" data-cap="vision" title="El modelo entiende imágenes">VISIÓN</span>
+    </div>
+    <span class="cb-grow"></span>
+    <div class="cb-slot" id="slot-top" aria-hidden="true"></div>
+    <label class="cb-check" title="Lee en voz alta cada respuesta al terminar"><input id="autospeak" type="checkbox" />AUTO-VOZ</label>
+    <button id="btn-export" class="cb-btn" type="button" title="Exportar la conversación a Markdown" aria-label="Exportar conversación">EXPORTAR</button>
+    <button id="btn-new" class="cb-btn cb-primary" type="button" title="Empezar una conversación nueva" aria-label="Nuevo chat">NUEVO CHAT</button>
+    <button id="btn-settings" class="cb-btn" type="button" aria-expanded="false" aria-controls="settings" title="Ajustes del chat">AJUSTES</button>
+  </header>
+
+  <div class="cb-lock" id="lock" role="alert" hidden><span class="cb-lock-tag">BLOQUEADO</span><span id="lock-reason"></span></div>
+
+  <div class="cb-main">
+    <aside class="cb-side" id="side" aria-label="Conversaciones">
+      <div class="cb-side-head">CONVERSACIONES</div>
+      <ul class="cb-chats" id="chats"></ul>
+      <p class="cb-empty-side" id="chats-empty" hidden>Sin conversaciones todavía.</p>
+    </aside>
+
+    <section class="cb-center" aria-label="Chat">
+      <div class="cb-scroll" id="scroll" tabindex="0" aria-live="polite" aria-label="Mensajes">
+        <div class="cb-empty" id="empty">
+          <div class="cb-empty-mark">ALFRED</div>
+          <p>Prueba tu modelo local. Escribe abajo o elige una sugerencia.</p>
+          <div class="cb-sugs" id="sugs"></div>
+        </div>
+        <div class="cb-msgs" id="msgs"></div>
+      </div>
+      <button id="btn-bottom" class="cb-btn cb-bottom" type="button" hidden aria-label="Ir al final">↓ IR AL FINAL</button>
+
+      <div class="cb-compose" id="compose">
+        <div class="cb-thumbs" id="thumbs"></div>
+        <p class="cb-msg-err" id="input-err" role="status" hidden></p>
+        <div class="cb-inrow">
+          <button id="btn-attach" class="cb-btn cb-icon" type="button" title="Adjuntar imágenes (solo modelos con visión)" aria-label="Adjuntar imágenes">+</button>
+          <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+          <textarea id="text" class="cb-text" rows="1" placeholder="Escribe un mensaje… (Enter envía, Mayús+Enter salto de línea)" aria-label="Mensaje"></textarea>
+          <button id="btn-send" class="cb-btn cb-primary cb-send" type="button" aria-label="Enviar">ENVIAR</button>
+        </div>
+        <div class="cb-slot" id="slot-bottom" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <aside class="cb-settings" id="settings" aria-label="Ajustes del chat" hidden>
+      <div class="cb-side-head">AJUSTES</div>
+      <label class="cb-label" for="set-system">PROMPT DE SISTEMA</label>
+      <textarea id="set-system" class="cb-input cb-sys" rows="5" placeholder="Instrucciones para el modelo (opcional)"></textarea>
+      <div class="cb-two">
+        <div class="cb-field cb-col"><label class="cb-label" for="set-temp">TEMPERATURA</label><input id="set-temp" class="cb-input" type="number" min="0" max="2" step="0.1" /></div>
+        <div class="cb-field cb-col"><label class="cb-label" for="set-ctx">CONTEXTO (numCtx)</label><input id="set-ctx" class="cb-input" type="number" min="0" step="512" placeholder="0 = Ollama" /></div>
+      </div>
+      <div class="cb-side-head">HERRAMIENTAS</div>
+      <ul class="cb-tools" id="tools"></ul>
+      <p class="cb-note" id="tools-note" hidden>El modelo no soporta herramientas.</p>
+      <p class="cb-note cb-note-fixed">La herramienta de imagen usa el generador de Alfred con su configuración actual; el modelo solo envía el prompt.</p>
+      <div class="cb-slot" id="slot-settings" aria-hidden="true"></div>
+    </aside>
+  </div>
+</div>
+<script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
+</body>
+</html>

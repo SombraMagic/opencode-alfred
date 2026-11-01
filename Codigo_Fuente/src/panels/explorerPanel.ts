@@ -67,7 +67,8 @@ export type ExplorerAction =
   | { type: "openAssign" }
   | { type: "openConnectors" }
   | { type: "openMenteLocal" }
-  | { type: "openImageGen" };
+  | { type: "openImageGen" }
+  | { type: "openChatbot" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([

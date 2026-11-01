@@ -31,7 +31,7 @@ import { setActivity } from "./activity";
 const execFileAsync = promisify(execFile);
 
 const KEY_SETTINGS = "opencodeAgents.imageGen";
-const KEY_OPENAI = "opencodeAgents.imageGen.openaiKey";
+export const KEY_OPENAI = "opencodeAgents.imageGen.openaiKey";
 /** Interruptor de «compartir con los agentes»: el fichero compartido vive en `%APPDATA%\voz`. */
 const KEY_SHARE = "opencodeAgents.imageGen.share";
 /** Tope del prompt y del negativo. */
@@ -366,7 +366,7 @@ function parseAction(raw: unknown): ImageGenAction | undefined {
 }
 
 /** Ajustes recordados entre sesiones; lo que no valga vuelve al defecto. */
-function readSettings(context: vscode.ExtensionContext): ImageGenSettings {
+export function readSettings(context: vscode.ExtensionContext): ImageGenSettings {
   const raw = context.globalState.get<Partial<ImageGenSettings>>(KEY_SETTINGS);
   const provider = raw?.provider === "openai" ? "openai" : "comfyui";
   const url =
@@ -1140,7 +1140,7 @@ export class ImageGenPanel {
 }
 
 /** Carpeta de imágenes generadas: en el proyecto si hay carpeta abierta, si no en el almacén global. */
-function imagenesDir(context: vscode.ExtensionContext): string {
+export function imagenesDir(context: vscode.ExtensionContext): string {
   const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   return root ? join(root, ".alfred", "imagenes") : join(context.globalStorageUri.fsPath, "imagenes");
 }

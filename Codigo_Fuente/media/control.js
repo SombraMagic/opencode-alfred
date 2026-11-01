@@ -67,8 +67,12 @@
       ? "Generador de imágenes (compartido con los agentes)"
       : "Generador de imágenes";
 
-    // El chatbot es el único hueco sin implementar: se pinta apagado siempre.
-    el.chatbot.disabled = true;
+    // El chatbot necesita Mente local encendida.
+    el.chatbot.disabled = data.chatbot !== true;
+    el.chatbot.classList.toggle("on", data.chatbot === true);
+    el.chatbot.title = data.chatbot === true
+      ? "Abrir el chatbot de Mente local"
+      : "Chatbot (requiere Mente local encendida)";
   }
 
   el.session.addEventListener("click", () => act({ type: "openLastSession" }));
@@ -77,6 +81,7 @@
   el.connectors.addEventListener("click", () => act({ type: "openConnectors" }));
   el.mente.addEventListener("click", () => act({ type: "openMenteLocal" }));
   el.image.addEventListener("click", () => act({ type: "openImageGen" }));
+  el.chatbot.addEventListener("click", () => act({ type: "openChatbot" }));
 
   window.addEventListener("message", (event) => {
     const message = event.data;

@@ -44,11 +44,12 @@ import {
   onImageShareChange,
   refreshImageShare,
 } from "./panels/imageGenPanel";
+import { ChatbotPanel } from "./panels/chatbotPanel";
 import { collectState, liveState, MenteLocalState, readSettings, runAction } from "./ollama/service";
 import { startServer } from "./ollama/process";
-import { readWork, workFile } from "./images/share";
-import { onActivityChange, setActivity } from "./panels/activity";
-import { watchFile, unwatchFile } from "node:fs";
+import { workFile } from "./images/share";
+import { checkImageWork, onActivityChange, setActivity } from "./panels/activity";
+import { statSync } from "node:fs";
 import { ollamaVersion } from "./ollama/client";
 import { PizarraPanel, pizarraAdjuntosDir } from "./panels/pizarraPanel";
 import { BlendViewerProvider } from "./panels/blendViewerPanel";
@@ -530,12 +531,25 @@ export function activate(context: vscode.ExtensionContext): void {
    * Si el proceso muere a mitad, el sello de tiempo caduca la tarjeta.
    */
   function checkImageMcpWork(): void {
-    const work = readWork();
-    const on = !!work?.on && Date.now() - work.at < 15 * 60_000;
-    setActivity("imagen-mcp", on, "GENERANDO IMAGEN", "imagen");
+    checkImageWork("imagen-mcp");
   }
-  watchFile(workFile(), { interval: 1000 }, checkImageMcpWork);
-  context.subscriptions.push({ dispose: () => unwatchFile(workFile()) });
+  // Sondeo corto (solo stat; lee el JSON si cambió): `watchFile` a 1 s se comía las
+  // generaciones breves y el renombrado atómico en Windows no avisa siempre.
+  let lastWorkStamp = "";
+  const workTimer = setInterval(() => {
+    let stamp = "";
+    try {
+      const st = statSync(workFile());
+      stamp = `${st.mtimeMs}:${st.size}`;
+    } catch {
+      stamp = "";
+    }
+    if (stamp !== lastWorkStamp) {
+      lastWorkStamp = stamp;
+      checkImageMcpWork();
+    }
+  }, 300);
+  context.subscriptions.push({ dispose: () => clearInterval(workTimer) });
   checkImageMcpWork();
 
   async function probeImageShare(): Promise<void> {
@@ -579,6 +593,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (on !== menteLocalOn) {
       menteLocalOn = on;
       updateExplorer(buildExplorerData());
+      void ChatbotPanel.current?.refresh();
     }
   }
   const menteLocalTimer = setInterval(probeMenteLocal, 5000);
@@ -1041,6 +1056,7 @@ export function activate(context: vscode.ExtensionContext): void {
       sessionAgents: data.sessionAgents,
       menteLocal: data.menteLocal,
       imageShare: data.imageShare,
+      chatbot: readSettings(context).enabled,
     };
   }
 
@@ -1599,6 +1615,7 @@ export function activate(context: vscode.ExtensionContext): void {
             // Brilla con el servidor en marcha, esté o no el cerebro encendido (misma regla que la sonda).
             menteLocalOn = next.running;
             updateExplorer(buildExplorerData());
+            void ChatbotPanel.current?.refresh();
           }
         });
       },
@@ -1612,6 +1629,17 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     panel.update(await collectState(context));
+  }
+
+  /** Abre el Chatbot solo con Mente local encendida. */
+  function openChatbot(): void {
+    if (!readSettings(context).enabled) {
+      void vscode.window.showInformationMessage(
+        "El Chatbot necesita Mente local encendida. Enciéndela desde su panel."
+      );
+      return;
+    }
+    ChatbotPanel.open(context);
   }
 
   /** Con Mente local encendida el proveedor ya está escrito: solo falta levantar el servidor. */
@@ -2315,6 +2343,8 @@ export function activate(context: vscode.ExtensionContext): void {
       void openMenteLocalPanel()
     ),
 
+    vscode.commands.registerCommand("opencodeAgents.openChatbot", () => openChatbot()),
+
     vscode.commands.registerCommand("opencodeAgents.imageGenerator", () =>
       void ImageGenPanel.open(context)
     ),
@@ -3011,6 +3041,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
       case "openImageGen":
         await ImageGenPanel.open(context);
+        return;
+
+      case "openChatbot":
+        openChatbot();
         return;
     }
   }

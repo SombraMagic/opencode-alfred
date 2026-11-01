@@ -17,12 +17,12 @@ export interface OllamaPullLine {
 
 const DEFAULT_TIMEOUT = 15_000;
 
-function baseOf(baseURL: string): string {
+export function baseOf(baseURL: string): string {
   return baseURL.replace(/\/+$/, "");
 }
 
 /** Error legible en español: fetch solo dice «fetch failed». */
-function unreachable(baseURL: string, err: unknown): Error {
+export function unreachable(baseURL: string, err: unknown): Error {
   if (err instanceof Error && err.name === "TimeoutError") {
     return new Error(`Ollama no respondió en ${baseURL}.`);
   }

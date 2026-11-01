@@ -3,6 +3,8 @@
  * generar una imagen, transcribir voz y cargar/instalar modelos de Ollama. Sin
  * `vscode`: los orígenes las encienden y el panel las lee.
  */
+import { readWork } from "../images/share";
+
 export type ActivityIcon = "imagen" | "dictado" | "ollama";
 
 export interface ActivityAgent {
@@ -31,6 +33,17 @@ export function setActivity(key: string, on: boolean, name: string, icon: Activi
   for (const listener of listeners) {
     listener();
   }
+}
+
+/**
+ * Enciende o apaga la tarjeta «GENERANDO IMAGEN» de `key` según `imagen-trabajando.json`,
+ * que deja el MCP. Si el proceso muere a mitad, el sello de tiempo la caduca a los 15 min.
+ * Reutilizable: cada origen (MCP, chatbot...) pasa su propia clave.
+ */
+export function checkImageWork(key: string): void {
+  const work = readWork();
+  const on = !!work?.on && Date.now() - work.at < 15 * 60_000;
+  setActivity(key, on, "GENERANDO IMAGEN", "imagen");
 }
 
 /** Actividades encendidas, en el orden en que se encendieron. */
