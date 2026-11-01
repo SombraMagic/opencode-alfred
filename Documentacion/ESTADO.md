@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 1 de noviembre de 2026 · versión **0.7.23**
+Última revisión: 1 de noviembre de 2026 · versión **0.7.24**
 
 ## Resumen
 
@@ -9,8 +9,22 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.23** está empaquetada, instalada (`--force`) y **publicada** (tag `v0.7.23` y release en
-GitHub con el `.vsix` adjunto): el panel de **estadísticas de prompts** queda reordenado. La lista
+La **0.7.24** está empaquetada e instalada en local (`--force`), **sin release en GitHub**: el
+panel de VOZ gana un **monitor del equipo** de dos filas encima del ecualizador (`CPU` con
+temperatura y uso, `RAM` y `VRAM` con total y uso, `GPU` con temperatura y uso), con barra de
+bloques y sondeo cada 2 s solo con la vista visible y sin repintado si la muestra no cambia. Los
+datos los lee **LibreHardwareMonitorLib** (0.9.4, MPL-2.0, en `resources/lhm/`) desde un proceso
+de PowerShell persistente (`resources/sysmon-lhm.ps1`, en `src/sysmon/`), uno por sesión y uno
+solo aunque haya dos ventanas, que escribe `sysmon.json` en el almacenamiento global y muere con
+el host. La temperatura de la CPU exige administrador: el UAC se pide una vez por sesión con un
+aviso previo en VS Code; si se cancela el UAC, o no llega la primera muestra en 20 s, se arranca
+sin elevar y esa temperatura queda en `—` hasta reiniciar VS Code. **Sin verificar en vivo**: el
+UAC real aceptado y cancelado, el proceso elevado escribiendo y muriendo con VS Code, el aspecto
+del bloque a ~300 px de barra lateral y dos ventanas a la vez (mutex).
+
+Va sobre la **0.7.23**, empaquetada, instalada (`--force`) y **publicada** (tag `v0.7.23` y
+release en GitHub con el `.vsix` adjunto): el panel de **estadísticas de prompts** queda
+reordenado. La lista
 de la izquierda es estrecha (224 px), multiselección, con casilla, texto en una línea y papelera
 por prompt; el agregado de la selección suma prompts, trabajo, tokens, coste y agentes. La línea
 de tiempo va concatenada sin huecos y agrupada por agente, y a su lado hay dos gráficas de barras

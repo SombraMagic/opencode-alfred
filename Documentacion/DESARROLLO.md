@@ -30,6 +30,8 @@
 │  │  ├─ ollama/             mente local: `client`, `process`, `provider` y `service`
 │  │  ├─ mcp/                servidor `mcp_alfred` (voz y pizarra) → `dist/alfred-mcp.js`
 │  │  ├─ voice/              motores de voz y dictado
+│  │  ├─ sysmon/             monitor del equipo: lanza `resources/sysmon-lhm.ps1` y lee
+│  │  │                      su muestra para el panel de VOZ (sin `vscode`)
 │  │  └─ extension.ts        comandos, sondeo en vivo y reparto a los paneles
 │  ├─ media/                 JS, CSS y SVG de las webviews (a mano, sin bundler)
 │  │  └─ three/              three.js r0.169 vendorizado para el visor 3D (no va por npm)

@@ -3,6 +3,23 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.24] - 2026-11-01
+
+- **Monitor del equipo en el panel de VOZ**: dos filas encima del ecualizador con `CPU`
+  (temperatura y uso), `RAM` (total y uso), `GPU` (temperatura y uso) y `VRAM` (total y uso),
+  cada una con su barra de bloques en el estilo del panel. Sondea cada 2 s solo con la vista
+  visible y no repinta si la muestra no cambia.
+- Los datos salen de **LibreHardwareMonitorLib** (0.9.4, licencia **MPL-2.0**, con su texto de
+  licencia en `resources/lhm/`), cargada por un proceso de PowerShell que se lanza una vez por
+  sesión y termina solo al cerrar VS Code. Elige la GPU NVIDIA, AMD o Intel que haya y deja la
+  muestra en el almacenamiento global de la extensión, así que dos ventanas abiertas no lanzan
+  dos procesos.
+- **La temperatura de la CPU pide permisos de administrador**: Windows muestra un aviso de UAC
+  una sola vez, después de un aviso en VS Code. Si se cancela o tarda más de 20 s, se arranca sin
+  elevar y se siguen leyendo cargas, memoria y GPU; la temperatura de la CPU queda en `—` hasta
+  reiniciar VS Code, sin volver a pedir permiso en la misma sesión.
+- Si no hay muestra (proceso sin arrancar, dato viejo o error), el monitor pinta guiones.
+
 ## [0.7.23] - 2026-11-01
 
 - **Estadísticas de prompts reordenadas**: la lista de la izquierda es estrecha (224 px),

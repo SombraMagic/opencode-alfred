@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.23.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.24.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -15,6 +15,18 @@ No hace falta compilar nada ni instalar Node.
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.7.24
+
+- **Monitor del equipo en el panel de VOZ**: encima del ecualizador, dos filas con `CPU`
+  (temperatura y uso), `RAM` (total y uso), `GPU` (temperatura y uso) y `VRAM` (total y uso),
+  cada una con su barra de bloques. Se refresca cada 2 s y solo con la vista abierta.
+- **La temperatura de la CPU pide permisos de administrador**: Windows muestra un aviso de UAC
+  una sola vez por sesión, después de un aviso en VS Code. Si se cancela, se siguen leyendo las
+  cargas, la memoria y la GPU, y esa temperatura queda en `—` hasta reiniciar VS Code. Sin
+  muestra, el monitor pinta guiones.
+- Los datos los lee **LibreHardwareMonitorLib** (licencia MPL-2.0, incluida en el paquete junto
+  a su texto de licencia). El proceso que lee se lanza una sola vez y termina al cerrar VS Code.
 
 ## Novedades de la 0.7.23
 

@@ -72,6 +72,12 @@ tarjeta de cada proveedor recuerda si estaba plegada.
   cargar o instalar modelos de Ollama salen también, con la generación que lanza el MCP
   incluida. Se distinguen por el borde discontinuo y el icono delante del nombre, y
   desaparecen al terminar.
+- Encima del ecualizador hay un **monitor del equipo**: `CPU` (temperatura y uso), `RAM`
+  (total y uso), `GPU` (temperatura y uso) y `VRAM` (total y uso), con su barra de bloques.
+  Se refresca cada 2 s y solo con la vista abierta; sin muestra, pinta guiones. La
+  temperatura de la CPU necesita permisos de administrador: Windows pide UAC una sola vez
+  por sesión y, si se cancela, cargas, memoria y GPU se leen igual y esa temperatura queda
+  en `—` hasta reiniciar VS Code.
 - Dictado: bloc de notas con adjuntos (imágenes pegadas, ficheros arrastrados o `ADJUNTAR`),
   configuración plegable y tres motores (SAPI, Whisper local, nube compatible con OpenAI).
 
