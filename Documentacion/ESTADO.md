@@ -165,8 +165,9 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 - **Panel de conectores** de opencode: catálogo, configurados, alta (clave, externa,
   OAuth, comando), apagado por política y borrado.
 - **Contexto** con desglose de la ventana, compactación y medición para los tres CLIs.
-- **Estadísticas de agentes** (tokens, coste, tiempo, sesiones) y **de prompts**
-  (línea de tiempo por prompt, con subagentes en paralelo).
+- **Estadísticas de agentes** (tokens, coste, tiempo, sesiones) y **de prompts** (lista
+  multiselección con borrado por fila, agregado de la selección, línea de tiempo concatenada
+  agrupada por agente y barras de tokens y coste por agente).
 - **Límites de consumo** por proveedor (DeepSeek, OpenAI, GitHub Copilot, OpenCode Go), con el
   despliegue de cada tarjeta recordado entre sesiones; OpenCode Go lee el consumo real de la
   consola (porcentajes con su reposición) y solo estima con las bases si esa ruta no existe.
