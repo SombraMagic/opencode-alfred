@@ -331,15 +331,13 @@ export class ChatbotPanel {
     const prefs = readPrefs(this.context);
     let installed: Array<{ name: string; sizeLabel: string }> = [];
     let lockReason = "";
-    if (!menteLocal.enabled) {
-      lockReason = "Mente local está apagada. Enciéndela para probar los modelos.";
-    } else {
-      try {
-        installed = (await ollamaTags(menteLocal.baseURL)).map((t) => ({ name: t.name, sizeLabel: sizeLabel(t.size) }));
-        if (!installed.length) lockReason = "Ollama no tiene modelos instalados.";
-      } catch {
-        lockReason = "El servidor de Ollama no responde.";
-      }
+    // El chatbot habla directo con Ollama: vale con que el servidor responda, no hace falta
+    // que el proveedor esté escrito en opencode.json (interruptor de Mente local).
+    try {
+      installed = (await ollamaTags(menteLocal.baseURL)).map((t) => ({ name: t.name, sizeLabel: sizeLabel(t.size) }));
+      if (!installed.length) lockReason = "Ollama no tiene modelos instalados.";
+    } catch {
+      lockReason = "El servidor de Ollama no responde. Enciende Mente local o arranca Ollama.";
     }
     this.locked = !!lockReason;
     const names = installed.map((m) => m.name);

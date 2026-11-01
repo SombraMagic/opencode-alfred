@@ -7,7 +7,6 @@
     global: document.getElementById("btn-global"),
     local: document.getElementById("btn-local"),
     addPlugin: document.getElementById("btn-add-plugin"),
-    assign: document.getElementById("btn-assign"),
     agentsProject: document.getElementById("agents-project"),
     agentsGlobal: document.getElementById("agents-global"),
     agentsProjectCount: document.getElementById("agents-project-count"),
@@ -328,11 +327,6 @@
       : "No hay ningún proyecto abierto: no hay " + fichero + " del proyecto.";
     el.local.setAttribute("aria-label", el.local.title);
 
-    // ASIGNAR AGENTES solo vale con opencode: el tablero escribe el modelo en los .md de opencode.
-    const opencode = data.sessionAgent === "opencode";
-    el.assign.disabled = !opencode;
-    el.assign.title = opencode ? "Asignar agentes a modelos" : "Solo con opencode";
-
     const working = Number(data.totals && data.totals.working) || 0;
     // La cabecera del explorador lleva lo que antes eran dos chips: sumas y agentes en vuelo.
     const sums = [];
@@ -366,7 +360,6 @@
     act({ type: "editInstructions", scope: "project" })
   );
   el.addPlugin.addEventListener("click", () => act({ type: "addPlugin" }));
-  el.assign.addEventListener("click", () => act({ type: "openAssign" }));
   // Se engancha una sola vez: el HTML es estático y solo cambia de clase.
   el.autoAcceptBtn.addEventListener("click", () => {
     const on = el.autoAcceptBtn.classList.contains("on");

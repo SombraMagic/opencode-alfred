@@ -12,20 +12,24 @@ body {
   display: flex;
 }
 
-/* Caja transparente: sin rótulo ni separador, solo el marco que da la holgura. */
+/* Caja transparente: sin rótulo ni separador, solo el marco que da la holgura.
+   En columna para que quepan las dos filas del mando. */
 .mando {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
+  flex-direction: column;
+  gap: 8px;
   border: 1px solid transparent;
   padding: 0;
   margin: 0;
 }
 
-/* Una sola fila elástica: los botones se estiran y saltan de línea en barra estrecha,
-   en vez de recortar el rótulo o esconderse. */
+/* Filas del mando: se apilan arriba, sin repartirse el alto de la vista. Los botones se
+   estiran y saltan de línea en barra estrecha, en vez de recortar el rótulo o esconderse. */
 .mando-row {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  min-height: 34px;
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
@@ -33,20 +37,45 @@ body {
   gap: 8px;
 }
 
+/* explorer.css separa sus filas con `margin-top`: aquí el hueco lo pone el `gap` del mando. */
+.mando-row + .mando-row {
+  margin-top: 0;
+}
+
+/* Segunda fila: solo iconos (pizarra, dictado, voz y estadísticas de prompts). Cuadrados
+   fijos, como los de la fila 1: una fila de iconos no debe estirarse para llenar el ancho. */
+.mando-row-2 .icon-btn {
+  flex: 0 0 34px;
+}
+
 /* ── Terminal: el botón principal ──────────────────────── */
 /* Manda por tamaño y por color; las flechas lo acompañan sin competir. */
 .session-group {
-  flex: 2 1 150px;
+  flex: 2 1 104px;
+  /* Sin `min-width: 0` el grupo se queda en su ancho mínimo de contenido y se sale de la
+     vista cuando el rótulo es largo: `min-width: auto` manda sobre el `flex-basis`. */
+  min-width: 0;
   align-items: stretch;
 }
 
 .session-btn {
   flex: 1 1 auto;
+  /* El rótulo de relleno puede ser largo (id de proveedor desconocido): sin `min-width: 0`
+     empuja las flechas y saca el grupo de la vista en vez de recortarse. */
+  min-width: 0;
   min-height: 36px;
   padding: 7px 10px;
   background: color-mix(in srgb, var(--neon) 30%, transparent);
   border: 1px solid var(--neon);
   color: var(--neon);
+}
+
+/* Texto de relleno (solo sin logo del proveedor): se recorta con puntos suspensivos. */
+.session-btn #agent-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .session-btn svg {

@@ -1056,7 +1056,7 @@ export function activate(context: vscode.ExtensionContext): void {
       sessionAgents: data.sessionAgents,
       menteLocal: data.menteLocal,
       imageShare: data.imageShare,
-      chatbot: readSettings(context).enabled,
+      chatbot: menteLocalOn,
     };
   }
 
@@ -1631,14 +1631,12 @@ export function activate(context: vscode.ExtensionContext): void {
     panel.update(await collectState(context));
   }
 
-  /** Abre el Chatbot solo con Mente local encendida. */
+  /**
+   * Abre el Chatbot. El bloqueo lo decide el propio panel (servidor de Ollama vivo y con
+   * modelos), así que aquí no se adivina con el interruptor de Mente local: se abre y, si
+   * no hay servidor, explica el motivo dentro.
+   */
   function openChatbot(): void {
-    if (!readSettings(context).enabled) {
-      void vscode.window.showInformationMessage(
-        "El Chatbot necesita Mente local encendida. Enciéndela desde su panel."
-      );
-      return;
-    }
     ChatbotPanel.open(context);
   }
 
@@ -3045,6 +3043,22 @@ export function activate(context: vscode.ExtensionContext): void {
 
       case "openChatbot":
         openChatbot();
+        return;
+
+      case "openPizarra":
+        await PizarraPanel.open(context);
+        return;
+
+      case "openDictado":
+        await vscode.commands.executeCommand("voz.dictado");
+        return;
+
+      case "openVoice":
+        await vscode.commands.executeCommand("voz.reveal");
+        return;
+
+      case "openPromptStats":
+        openPromptStatsPanel();
         return;
     }
   }

@@ -68,7 +68,11 @@ export type ExplorerAction =
   | { type: "openConnectors" }
   | { type: "openMenteLocal" }
   | { type: "openImageGen" }
-  | { type: "openChatbot" };
+  | { type: "openChatbot" }
+  | { type: "openPizarra" }
+  | { type: "openDictado" }
+  | { type: "openVoice" }
+  | { type: "openPromptStats" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
@@ -87,6 +91,10 @@ const ACTION_TYPES = new Set<string>([
   "openConnectors",
   "openMenteLocal",
   "openImageGen",
+  "openPizarra",
+  "openDictado",
+  "openVoice",
+  "openPromptStats",
 ]);
 
 export class ExplorerPanel implements vscode.WebviewViewProvider {
@@ -185,13 +193,12 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
 </head>
 <body>
 <div class="hud">
-  <!-- [MANDO] Dos filas: AGENTS.md + asignar agentes, y el interruptor de permisos.
-       La sesión, los conectores y la mente local viven en la vista Control. -->
+  <!-- [MANDO] Dos filas: los dos AGENTS.md y el interruptor de permisos. La sesión, los
+       conectores, la mente local y asignar agentes viven en la vista Control. -->
   <div class="mando">
     <div class="mando-row">
       <button id="btn-global" class="brain-btn" type="button" title="Editar el AGENTS.md global">${brain}<span>GLOBAL</span></button>
       <button id="btn-local" class="brain-btn" type="button" title="Editar el AGENTS.md del proyecto" disabled>${brain}<span>PROYECTO</span></button>
-      <button id="btn-assign" class="assign-btn" type="button" title="Asignar agentes a modelos" disabled>ASIGNAR AGENTES</button>
     </div>
     <div class="mando-row">
       <button id="btn-auto-accept" class="switch perm-switch" type="button" aria-pressed="false" title="Aceptar sin preguntar lo que el agente pida. Las reglas «deny» siguen bloqueando; se aplica al momento.">

@@ -1,4 +1,4 @@
-/* ALFRED // CONTROL — el mando de la vista Control: sesión, conectores y Ollama. */
+/* ALFRED // CONTROL — el mando de la vista Control: sesión, conectores y módulos. */
 (function () {
   const vscode = acquireVsCodeApi();
 
@@ -8,9 +8,15 @@
     agentPrev: document.getElementById("agent-prev"),
     agentNext: document.getElementById("agent-next"),
     connectors: document.getElementById("btn-connectors"),
+    assign: document.getElementById("btn-assign"),
     mente: document.getElementById("btn-mente"),
     image: document.getElementById("btn-image"),
     chatbot: document.getElementById("btn-chatbot"),
+    // Segunda fila: pestañas que antes vivían en el Explorador o en el bloc del dictado.
+    pizarra: document.getElementById("btn-pizarra"),
+    dictado: document.getElementById("btn-dictado"),
+    voz: document.getElementById("btn-voz"),
+    promptStats: document.getElementById("btn-prompt-stats"),
     // Dibujo del proveedor dentro del botón de sesión (path vacío hasta el primer render).
     sessionLogo: document.querySelector("#btn-session svg path"),
   };
@@ -54,6 +60,11 @@
       ? "Gestionar los conectores de opencode"
       : "Solo con opencode";
 
+    // ASIGNAR AGENTES solo vale con opencode: el tablero escribe el modelo en los .md de opencode.
+    el.assign.disabled = !opencode;
+    el.assign.title = opencode ? "Asignar agentes a modelos" : "Solo con opencode";
+    el.assign.setAttribute("aria-label", el.assign.title);
+
     // OLLAMA brilla mientras el servidor de Ollama responde.
     const mente = data.menteLocal === true;
     el.mente.classList.toggle("on", mente);
@@ -67,21 +78,26 @@
       ? "Generador de imágenes (compartido con los agentes)"
       : "Generador de imágenes";
 
-    // El chatbot necesita Mente local encendida.
+    // El chatbot necesita el servidor de Ollama vivo (no el interruptor de Mente local).
     el.chatbot.disabled = data.chatbot !== true;
     el.chatbot.classList.toggle("on", data.chatbot === true);
     el.chatbot.title = data.chatbot === true
       ? "Abrir el chatbot de Mente local"
-      : "Chatbot (requiere Mente local encendida)";
+      : "Chatbot (Ollama no responde)";
   }
 
   el.session.addEventListener("click", () => act({ type: "openLastSession" }));
   el.agentPrev.addEventListener("click", () => act({ type: "cycleAgent", delta: -1 }));
   el.agentNext.addEventListener("click", () => act({ type: "cycleAgent", delta: 1 }));
   el.connectors.addEventListener("click", () => act({ type: "openConnectors" }));
+  el.assign.addEventListener("click", () => act({ type: "openAssign" }));
   el.mente.addEventListener("click", () => act({ type: "openMenteLocal" }));
   el.image.addEventListener("click", () => act({ type: "openImageGen" }));
   el.chatbot.addEventListener("click", () => act({ type: "openChatbot" }));
+  el.pizarra.addEventListener("click", () => act({ type: "openPizarra" }));
+  el.dictado.addEventListener("click", () => act({ type: "openDictado" }));
+  el.voz.addEventListener("click", () => act({ type: "openVoice" }));
+  el.promptStats.addEventListener("click", () => act({ type: "openPromptStats" }));
 
   window.addEventListener("message", (event) => {
     const message = event.data;
