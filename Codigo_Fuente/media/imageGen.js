@@ -55,6 +55,7 @@
     history: $("history"),
     clearHistory: $("btn-clear-history"),
     folder: $("btn-folder"),
+    reloadHistory: $("btn-reload-history"),
   };
 
   const MAX_LORAS = 8;
@@ -622,6 +623,8 @@
   el.clearHistory.addEventListener("click", () => act({ type: "clearHistory" }));
 
   el.folder.addEventListener("click", () => act({ type: "openFolder" }));
+
+  el.reloadHistory.addEventListener("click", () => act({ type: "refreshHistory" }));
 
   window.addEventListener("message", (event) => {
     const mensaje = event.data;

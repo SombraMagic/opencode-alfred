@@ -141,6 +141,7 @@ export type ImageGenAction =
   | { type: "copy"; file: string }
   | { type: "deleteImage"; file: string }
   | { type: "clearHistory" }
+  | { type: "refreshHistory" }
   | { type: "setOpenAIURL"; url: string }
   | { type: "setPrefs"; prefs: ImagePrefs }
   | { type: "reloadModels" }
@@ -161,6 +162,7 @@ const ACTION_TYPES = new Set<string>([
   "copy",
   "deleteImage",
   "clearHistory",
+  "refreshHistory",
   "setOpenAIURL",
   "setPrefs",
   "reloadModels",
@@ -281,6 +283,7 @@ function parseAction(raw: unknown): ImageGenAction | undefined {
     case "pickSource":
     case "clearSource":
     case "clearHistory":
+    case "refreshHistory":
     case "openFolder":
       return { type: action.type };
     case "setProvider":
@@ -589,6 +592,12 @@ export class ImageGenPanel {
     watchFile(shotFile(), { interval: 1000 }, () => void this.applyShot());
     void this.applyLastShot();
 
+    // PNG añadidos o borrados desde fuera (el Explorador, el MCP u otra aplicación): se
+    // relee el historial sin esperar a que el usuario pulse nada. `watchFile` sobre un
+    // directorio sondea su mtime; el renombrado atómico de Windows no siempre avisa con
+    // `fs.watch`. Si la carpeta aún no existe no falla: empieza a avisar cuando se cree.
+    watchFile(this.dir(), { interval: 1500 }, () => void this.update());
+
     // Al abrir la pestaña se prueba ComfyUI sin pulsar CONECTAR; el catálogo llega con el
     // estado. Con OpenAI `syncComfy` sale sin sondear nada.
     void this.syncComfy().then(() => this.update());
@@ -736,6 +745,11 @@ export class ImageGenPanel {
         return;
       case "clearHistory":
         await this.clearHistory();
+        return;
+      case "refreshHistory":
+        // El `finally` de `handle` ya llama a `update()`: basta con releer la carpeta.
+        // `buildState` conserva `currentFile` si sigue en el historial.
+        this.message = "Historial recargado.";
         return;
       case "openFolder":
         await this.openFolder();
@@ -1130,6 +1144,7 @@ export class ImageGenPanel {
   /** Suelta el singleton al cerrarse, sin volver a disponer el panel. */
   private release(): void {
     unwatchFile(shotFile());
+    unwatchFile(this.dir());
     if (ImageGenPanel.current === this) {
       ImageGenPanel.current = undefined;
     }
