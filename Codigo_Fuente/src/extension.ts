@@ -2263,11 +2263,27 @@ export function activate(context: vscode.ExtensionContext): void {
     void vscode.window.setStatusBarMessage("opencode: registro de prompts borrado.", 4000);
   }
 
+  async function removePromptRecords(ids: string[]): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+    const removed = await promptStats.delete(ids);
+    if (removed === 0) {
+      return;
+    }
+    await refreshPrompts();
+    void vscode.window.setStatusBarMessage(
+      removed === 1 ? "opencode: prompt borrado del historial." : `opencode: ${removed} prompts borrados del historial.`,
+      4000
+    );
+  }
+
   function openPromptStatsPanel(): void {
     PromptStatsPanel.open(context, {
       refresh: async () => refreshPrompts(),
       setMonitor: async (on: boolean) => setPromptMonitor(on),
       clear: async () => clearPromptRecords(),
+      remove: async (ids: string[]) => removePromptRecords(ids),
     });
     if (lastPromptSnapshot) {
       PromptStatsPanel.current?.update(lastPromptSnapshot);

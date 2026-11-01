@@ -240,9 +240,15 @@ export class PromptStatsService {
    * descarta de por sí lo que cerró antes (`end < since`), así que lo borrado no regresa.
    */
   private clearedAt = 0;
+  /**
+   * Ids borrados a mano que el escáner volvería a traer: un prompt cerrado sigue en las bases de
+   * opencode y el `since` de su sesión no cambia, así que `merge()` lo reinsertaría en el siguiente
+   * tick. Al reiniciar no hacen falta, porque `setMonitor(true)` fija `since = ahora`.
+   */
+  private deleted = new Set<string>();
   /** Mensaje breve cuando el JSON está ilegible: no se sobrescribe hasta tener datos válidos. */
   private damage?: string;
-  /** Cola interna: `setMonitor`, `collect` y `clear` nunca escriben el estado solapados. */
+  /** Cola interna: `setMonitor`, `collect`, `clear` y `delete` nunca escriben el estado solapados. */
   private chain: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly file: string) {}
@@ -321,6 +327,10 @@ export class PromptStatsService {
           if (!prompt.live) {
             continue;
           }
+          // Un prompt borrado a mano que el escáner vuelve a ver en marcha tampoco es un vivo.
+          if (this.deleted.has(prompt.id)) {
+            continue;
+          }
           const known = savedById.get(prompt.id);
           if (known) {
             if (known.endedAt - known.startedAt >= prompt.endedAt - prompt.startedAt) {
@@ -340,9 +350,39 @@ export class PromptStatsService {
     return this.enqueue(async () => {
       await this.ensureLoaded();
       this.saved = [];
+      this.deleted.clear();
       this.damage = undefined;
       this.clearedAt = Date.now();
       await this.persist();
+    });
+  }
+
+  /** Borra del historial los prompts indicados y devuelve cuántos registros se eliminaron. */
+  delete(ids: string[]): Promise<number> {
+    return this.enqueue(async () => {
+      await this.ensureLoaded();
+      const drop = new Set(ids);
+      if (drop.size === 0) {
+        return 0;
+      }
+      const before = this.saved.length;
+      this.saved = this.saved.filter((p) => !drop.has(p.id));
+      const removed = before - this.saved.length;
+      for (const id of drop) {
+        this.deleted.add(id);
+      }
+      // Set conserva el orden de alta: lo primero en salir es siempre lo más antiguo.
+      while (this.deleted.size > MAX_SAVED) {
+        const oldest = this.deleted.values().next();
+        if (oldest.done) {
+          break;
+        }
+        this.deleted.delete(oldest.value);
+      }
+      if (removed > 0) {
+        await this.persist();
+      }
+      return removed;
     });
   }
 
@@ -386,6 +426,10 @@ export class PromptStatsService {
     }
     let changed = false;
     for (const record of completed) {
+      // Un prompt borrado a mano sigue en las bases: sin esta tumba volvería en este mismo tick.
+      if (this.deleted.has(record.id)) {
+        continue;
+      }
       const at = index.get(record.id);
       if (at === undefined) {
         if (record.endedAt <= dropBefore) {

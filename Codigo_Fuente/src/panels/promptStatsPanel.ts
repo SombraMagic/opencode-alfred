@@ -5,6 +5,7 @@ export interface PromptStatsPanelHandlers {
   refresh(): Promise<void>;
   setMonitor(on: boolean): Promise<void>;
   clear(): Promise<void>;
+  remove(ids: string[]): Promise<void>;
 }
 
 /** Pestaña de estadísticas de prompts: lista de prompts y línea de tiempo de cada uno. */
@@ -54,7 +55,7 @@ export class PromptStatsPanel {
 
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage(
-      async (message: { type?: string; on?: boolean }) => {
+      async (message: { type?: string; on?: boolean; ids?: unknown }) => {
         switch (message.type) {
           case "ready":
             if (this.last) {
@@ -70,6 +71,18 @@ export class PromptStatsPanel {
           case "clear":
             await this.handlers.clear();
             break;
+          case "remove": {
+            // El webview puede mandar basura: se queda solo con ids de texto y con tope.
+            const ids = Array.isArray(message.ids)
+              ? message.ids
+                  .filter((id): id is string => typeof id === "string" && id.length > 0)
+                  .slice(0, 500)
+              : [];
+            if (ids.length) {
+              await this.handlers.remove(ids);
+            }
+            break;
+          }
         }
       },
       null,
@@ -125,7 +138,7 @@ export class PromptStatsPanel {
     </button>
     <span id="chip-monitor" class="chip" aria-live="polite">EN PAUSA</span>
     <button id="btn-refresh" class="ghost-btn" type="button" title="Volver a escanear las bases de datos de opencode">ACTUALIZAR</button>
-    <button id="btn-clear" class="ghost-btn" type="button" title="Borra el registro guardado de prompts">BORRAR</button>
+    <button id="btn-clear" class="ghost-btn" type="button" title="Borra todo el registro guardado de prompts">BORRAR</button>
   </div>
 
   <p class="sub" id="subtitle">Leyendo prompts de opencode…</p>
@@ -134,34 +147,64 @@ export class PromptStatsPanel {
   <div id="notice" class="notice" hidden></div>
 
   <div class="board">
-    <section class="col">
+    <aside class="col col-list">
       <div class="col-head">
         <span class="label">PROMPTS</span>
         <span class="count" id="list-count"></span>
+        <span class="head-actions">
+          <button id="sel-all" class="link-btn" type="button" title="Marcar todos los prompts de la lista">TODAS</button>
+          <button id="sel-none" class="link-btn" type="button" title="Desmarcar todos los prompts">NINGUNA</button>
+        </span>
       </div>
       <div id="list" class="list"></div>
-    </section>
+    </aside>
 
-    <section class="col">
-      <div id="detail" class="detail" hidden>
-        <div class="detail-head">
-          <h2 class="detail-title" id="p-title"></h2>
-          <p class="detail-meta" id="p-meta"></p>
+    <section class="col col-main">
+      <div class="agg">
+        <div class="block-head">
+          <span class="label">CONJUNTO SELECCIONADO</span>
+          <span class="count" id="agg-count"></span>
         </div>
-        <div class="toolbar">
-          <button id="zoom-out" class="ghost-btn" type="button" aria-label="Alejar" title="Alejar la línea de tiempo">−</button>
-          <button id="zoom-in" class="ghost-btn" type="button" aria-label="Acercar" title="Acercar la línea de tiempo">+</button>
-          <button id="zoom-fit" class="ghost-btn" type="button" title="Ver el prompt completo">AJUSTAR</button>
-          <span class="range-label" id="range-label">—</span>
-          <span class="zoom-label" id="zoom-label">x1.00</span>
-          <span class="zoom-hint">Ctrl + rueda</span>
+        <div class="kpis" id="kpis"></div>
+        <p class="agg-text" id="agg-text" hidden></p>
+      </div>
+
+      <div class="panel-block">
+        <div class="block-head">
+          <span class="label">TRABAJO POR AGENTE</span>
+          <span class="block-actions">
+            <button id="zoom-out" class="ghost-btn" type="button" aria-label="Alejar" title="Alejar la línea de tiempo">−</button>
+            <button id="zoom-in" class="ghost-btn" type="button" aria-label="Acercar" title="Acercar la línea de tiempo">+</button>
+            <button id="zoom-fit" class="ghost-btn" type="button" title="Ver la selección completa">AJUSTAR</button>
+            <span class="range-label" id="range-label">—</span>
+            <span class="zoom-label" id="zoom-label">x1.00</span>
+          </span>
         </div>
         <div class="timeline" id="timeline">
+          <div class="strip" id="strip"></div>
           <div class="lanes" id="lanes"></div>
           <div class="axis" id="axis" aria-hidden="true"></div>
         </div>
       </div>
-      <div id="detail-empty" class="empty">Selecciona un prompt de la lista para ver su línea de tiempo.</div>
+
+      <div class="charts">
+        <div class="panel-block">
+          <div class="block-head">
+            <span class="label">TOKENS POR AGENTE</span>
+            <span class="count" id="tokens-max"></span>
+          </div>
+          <div id="chart-tokens" class="chart"></div>
+        </div>
+        <div class="panel-block">
+          <div class="block-head">
+            <span class="label">COSTE POR AGENTE</span>
+            <span class="count" id="cost-max"></span>
+          </div>
+          <div id="chart-cost" class="chart"></div>
+        </div>
+      </div>
+
+      <div id="empty" class="empty" hidden></div>
     </section>
   </div>
 </div>
