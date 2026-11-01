@@ -72,7 +72,9 @@ body {
   color: var(--text-dim);
 }
 
-/* Un chip por conector: activo = neón, apagado = apagado. */
+/* Un chip por conector: activo con relleno tenue de neón, apagado sin relleno y con texto
+   atenuado. El apagado NUNCA baja por `opacity`: a 0.4 el texto se queda en 1,6:1 sobre el
+   fondo y no se lee (ni en oscuro ni en claro). Se apaga con tono y borde, no con opacidad. */
 .providers {
   display: flex;
   flex: 1 1 180px;
@@ -86,12 +88,12 @@ body {
   align-items: center;
   gap: 4px;
   padding: 2px 6px;
-  background: transparent;
+  background: color-mix(in srgb, var(--neon) 12%, transparent);
   border: 1px solid var(--neon-dim);
   color: var(--text);
   font-family: inherit;
   cursor: pointer;
-  transition: color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
 }
 
 .providers .chip:hover,
@@ -101,18 +103,36 @@ body {
   outline: none;
 }
 
+/* Apagado: se distingue por el borde flojo y la falta de relleno, no por invisibilidad. */
 .providers .chip.off {
-  opacity: 0.4;
+  background: transparent;
   border-color: var(--line-soft);
-  color: var(--text-dim);
+  color: var(--text-soft);
+}
+
+/* Estas reglas van después de `.off` para que el apagado también tenga hover y, sobre todo,
+   indicador de foco: antes `.off` tapaba el borde de neón de `:focus-visible`. */
+.providers .chip.off:hover,
+.providers .chip.off:focus-visible {
+  border-color: var(--neon);
+  color: var(--neon);
 }
 
 .prov-count {
-  color: var(--text-dim);
+  color: var(--text-soft);
 }
 
-.providers .chip:hover .prov-count {
-  color: var(--neon-dim);
+/* Contador del apagado: un paso menos, pero sin bajar del mínimo legible. En tema claro
+   `--text-dim` se queda en 4,47:1 y `--text-soft` al 92 % en 4,53:1; más abajo, no. */
+.providers .chip.off .prov-count {
+  color: color-mix(in srgb, var(--text-soft) 92%, transparent);
+}
+
+/* Al pasar el puntero o el foco, el contador acompaña al rótulo en neón. Antes bajaba a
+   `--neon-dim`, que sobre el fondo claro no se lee. */
+.providers .chip:hover .prov-count,
+.providers .chip:focus-visible .prov-count {
+  color: inherit;
 }
 
 /* ── Tablero ───────────────────────────────────────────── */
