@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 1 de noviembre de 2026 · versión **0.7.21**
+Última revisión: 1 de noviembre de 2026 · versión **0.7.23**
 
 ## Resumen
 
@@ -9,7 +9,17 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.21** está empaquetada e instalada (`--force`), sin release en GitHub: el
+La **0.7.23** está empaquetada e instalada (`--force`), sin release en GitHub: el panel de
+**estadísticas de prompts** queda reordenado. La lista de la izquierda es estrecha (224 px),
+multiselección, con casilla, texto en una línea y papelera por prompt; el agregado de la
+selección suma prompts, trabajo, tokens, coste y agentes. La línea de tiempo va concatenada sin
+huecos y agrupada por agente, y a su lado hay dos gráficas de barras por agente: tokens y coste.
+**Sin ver en VS Code**: la webview real con sesiones vivas y la multiselección con muchos
+prompts. Va sobre la **0.7.22**, empaquetada e instalada (`--force`), sin release en GitHub: el
+chatbot de Mente local con herramienta de imagen, `ASIGNAR AGENTES` como icono de Control con su
+segunda fila de módulos, los arreglos del dictado (soltar no deja el panel mudo, fin de habla en
+manos libres con detector de pausa) y la recarga del historial del generador de imágenes. Va
+sobre la **0.7.21**, empaquetada e instalada (`--force`), sin release en GitHub, en la que el
 **generador de imágenes IA** recuerda entre sesiones el modelo de cada proveedor, el tamaño, los
 pasos, la guía, la semilla y si es aleatoria (`opencodeAgents.imageGen`). Al abrir la pestaña se
 comprueba el enlace con ComfyUI y se recarga el catálogo sin pulsar `CONECTAR`, hay un botón de

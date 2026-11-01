@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.21.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.23.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -15,6 +15,24 @@ No hace falta compilar nada ni instalar Node.
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.7.23
+
+- **El panel de estadísticas de prompts está reordenado**: la lista de la izquierda es estrecha
+  (224 px), con casilla, texto en una línea y papelera por prompt; marcar filas no cambia lo que
+  se ve debajo, suma un **agregado de la selección** con prompts, trabajo, tokens, coste y agentes.
+- **La línea de tiempo va concatenada, sin huecos**, y se agrupa por agente: una fila y una barra
+  por agente, no por prompt. El zoom opera sobre el total acumulado.
+- **Dos gráficas de barras por agente**: tokens y coste, al lado de la línea de tiempo.
+- **Lo que quedó tras la 0.7.22**: `ASIGNAR AGENTES` pasa a Control como un icono más, entre los
+  conectores y `OLLAMA`, y el mando gana una segunda fila de módulos de solo icono; el dictado ya
+  no deja el panel mudo al soltar y en manos libres cierra el turno con un detector de pausa
+  adaptativo; el historial del generador de imágenes se recarga a mano y al cambiar de carpeta.
+
+## Novedades de la 0.7.22
+
+- **Chatbot de Mente local**: pestaña central que conversa con el modelo de Ollama del panel y
+  puede usar una herramienta de generación de imágenes.
 
 ## Novedades de la 0.7.21
 
@@ -207,19 +225,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.21.vsix`.
+3. Elige `opencode-alfred-0.7.23.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.21.vsix
+code --install-extension opencode-alfred-0.7.23.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.21.vsix --force
+code --install-extension opencode-alfred-0.7.23.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

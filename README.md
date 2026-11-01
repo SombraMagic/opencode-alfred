@@ -41,14 +41,15 @@ Bienvenidos a Alfred.
   patrón, con vista previa del YAML.
 - **Un explorador para tres CLIs.** opencode, Claude Code y Codex en la misma barra:
   agentes, MCP, skills y plugins de cada uno, con interruptores para activar y
-  desactivar. Y una vista **Control** con el grupo de sesión (`‹ [terminal] ›`) y una fila de
-  botones de icono: los conectores, `OLLAMA` (Mente local) y el generador de imágenes, más
-  el hueco apagado del chatbot.
+  desactivar. Y una vista **Control** con el grupo de sesión (`‹ [terminal] ›`) y dos filas de
+  botones de icono: los conectores, `ASIGNAR AGENTES`, `OLLAMA` (Mente local), el generador de
+  imágenes y el chatbot, más pizarra, dictado, voz y estadísticas de prompt.
 - **Contexto bajo control.** Cuánto has gastado de la ventana del modelo, qué parte es
   prompt fijo, y un botón para compactar antes de que reviente.
 - **Estadísticas de verdad.** Tokens, coste, tiempo y sesiones por agente, leídos en
-  solo lectura de la base de opencode. Y una línea de tiempo por prompt, con sus
-  subagentes en paralelo.
+  solo lectura de la base de opencode. Y un panel de prompts con lista multiselección,
+  agregado de la selección, línea de tiempo concatenada agrupada por agente y barras de
+  tokens y coste.
 - **Consumo de proveedores.** Saldo y topes de DeepSeek, OpenAI, GitHub Copilot y
   OpenCode Go, sin salir del editor.
 - **Voz.** Lee en voz alta lo que selecciones y dicta en un bloc con adjuntos,

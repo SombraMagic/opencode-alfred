@@ -35,14 +35,17 @@ sobrescritura se puede borrar desde el propio formulario.
 
 ### Control
 
-La vista hermana del Explorador, en la misma barra. Sin plegado ni rótulo: una sola fila
-elástica que ocupa toda la vista, con 6 px de aire. El grupo de sesión `‹ [terminal] ›` —el botón principal, abrir la sesión del
-proveedor activo y cambiar de agente— y cuatro botones de módulo **solo icono**: el enchufe
-de los conectores de opencode (apagado con otro proveedor), el cerebro de `OLLAMA` (la pestaña
+La vista hermana del Explorador, en la misma barra. Sin plegado ni rótulo: dos filas de iconos
+apiladas arriba, con 6 px de aire. La primera lleva el grupo de sesión `‹ [terminal] ›` —el
+botón principal, abrir la sesión del
+proveedor activo y cambiar de agente— y cinco botones de módulo **solo icono**: el enchufe
+de los conectores de opencode (apagado con otro proveedor), `ASIGNAR AGENTES` (solo con
+opencode), el cerebro de `OLLAMA` (la pestaña
 de Ollama, que brilla mientras el servidor responde), la foto del generador de imágenes (en verde
 mientras está compartido con los agentes) y el
-bocadillo del chatbot, este último apagado, con su hueco reservado. Al estrechar la barra la
-fila salta a más líneas y los botones se estiran.
+bocadillo del chatbot (se enciende cuando responde el servidor de Ollama). La segunda fila
+abre pizarra, dictado, voz y estadísticas de prompt. Al estrechar la barra las filas saltan a
+más líneas y los botones se estiran.
 
 ### Contexto
 
@@ -224,8 +227,10 @@ Abre ficheros `.blend` como pestaña de editor: doble clic en el Explorador o
 
 - **Agentes**: tokens (entrada, salida, razonamiento, caché), coste, tiempo de trabajo,
   sesiones y mensajes, con subtotales por scope. `REINICIAR` fija un punto de partida.
-- **Prompts**: línea de tiempo por prompt, con cada agente y subagente que intervino, su
-  duración, tokens y coste (real o estimado y marcado). Solo opencode, y solo con
+- **Prompts**: lista estrecha multiselección con borrado por prompt y el agregado de la
+  selección (prompts, trabajo, tokens, coste y agentes). La línea de tiempo va concatenada,
+  sin huecos, agrupada por agente, con barras de tokens y de coste por agente; cada prompt
+  guarda su duración, tokens y coste (real o estimado y marcado). Solo opencode, y solo con
   `MONITORIZAR` encendido; el historial se guarda en el almacén global de la extensión.
 
 ### Conectores y asignación de modelos

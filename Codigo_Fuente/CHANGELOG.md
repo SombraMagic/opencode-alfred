@@ -3,6 +3,22 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.23] - 2026-11-01
+
+- **Estadísticas de prompts reordenadas**: la lista de la izquierda es estrecha (224 px),
+  multiselección, con casilla, texto en una línea y papelera por prompt. La selección suma un
+  agregado con prompts, trabajo, tokens, coste y agentes.
+- **Línea de tiempo concatenada, sin huecos**, agrupada por agente: una fila y una barra por
+  agente, no por prompt, con el zoom sobre el total acumulado. A su lado, dos gráficas de barras
+  por agente: tokens y coste.
+- Borrar un prompt deja una tumba en memoria para que el escáner no lo reinserte en el mismo
+  tick, y cada bloque tiene firma de repintado para no reconstruir el DOM en el sondeo de 2 s.
+- **Lo que quedó tras la 0.7.22**: `ASIGNAR AGENTES` pasa a Control como un icono más y el mando
+  gana una segunda fila de módulos de solo icono; el dictado ya no se queda mudo al soltar y en
+  manos libres cierra el turno con un detector de pausa adaptativo; el historial del generador de
+  imágenes se recarga a mano y al cambiar de carpeta; los conectores apagados dejan de verse
+  negros.
+
 ## [0.7.22] - 2026-11-01
 
 - **Chatbot de Mente local**: pestaña central para probar los modelos de Ollama directamente, sin
