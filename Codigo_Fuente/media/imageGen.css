@@ -56,6 +56,7 @@ body {
 }
 
 .gen-kicker {
+  flex: none;
   font-size: 11px;
   letter-spacing: 2.5px;
   color: var(--neon);
@@ -70,6 +71,13 @@ body {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 6px 10px;
+}
+
+/* El check va pegado a CONECTAR y no rompe el `flex-end` de la fila: se sube
+   con relleno inferior para quedar centrado con el alto de los campos. */
+.gen-conn .gen-share {
+  align-self: flex-end;
+  padding-bottom: 6px;
 }
 
 /* ── Campos ───────────────────────────────────────────── */
@@ -195,6 +203,15 @@ select.gen-input {
   cursor: default;
 }
 
+/* Encendido: el host confirma la conexión con el proveedor. Apagado, como siempre. */
+#btn-connect.on:not(:disabled),
+#btn-connect.on:hover:not(:disabled),
+#btn-connect.on:focus-visible {
+  color: var(--green);
+  border-color: var(--green);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--green) 45%, transparent);
+}
+
 .gen-icon-btn {
   flex: none;
   display: inline-grid;
@@ -222,25 +239,18 @@ select.gen-input {
 }
 
 /* ── Estado y aviso ───────────────────────────────────── */
-.gen-statusline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-  margin: 8px 0 0;
-  font-size: 10px;
-  letter-spacing: 0.4px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.gen-status {
-  color: var(--text-soft);
-}
-
+/* El aviso del host vive en la fila de la marca: una línea que no gasta alto.
+   Sin texto no se pinta. */
 .gen-message {
-  flex: 1 1 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 9.5px;
+  letter-spacing: 0.4px;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gen-message:empty {
@@ -248,30 +258,9 @@ select.gen-input {
 }
 
 /* ── Compartir con ALFRED ─────────────────────────────── */
-/* El chip va en su propia fila: dentro del `role="status"` el lector anunciaría
-   cada cambio del check como un aviso de estado. */
-.gen-share-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  margin-top: 6px;
-}
-
+/* Marcado = compartido; va en la fila de conexión, a la derecha de CONECTAR. */
 .gen-share.on {
   color: var(--neon);
-}
-
-.gen-share-note {
-  font-size: 9px;
-  letter-spacing: 1.4px;
-  padding: 1px 5px;
-  border: 1px solid var(--neon-dim);
-  color: var(--neon);
-}
-
-.gen-share-note:empty {
-  display: none;
 }
 
 /* ── Cuerpo: ajustes a la izquierda, resultado a la derecha ── */
@@ -698,8 +687,6 @@ select.gen-input {
 
   .gen-brand { margin-bottom: 6px; }
 
-  .gen-statusline { margin-top: 6px; }
-
   .gen-left { gap: 7px; }
 
   /* `rows=7` por defecto; se sigue pudiendo redimensionar a mano. */
@@ -715,10 +702,6 @@ select.gen-input {
     padding-bottom: 5px;
     margin-bottom: 6px;
   }
-
-  .gen-statusline { margin-top: 4px; }
-
-  .gen-share-row { margin-top: 3px; }
 
   .gen-left { gap: 5px; }
 

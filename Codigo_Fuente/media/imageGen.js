@@ -16,11 +16,9 @@
     key: $("key"),
     keyDot: $("key-dot"),
     saveKey: $("btn-save-key"),
-    status: $("status"),
     message: $("message"),
     share: $("share"),
     shareLabel: document.querySelector("label.gen-share"),
-    shareNote: $("share-note"),
     prompt: $("prompt"),
     model: $("model"),
     modelRow: $("model-row"),
@@ -367,7 +365,9 @@
     }
 
     const comfy = next.provider !== "openai";
-    el.dot.classList.toggle("on", next.connected === true);
+    const conectado = next.connected === true;
+    el.dot.classList.toggle("on", conectado);
+    el.connect.classList.toggle("on", conectado);
 
     if (el.provider.value !== next.provider) {
       el.provider.value = next.provider;
@@ -388,15 +388,15 @@
       : "Guardar la URL del servicio compatible con OpenAI";
     el.connect.setAttribute("aria-label", el.connect.title);
 
-    setText(el.status, next.status);
     setText(el.message, next.message);
+    // El aviso va en una línea con puntos suspensivos: el `title` guarda el texto entero.
+    el.message.title = next.message ? String(next.message) : "";
 
     // Compartido con los agentes: el check solo confirma lo que dice el host; si lo
     // rechaza, el `state` vuelve con `share:false` y se desmarca solo.
     const compartido = next.share === true;
     el.share.checked = compartido;
     el.shareLabel.classList.toggle("on", compartido);
-    setText(el.shareNote, compartido ? "COMPARTIDO" : "");
 
     // La clave guardada nunca se escribe en el campo: solo se avisa con el punto.
     el.keyDot.classList.toggle("on", next.hasKey === true);

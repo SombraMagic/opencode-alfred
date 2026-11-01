@@ -13,6 +13,7 @@
     <div class="gen-brand">
       <span class="gen-dot" id="gen-dot" aria-hidden="true"></span>
       <span class="gen-kicker">GENERADOR DE IMÁGENES</span>
+      <p class="gen-message" id="message" role="status" aria-live="polite"></p>
     </div>
 
     <div class="gen-conn" role="group" aria-label="Conexión con el proveedor">
@@ -32,6 +33,7 @@
         <input id="port" class="gen-input" type="number" min="1" max="65535" step="1" placeholder="8188" />
       </div>
       <button id="btn-connect" class="gen-btn" type="button" title="Probar la conexión con ComfyUI" aria-label="Conectar con ComfyUI">CONECTAR</button>
+      <label class="gen-check gen-share"><input id="share" type="checkbox" title="Los agentes pueden generar imágenes mientras ComfyUI responda o haya una clave guardada" />COMPARTIR CON ALFRED</label>
       <div class="gen-field gen-field-key" id="field-key" hidden>
         <label class="label" for="key">CLAVE</label>
         <div class="gen-keyrow">
@@ -40,16 +42,6 @@
           <button id="btn-save-key" class="gen-btn" type="button" title="Guardar la clave de OpenAI" aria-label="Guardar la clave de OpenAI">GUARDAR</button>
         </div>
       </div>
-    </div>
-
-    <p class="gen-statusline" role="status" aria-live="polite">
-      <span class="gen-status" id="status">Sin conexión</span>
-      <span class="gen-message" id="message"></span>
-    </p>
-
-    <div class="gen-share-row">
-      <label class="gen-check gen-share"><input id="share" type="checkbox" title="Los agentes pueden generar imágenes mientras ComfyUI responda o haya una clave guardada" />COMPARTIR CON ALFRED</label>
-      <span class="gen-share-note" id="share-note"></span>
     </div>
   </header>
 
