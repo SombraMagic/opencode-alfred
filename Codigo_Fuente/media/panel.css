@@ -183,8 +183,68 @@
   padding-bottom: 12px;
 }
 
-.fold[open] > .field {
+.fold[open] .field {
   margin: 12px 8px 0;
+}
+
+/* Filas propias de MICRÓFONO y WHISPER, con el mismo margen que .field. */
+.fold[open] > .row2,
+.fold[open] .hint {
+  margin: 12px 8px 0;
+}
+
+/* Subtítulo de un subgrupo (RECONOCEDOR, WHISPER LOCAL, NUBE). */
+.sec {
+  margin: 12px 8px 0;
+  padding-top: 7px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+/* Dos controles en la misma fila. */
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.row2 .ghost-btn {
+  width: 100%;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* Encendido (FILTRAR, FIJAR): mismo cian que los ajustes del motor. */
+.row2 .ghost-btn.on {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+/* Línea de estado del fondo y de la instalación de Whisper. */
+.hint {
+  font-size: 9px;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+
+/* Botón pequeño dentro de la etiqueta (preparar Whisper). */
+.mini {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 1px 5px;
+  cursor: pointer;
+}
+
+.mini:hover {
+  color: var(--neon);
+  border-color: var(--neon);
 }
 
 /* ── Pie: texto, botón y MCP ──────────────────────────── */
@@ -218,7 +278,9 @@
 
 select,
 textarea,
-input[type="range"] {
+input[type="range"],
+input[type="text"],
+input[type="password"] {
   width: 100%;
   background: var(--bg-soft);
   color: var(--text);
@@ -230,7 +292,9 @@ input[type="range"] {
 }
 
 select:focus,
-textarea:focus {
+textarea:focus,
+input[type="text"]:focus,
+input[type="password"]:focus {
   border-color: var(--neon);
   box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.25);
 }

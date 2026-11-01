@@ -15,8 +15,8 @@ export { toPcm, wavToPcm, mp3ToPcm, envelope, mixToMono } from "./pcm.js";
 export type { Pcm } from "./pcm.js";
 export { listOutputDevices, playPcm } from "./player.js";
 export type { OutputDevice } from "./player.js";
-export { hasMicrophone, startRecording, wavOf, RECORD_RATE } from "./recorder.js";
-export type { Recorder, Recording } from "./recorder.js";
+export { hasMicrophone, listInputDevices, startRecording, wavOf, RECORD_RATE } from "./recorder.js";
+export type { InputDevice, Recorder, RecordOptions, Recording } from "./recorder.js";
 export { denoiseWav, noiseFloorDb, voiceMs } from "./noise.js";
 export type { DenoiseOptions } from "./noise.js";
 export {

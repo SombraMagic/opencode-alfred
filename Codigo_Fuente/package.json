@@ -428,6 +428,18 @@
           "type": "number",
           "default": 0,
           "description": "Ruido de fondo fijado en dBFS (0 = medirlo en cada fragmento). Lo fija el botón FIJAR FONDO del panel."
+        },
+        "voz.dictado.inputDevice": {
+          "type": "number",
+          "default": -1,
+          "description": "Índice del micrófono. -1 usa el predeterminado de Windows."
+        },
+        "voz.dictado.inputGain": {
+          "type": "number",
+          "default": 100,
+          "minimum": 0,
+          "maximum": 200,
+          "description": "Ganancia del micrófono en porcentaje. Solo afecta a Whisper y la nube."
         }
       }
     }

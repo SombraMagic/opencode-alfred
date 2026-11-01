@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import {
   createMotors,
   envelope,
+  listInputDevices,
   listOutputDevices,
   pickMotor,
   playPcm,
@@ -10,6 +11,7 @@ import {
   writeConfig,
 } from "./core/index.js";
 import type { MotorId, TtsMotor, VoiceInfo } from "./core/types.js";
+import type { InputDevice } from "./core/index.js";
 
 /** Configuración actual de la extensión. */
 export interface VozSettings {
@@ -19,6 +21,20 @@ export interface VozSettings {
   pitch: number;
   volume: number;
   outputDevice: number;
+}
+
+/** Último fondo (dBFS) medido por el dictado; vive en la memoria del proceso. */
+let floorDb: number | undefined;
+
+/** Guarda el fondo medido para que el panel de voz pueda fijarlo. Ignora `null`. */
+export function setMeasuredFloor(db: number | null): void {
+  if (db === null || !Number.isFinite(db)) return;
+  floorDb = db;
+}
+
+/** Último fondo medido, o `undefined` si el dictado aún no ha grabado nada. */
+export function measuredFloor(): number | undefined {
+  return floorDb;
 }
 
 /** Lee los ajustes del workspace. */
@@ -131,4 +147,9 @@ export async function speak(
 /** Dispositivos de salida. */
 export async function devices() {
   return listOutputDevices();
+}
+
+/** Micrófonos de entrada del sistema. */
+export async function inputDevices(): Promise<InputDevice[]> {
+  return listInputDevices();
 }

@@ -1,4 +1,4 @@
-/* VOZ — panel de dictado (tres columnas) */
+/* VOZ — panel de dictado (dos columnas: bloc y controles) */
 
 html,
 body {
@@ -12,7 +12,7 @@ body {
 
 .dict {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 230px;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   padding: 10px 12px 12px;
   height: 100%;
@@ -42,138 +42,11 @@ body {
   margin-bottom: 2px;
 }
 
-/* Configuración */
-.config {
-  width: 230px;
-  gap: 6px;
-}
-
-/* El envoltorio no pinta caja: los campos siguen siendo hijos del flex de la columna. */
-.config-body {
-  display: contents;
-}
-
-/* El título es el botón que pliega la columna. */
-.config-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  width: 100%;
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  padding: 0 0 5px;
-  margin: 0 0 2px;
-  font: inherit;
-  font-size: 9px;
-  letter-spacing: 2px;
-  color: var(--neon);
-  opacity: 0.85;
-  cursor: pointer;
-  text-align: left;
-}
-
-.config-toggle:hover {
-  opacity: 1;
-}
-
-/* Plegada: tira vertical con el título girado (de abajo arriba). */
-.config.collapsed {
-  width: 28px;
-  padding: 8px 0;
-  gap: 0;
-  overflow: hidden;
-}
-
-.config.collapsed .config-body {
-  display: none;
-}
-
-.config.collapsed .config-toggle {
-  flex: 1;
-  justify-content: center;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-}
-
-.config select,
-.config input[type="text"],
-.config input[type="password"] {
-  background: var(--bg-soft);
-  color: var(--text);
-  border: 1px solid var(--line);
-  font-family: inherit;
-  font-size: 11px;
-  padding: 5px 6px;
-  width: 100%;
-  outline: none;
-}
-
-.config input:focus,
-.config select:focus {
-  border-color: var(--neon);
-}
-
+/* Pistas y botones sueltos del dictado. `.field` y `select` vienen de panel.css. */
 .hint {
   font-size: 9px;
   line-height: 1.35;
   color: var(--text-dim);
-}
-
-.config .ghost-btn {
-  align-self: flex-start;
-}
-
-/* Dos campos en la misma fila: menos alto sin apretar el texto. */
-.row2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.row2 .ghost-btn {
-  align-self: stretch;
-  width: 100%;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
-/* Campo con su botón al lado (clave de la nube). */
-.inline {
-  display: flex;
-  gap: 6px;
-}
-
-.inline input {
-  flex: 1;
-  min-width: 0;
-}
-
-.inline .ghost-btn {
-  flex: none;
-  padding: 5px 7px;
-  letter-spacing: 0.8px;
-}
-
-/* Botón pequeño dentro de la etiqueta (preparar Whisper). */
-.mini {
-  background: transparent;
-  border: 1px solid var(--line);
-  color: var(--text-dim);
-  font-family: inherit;
-  font-size: 8px;
-  letter-spacing: 1px;
-  padding: 1px 5px;
-  cursor: pointer;
-}
-
-.mini:hover {
-  color: var(--neon);
-  border-color: var(--neon);
 }
 
 /* Bloc de notas */
@@ -481,47 +354,6 @@ body {
   box-shadow: 0 0 8px var(--magenta);
 }
 
-.hf-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.3;
-}
-
-/* Filtro de ruido: mismo patrón, encendido en cian */
-.noise {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  font-size: 10px;
-  letter-spacing: 2px;
-}
-
-.noise.on {
-  color: var(--neon);
-  border-color: var(--neon);
-}
-
-.noise.on .hf-dot {
-  opacity: 1;
-}
-
-.noise:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-input[type="range"]:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.config input[type="range"] {
-  height: 16px;
-}
-
 /* El estado y el envío se quedan abajo aunque sobre alto arriba. */
 .controls .state {
   margin-top: auto;
@@ -541,7 +373,6 @@ input[type="range"]:disabled {
     height: auto;
   }
   .col { overflow: visible; }
-  .config { width: auto; }
   #nota { min-height: 120px; }
 }
 

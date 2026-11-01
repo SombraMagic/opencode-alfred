@@ -41,48 +41,6 @@
       </div>
     </section>
 
-    <section class="col config" id="config">
-      <button class="col-title config-toggle" id="config-toggle" type="button" aria-expanded="true" title="Plegar configuración">CONFIGURACIÓN<span class="chev" aria-hidden="true">‹</span></button>
-      <div class="config-body">
-
-      <label class="field"><span class="field-label">MOTOR</span><select id="engine"></select></label>
-      <div class="hint" id="engine-hint"></div>
-
-      <label class="field"><span class="field-label">IDIOMA</span><select id="language"></select></label>
-
-      <div class="row2">
-        <button class="ghost-btn noise" id="denoise" aria-pressed="true" title="Quita retumbe y siseo del micrófono antes de transcribir">
-          <span class="hf-dot"></span>FILTRAR
-        </button>
-        <button class="ghost-btn noise" id="lock-floor" aria-pressed="false" title="Fija el fondo medido para que no se mueva solo">
-          <span class="hf-dot"></span><span id="lock-label">FIJAR</span>
-        </button>
-      </div>
-      <label class="field">
-        <span class="field-label">TOLERANCIA <i id="tolerance-value">+6 dB</i></span>
-        <input id="tolerance" type="range" min="0" max="18" step="1" value="6" />
-      </label>
-      <div class="hint" id="floor">Fondo sin medir todavía.</div>
-
-      <div class="field" id="whisper-row">
-        <span class="field-label">MODELO WHISPER
-          <button class="mini" id="install-whisper" type="button" title="Descarga e instala Whisper (una sola vez)">PREPARAR</button>
-        </span>
-        <select id="whisper-model"></select>
-      </div>
-
-      <label class="field" id="cloud-url-row"><span class="field-label">URL DE LA API</span><input id="cloud-url" type="text" spellcheck="false" title="Cualquier API compatible con OpenAI" placeholder="https://api.openai.com/v1/audio/transcriptions" /></label>
-      <label class="field" id="cloud-row"><span class="field-label">MODELO NUBE</span><input id="cloud-model" type="text" /></label>
-      <div class="field" id="key-row">
-        <span class="field-label">CLAVE API <i id="key-state"></i></span>
-        <div class="inline">
-          <input id="key" type="password" placeholder="sk-…" />
-          <button class="ghost-btn" id="save-key" type="button">GUARDAR</button>
-        </div>
-      </div>
-      </div>
-    </section>
-
     <section class="col controls">
       <div class="col-title">CONTROLES</div>
       <div class="mic-row">

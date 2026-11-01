@@ -18,10 +18,27 @@ import { mixToMono, wavToPcm } from "./core/index.js";
 
 export type SttEngine = "sapi" | "whisper" | "nube";
 
+/** Endpoint de la nube por defecto (compatible con OpenAI). */
+export const CLOUD_URL_DEFAULT = "https://api.openai.com/v1/audio/transcriptions";
+
+/** Clave de `secrets` donde vive la clave de la API de transcripción. */
+export const KEY_SECRET = "voz.dictado.apiKey";
+
 export const STT_ENGINES: Array<{ id: SttEngine; label: string; hint: string }> = [
   { id: "sapi", label: "Windows (SAPI)", hint: "Gratis, local, inmediato." },
   { id: "whisper", label: "Whisper local", hint: "Local. Se descarga una vez." },
   { id: "nube", label: "Nube (OpenAI)", hint: "La mejor precisión. Necesita clave." },
+];
+
+/** Idiomas ofrecidos. SAPI sólo tiene instalado el que tenga Windows. */
+export const STT_LANGUAGES = [
+  { id: "es-ES", label: "Español (España)" },
+  { id: "es-MX", label: "Español (México)" },
+  { id: "en-US", label: "English (US)" },
+  { id: "fr-FR", label: "Français" },
+  { id: "de-DE", label: "Deutsch" },
+  { id: "it-IT", label: "Italiano" },
+  { id: "pt-BR", label: "Português (Brasil)" },
 ];
 
 export interface SapiHandlers {
@@ -267,7 +284,7 @@ export async function cloudText(opts: {
   language: string;
   wav: Buffer;
 }): Promise<string> {
-  if (!opts.key) throw new Error("Falta la clave de la API. Guárdala en la columna de configuración.");
+  if (!opts.key) throw new Error("Falta la clave de la API. Guárdala en los ajustes WHISPER del panel de voz.");
 
   const form = new FormData();
   form.append("file", new Blob([opts.wav as unknown as ArrayBuffer], { type: "audio/wav" }), "dictado.wav");

@@ -36,6 +36,21 @@ export interface Recorder {
   level(): number;
 }
 
+/** Micrófono de entrada disponible. */
+export interface InputDevice {
+  /** Índice de waveIn. */
+  index: number;
+  name: string;
+}
+
+/** Opciones del grabador: micrófono y ganancia digital. */
+export interface RecordOptions {
+  /** Índice de waveIn; ausente o negativo = WAVE_MAPPER (el del sistema). */
+  device?: number;
+  /** Multiplicador de las muestras (1 = sin cambios). */
+  gain?: number;
+}
+
 let koffi: any;
 let winmm: any;
 let formatBuf: Buffer | undefined;
@@ -45,6 +60,9 @@ function load() {
   koffi = require("koffi");
   const lib = koffi.load("winmm.dll");
   lib.waveInGetNumDevs = lib.func("int __stdcall waveInGetNumDevs()");
+  lib.waveInGetDevCapsW = lib.func(
+    "int __stdcall waveInGetDevCapsW(uint32_t, void*, uint32_t)",
+  );
   lib.waveInOpen = lib.func(
     `int __stdcall waveInOpen(void*, uint32_t, void*, uint64_t, uint64_t, uint32_t)`,
   );
@@ -89,11 +107,32 @@ export function hasMicrophone(): boolean {
   return winmm.waveInGetNumDevs() > 0;
 }
 
+/** Tamaño de WAVEINCAPSW: 2+2+4+64+4+2+2. */
+const WAVEINCAPS_SIZE = 80;
+
+/** Lista los micrófonos de entrada disponibles. */
+export async function listInputDevices(): Promise<InputDevice[]> {
+  if (process.platform !== "win32") return [];
+  load();
+  const count = winmm.waveInGetNumDevs();
+  const devices: InputDevice[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const caps = Buffer.alloc(WAVEINCAPS_SIZE);
+    const rc = winmm.waveInGetDevCapsW(i, koffi.address(caps), WAVEINCAPS_SIZE);
+    if (rc !== 0) continue;
+    // szPname está en el offset 8, 32 WCHAR.
+    const name = caps.toString("utf16le", 8, 72).split("\0")[0].trim();
+    if (name) devices.push({ index: i, name });
+  }
+  return devices;
+}
+
 /**
- * Abre el micrófono predeterminado y empieza a grabar.
+ * Abre el micrófono indicado y empieza a grabar.
  * Lanza un error claro si no hay dispositivo o está ocupado.
  */
-export function startRecording(): Recorder {
+export function startRecording(opts: RecordOptions = {}): Recorder {
   if (process.platform !== "win32") {
     throw new Error("El dictado por micrófono sólo está soportado en Windows.");
   }
@@ -102,8 +141,11 @@ export function startRecording(): Recorder {
     throw new Error("No hay ningún micrófono conectado.");
   }
 
+  const device = opts.device === undefined || opts.device < 0 ? WAVE_MAPPER : opts.device;
+  const gain = opts.gain !== undefined && opts.gain >= 0 ? opts.gain : 1;
+
   const hSlot = koffi.alloc("uint64", 1);
-  const rc = winmm.waveInOpen(hSlot, WAVE_MAPPER, koffi.address(formatBuf), 0, 0, 0);
+  const rc = winmm.waveInOpen(hSlot, device, koffi.address(formatBuf), 0, 0, 0);
   if (rc !== 0) throw new Error(`No se pudo abrir el micrófono: ${errorText(rc)}`);
   const handle = koffi.decode(hSlot, "uint64");
 
@@ -139,7 +181,8 @@ export function startRecording(): Recorder {
       const arr = koffi.decode(dataPtr, from, "int16", count) as Int16Array;
       let peak = 0;
       for (const v of arr) peak = Math.max(peak, Math.abs(v));
-      return Math.min(1, peak / 8000);
+      // El vúmetro sube con la misma ganancia que el PCM que se transcribe.
+      return Math.min(1, (peak * gain) / 8000);
     },
     stop(): Recording {
       if (stopped) return { wav: wavOf(Buffer.alloc(0)), durationMs: 0 };
@@ -152,8 +195,13 @@ export function startRecording(): Recorder {
 
       const pcm = Buffer.alloc(Math.min(bytes, BUFFER_BYTES));
       if (pcm.length > 0) {
-        const arr = koffi.decode(dataPtr, "uint8", pcm.length) as number[];
-        Buffer.from(arr).copy(pcm);
+        const count = Math.floor(pcm.length / 2);
+        const arr = koffi.decode(dataPtr, "int16", count) as Int16Array;
+        for (let i = 0; i < count; i++) {
+          // Recorte a int16: la ganancia no puede desbordar el WAV.
+          const v = Math.max(-32768, Math.min(32767, Math.round(arr[i] * gain)));
+          pcm.writeInt16LE(v, i * 2);
+        }
       }
       return { wav: wavOf(pcm), durationMs: Math.round((pcm.length / 2 / RECORD_RATE) * 1000) };
     },

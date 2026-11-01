@@ -1,9 +1,10 @@
 /**
  * Panel de dictado (zona inferior de VS Code): voz a texto.
  *
- * Tres columnas: bloc de notas, configuración y controles. El botón del
- * micrófono se mantiene pulsado para hablar; al soltarlo, SAPI ya tiene texto
- * y Whisper o la nube transcriben lo grabado.
+ * Dos columnas: bloc de notas y controles. Los ajustes del dictado
+ * (motor, idioma, micrófono, Whisper y nube) viven en el panel derecho de
+ * VOZ. El botón del micrófono se mantiene pulsado para hablar; al soltarlo,
+ * SAPI ya tiene texto y Whisper o la nube transcriben lo grabado.
  *
  * MANOS LIBRES: un clic escucha sin soltar nada. Whisper y la nube graban por
  * turnos: al detectar una pausa larga se corta el fragmento, se transcribe y
@@ -16,11 +17,10 @@ import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { setActivity } from "./activity";
 import {
   SapiDictado,
-  STT_ENGINES,
   WHISPER_MODELS,
+  CLOUD_URL_DEFAULT,
+  KEY_SECRET,
   cloudText,
-  loadWhisper,
-  whisperInstalled,
   whisperText,
   type SttEngine,
 } from "../voice/stt.js";
@@ -31,28 +31,13 @@ import {
   voiceMs,
   type Recorder,
 } from "../voice/core/index.js";
+import { setMeasuredFloor } from "../voice/service.js";
 import { PizarraPanel } from "./pizarraPanel.js";
 
-/** Idiomas ofrecidos. SAPI sólo tiene instalado el que tenga Windows. */
-const LANGUAGES = [
-  { id: "es-ES", label: "Español (España)" },
-  { id: "es-MX", label: "Español (México)" },
-  { id: "en-US", label: "English (US)" },
-  { id: "fr-FR", label: "Français" },
-  { id: "de-DE", label: "Deutsch" },
-  { id: "it-IT", label: "Italiano" },
-  { id: "pt-BR", label: "Português (Brasil)" },
-];
-
-const KEY_SECRET = "voz.dictado.apiKey";
 /** El bloc de notas sobrevive al panel y a VS Code. */
 const KEY_NOTE = "voz.dictado.note";
-/** La columna de configuración recuerda si quedó plegada. */
-const KEY_CONFIG_COLLAPSED = "voz.dictado.configCollapsed";
 /** Tope por adjunto (imagen pegada o fichero soltado) en el bloc. */
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-/** Endpoint de la nube por defecto (compatible con OpenAI). */
-const CLOUD_URL_DEFAULT = "https://api.openai.com/v1/audio/transcriptions";
 
 /** Manos libres: esta pausa cierra el fragmento y lo manda a transcribir. */
 const PAUSE_MS = 2000;
@@ -79,8 +64,6 @@ export class VozDictado {
   private sapi?: SapiDictado;
   private recorder?: Recorder;
   private levelTimer?: ReturnType<typeof setInterval>;
-  /** Último ruido de fondo medido (dBFS): lo usa FIJAR FONDO. */
-  private lastFloorDb?: number;
   private busy = false;
   private handsFree = false;
   private heard = false;
@@ -130,30 +113,18 @@ export class VozDictado {
       denoise: cfg.get<boolean>("dictado.denoise", true),
       tolerance: cfg.get<number>("dictado.noiseTolerance", 6),
       noiseFloor: cfg.get<number>("dictado.noiseFloor", 0),
+      inputDevice: cfg.get<number>("dictado.inputDevice", -1),
+      inputGain: cfg.get<number>("dictado.inputGain", 100),
     };
   }
 
   private async pushInitial() {
-    const s = this.settings();
-    const hasKey = Boolean(await this.context.secrets.get(KEY_SECRET));
     this.post({
       type: "init",
-      engine: s.engine,
-      language: s.language,
-      whisperModel: s.whisperModel,
-      cloudModel: s.cloudModel,
-      cloudUrl: s.cloudUrl,
-      hasKey,
-      denoise: s.denoise,
-      tolerance: s.tolerance,
-      noiseFloor: s.noiseFloor,
+      // El motor decide el texto de estado al pulsar el micrófono.
+      engine: this.settings().engine,
       note: this.context.globalState.get<string>(KEY_NOTE, ""),
-      configCollapsed: this.context.globalState.get<boolean>(KEY_CONFIG_COLLAPSED, false),
       attachmentsDir: this.attachmentsDir(),
-      engines: STT_ENGINES,
-      models: WHISPER_MODELS,
-      languages: LANGUAGES,
-      whisperReady: whisperInstalled(this.whisperDir()),
     });
   }
 
@@ -207,49 +178,8 @@ export class VozDictado {
       case "handsFree":
         await this.setHandsFree(Boolean(msg.on));
         break;
-      case "setEngine":
-        await this.updateSetting("dictado.engine", msg.engine);
-        break;
-      case "setLanguage":
-        await this.updateSetting("dictado.language", msg.language);
-        break;
-      case "setWhisperModel":
-        await this.updateSetting("dictado.whisperModel", msg.model);
-        break;
-      case "setCloudModel":
-        await this.updateSetting("dictado.cloudModel", msg.model);
-        break;
-      case "setCloudUrl": {
-        const raw = String(msg.url ?? "").trim();
-        if (raw && !/^https?:\/\//i.test(raw)) {
-          this.state("error", "La URL debe empezar por http:// o https://.");
-          break;
-        }
-        // Vaciar el campo devuelve el endpoint por defecto.
-        const url = raw || CLOUD_URL_DEFAULT;
-        await this.updateSetting("dictado.cloudUrl", url);
-        this.post({ type: "cloudUrl", url });
-        break;
-      }
-      case "setDenoise":
-        await this.updateSetting("dictado.denoise", Boolean(msg.on));
-        break;
-      case "setTolerance":
-        await this.updateSetting("dictado.noiseTolerance", Number(msg.db));
-        break;
-      case "lockFloor":
-        await this.lockFloor(Boolean(msg.on));
-        break;
-      case "saveKey":
-        await this.context.secrets.store(KEY_SECRET, String(msg.key ?? ""));
-        this.post({ type: "key", hasKey: Boolean(msg.key) });
-        this.state("idle", msg.key ? "Clave guardada." : "Clave borrada.");
-        break;
       case "saveNote":
         await this.context.globalState.update(KEY_NOTE, String(msg.text ?? ""));
-        break;
-      case "saveConfigCollapsed":
-        await this.context.globalState.update(KEY_CONFIG_COLLAPSED, Boolean(msg.collapsed));
         break;
       case "attach":
         this.queueAttachment(msg);
@@ -295,41 +225,19 @@ export class VozDictado {
       case "copyPrompt":
         await this.copyPrompt(String(msg.text ?? ""));
         break;
-      case "installWhisper": {
-        this.state("working", "Instalando Whisper…");
-        try {
-          await loadWhisper(this.whisperDir(), (m) => this.state("working", m));
-          this.post({ type: "whisperReady", ready: true });
-          this.state("idle", "Whisper instalado.");
-        } catch (err) {
-          this.fail(err);
-        }
-        break;
-      }
     }
   }
 
-  private async updateSetting(key: string, value: unknown) {
-    await vscode.workspace.getConfiguration("voz").update(key, value, vscode.ConfigurationTarget.Global);
-  }
-
-  /** Fija (o suelta) el ruido de fondo al último valor medido. */
-  private async lockFloor(on: boolean) {
-    if (on && this.lastFloorDb === undefined) {
-      this.state("idle", "Habla algo para medir el fondo antes de fijarlo.");
-      return;
-    }
-    const db = on ? Number(this.lastFloorDb!.toFixed(1)) : 0;
-    await this.updateSetting("dictado.noiseFloor", db);
-    this.post({ type: "floorLock", on, db });
-    this.state("idle", on ? `Fondo fijado en ${db} dB.` : "Fondo automático.");
-  }
-
-  /** Manda al panel el fondo medido, para ver cómo se ajusta solo. */
+  /** Manda la última medida para que el panel derecho pueda fijar el fondo. */
   private reportFloor(db: number | null) {
     if (db === null) return;
-    this.lastFloorDb = db;
-    this.post({ type: "floor", db: Number(db.toFixed(1)) });
+    setMeasuredFloor(db);
+  }
+
+  /** Micrófono de entrada y ganancia de los ajustes (la ganancia va en tanto por uno). */
+  private recorderOptions() {
+    const s = this.settings();
+    return { device: s.inputDevice, gain: s.inputGain / 100 };
   }
 
   /** Crea el puente con SAPI la primera vez y lo pone a escuchar. */
@@ -364,7 +272,7 @@ export class VozDictado {
       }
 
       // Whisper y nube: el micrófono lo abre la extensión.
-      this.recorder = startRecording();
+      this.recorder = startRecording(this.recorderOptions());
       this.post({ type: "engine", engine: s.engine });
       this.levelTimer = setInterval(() => {
         this.post({ type: "level", value: this.recorder?.level() ?? 0 });
@@ -423,7 +331,7 @@ export class VozDictado {
         return;
       }
       try {
-        if (!this.recorder) this.recorder = startRecording();
+        if (!this.recorder) this.recorder = startRecording(this.recorderOptions());
         this.heard = false;
         this.chunkStart = Date.now();
         this.lastVoice = this.chunkStart;
@@ -487,7 +395,7 @@ export class VozDictado {
 
     if (this.handsFree && !this.recorder) {
       try {
-        this.recorder = startRecording();
+        this.recorder = startRecording(this.recorderOptions());
       } catch (err) {
         this.offHandsFree();
         this.post({ type: "level", value: 0 });
@@ -529,7 +437,6 @@ export class VozDictado {
             language: s.language,
             onLog: (m) => this.state("working", m),
           });
-          this.post({ type: "whisperReady", ready: true });
         } else {
           const key = (await this.context.secrets.get(KEY_SECRET)) ?? "";
           text = await cloudText({ url: s.cloudUrl, model: s.cloudModel, key, language: s.language, wav: audio });

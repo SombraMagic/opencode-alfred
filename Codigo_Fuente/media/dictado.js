@@ -3,39 +3,18 @@
   const vscode = acquireVsCodeApi();
   const $ = (id) => document.getElementById(id);
 
-  const engineSel = $("engine");
-  const langSel = $("language");
-  const whisperSel = $("whisper-model");
-  const cloudModelIn = $("cloud-model");
-  const cloudUrlIn = $("cloud-url");
-  const keyIn = $("key");
-  const keyState = $("key-state");
   const micBtn = $("mic");
   const hfBtn = $("hands-free");
-  const noiseBtn = $("denoise");
-  const toleranceIn = $("tolerance");
-  const toleranceValue = $("tolerance-value");
-  const floorEl = $("floor");
-  const lockBtn = $("lock-floor");
-  const lockLabel = $("lock-label");
   const stateEl = $("state");
   const hintEl = $("state-hint");
   const levelBar = $("level-bar");
   const nota = $("nota");
   const count = $("count");
-  const engineHint = $("engine-hint");
-  const installBtn = $("install-whisper");
 
   let listening = false;
   let handsFree = false;
+  /** Motor de dictado: solo elige el texto de estado al pulsar el micro. */
   let engine = "sapi";
-  let denoise = true;
-  let tolerance = 6;
-  /** Fondo fijado (dBFS); 0 = automático. */
-  let floorDb = 0;
-  /** Último fondo medido, para poder mostrarlo y fijarlo. */
-  let measured;
-  let hint = "0";
 
   const STATE_TEXT = {
     idle: "EN ESPERA",
@@ -177,112 +156,6 @@
     setHandsFree(!handsFree);
     post({ type: "handsFree", on: handsFree });
   });
-
-  // ── Filtro de ruido: interruptor, tolerancia y fondo ────
-  function syncNoise() {
-    noiseBtn.classList.toggle("on", denoise);
-    noiseBtn.setAttribute("aria-pressed", String(denoise));
-  }
-
-  /** "−42.3 dB" con signo, como se lee en un medidor. */
-  const dbText = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)} dB`;
-
-  /** Muestra el fondo que se está usando y si está fijado. */
-  function syncFloor() {
-    const locked = Boolean(floorDb);
-    if (engine === "sapi") floorEl.textContent = "Con SAPI ya filtra Windows.";
-    else if (locked) floorEl.textContent = `Fondo fijo ${dbText(floorDb)} · abre ${dbText(floorDb + tolerance)}`;
-    else if (measured != null) floorEl.textContent = `Fondo ${dbText(measured)} · abre ${dbText(measured + tolerance)}`;
-    else floorEl.textContent = "Habla algo para medir el fondo.";
-
-    lockLabel.textContent = locked ? "FIJADO" : "FIJAR";
-    lockBtn.classList.toggle("on", locked);
-    lockBtn.setAttribute("aria-pressed", String(locked));
-    // Sin una medida no hay nada que fijar: se avisa, no se deja pulsar.
-    lockBtn.disabled = engine === "sapi" || (!locked && measured == null);
-    lockBtn.title = locked
-      ? "Vuelve a medir el fondo en cada fragmento"
-      : measured == null
-        ? "Primero habla algo: se fija el último fondo medido"
-        : `Fija el fondo en ${dbText(measured)} y deja de ajustarlo solo`;
-  }
-
-  function syncTolerance() {
-    toleranceIn.value = String(tolerance);
-    toleranceValue.textContent = `+${tolerance} dB`;
-  }
-
-  noiseBtn.addEventListener("click", () => {
-    denoise = !denoise;
-    syncNoise();
-    post({ type: "setDenoise", on: denoise });
-  });
-
-  toleranceIn.addEventListener("input", () => {
-    tolerance = Number(toleranceIn.value);
-    toleranceValue.textContent = `+${tolerance} dB`;
-    syncFloor();
-  });
-  toleranceIn.addEventListener("change", () => post({ type: "setTolerance", db: tolerance }));
-
-  // El estado lo confirma la extensión: si aún no hay medida, no fija nada.
-  lockBtn.addEventListener("click", () => post({ type: "lockFloor", on: !floorDb }));
-
-  // ── Configuración ────────────────────────────────────────
-  const configCol = $("config");
-  const configToggle = $("config-toggle");
-
-  /** Pinta la columna plegada o desplegada sin avisar a la extensión. */
-  function syncConfig(collapsed) {
-    configCol.classList.toggle("collapsed", collapsed);
-    configToggle.setAttribute("aria-expanded", String(!collapsed));
-    configToggle.title = collapsed ? "Desplegar configuración" : "Plegar configuración";
-  }
-
-  configToggle.addEventListener("click", () => {
-    const collapsed = !configCol.classList.contains("collapsed");
-    syncConfig(collapsed);
-    post({ type: "saveConfigCollapsed", collapsed });
-  });
-
-  function syncRows() {
-    const isWhisper = engine === "whisper";
-    const isCloud = engine === "nube";
-    $("whisper-row").style.display = isWhisper ? "" : "none";
-    installBtn.style.display = isWhisper ? "" : "none";
-    $("cloud-url-row").style.display = isCloud ? "" : "none";
-    $("cloud-row").style.display = isCloud ? "" : "none";
-    $("key-row").style.display = isCloud ? "" : "none";
-    $("save-key").style.display = isCloud ? "" : "none";
-    // Con SAPI escucha Windows y ya filtra él: el interruptor se ve, pero no aplica.
-    noiseBtn.disabled = engine === "sapi";
-    toleranceIn.disabled = engine === "sapi";
-    noiseBtn.title =
-      engine === "sapi"
-        ? "Con SAPI ya filtra Windows. Cambia a Whisper o Nube para usar este filtro."
-        : "Quita retumbe y siseo del micrófono antes de transcribir";
-    engineHint.textContent = $("engine").selectedOptions[0]?.dataset.hint ?? "";
-    syncFloor();
-  }
-
-  engineSel.addEventListener("change", () => {
-    if (handsFree) {
-      setHandsFree(false);
-      post({ type: "handsFree", on: false });
-    }
-    engine = engineSel.value;
-    syncRows();
-    post({ type: "setEngine", engine });
-  });
-  langSel.addEventListener("change", () => post({ type: "setLanguage", language: langSel.value }));
-  whisperSel.addEventListener("change", () => post({ type: "setWhisperModel", model: whisperSel.value }));
-  cloudModelIn.addEventListener("change", () => post({ type: "setCloudModel", model: cloudModelIn.value.trim() }));
-  cloudUrlIn.addEventListener("change", () => post({ type: "setCloudUrl", url: cloudUrlIn.value.trim() }));
-  $("save-key").addEventListener("click", () => {
-    post({ type: "saveKey", key: keyIn.value });
-    keyIn.value = "";
-  });
-  installBtn.addEventListener("click", () => post({ type: "installWhisper" }));
 
   // ── Bloc y envío ────────────────────────────────────────
   /** Carpeta de adjuntos que manda la extensión en `init`. */
@@ -658,50 +531,10 @@
     switch (msg?.type) {
       case "init": {
         engine = msg.engine;
-        engineSel.innerHTML = "";
-        for (const e of msg.engines ?? []) {
-          const opt = document.createElement("option");
-          opt.value = e.id;
-          opt.textContent = e.label;
-          opt.dataset.hint = e.hint ?? "";
-          engineSel.appendChild(opt);
-        }
-        engineSel.value = msg.engine;
-
-        langSel.innerHTML = "";
-        for (const l of msg.languages ?? []) {
-          const opt = document.createElement("option");
-          opt.value = l.id;
-          opt.textContent = l.label;
-          langSel.appendChild(opt);
-        }
-        langSel.value = msg.language;
-
-        whisperSel.innerHTML = "";
-        for (const m of msg.models ?? []) {
-          const opt = document.createElement("option");
-          opt.value = m.id;
-          opt.textContent = m.label;
-          whisperSel.appendChild(opt);
-        }
-        whisperSel.value = msg.whisperModel;
-
-        cloudModelIn.value = msg.cloudModel ?? "";
-        cloudUrlIn.value = msg.cloudUrl ?? "";
-        denoise = msg.denoise !== false;
-        tolerance = msg.tolerance ?? 6;
-        floorDb = msg.noiseFloor ?? 0;
-        syncNoise();
-        syncTolerance();
-        syncFloor();
         // El bloc se recupera al reabrir el panel o VS Code. `pushInitial` se
         // repite al volver a ser visible: no pisar lo escrito desde el último guardado.
         attachmentsDir = String(msg.attachmentsDir ?? "");
         if (msg.note != null && !notePendiente && msg.note !== serialize()) setNote(msg.note);
-        keyState.textContent = msg.hasKey ? "guardada ✓" : "";
-        installBtn.textContent = msg.whisperReady ? "LISTO" : "PREPARAR";
-        syncRows();
-        syncConfig(Boolean(msg.configCollapsed));
         setState("idle", "Mantén el micrófono, o activa MANOS LIBRES");
         break;
       }
@@ -719,21 +552,6 @@
         break;
       case "engine":
         engine = msg.engine;
-        break;
-      case "key":
-        keyState.textContent = msg.hasKey ? "guardada ✓" : "";
-        break;
-      case "cloudUrl":
-        // La extensión normaliza la URL (el vacío vuelve al endpoint por defecto).
-        cloudUrlIn.value = msg.url ?? "";
-        break;
-      case "floor":
-        measured = msg.db;
-        syncFloor();
-        break;
-      case "floorLock":
-        floorDb = msg.on ? msg.db : 0;
-        syncFloor();
         break;
       case "images": {
         for (const chip of nota.querySelectorAll("[data-path]")) {
@@ -773,9 +591,6 @@
         setState("error", msg.message || "No se pudo guardar el adjunto.");
         break;
       }
-      case "whisperReady":
-        installBtn.textContent = msg.ready ? "LISTO" : "PREPARAR";
-        break;
     }
   });
 
