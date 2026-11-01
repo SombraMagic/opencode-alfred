@@ -33,6 +33,64 @@
     if (message) hintEl.textContent = message;
   }
 
+  let releaseWatchdog = null;
+  let workingWatchdog = null;
+  let noticeTimer = null;
+
+  function clearNotice() {
+    if (noticeTimer) {
+      clearTimeout(noticeTimer);
+      noticeTimer = null;
+    }
+    hintEl.classList.remove("warn");
+    hintEl.classList.remove("voice");
+  }
+
+  function showNotice(state, message) {
+    clearNotice();
+    setState(state, message);
+    hintEl.classList.add("warn");
+    noticeTimer = setTimeout(() => {
+      noticeTimer = null;
+      hintEl.classList.remove("warn");
+      if (handsFree) {
+        setState("listening", engine === "sapi" ? "Habla y haz pausas" : "Grabando por turnos…");
+      } else {
+        setState("idle", "Pulsar / Manos libres");
+      }
+    }, 4000);
+  }
+
+  function clearReleaseWatchdog() {
+    if (releaseWatchdog) {
+      clearTimeout(releaseWatchdog);
+      releaseWatchdog = null;
+    }
+  }
+
+  function startReleaseWatchdog() {
+    clearReleaseWatchdog();
+    releaseWatchdog = setTimeout(() => {
+      releaseWatchdog = null;
+      showNotice("idle", "El dictado no respondió. Prueba de nuevo.");
+    }, 4000);
+  }
+
+  function clearWorkingWatchdog() {
+    if (workingWatchdog) {
+      clearTimeout(workingWatchdog);
+      workingWatchdog = null;
+    }
+  }
+
+  function resetWorkingWatchdog() {
+    clearWorkingWatchdog();
+    workingWatchdog = setTimeout(() => {
+      workingWatchdog = null;
+      showNotice("idle", "La transcripción tarda demasiado.");
+    }, 120000);
+  }
+
   function updateCount() {
     const raw = nota.innerText;
     const text = raw.trim();
@@ -97,6 +155,8 @@
       return;
     }
     if (listening) return;
+    clearReleaseWatchdog();
+    clearNotice();
     listening = true;
     syncMic();
     setState("listening", engine === "sapi" ? "Habla ahora" : "Grabando…");
@@ -107,9 +167,10 @@
     if (!listening) return;
     listening = false;
     syncMic();
+    clearNotice();
     post({ type: "stop" });
-    if (engine !== "sapi") setState("working", "Transcribiendo…");
-    else setState("idle", "Procesando…");
+    setState("idle", "Procesando…");
+    startReleaseWatchdog();
   }
 
   micBtn.addEventListener("pointerdown", (e) => {
@@ -124,7 +185,12 @@
   });
   micBtn.addEventListener("pointerup", release);
   micBtn.addEventListener("pointercancel", release);
-  micBtn.addEventListener("pointerleave", release);
+  micBtn.addEventListener("pointerleave", (e) => {
+    if (e.pointerId != null && typeof micBtn.hasPointerCapture === "function" && micBtn.hasPointerCapture(e.pointerId)) {
+      return;
+    }
+    release();
+  });
   // Teclado: mantener Espacio o Enter también dicta.
   micBtn.addEventListener("keydown", (e) => {
     if (e.key === " " || e.key === "Enter") {
@@ -139,16 +205,26 @@
     }
   });
 
+  window.addEventListener("blur", () => {
+    if (listening) release();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && listening) release();
+  });
+
   // ── Manos libres: un clic escucha, otro clic para ───────
   function setHandsFree(on) {
     handsFree = on;
     hfBtn.classList.toggle("on", on);
     hfBtn.setAttribute("aria-checked", String(on));
     syncMic();
+    clearReleaseWatchdog();
+    clearWorkingWatchdog();
+    clearNotice();
     if (on) {
       setState("listening", engine === "sapi" ? "Habla y haz pausas" : "Grabando por turnos…");
     } else if (!listening) {
-      setState("idle", "Manos libres desactivado.");
+      showNotice("idle", "Manos libres desactivado.");
     }
   }
 
@@ -535,21 +611,78 @@
         // repite al volver a ser visible: no pisar lo escrito desde el último guardado.
         attachmentsDir = String(msg.attachmentsDir ?? "");
         if (msg.note != null && !notePendiente && msg.note !== serialize()) setNote(msg.note);
-        setState("idle", "Mantén el micrófono, o activa MANOS LIBRES");
+        clearReleaseWatchdog();
+        clearWorkingWatchdog();
+        clearNotice();
+        setState("idle", "Pulsar / Manos libres");
         break;
       }
-      case "state":
-        setState(msg.state === "idle" && (listening || handsFree) ? "listening" : msg.state, msg.message);
+      case "state": {
+        clearReleaseWatchdog();
+        const nextState = msg.state;
+        const message = msg.message;
+
+        if (nextState === "working") {
+          clearNotice();
+          listening = false;
+          syncMic();
+          resetWorkingWatchdog();
+          setState("working", message || "Transcribiendo…");
+          break;
+        }
+
+        clearWorkingWatchdog();
+
+        if (nextState === "listening") {
+          clearNotice();
+          listening = true;
+          syncMic();
+          setState("listening", message || (engine === "sapi" ? "Habla ahora" : "Grabando…"));
+          break;
+        }
+
+        if (nextState === "error") {
+          listening = false;
+          syncMic();
+          showNotice("error", message || "Error en dictado.");
+          break;
+        }
+
+        if (nextState === "idle") {
+          listening = false;
+          syncMic();
+          if (message) {
+            showNotice("idle", message);
+          } else {
+            clearNotice();
+            if (handsFree) {
+              setState("listening", engine === "sapi" ? "Habla y haz pausas" : "Grabando por turnos…");
+            } else {
+              setState("idle", "Pulsar / Manos libres");
+            }
+          }
+          break;
+        }
+
+        setState(nextState, message);
         break;
+      }
       case "text":
+        clearReleaseWatchdog();
+        if (workingWatchdog) resetWorkingWatchdog();
         insert(msg.text);
         break;
       case "handsFree":
         setHandsFree(Boolean(msg.on));
         break;
-      case "level":
+      case "level": {
         levelBar.style.width = `${Math.min(100, Math.round((msg.value ?? 0) * 100))}%`;
+        if (handsFree && typeof msg.voice === "boolean" && !noticeTimer) {
+          hintEl.textContent = msg.voice ? "Voz detectada…" : "Escuchando…";
+          hintEl.classList.toggle("voice", msg.voice);
+        }
         break;
+      }
       case "engine":
         engine = msg.engine;
         break;
@@ -588,7 +721,7 @@
         }
         updateCount();
         saveNoteSoon();
-        setState("error", msg.message || "No se pudo guardar el adjunto.");
+        showNotice("error", msg.message || "No se pudo guardar el adjunto.");
         break;
       }
     }

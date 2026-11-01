@@ -93,8 +93,9 @@ export function noiseFloorDb(wav: Buffer): number | null {
  * que sube en una sala ruidosa y baja en una callada. Nunca baja de 0.0035
  * (−49 dBFS), para que un micro muteado o un silencio digital den 0.
  *
- * Si no hay pausas (todo el fragmento suena igual) no se puede separar voz de
- * ruido: cuenta como voz sólo si es claramente fuerte (≥ 0.03, −30 dBFS).
+ * Si no hay pausas (todo el fragmento suena constante) no se puede separar voz de
+ * ruido con percentiles: cuenta como voz si supera ~0.008 (−42 dBFS), dejando
+ * que Whisper o la nube decidan la transcripción en vez de bloquear por energía.
  */
 export function voiceMs(wav: Buffer): number {
   if (wav.length <= HEADER || wav.toString("ascii", 0, 4) !== "RIFF") return 0;
@@ -107,7 +108,7 @@ export function voiceMs(wav: Buffer): number {
   const peak = sorted[rms.length - 1];
 
   if (peak < 0.0035) return 0;
-  if (peak < floor * 4) return peak >= 0.03 ? rms.length * FRAME_MS : 0;
+  if (peak < floor * 4) return peak >= 0.008 ? rms.length * FRAME_MS : 0;
 
   const threshold = Math.max(floor * 3, 0.0035);
   let voiced = 0;
@@ -148,9 +149,10 @@ function gate(samples: Float32Array, options: DenoiseOptions): void {
   const floor = fixed ? Math.pow(10, options.floorDb! / 20) : sorted[Math.floor(frames * 0.2)];
   const peak = sorted[frames - 1];
   if (floor <= 0) return;
-  // Sin pausas claras no se puede separar ruido de voz: mejor no tocar.
-  // Con un fondo fijado se respeta el ajuste aunque no haya pausas.
-  if (!fixed && peak < floor * 4) return;
+  // Sin pausas claras (o si el pico no supera al menos 4x el fondo) no se puede
+  // separar ruido de voz de forma segura: no aplicar la puerta para no atenuar
+  // el habla continua −15 dB, tanto con fondo adaptativo como fijado.
+  if (peak < floor * 4) return;
 
   const quiet = Math.pow(10, GATE_DB / 20);
   const tolerance = options.toleranceDb ?? DEFAULT_TOLERANCE_DB;

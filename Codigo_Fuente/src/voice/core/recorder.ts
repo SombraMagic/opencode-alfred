@@ -34,6 +34,8 @@ export interface Recorder {
   stop(): Recording;
   /** Nivel capturado desde el último sondeo (0..1), para el vúmetro. */
   level(): number;
+  /** Nivel RMS puro sin ganancia de los últimos `ms` (0..1), para el detector de silencio. */
+  rms(ms?: number): number;
 }
 
 /** Micrófono de entrada disponible. */
@@ -184,14 +186,40 @@ export function startRecording(opts: RecordOptions = {}): Recorder {
       // El vúmetro sube con la misma ganancia que el PCM que se transcribe.
       return Math.min(1, (peak * gain) / 8000);
     },
+    rms(ms = 100): number {
+      if (stopped) return 0;
+      // Nivel RMS normalizado (0..1) SIN ganancia digital aplicada.
+      const bytes = readRecorded(hdrPtr);
+      const windowSec = Math.max(0.01, ms / 1000);
+      const from = Math.max(0, bytes - Math.round(RECORD_RATE * 2 * windowSec));
+      const count = Math.floor((bytes - from) / 2);
+      if (count <= 0) return 0;
+      const arr = koffi.decode(dataPtr, from, "int16", count) as Int16Array;
+      let sumSq = 0;
+      for (let i = 0; i < count; i++) {
+        const norm = arr[i] / 32768;
+        sumSq += norm * norm;
+      }
+      return Math.sqrt(sumSq / count);
+    },
     stop(): Recording {
       if (stopped) return { wav: wavOf(Buffer.alloc(0)), durationMs: 0 };
       stopped = true;
-      winmm.waveInStop(handle);
-      winmm.waveInReset(handle);
-      const bytes = readRecorded(hdrPtr);
-      winmm.waveInUnprepareHeader(handle, hdrPtr, WAVEHDR_SIZE);
-      winmm.waveInClose(handle);
+
+      let bytes = 0;
+      try {
+        winmm.waveInStop(handle);
+        winmm.waveInReset(handle);
+        bytes = readRecorded(hdrPtr);
+      } finally {
+        // Garantizar que la cabecera se desprepare y el dispositivo se cierre siempre.
+        let rcUnprep = winmm.waveInUnprepareHeader(handle, hdrPtr, WAVEHDR_SIZE);
+        if (rcUnprep !== 0) {
+          // Reintentar una vez por si el driver requería un tick adicional tras reset.
+          rcUnprep = winmm.waveInUnprepareHeader(handle, hdrPtr, WAVEHDR_SIZE);
+        }
+        winmm.waveInClose(handle);
+      }
 
       const pcm = Buffer.alloc(Math.min(bytes, BUFFER_BYTES));
       if (pcm.length > 0) {

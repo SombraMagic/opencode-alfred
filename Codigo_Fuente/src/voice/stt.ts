@@ -46,6 +46,8 @@ export interface SapiHandlers {
   onState(state: { listening?: boolean; error?: string }): void;
 }
 
+let sapiCounter = 0;
+
 /**
  * Puente con el reconocedor de Windows.
  *
@@ -56,7 +58,7 @@ export interface SapiHandlers {
 export class SapiDictado {
   private child?: ChildProcess;
   private buffer = "";
-  private readonly dir = join(tmpdir(), `voz-dictado-${process.pid}`);
+  private readonly dir = join(tmpdir(), `voz-dictado-${process.pid}-${++sapiCounter}`);
   private failed = false;
 
   constructor(
@@ -296,6 +298,7 @@ export async function cloudText(opts: {
     method: "POST",
     headers: { Authorization: `Bearer ${opts.key}` },
     body: form,
+    signal: AbortSignal.timeout(60000),
   });
 
   if (!res.ok) {

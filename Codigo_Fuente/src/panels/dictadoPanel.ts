@@ -31,6 +31,7 @@ import {
   voiceMs,
   type Recorder,
 } from "../voice/core/index.js";
+import { PauseDetector } from "../voice/pause.js";
 import { setMeasuredFloor } from "../voice/service.js";
 import { PizarraPanel } from "./pizarraPanel.js";
 
@@ -39,20 +40,14 @@ const KEY_NOTE = "voz.dictado.note";
 /** Tope por adjunto (imagen pegada o fichero soltado) en el bloc. */
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
-/** Manos libres: esta pausa cierra el fragmento y lo manda a transcribir. */
-const PAUSE_MS = 2000;
+/** Manos libres: esta pausa de silencio continuo cierra el fragmento. */
+const PAUSE_MS = 1200;
 /** Fragmentos más cortos que esto son ruido, no voz. */
 const MIN_CHUNK_MS = 400;
 /** Voz mínima (medida sobre el audio) para molestarse en transcribir. */
 const MIN_VOICE_MS = 150;
-/** Tope por fragmento: el búfer del micrófono aguanta 60 s. */
-const MAX_CHUNK_MS = 25_000;
-/**
- * Nivel (0..1) por debajo del cual se considera silencio.
- * Con 0.02 los picos de un ventilador (~0.037) contaban como voz y cortaban
- * fragmentos vacíos cada dos segundos.
- */
-const SILENCE_LEVEL = 0.05;
+/** Tope por fragmento: si hay ruido continuo nunca queda en bucle infinito. */
+const MAX_CHUNK_MS = 12_000;
 
 export class VozDictado {
   static readonly viewId = "voz.dictado";
@@ -66,9 +61,8 @@ export class VozDictado {
   private levelTimer?: ReturnType<typeof setInterval>;
   private busy = false;
   private handsFree = false;
-  private heard = false;
-  private chunkStart = 0;
-  private lastVoice = 0;
+  private ticking = false;
+  private pauseDetector = new PauseDetector({ pauseMs: PAUSE_MS, maxChunkMs: MAX_CHUNK_MS });
   /** Transcribe los fragmentos de uno en uno, en orden. */
   private chain: Promise<void> = Promise.resolve();
   /** Guarda las imágenes pegadas en orden; el envío espera a que terminen. */
@@ -248,7 +242,9 @@ export class VozDictado {
         onText: (text) => this.post({ type: "text", text }),
         onState: (st) => {
           if (st.error) {
+            const old = this.sapi;
             this.sapi = undefined;
+            old?.dispose();
             this.offHandsFree();
             this.state("error", st.error);
           }
@@ -261,7 +257,12 @@ export class VozDictado {
 
   /** Pulsación del botón: empieza a escuchar (o a grabar). */
   private async startListening() {
-    if (this.busy || this.handsFree) return;
+    if (this.handsFree) {
+      this.state("listening", "Modo manos libres activo: habla directamente.");
+      return;
+    }
+    // Nota: ya no se descarta si this.busy es true; la cola `chain` procesa
+    // transcripciones en orden mientras se puede seguir grabando una nueva.
     const s = this.settings();
     this.state("listening");
 
@@ -282,9 +283,17 @@ export class VozDictado {
     }
   }
 
-  /** Suelta del botón: transcribe lo grabado y limpia. */
+  /**
+   * Suelta del botón: transcribe lo grabado y limpia.
+   * Contrato con la webview: tras stop el host SIEMPRE envía un state.
+   * Solo pasa a "working" si realmente encola una transcripción válida;
+   * si no, publica "idle" con el motivo correspondiente (o "idle" limpio).
+   */
   private async stopListening() {
-    if (this.handsFree) return;
+    if (this.handsFree) {
+      this.state("listening", "Manos libres activo: usa el botón de pausa para detener.");
+      return;
+    }
     const s = this.settings();
     if (s.engine === "sapi") {
       this.sapi?.stop();
@@ -296,7 +305,11 @@ export class VozDictado {
     this.levelTimer = undefined;
     const rec = this.recorder;
     this.recorder = undefined;
-    if (!rec) return;
+    if (!rec) {
+      this.post({ type: "level", value: 0 });
+      this.state("idle");
+      return;
+    }
 
     const { wav, durationMs } = rec.stop();
     this.post({ type: "level", value: 0 });
@@ -309,6 +322,8 @@ export class VozDictado {
       this.state("idle", "No se oyó nada.");
       return;
     }
+    // Confirma ya a la webview: si hay otra transcripción en cola, `working` tardaría.
+    this.state("working", "En cola…");
     await this.transcribe(wav, durationMs);
   }
 
@@ -332,9 +347,8 @@ export class VozDictado {
       }
       try {
         if (!this.recorder) this.recorder = startRecording(this.recorderOptions());
-        this.heard = false;
-        this.chunkStart = Date.now();
-        this.lastVoice = this.chunkStart;
+        this.pauseDetector.reset(Date.now());
+        this.ticking = false;
         this.post({ type: "engine", engine: s.engine });
         this.levelTimer = setInterval(() => void this.tick(), 100);
       } catch (err) {
@@ -359,23 +373,28 @@ export class VozDictado {
     this.handsFree = false;
     if (this.levelTimer) clearInterval(this.levelTimer);
     this.levelTimer = undefined;
+    this.ticking = false;
     this.post({ type: "handsFree", on: false });
   }
 
   /** Vúmetro y detector de pausa del modo manos libres. */
   private async tick() {
-    const rec = this.recorder;
-    if (!rec) return;
-    const level = rec.level();
-    this.post({ type: "level", value: level });
+    if (this.ticking) return;
+    this.ticking = true;
+    try {
+      const rec = this.recorder;
+      if (!rec) return;
+      const level = rec.level();
+      this.post({ type: "level", value: level });
 
-    const now = Date.now();
-    if (level >= SILENCE_LEVEL) {
-      this.lastVoice = now;
-      this.heard = true;
+      const rms = rec.rms(100);
+      const res = this.pauseDetector.tick(rms, Date.now());
+      if (res.action !== "none") {
+        await this.cutChunk();
+      }
+    } finally {
+      this.ticking = false;
     }
-    const paused = this.heard && now - this.lastVoice >= PAUSE_MS;
-    if (paused || now - this.chunkStart >= MAX_CHUNK_MS) await this.cutChunk();
   }
 
   /**
@@ -389,9 +408,7 @@ export class VozDictado {
 
     const { wav, durationMs } = rec.stop();
     this.reportFloor(noiseFloorDb(wav));
-    this.heard = false;
-    this.chunkStart = Date.now();
-    this.lastVoice = this.chunkStart;
+    this.pauseDetector.reset(Date.now());
 
     if (this.handsFree && !this.recorder) {
       try {
@@ -407,27 +424,31 @@ export class VozDictado {
     }
 
     // La decisión se toma sobre el audio grabado, no sobre el último sondeo.
-    if (durationMs >= MIN_CHUNK_MS && voiceMs(wav) >= MIN_VOICE_MS) void this.transcribe(wav, durationMs);
-    else if (!this.handsFree) this.state("idle");
+    if (durationMs >= MIN_CHUNK_MS && voiceMs(wav) >= MIN_VOICE_MS) {
+      void this.transcribe(wav, durationMs);
+    } else if (!this.handsFree) {
+      this.state("idle");
+    }
   }
 
   /** Transcribe un WAV; los fragmentos de manos libres se encolan en orden. */
   private transcribe(wav: Buffer, durationMs: number): Promise<void> {
     const work = async () => {
-      const s = this.settings();
-      // El filtro va al transcribir, no al grabar: sigue el ajuste del panel y
-      // no altera el vúmetro.
-      const audio = s.denoise
-        ? denoiseWav(wav, {
-            // 0 significa "mide el fondo en cada fragmento".
-            floorDb: s.noiseFloor || undefined,
-            toleranceDb: s.tolerance,
-          })
-        : wav;
       this.busy = true;
       setActivity("dictado", true, "TRANSCRIBIENDO VOZ", "dictado");
       this.state("working", `Transcribiendo ${(durationMs / 1000).toFixed(1)} s…`);
       try {
+        const s = this.settings();
+        // El filtro va al transcribir, no al grabar: sigue el ajuste del panel y
+        // no altera el vúmetro. Protegido dentro del try para que un fallo no deje colgada la UI.
+        const audio = s.denoise
+          ? denoiseWav(wav, {
+              // 0 significa "mide el fondo en cada fragmento".
+              floorDb: s.noiseFloor || undefined,
+              toleranceDb: s.tolerance,
+            })
+          : wav;
+
         let text = "";
         if (s.engine === "whisper") {
           text = await whisperText({

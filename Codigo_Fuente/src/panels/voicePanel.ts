@@ -361,7 +361,18 @@ export class VozPanel {
       this.post({ type: "error", message: "Habla algo para medir el fondo antes de fijarlo." });
       return;
     }
-    const db = Number((measured ?? saved).toFixed(1));
+    const val = measured ?? saved;
+    // Un fondo medido por encima de -40 dBFS suele provenir de un fragmento
+    // donde casi todo era voz (percentil 20 contaminado de habla) o de un
+    // micro excesivamente saturado. Evitamos fijar fondos incoherentes.
+    if (val > -40) {
+      this.post({
+        type: "error",
+        message: "No se pudo medir el fondo: graba un par de segundos en silencio.",
+      });
+      return;
+    }
+    const db = Number(val.toFixed(1));
     await this.updateSetting("dictado.noiseFloor", db);
     this.post({ type: "floorLock", on: true, db });
   }

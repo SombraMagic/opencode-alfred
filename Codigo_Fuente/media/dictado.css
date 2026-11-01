@@ -12,7 +12,10 @@ body {
 
 .dict {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* La columna de controles no cambia de ancho con lo que diga dentro (la pista de
+     estado es corta y variable): con `auto`, un texto largo la estiraba y al acortarse
+     encogía el panel entero. */
+  grid-template-columns: minmax(0, 1fr) clamp(212px, 26%, 260px);
   gap: 12px;
   padding: 10px 12px 12px;
   height: 100%;
@@ -184,6 +187,7 @@ body {
 .mic-row {
   display: flex;
   align-items: stretch;
+  justify-content: center;
   gap: 10px;
   padding-top: 4px;
 }
@@ -271,6 +275,7 @@ body {
 .state.listening { color: var(--magenta); border-color: var(--magenta); }
 .state.working { color: var(--amber); border-color: var(--amber); }
 .state.error { color: var(--magenta); border-color: var(--magenta); }
+.state.warn { color: var(--amber); border-color: var(--amber); }
 
 .state-hint {
   font-size: 9px;
@@ -278,9 +283,18 @@ body {
   min-height: 12px;
 }
 
+.state-hint.warn {
+  color: var(--amber);
+}
+
+.state-hint.voice {
+  color: var(--neon);
+}
+
 /* Manos libres: tarjeta-botón junto al micro, etiqueta arriba y pista abajo. */
 .hf-switch {
-  flex: 1;
+  flex: none;
+  width: 84px;
   min-width: 0;
   min-height: 84px;
   display: flex;
