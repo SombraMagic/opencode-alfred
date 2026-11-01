@@ -37,14 +37,20 @@
   flex: none;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 3px 6px;
-  margin: 2px 0 0;
+  /* Huecos recortados (entre celdas 6→4, dentro de la celda 4→2) para pagar el
+     ancho fijo de etiqueta y valor. */
+  gap: 3px 4px;
+  /* 1 px por lado fuera del padding del panel: el `%` mide 23,88 de texto y no
+     devuelve los 2 px que se le pedían, así que la barra se queda corta. Es un
+     pelo más ancha que el resto de filas y no se nota. */
+  margin: 2px -1px 0;
   font-variant-numeric: tabular-nums;
 }
 
 /* Barra lateral estrecha: una celda por fila.
-   Dos columnas con el peor caso ("7,8 GB" + "100%") piden 280,2 px de vista
-   (celdas de 127,1 px + hueco + márgenes); por debajo de 281 se desborda. */
+   Dos columnas con el peor caso ("7,8 GB" + "100%") piden 295,96 px de vista
+   para dejar 24 px de barra: a 305 deja 28,52 y a 300, 26,02. Por eso, por
+   debajo de 281 una celda por fila. */
 @media (max-width: 280px) {
   .sysmon {
     grid-template-columns: 1fr;
@@ -54,22 +60,27 @@
 .sysmon-cell {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
+/* Ancho fijo, el de "VRAM" (4 caracteres con 1 px de tracking): es la etiqueta
+   más ancha y así las barras de las cuatro celdas empiezan en la misma x. En `ch`
+   el ancho sigue a la fuente del host y no recorta. */
 .sm-label {
   flex: none;
+  width: calc(4ch + 4px);
   font-size: 9px;
   letter-spacing: 1px;
   color: var(--text-soft);
   text-transform: uppercase;
 }
 
-/* Ancho mínimo: los valores ("52°", "7,8 GB") no mueven la barra al cambiar. */
+/* Ancho fijo del peor caso ("7,8 GB": 6 caracteres, cifras de ancho tabular).
+   Con ancho propio el valor no empuja la barra: da igual "50°" que "7,8 GB". */
 .sm-value {
   flex: none;
-  min-width: 32px;
+  width: 6ch;
   font-size: 11px;
   color: var(--text);
   white-space: nowrap;
@@ -104,7 +115,7 @@
 
 .sm-pct {
   flex: none;
-  min-width: 24px;
+  min-width: 22px;
   font-size: 9.5px;
   letter-spacing: 0.4px;
   color: var(--neon);
