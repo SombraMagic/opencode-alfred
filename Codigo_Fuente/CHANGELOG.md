@@ -3,6 +3,19 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.22] - 2026-11-01
+
+- **Chatbot de Mente local**: pestaña central para probar los modelos de Ollama directamente, sin
+  arnés de opencode. Streaming, bloque de pensamiento, ajustes de sistema/temperatura/contexto,
+  adjuntar imágenes si el modelo tiene visión, historial de conversaciones, exportar y lectura en
+  voz. El botón de Control solo se enciende con Mente local encendida; si el servidor no responde,
+  el panel se bloquea y explica por qué.
+- **Herramienta de imagen para el modelo**: si el modelo soporta herramientas, puede pedir una
+  imagen con un único prompt positivo. Usa la configuración ya establecida del generador de
+  imágenes; el modelo no conoce modelo, tamaño, pasos ni semilla.
+- **La tarjeta «GENERANDO IMAGEN» del ecualizador ya aparece con los agentes**: el sondeo del
+  trabajo del MCP pasa a 300 ms en vez de 1 s, y también se enciende cuando genera el chatbot.
+
 ## [0.7.21] - 2026-11-01
 
 - **El generador de imágenes recuerda sus ajustes entre sesiones**: el modelo de cada proveedor,

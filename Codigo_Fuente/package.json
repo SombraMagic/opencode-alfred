@@ -3,7 +3,7 @@
   "displayName": "OpenCode Alfred",
   "description": "Centro de control de opencode (agentes, MCP, skills, plugins y contexto) con voz, dictado y visor 3D de Blender.",
   "icon": "media/icon.png",
-  "version": "0.7.21",
+  "version": "0.7.22",
   "publisher": "SombraMagic",
   "license": "MIT",
   "repository": {
@@ -107,7 +107,11 @@
       {
         "viewType": "opencodeAgents.blendViewer",
         "displayName": "Visor Alfred 3D",
-        "selector": [{ "filenamePattern": "*.blend" }],
+        "selector": [
+          {
+            "filenamePattern": "*.blend"
+          }
+        ],
         "priority": "default"
       }
     ],
