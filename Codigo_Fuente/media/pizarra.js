@@ -909,6 +909,7 @@
     accordion: ["items", "active", "disabled"],
     menu: ["items", "active", "orientation", "disabled"],
     list: ["items", "active", "icon", "icons", "scroll", "disabled"],
+    bar: ["variant", "orientation", "disabled"],
     label: ["text", "align", "disabled"],
     input: ["text", "placeholder", "dropdown", "disabled"],
     textarea: ["text", "placeholder", "disabled"],
@@ -932,7 +933,7 @@
     align: { etiqueta: "ALINEAR", tag: "select" },
     // Rejilla con los iconos del diagrama, no una lista de nombres.
     icon: { etiqueta: "ICONO", tag: "iconos" },
-    // Dos botones de icono: el menú en fila o en columna.
+    // Dos botones de icono: el reparto del menú o el eje largo de la barra.
     orientation: { etiqueta: "ORIENTACIÓN", tag: "orientacion" },
     // Solo la lista: icono a la izquierda de cada fila y barra de desplazamiento a la derecha.
     icons: { etiqueta: "ICONO EN CADA FILA", tag: "checkbox" },
@@ -956,6 +957,7 @@
     accordion: { label: "Acordeón", d: "M3 4h18v16H3zM3 10h18M3 16h18M6 7h4M6 13h4" },
     menu: { label: "Menú", d: "M4 7h16M4 12h16M4 17h16" },
     list: { label: "Lista", d: "M4 6h16M4 12h16M4 18h10" },
+    bar: { label: "Barra", d: "M3 12h18M15 8v8" },
     label: { label: "Etiqueta", d: "M5 6h14M12 6v13" },
     input: { label: "Campo", d: "M3 8h18v8H3zM7 10v4" },
     textarea: { label: "Área texto", d: "M3 6h18v12H3zM6 10h12M6 14h8" },
@@ -1107,7 +1109,8 @@
       active: kind === "list" ? -1 : items.length ? 0 : -1,
       options,
       checked: [],
-      variant: "",
+      // La barra nace con el estilo deslizante; el resto de tipos eligen variante en el inspector.
+      variant: kind === "bar" ? "slide" : "",
       align: "left",
       icon: kind === "icon" ? "user" : "",
       src: "",
@@ -1120,7 +1123,8 @@
       stroke: "#111111",
       titleColor: "#111111",
       titleSize: 12,
-      orientation: "v",
+      // La barra nace horizontal (su eje largo) y el resto vertical, como el saneado del host.
+      orientation: kind === "bar" ? "h" : "v",
     };
   }
 
@@ -1386,8 +1390,18 @@
       const pares =
         n.kind === "choice"
           ? [["", "NINGUNA"], ["check", "CASILLA"], ["radio", "RADIO"]]
-          : [["", "NINGUNA"], ["primary", "PRIMARIA"], ["secondary", "SECUNDARIA"]];
+          : n.kind === "bar"
+            ? [["slide", "DESLIZANTE"], ["scroll", "DESPLAZAMIENTO"], ["fill", "RELLENO"]]
+            : [["", "NINGUNA"], ["primary", "PRIMARIA"], ["secondary", "SECUNDARIA"]];
       llenarOpciones(inspectorCampos.variant, pares, n.variant);
+      // La barra no tiene variantes de énfasis: la misma fila elige su estilo.
+      const titulo = n.kind === "bar" ? "ESTILO" : "VARIANTE";
+      const rotulo = inspectorFilas.variant ? inspectorFilas.variant.querySelector("span") : null;
+      if (rotulo) rotulo.textContent = titulo;
+      if (inspectorCampos.variant) {
+        inspectorCampos.variant.title = titulo;
+        inspectorCampos.variant.setAttribute("aria-label", titulo);
+      }
     }
     if (campos.indexOf("align") >= 0) {
       llenarOpciones(
@@ -1483,6 +1497,12 @@
     if (!n || n[clave] === valor) {
       pintaEstilo();
       return;
+    }
+    // Una barra gira con su caja: al cambiar el eje largo se intercambian ancho y alto.
+    if (clave === "orientation" && n.kind === "bar") {
+      const ancho = n.w;
+      n.w = n.h;
+      n.h = ancho;
     }
     n[clave] = valor;
     changed();
@@ -1699,13 +1719,13 @@
           inspectorMarcas.orientH = botonIcono(
             "pz-ui-ico",
             "M4 12h16M16 8l4 4-4 4",
-            "Menú horizontal",
+            "Horizontal",
             () => fijaEstilo("orientation", "h")
           );
           inspectorMarcas.orientV = botonIcono(
             "pz-ui-ico",
             "M12 4v16M8 16l4 4 4-4",
-            "Menú vertical",
+            "Vertical",
             () => fijaEstilo("orientation", "v")
           );
           control.append(inspectorMarcas.orientH, inspectorMarcas.orientV);

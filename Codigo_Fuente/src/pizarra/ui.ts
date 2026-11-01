@@ -25,6 +25,7 @@ export const UI_KINDS: readonly string[] = [
   "accordion",
   "menu",
   "list",
+  "bar",
   "label",
   "input",
   "textarea",
@@ -50,6 +51,8 @@ const ICON_NAME = /^[a-z-]{0,20}$/;
 const ALIGNS: readonly string[] = ["left", "center", "right"];
 const CHOICE_VARIANTS: readonly string[] = ["", "check", "radio"];
 const BUTTON_VARIANTS: readonly string[] = ["", "primary", "secondary"];
+/** Estilos de la barra: deslizante, barra de desplazamiento y barra de porcentaje. */
+const BAR_VARIANTS: readonly string[] = ["slide", "scroll", "fill"];
 /** Copia de `HEX_COLOR` (`scene.ts`). */
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 /** Fondos con nombre: el relleno que le toca al tipo, o ninguno. */
@@ -192,6 +195,9 @@ function variantOf(raw: unknown, kind: string): string {
   }
   if (kind === "button") {
     return pick(raw, BUTTON_VARIANTS, "");
+  }
+  if (kind === "bar") {
+    return pick(raw, BAR_VARIANTS, "slide");
   }
   return "";
 }
@@ -338,8 +344,8 @@ export function sanitizeUi(raw: unknown): Ui {
       stroke: strokeOf(item.stroke),
       titleColor: titleColorOf(item.titleColor),
       titleSize: titleSizeOf(item.titleSize),
-      // Solo `menu` lo usa, pero todos lo llevan para que el contrato sea plano.
-      orientation: pick(item.orientation, ORIENTATIONS, "v"),
+      // Solo `menu` y `bar` lo usan, pero todos lo llevan para que el contrato sea plano.
+      orientation: pick(item.orientation, ORIENTATIONS, item.kind === "bar" ? "h" : "v"),
     });
   }
   resolveTree(nodes);
@@ -391,6 +397,8 @@ export function uiDefaults(kind: string): { w: number; h: number } {
       return { w: 160, h: 140 };
     case "list":
       return { w: 220, h: 160 };
+    case "bar":
+      return { w: 180, h: 16 };
     case "label":
       return { w: 160, h: 24 };
     case "input":
@@ -437,6 +445,10 @@ export function uiPreset(kind: string): UiStyle {
   } else if (kind === "button") {
     preset.variant = "secondary";
     preset.align = "left";
+  } else if (kind === "bar") {
+    // La barra nace horizontal, con la pista y el tirador del deslizante.
+    preset.variant = "slide";
+    preset.orientation = "h";
   } else if (kind === "label") {
     preset.align = "left";
   }

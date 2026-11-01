@@ -599,9 +599,11 @@ function aplicarContenido(nodo: UiNode, args: Record<string, unknown>): void {
   if (titleColor !== undefined) nodo.titleColor = titleColor;
   const titleSize = numOf(args, "titleSize", -MAX_COORD, MAX_COORD);
   if (titleSize !== undefined) nodo.titleSize = titleSize;
-  // El reparto solo pinta en un menú; en otro tipo se ignora sin avisar.
+  // El reparto solo pinta en un menú y el eje largo solo en una barra; en otro tipo se ignora sin avisar.
   const orientation = strOf(args, "orientation");
-  if (orientation !== undefined && nodo.kind === "menu") nodo.orientation = orientation;
+  if (orientation !== undefined && (nodo.kind === "menu" || nodo.kind === "bar")) {
+    nodo.orientation = orientation;
+  }
 }
 
 /**
@@ -702,7 +704,7 @@ const TITLE_SIZE = {
 const ORIENTATION = {
   type: "string",
   enum: ["h", "v"],
-  description: "Solo menu: reparto en fila (h) o en columna (v).",
+  description: "Menu: reparto en fila (h) o en columna (v). Barra: eje largo horizontal (h) o vertical (v).",
 };
 const X = { type: "number", description: "Coordenada x en píxeles, origen arriba a la izquierda." };
 const Y = { type: "number", description: "Coordenada y en píxeles, origen arriba a la izquierda." };
@@ -1022,7 +1024,8 @@ export const PIZARRA_TOOLS = [
         },
         variant: {
           type: "string",
-          description: 'Estilo de un choice ("check", "radio") o de un button ("primary", "secondary").',
+          description:
+            'Estilo de un choice ("check", "radio"), de un button ("primary", "secondary") o de una bar ("slide", "scroll", "fill").',
         },
         align: { type: "string", enum: ALIGNS, description: "Alineación del texto." },
         icon: { type: "string", description: "Nombre del icono del widget." },

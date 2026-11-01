@@ -9,7 +9,7 @@
 
    Personalización, plana junto a lo anterior: `fill` (`"auto"`, `"none"` o `#rrggbb`),
    `stroke` (`#rrggbb` o `"none"`), `titleColor` (`#rrggbb`), `titleSize` (8..48),
-   `orientation` (`"h"`/`"v"`, solo `menu`), `icons` y `scroll` (booleanos, solo `list`).
+   `orientation` (`"h"`/`"v"`, `menu` y `bar`), `icons` y `scroll` (booleanos, solo `list`).
 
    Se puede cargar con `require` en node para comprobarla sin navegador. */
 (function () {
@@ -24,6 +24,7 @@
     { kind: "accordion", group: "contenedor", label: "Acordeón" },
     { kind: "menu", group: "control", label: "Menú" },
     { kind: "list", group: "control", label: "Lista" },
+    { kind: "bar", group: "control", label: "Barra" },
     { kind: "label", group: "control", label: "Etiqueta" },
     { kind: "input", group: "control", label: "Campo" },
     { kind: "textarea", group: "control", label: "Área de texto" },
@@ -42,6 +43,7 @@
     accordion: { w: 320, h: 200 },
     menu: { w: 160, h: 140 },
     list: { w: 220, h: 160 },
+    bar: { w: 180, h: 16 },
     label: { w: 160, h: 24 },
     input: { w: 200, h: 28 },
     textarea: { w: 240, h: 80 },
@@ -86,9 +88,23 @@
    * Un valor de texto se pinta como glifo; una lista de trazos, con `trazaIcono` en 24×24.
    */
   const GLYPHS = {
-    user: "☺", search: "⌕", menu: "≡", close: "✕", plus: "+", minus: "−",
+    user: "☺", menu: "≡", close: "✕", plus: "+", minus: "−",
     check: "✓", star: "★", home: "⌂", gear: "⚙", mail: "✉", lock: "⚿",
-    info: "i", warning: "!", play: "▶",
+    info: "i", warning: "!",
+    search: [circulo(10, 10, 6), [["M", 14.5, 14.5], ["L", 20, 20]]],
+    trash: [
+      [["M", 4, 7], ["L", 20, 7]],
+      [["M", 9, 7], ["L", 9, 4.5], ["L", 15, 4.5], ["L", 15, 7]],
+      [["M", 6.5, 7], ["L", 7.5, 20], ["L", 16.5, 20], ["L", 17.5, 7]],
+      [["M", 10, 11], ["L", 10, 17]],
+      [["M", 14, 11], ["L", 14, 17]],
+    ],
+    save: [
+      [["M", 5, 4], ["L", 16, 4], ["L", 19, 7], ["L", 19, 20], ["L", 5, 20], ["Z"]],
+      [["M", 8, 4], ["L", 8, 9], ["L", 15, 9], ["L", 15, 4]],
+      [["M", 8, 13], ["L", 16, 13], ["L", 16, 20], ["L", 8, 20], ["Z"]],
+    ],
+    play: [[["M", 8, 5.5], ["L", 18.5, 12], ["L", 8, 18.5], ["Z"]]],
     key: [circulo(8, 12, 4.5), [["M", 12, 12], ["L", 20, 12]], [["M", 17, 12], ["L", 17, 16]], [["M", 20, 12], ["L", 20, 15]]],
     database: [
       [["M", 4, 7], ["Q", 4, 4, 12, 4], ["Q", 20, 4, 20, 7], ["Q", 20, 10, 12, 10], ["Q", 4, 10, 4, 7]],
@@ -796,6 +812,41 @@
     }
   }
 
+  /**
+   * `bar`: pista con tirador (`slide`), barra de desplazamiento (`scroll`, pista fina y tirador
+   * largo) o barra de porcentaje (`fill`, rellena hasta el 62 % con la tinta del texto).
+   * El eje largo lo manda `orientation`: `"v"` la pone en vertical.
+   */
+  function paintBar(ctx, n, x, y, w, h, ink) {
+    const horizontal = n.orientation !== "v";
+    const estilo = n.variant === "scroll" || n.variant === "fill" ? n.variant : "slide";
+    const largo = Math.max(1, horizontal ? w : h);
+    const corto = Math.max(1, horizontal ? h : w);
+    const fg = strokeOf(n, ink);
+    fillBox(ctx, x, y, w, h, fillOf(n, PAPER));
+    outerFrame(ctx, n, x, y, w, h, ink, true);
+    // Caja en los ejes de la barra (`a` a lo largo, `b` a lo ancho) vuelta a coordenadas del lienzo.
+    const caja = (a0, b0, a1, b1) =>
+      horizontal
+        ? { x: x + a0, y: y + b0, w: Math.max(1, a1 - a0), h: Math.max(1, b1 - b0) }
+        : { x: x + b0, y: y + a0, w: Math.max(1, b1 - b0), h: Math.max(1, a1 - a0) };
+    // La pista deja aire en los extremos y se centra en el eje corto.
+    const a0 = Math.min(3, largo / 4);
+    const a1 = Math.max(a0 + 1, largo - a0);
+    const grosor = Math.max(2, corto * (estilo === "scroll" ? 0.28 : estilo === "fill" ? 0.45 : 0.4));
+    const b0 = Math.max(LW, (corto - grosor) / 2);
+    const dentro = Math.max(1, Math.min(corto - b0 - LW, grosor - LW * 2));
+    const pista = caja(a0, b0, a1, b0 + grosor);
+    fillBox(ctx, pista.x, pista.y, pista.w, pista.h, n.disabled ? PAPER : SOFT);
+    // El borde del widget manda también en la pista: con `stroke:"none"` no hay línea.
+    if (n.stroke !== "none") frame(ctx, pista.x, pista.y, pista.w, pista.h, fg);
+    const recorrido = Math.max(1, a1 - a0 - LW * 2);
+    // Relleno hasta el 62 % o tirador; el del deslizante es corto y el del desplazamiento, largo.
+    const ancho = estilo === "fill" ? recorrido * 0.62 : recorrido * (estilo === "scroll" ? 0.62 : 0.3);
+    const tirador = caja(a0 + LW, b0 + LW, a0 + LW + Math.max(2, ancho), b0 + LW + dentro);
+    fillBox(ctx, tirador.x, tirador.y, tirador.w, tirador.h, titleInk(n, ink));
+  }
+
   function paintLabel(ctx, n, x, y, w, h, ink) {
     fillBox(ctx, x, y, w, h, fillOf(n, null));
     outerFrame(ctx, n, x, y, w, h, ink, false);
@@ -986,6 +1037,9 @@
           break;
         case "list":
           paintList(ctx, node, x, y, w, h, ink);
+          break;
+        case "bar":
+          paintBar(ctx, node, x, y, w, h, ink);
           break;
         case "label":
           paintLabel(ctx, node, x, y, w, h, ink);
