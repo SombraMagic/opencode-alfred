@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { readFileSync, watch, type FSWatcher } from "node:fs";
-import { lstat, realpath, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { lstat, mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import type {
   FilterId,
@@ -21,6 +22,7 @@ import {
   BRANCH_RE,
   GitError,
   gitAction,
+  readGitVersion,
   readRepoState,
   type GitActionKind,
   type GitFileState,
@@ -79,6 +81,10 @@ interface TreeRuntime {
   searchTimer: ReturnType<typeof setTimeout> | null;
   gitRefreshTimer: ReturnType<typeof setTimeout> | null;
   watchers: Map<string, FSWatcher>;
+  /**
+   * Carpetas con aviso pendiente. Un aviso que cae dentro de la ventana de supresión
+   * de una operación propia no se tira: se reconta al terminar esa ventana.
+   */
   watchDirty: Set<string>;
   watchTimer: ReturnType<typeof setTimeout> | null;
   /** Cola FIFO de rescans del árbol: nunca dos mutaciones a la vez sobre el mismo `Tree`. */
@@ -89,8 +95,8 @@ interface TreeRuntime {
   /** Promesas de los que esperan: se resuelven cuando la cola queda vacía. */
   rescanWaiters: Array<() => void>;
   suppressUntil: number;
-  /** Cola FIFO de acciones git (con texto para el `status busy`). */
-  gitQueue: { action: GitActionKind; branch?: string; message?: string; text: string }[];
+  /** Cola FIFO de acciones git (con texto para el `status busy` y ruta por fichero). */
+  gitQueue: { action: GitActionKind; branch?: string; message?: string; rel?: string; text: string }[];
   gitRunning: boolean;
 }
 
@@ -101,10 +107,15 @@ const GIT_ACTIONS = new Set<string>([
   "push",
   "commit",
   "stageAll",
+  "stage",
+  "unstage",
+  "discard",
   "checkout",
   "createBranch",
   "refresh",
 ]);
+/** Acciones git que actúan sobre una ruta concreta del árbol. */
+const GIT_PATH_ACTIONS = new Set<string>(["stage", "unstage", "discard"]);
 const FILTER_IDS = new Set<string>(["all", "changed", "staged", "untracked", "unpushed", "clean"]);
 const GIT_LABELS: Record<string, string> = {
   fetch: "fetch",
@@ -112,6 +123,9 @@ const GIT_LABELS: Record<string, string> = {
   push: "push",
   commit: "commit",
   stageAll: "add -A",
+  stage: "preparar",
+  unstage: "quitar de preparado",
+  discard: "descartar cambios",
   checkout: "checkout",
   createBranch: "rama nueva",
   refresh: "git",
@@ -129,6 +143,8 @@ export class ProjectExplorerPanel {
   private readonly panel: vscode.WebviewPanel;
   private readonly extensionUri: vscode.Uri;
   private readonly state: vscode.Memento;
+  /** Carpeta de almacenamiento: aquí caen los temporales de `vscode.diff`. */
+  private readonly storageDir: string;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly trees: Map<TreeId, TreeRuntime>;
   private layout: "one" | "two" = "one";
@@ -161,6 +177,7 @@ export class ProjectExplorerPanel {
     this.panel = panel;
     this.extensionUri = context.extensionUri;
     this.state = context.workspaceState;
+    this.storageDir = context.globalStorageUri.fsPath;
     this.trees = new Map<TreeId, TreeRuntime>([
       ["a", this.newTree("a")],
       ["b", this.newTree("b")],
@@ -500,6 +517,9 @@ export class ProjectExplorerPanel {
           } catch {
             // Un rescan que falla no debe parar la cola: se pasa al siguiente aviso.
           }
+          // Los vigilantes van con el árbol: se reponen los que se cerraron para mutar
+          // (Windows no deja borrar, mover ni renombrar una carpeta con su handle abierto).
+          this.syncWatchers(st);
           // El subárbol nuevo trae ids distintos: la búsqueda activa se rehace entera.
           this.resumeSearch(st);
         }
@@ -538,6 +558,8 @@ export class ProjectExplorerPanel {
       // Hay un escaneo completo en vuelo: él traerá el cambio.
       return;
     }
+    // Este `rel` queda al día: quita el aviso pendiente (igual si lo trajo otra vía).
+    st.watchDirty.delete(rel);
     if (rel === "") {
       tree.removeSubtreeContents(tree.rootId);
       await scanDirectory(st.root, (e) => tree.add(e), { relPrefix: "", maxEntries: MAX_ENTRIES });
@@ -686,13 +708,19 @@ export class ProjectExplorerPanel {
   }
 
   /** Encola una acción git por árbol: FIFO, con estado `busy` y refresco al terminar. */
-  private enqueueGit(st: TreeRuntime, action: GitActionKind, branch?: string, message?: string): void {
+  private enqueueGit(
+    st: TreeRuntime,
+    action: GitActionKind,
+    branch?: string,
+    message?: string,
+    rel?: string
+  ): void {
     if (!st.root) {
       this.op(st, false, "Este árbol no tiene carpeta raíz.");
       return;
     }
     const text = `git · ${GIT_LABELS[action] ?? action}`;
-    st.gitQueue.push({ action, branch, message, text });
+    st.gitQueue.push({ action, branch, message, rel, text });
     this.flushGitQueue(st);
   }
 
@@ -718,7 +746,7 @@ export class ProjectExplorerPanel {
 
   private async runGitJob(
     st: TreeRuntime,
-    job: { action: GitActionKind; branch?: string; message?: string; text: string }
+    job: { action: GitActionKind; branch?: string; message?: string; rel?: string; text: string }
   ): Promise<void> {
     if (this.disposed || !st.root) {
       return;
@@ -750,9 +778,35 @@ export class ProjectExplorerPanel {
           return;
         }
       }
+      if (job.action === "discard") {
+        // El estado puede haber cambiado mientras el trabajo estaba en cola: se comprueba aquí.
+        const rel = job.rel ?? "";
+        if (!rel) {
+          throw new GitError("Falta la ruta del fichero.");
+        }
+        let state = st.gitFiles.get(rel)?.state;
+        if (state === undefined) {
+          // Sin estado leído (o caducado): se refresca antes de decidir.
+          await this.loadGit(st);
+          state = st.gitFiles.get(rel)?.state;
+        }
+        if (state !== "modified") {
+          throw new GitError("Solo se descartan cambios de ficheros modificados.");
+        }
+        const answer = await vscode.window.showWarningMessage(
+          `¿Descartar los cambios locales de «${path.basename(rel)}»?`,
+          { modal: true },
+          "DESCARTAR"
+        );
+        if (answer !== "DESCARTAR") {
+          this.op(st, false, "Descartar cancelado.");
+          return;
+        }
+      }
       await gitAction(st.root, job.action, {
         branch: job.branch,
         message: job.message,
+        rel: job.rel,
         upstream: st.git?.upstream ?? null,
         branchName: st.git?.branch ?? "",
       });
@@ -768,6 +822,9 @@ export class ProjectExplorerPanel {
     if (job.action === "checkout" || job.action === "pull") {
       // Son las dos acciones que cambian el árbol de trabajo.
       void this.scanTree(st);
+    } else if (job.action === "discard" && job.rel) {
+      // `git restore` cambia el contenido: hay que recontar el tamaño del padre.
+      await this.afterMutation(st, parentOfRel(job.rel));
     } else {
       await this.loadGit(st);
       this.recomputeView(st);
@@ -946,7 +1003,19 @@ export class ProjectExplorerPanel {
         return;
       }
       case "git": {
-        this.handleGit(st, message.action, message.branch, message.message);
+        this.handleGit(st, message.action, message.branch, message.message, message.rel);
+        return;
+      }
+      case "rename": {
+        await this.renameRel(st, message.rel);
+        return;
+      }
+      case "diff": {
+        await this.diffRel(st, message.rel);
+        return;
+      }
+      case "newFile": {
+        await this.newFileAt(st, message.parentRel);
         return;
       }
     }
@@ -956,7 +1025,8 @@ export class ProjectExplorerPanel {
     st: TreeRuntime,
     action: GitActionKind,
     branch?: string,
-    message?: string
+    message?: string,
+    relArg?: string
   ): void {
     if (!st.root) {
       this.op(st, false, "Este árbol no tiene carpeta raíz.");
@@ -991,6 +1061,29 @@ export class ProjectExplorerPanel {
         return;
       }
       this.enqueueGit(st, action, undefined, m);
+      return;
+    }
+    if (GIT_PATH_ACTIONS.has(action)) {
+      const rel = (relArg ?? "").trim();
+      if (!rel) {
+        this.op(st, false, "Falta la ruta del fichero.");
+        return;
+      }
+      const entry = st.tree?.getEntry(rel);
+      if (!entry) {
+        this.op(st, false, "La ruta ya no existe en el árbol.");
+        return;
+      }
+      if (entry.kind === "link") {
+        this.op(st, false, "No se preparan ni descartan enlaces.");
+        return;
+      }
+      if (entry.kind !== "file") {
+        // Carpetas y ficheros borrados: `git add -A` de la raíz sigue disponible.
+        this.op(st, false, "Solo se preparan o descartan ficheros.");
+        return;
+      }
+      this.enqueueGit(st, action, undefined, undefined, rel);
       return;
     }
     this.enqueueGit(st, action);
@@ -1056,42 +1149,50 @@ export class ProjectExplorerPanel {
       return;
     }
     this.suppress(st);
-    let usedTrash = true;
-    let trashProblem = "";
+    // El vigilante de la carpeta (si está expandida) bloquearía el borrado en Windows.
+    this.closeWatchersUnder(st, rel);
     try {
-      await deletePath(abs, true);
-    } catch (err) {
-      if (err instanceof OpError && /cancelado por el usuario/i.test(err.message)) {
-        // Cancelación del diálogo de papelera: no se insiste con borrado permanente.
-        this.op(st, false, "Borrado cancelado.");
-        return;
-      }
-      usedTrash = false;
-      trashProblem = err instanceof Error ? err.message : String(err);
-      const again = await vscode.window.showWarningMessage(
-        `La papelera falló (${trashProblem}). Borrar permanentemente ${entry.name}${many}?`,
-        { modal: true },
-        "Borrar permanentemente"
-      );
-      if (again !== "Borrar permanentemente" || this.disposed) {
-        this.op(st, false, "Borrado cancelado.");
-        return;
-      }
+      let usedTrash = true;
+      let trashProblem = "";
       try {
-        await deletePath(abs, false);
-      } catch (err2) {
-        this.op(st, false, err2 instanceof Error ? err2.message : String(err2));
-        return;
+        await deletePath(abs, true);
+      } catch (err) {
+        if (err instanceof OpError && /cancelado por el usuario/i.test(err.message)) {
+          // Cancelación del diálogo de papelera: no se insiste con borrado permanente.
+          this.op(st, false, "Borrado cancelado.");
+          return;
+        }
+        usedTrash = false;
+        trashProblem = err instanceof Error ? err.message : String(err);
+        const again = await vscode.window.showWarningMessage(
+          `La papelera falló (${trashProblem}). Borrar permanentemente ${entry.name}${many}?`,
+          { modal: true },
+          "Borrar permanentemente"
+        );
+        if (again !== "Borrar permanentemente" || this.disposed) {
+          this.op(st, false, "Borrado cancelado.");
+          return;
+        }
+        try {
+          await deletePath(abs, false);
+        } catch (err2) {
+          this.op(st, false, err2 instanceof Error ? err2.message : String(err2));
+          return;
+        }
       }
+      this.op(
+        st,
+        true,
+        usedTrash
+          ? `«${entry.name}» movido a la papelera.`
+          : `«${entry.name}» borrado permanentemente.`
+      );
+      await this.afterMutation(st, parentOfRel(rel));
+    } finally {
+      // Tras cerrar los vigilantes hay que reabrirlos siempre: cancelación, papelera
+      // que falla o error de borrado dejaban la carpeta expandida sin avisos.
+      this.syncWatchers(st);
     }
-    this.op(
-      st,
-      true,
-      usedTrash
-        ? `«${entry.name}» movido a la papelera.`
-        : `«${entry.name}» borrado permanentemente.`
-    );
-    await this.afterMutation(st, parentOfRel(rel));
   }
 
   private async doTransfer(
@@ -1153,6 +1254,8 @@ export class ProjectExplorerPanel {
     }
     this.suppress(from);
     this.suppress(to);
+    // En Windows el handle del vigilante de la carpeta origen bloquearía el movimiento.
+    this.closeWatchersUnder(from, fromRel);
     let ok = true;
     let text = "";
     try {
@@ -1208,6 +1311,31 @@ export class ProjectExplorerPanel {
     return null;
   }
 
+  /**
+   * Cierra los vigilantes de `rel` y de lo que haya debajo. En Windows un handle
+   * abierto sobre una carpeta (el `fs.watch` de una carpeta expandida) impide
+   * borrarla, moverla o renombrarla: `EPERM`. Se vuelven a abrir con `syncWatchers`
+   * al terminar el reescaneo.
+   */
+  private closeWatchersUnder(st: TreeRuntime, rel: string): void {
+    const prefijo = `${rel}/`;
+    for (const [key, watcher] of [...st.watchers]) {
+      if (key === rel || (rel !== "" && key.startsWith(prefijo))) {
+        try {
+          watcher.close();
+        } catch {
+          // Ya estaba cerrado.
+        }
+        st.watchers.delete(key);
+      }
+    }
+    for (const dirty of [...st.watchDirty]) {
+      if (dirty === rel || (rel !== "" && dirty.startsWith(prefijo))) {
+        st.watchDirty.delete(dirty);
+      }
+    }
+  }
+
   /** Rescan del padre afectado + refresco git + vista. */
   private async afterMutation(st: TreeRuntime, parentRel: string): Promise<void> {
     if (this.disposed) {
@@ -1216,6 +1344,201 @@ export class ProjectExplorerPanel {
     await this.enqueueRescan(st, parentRel);
     await this.loadGit(st);
     this.recomputeView(st);
+  }
+
+  /**
+   * Renombra dentro del propio padre. Pide el nombre en un `showInputBox`, no
+   * sobrescribe y, si es una carpeta, reescribe el prefijo de las expandidas.
+   */
+  private async renameRel(st: TreeRuntime, rel: string): Promise<void> {
+    const tree = st.tree;
+    const entry = tree?.getEntry(rel);
+    if (!tree || !entry) {
+      this.op(st, false, "La ruta ya no existe en el árbol.");
+      return;
+    }
+    if (entry.kind === "missing") {
+      this.op(st, false, "Ese fichero ya no está en disco.");
+      return;
+    }
+    const abs = await this.resolve(st, rel);
+    if (!abs || this.disposed) {
+      return;
+    }
+    const propuesta = await vscode.window.showInputBox({
+      prompt: `Nuevo nombre para «${entry.name}»`,
+      value: entry.name,
+      ignoreFocusOut: true,
+      validateInput: (value: string) => validateEntryName(value),
+    });
+    if (propuesta === undefined) {
+      // Cancelado: no se toca nada.
+      return;
+    }
+    const problem = validateEntryName(propuesta);
+    const name = (propuesta ?? "").trim();
+    if (problem || !name) {
+      this.op(st, false, problem ?? "Nombre no válido.");
+      return;
+    }
+    const parentRel = parentOfRel(rel);
+    const destAbs = path.join(path.dirname(abs), name);
+    if (samePath(abs, destAbs)) {
+      this.op(st, false, "Ya se llama así.");
+      return;
+    }
+    if (await existsReal(destAbs)) {
+      this.op(st, false, `«${name}» ya existe. Sin sobrescribir.`);
+      return;
+    }
+    this.suppress(st);
+    // En Windows el handle del vigilante de la propia carpeta bloquea el renombrado.
+    this.closeWatchersUnder(st, rel);
+    try {
+      try {
+        await vscode.workspace.fs.rename(vscode.Uri.file(abs), vscode.Uri.file(destAbs), {
+          overwrite: false,
+        });
+      } catch (err) {
+        this.op(st, false, err instanceof Error ? err.message : String(err));
+        return;
+      }
+      const eraCarpeta = entry.kind === "dir";
+      if (eraCarpeta) {
+        // Las carpetas abiertas debajo cambian de prefijo; si no, se pierde su estado.
+        const newRel = parentRel ? `${parentRel}/${name}` : name;
+        const rebuilt = new Set<string>();
+        for (const open of st.expanded) {
+          if (open === rel) {
+            rebuilt.add(newRel);
+          } else if (open.startsWith(`${rel}/`)) {
+            rebuilt.add(newRel + open.slice(rel.length));
+          } else {
+            rebuilt.add(open);
+          }
+        }
+        st.expanded = rebuilt;
+      }
+      this.op(st, true, `Renombrado a «${name}».`);
+      await this.afterMutation(st, parentRel);
+      if (eraCarpeta) {
+        // Se guarda DESPUÉS del reescaneo: `persistExpanded` descarta las rutas que
+        // el árbol todavía no conoce, y con el árbol viejo se quedaban fuera las nuevas.
+        this.persistExpanded(st);
+      }
+    } finally {
+      // Pase lo que pase (error, cancelación, retorno): los vigilantes de lo expandido
+      // vuelven a su sitio. `syncWatchers` solo abre y cierra handles, no reescanea.
+      this.syncWatchers(st);
+    }
+  }
+
+  /** Crea un fichero vacío dentro de `parentRel` ("" = la raíz) sin sobrescribir. */
+  private async newFileAt(st: TreeRuntime, parentRel: string): Promise<void> {
+    const tree = st.tree;
+    if (!tree) {
+      this.op(st, false, "Este árbol todavía no está escaneado.");
+      return;
+    }
+    if (parentRel !== "" && !tree.hasDir(parentRel)) {
+      this.op(st, false, "La carpeta de destino no existe.");
+      return;
+    }
+    const dirAbs = await this.resolve(st, parentRel, true);
+    if (!dirAbs || this.disposed) {
+      return;
+    }
+    const propuesta = await vscode.window.showInputBox({
+      prompt: `Fichero nuevo en «${parentRel || st.label}»`,
+      value: "texto.txt",
+      ignoreFocusOut: true,
+      validateInput: (value: string) => validateEntryName(value),
+    });
+    if (propuesta === undefined) {
+      return;
+    }
+    const problem = validateEntryName(propuesta);
+    const name = (propuesta ?? "").trim();
+    if (problem || !name) {
+      this.op(st, false, problem ?? "Nombre no válido.");
+      return;
+    }
+    const target = path.join(dirAbs, name);
+    if (await existsReal(target)) {
+      this.op(st, false, `«${name}» ya existe. Sin sobrescribir.`);
+      return;
+    }
+    this.suppress(st);
+    try {
+      // `wx`: falla si alguien creó el fichero mientras tanto.
+      await writeFile(target, "", { flag: "wx" });
+    } catch (err) {
+      this.op(st, false, err instanceof Error ? err.message : String(err));
+      return;
+    }
+    this.op(st, true, `Creado «${name}».`);
+    await this.afterMutation(st, parentRel);
+    try {
+      await vscode.commands.executeCommand("vscode.open", vscode.Uri.file(target));
+    } catch {
+      // Sin editor disponible: el fichero ya está creado y en el árbol.
+    }
+  }
+
+  /**
+   * Abre `vscode.diff` entre la versión de Git y la del disco. La versión de Git se
+   * vuelca en un temporal estable (raíz + `rel` -> hash), así que no acumula basura.
+   */
+  private async diffRel(st: TreeRuntime, rel: string): Promise<void> {
+    const entry = st.tree?.getEntry(rel);
+    if (!entry || entry.kind !== "file") {
+      this.op(st, false, "Solo se comparan ficheros que existen en disco.");
+      return;
+    }
+    const gitState = st.gitFiles.get(rel);
+    // Sin cambios de contenido nada que comparar: `clean` aunque esté sin subir se descarta.
+    const comparable =
+      gitState !== undefined &&
+      (gitState.state === "modified" ||
+        gitState.state === "staged" ||
+        gitState.state === "renamed" ||
+        (gitState.unpushed === true && gitState.state !== "clean"));
+    if (!comparable || !gitState) {
+      this.op(st, false, "Ese fichero no tiene cambios que comparar con Git.");
+      return;
+    }
+    if (!st.root) {
+      this.op(st, false, "Este árbol no tiene carpeta raíz.");
+      return;
+    }
+    const abs = await this.resolve(st, rel);
+    if (!abs || this.disposed) {
+      return;
+    }
+    try {
+      const version = await readGitVersion(st.root, rel);
+      const dir = path.join(this.storageDir, "projectExplorer-diff");
+      await mkdir(dir, { recursive: true });
+      const hash = createHash("sha1")
+        .update(`${st.root}\n${rel}`)
+        .digest("hex")
+        .slice(0, 20);
+      const target = path.join(dir, `${hash}${entry.ext ? `.${entry.ext}` : ""}`);
+      await writeFile(target, version.bytes);
+      await vscode.commands.executeCommand(
+        "vscode.diff",
+        vscode.Uri.file(target),
+        vscode.Uri.file(abs),
+        `${rel} (Git ↔ disco)`
+      );
+      this.op(st, true, `Comparando con ${version.source === "HEAD" ? "HEAD" : "el índice"}.`);
+    } catch (err) {
+      this.op(
+        st,
+        false,
+        err instanceof GitError || err instanceof OpError ? err.message : String(err)
+      );
+    }
   }
 
   // ---------------------------------------------------------------- búsqueda
@@ -1348,7 +1671,7 @@ export class ProjectExplorerPanel {
       }
       try {
         const watcher = watch(abs, { recursive: false }, (_event, filename) => {
-          if (this.disposed || Date.now() < st.suppressUntil) {
+          if (this.disposed) {
             return;
           }
           // `git` toca `.git` (o `.hg`/`.svn`) desde la propia raíz: no es un cambio
@@ -1357,14 +1680,18 @@ export class ProjectExplorerPanel {
           if (isVcsWatcherName(filename)) {
             return;
           }
+          // El aviso nunca se tira: si cae dentro de la ventana de una operación
+          // propia, se reconta al terminar la ventana en vez de ignorarlo.
           st.watchDirty.add(rel);
+          const dentro = st.suppressUntil - Date.now();
+          const espera = dentro > 0 ? dentro + WATCH_DEBOUNCE_MS : WATCH_DEBOUNCE_MS;
           if (st.watchTimer) {
             clearTimeout(st.watchTimer);
           }
           st.watchTimer = setTimeout(() => {
             st.watchTimer = null;
             void this.flushWatch(st);
-          }, WATCH_DEBOUNCE_MS);
+          }, espera);
         });
         watcher.on("error", () => {
           watcher.close();
@@ -1680,7 +2007,11 @@ type IncomingMessage =
       action: GitActionKind;
       branch?: string;
       message?: string;
-    };
+      rel?: string;
+    }
+  | { type: "rename"; treeId: TreeId; rel: string }
+  | { type: "diff"; treeId: TreeId; rel: string }
+  | { type: "newFile"; treeId: TreeId; parentRel: string };
 
 /** El webview no es de fiar: solo pasan las formas exactas del contrato. */
 function parseIncoming(raw: unknown): IncomingMessage | undefined {
@@ -1750,15 +2081,39 @@ function parseIncoming(raw: unknown): IncomingMessage | undefined {
       if (!id || typeof m.action !== "string" || !GIT_ACTIONS.has(m.action)) {
         return undefined;
       }
+      const action = m.action as GitActionKind;
       const branch = typeof m.branch === "string" ? m.branch.slice(0, 120) : undefined;
       const message = typeof m.message === "string" ? m.message.slice(0, 2000) : undefined;
+      // stage/unstage/discard llegan con la ruta del fichero: sin ella, el mensaje no vale.
+      const rawRel = normalizeRel(m.rel);
+      const rel = rawRel === undefined || rawRel === "" ? undefined : rawRel;
+      if (GIT_PATH_ACTIONS.has(action) && rel === undefined) {
+        return undefined;
+      }
       return {
         type: "git",
         treeId: id,
-        action: m.action as GitActionKind,
+        action,
         ...(branch !== undefined ? { branch } : {}),
         ...(message !== undefined ? { message } : {}),
+        ...(rel !== undefined ? { rel } : {}),
       };
+    }
+    case "rename":
+    case "diff": {
+      const rel = normalizeRel(m.rel);
+      if (!id || rel === undefined || rel === "") {
+        return undefined;
+      }
+      return { type: m.type, treeId: id, rel };
+    }
+    case "newFile": {
+      const parentRel = normalizeRel(m.parentRel);
+      // "" = la raíz del árbol, que sí es un destino válido para crear.
+      if (!id || parentRel === undefined) {
+        return undefined;
+      }
+      return { type: "newFile", treeId: id, parentRel };
     }
   }
   return undefined;
@@ -1786,6 +2141,62 @@ function normalizeRel(value: unknown): string | undefined {
   }
   // "" o "." significan la raíz del árbol (destino válido para pegar).
   return parts.join("/");
+}
+
+/**
+ * Nombres reservados de Windows, valen con o sin extensión (`con`, `CON.txt`,
+ * `nul.dat`, `com1.md`). Se compara la parte anterior al primer punto.
+ */
+const WIN_RESERVED_NAMES: ReadonlySet<string> = new Set<string>([
+  "con",
+  "prn",
+  "aux",
+  "nul",
+  ...Array.from({ length: 9 }, (_, i) => `com${i + 1}`),
+  ...Array.from({ length: 9 }, (_, i) => `lpt${i + 1}`),
+]);
+
+/**
+ * Nombre de fichero/carpeta aceptado para crear y renombrar. Devuelve el mensaje
+ * de error o `null` si vale. Un solo segmento, 1..120, sin caracteres reservados
+ * de Windows, sin `.`/`..`, sin el `.git` exacto, sin nombres reservados de
+ * Windows y sin punto final. Los puntos iniciales sí valen (`.env`, `.gitignore`,
+ * `.github`).
+ */
+function validateEntryName(value: string | undefined): string | null {
+  const name = (value ?? "").trim();
+  if (!name) {
+    return "Escribe un nombre.";
+  }
+  if (name.length > 120) {
+    return "Demasiado largo (máximo 120).";
+  }
+  if (/[/\\:*?"<>|]/.test(name)) {
+    return "El nombre lleva caracteres reservados.";
+  }
+  if (name === "." || name === "..") {
+    return "Nombre no válido.";
+  }
+  if (name.toLowerCase() === ".git") {
+    return "No se puede crear ni renombrar a .git.";
+  }
+  if (WIN_RESERVED_NAMES.has(name.split(".")[0].toLowerCase())) {
+    return "Nombre reservado de Windows.";
+  }
+  if (name.endsWith(".")) {
+    return "Sin punto al final.";
+  }
+  return null;
+}
+
+/** ¿Existe algo en esa absoluta? (un enlace roto también cuenta: está el nombre). */
+async function existsReal(abs: string): Promise<boolean> {
+  try {
+    await lstat(abs);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function parentOfRel(rel: string): string {

@@ -737,60 +737,162 @@
   }
 
   // ── Menú Contextual ───────────────────────────────────────
-  let ctxTarget = null; // { treeId, rel, kind }
+  let ctxTarget = null; // { treeId, rel, kind, row, filter }
 
   function setupContextMenu() {
     const menu = state.domContextMenu;
 
-    window.addEventListener("contextmenu", (e) => {
-      const rowEl = e.target.closest(".pe-row");
-      const scrollEl = e.target.closest(".pe-tree-scroll");
+    // capture: true para capturar contextmenu y evitar el menú nativo de VS Code en el árbol
+    window.addEventListener(
+      "contextmenu",
+      (e) => {
+        // Permitir el menú nativo de VS Code en campos de texto y selects
+        if (e.target && e.target.closest && e.target.closest("input, textarea, select, [contenteditable='true']")) {
+          menu.hidden = true;
+          return;
+        }
 
-      if (!rowEl && !scrollEl) {
-        menu.hidden = true;
-        return;
-      }
+        e.preventDefault();
+        e.stopPropagation();
 
-      e.preventDefault();
+        const rowEl = e.target.closest(".pe-row");
+        const scrollEl = e.target.closest(".pe-tree-scroll");
 
-      let treeId = "a";
-      let rel = "";
-      let kind = "dir";
+        if (!rowEl && !scrollEl) {
+          menu.hidden = true;
+          return;
+        }
 
-      if (rowEl) {
-        const panel = rowEl.closest(".pe-panel");
-        treeId = panel ? panel.dataset.tree : "a";
-        rel = rowEl.dataset.rel || "";
-        kind = rowEl.dataset.kind || "file";
-        const idx = parseInt(rowEl.dataset.index, 10);
-        if (!isNaN(idx)) selectRow(treeId, idx, false);
-      } else if (scrollEl) {
-        const panel = scrollEl.closest(".pe-panel");
-        treeId = panel ? panel.dataset.tree : "a";
-        rel = "";
-        kind = "dir";
-      }
+        let treeId = "a";
+        let rel = "";
+        let kind = "dir";
+        let row = null;
 
-      ctxTarget = { treeId, rel, kind };
+        if (rowEl) {
+          const panel = rowEl.closest(".pe-panel");
+          treeId = panel ? panel.dataset.tree : "a";
+          rel = rowEl.dataset.rel || "";
+          kind = rowEl.dataset.kind || "file";
+          const idx = parseInt(rowEl.dataset.index, 10);
+          if (!isNaN(idx)) {
+            selectRow(treeId, idx, false);
+            const rList = trees[treeId] ? trees[treeId].rows : null;
+            row = (rList && rList[idx]) ? rList[idx] : null;
+          }
+        } else if (scrollEl) {
+          const panel = scrollEl.closest(".pe-panel");
+          treeId = panel ? panel.dataset.tree : "a";
+          rel = "";
+          kind = "dir";
+          row = null;
+        }
 
-      // Habilitar / deshabilitar opciones según el contexto
-      const btnOpen = menu.querySelector('[data-action="open"]');
-      const btnPaste = menu.querySelector('[data-action="paste"]');
-      const btnDelete = menu.querySelector('[data-action="delete"]');
+        const filter = (trees[treeId] && trees[treeId].filter) ? trees[treeId].filter : "all";
+        ctxTarget = { treeId, rel, kind, row, filter };
 
-      if (btnOpen) btnOpen.disabled = (kind === "missing" || kind === "dir");
-      if (btnPaste) {
-        btnPaste.disabled = (!state.clipboard || kind !== "dir");
-      }
-      if (btnDelete) btnDelete.disabled = (kind === "missing" || rel === "");
+        const isFile = kind !== "dir" && kind !== "missing";
+        const isDir = kind === "dir";
+        const isMissing = kind === "missing";
+        const isCleanFilter = filter === "clean";
 
-      // Posicionamiento con clamp
-      menu.hidden = false;
-      const x = Math.min(window.innerWidth - 170, Math.max(10, e.clientX));
-      const y = Math.min(window.innerHeight - 200, Math.max(10, e.clientY));
-      menu.style.left = x + "px";
-      menu.style.top = y + "px";
-    });
+        const g = row && row.git ? row.git : null;
+        const gitState = g ? g.state : null;
+        const isStagedFlag = g ? (gitState === "staged" || g.staged === true) : false;
+
+        // diff: solo fichero ("file") con row.git y estado modified, staged o renamed
+        const canDiff = kind === "file" && !!g && !isCleanFilter && (
+          gitState === "modified" ||
+          gitState === "staged" ||
+          gitState === "renamed"
+        );
+
+        // stage: solo fichero ("file") con estado modified o untracked, y filtro distinto de staged/clean
+        const canStage = kind === "file" && !!g && filter !== "staged" && !isCleanFilter && (
+          gitState === "modified" || gitState === "untracked"
+        );
+
+        // unstage: solo fichero ("file") con state==="staged" o row.git.staged===true
+        const canUnstage = kind === "file" && !isCleanFilter && isStagedFlag;
+
+        // discard: solo fichero ("file") con state==="modified", y filtro distinto de staged/clean
+        const canDiscard = kind === "file" && !!g && filter !== "staged" && !isCleanFilter && (
+          gitState === "modified"
+        );
+
+        // rename: cualquier fila con rel !== "" y kind !== "missing"
+        const canRename = rel !== "" && !isMissing;
+
+        // newfile: cualquier carpeta (kind==="dir") o fondo/raíz
+        const canNewFile = isDir || rel === "";
+
+        // open y reveal
+        const canOpen = isFile;
+        const canReveal = rel !== "" && !isMissing;
+
+        // copy / cut
+        const canCopy = rel !== "" && !isMissing;
+        const canCut = rel !== "" && !isMissing;
+
+        // paste: solo si es carpeta y hay algo en el portapapeles
+        const canPaste = isDir && !!state.clipboard;
+
+        // delete: no missing y no raíz
+        const canDelete = !isMissing && rel !== "";
+
+        // Habilitar / deshabilitar u ocultar elementos del menú
+        const btnOpen = menu.querySelector('[data-action="open"]');
+        const btnReveal = menu.querySelector('[data-action="reveal"]');
+        const btnCopy = menu.querySelector('[data-action="copy"]');
+        const btnCut = menu.querySelector('[data-action="cut"]');
+        const btnPaste = menu.querySelector('[data-action="paste"]');
+
+        const btnDiff = menu.querySelector('[data-action="diff"]');
+        const btnStage = menu.querySelector('[data-action="stage"]');
+        const btnUnstage = menu.querySelector('[data-action="unstage"]');
+        const btnDiscard = menu.querySelector('[data-action="discard"]');
+        const dividerGit = document.getElementById("ctx-divider-git");
+
+        const btnRename = menu.querySelector('[data-action="rename"]');
+        const btnNewFile = menu.querySelector('[data-action="newfile"]');
+        const dividerFs = document.getElementById("ctx-divider-fs");
+
+        const btnDelete = menu.querySelector('[data-action="delete"]');
+
+        if (btnOpen) btnOpen.hidden = !canOpen;
+        if (btnReveal) btnReveal.hidden = !canReveal;
+
+        if (btnCopy) btnCopy.hidden = !canCopy;
+        if (btnCut) btnCut.hidden = !canCut;
+        if (btnPaste) {
+          btnPaste.hidden = !isDir;
+          btnPaste.disabled = !canPaste;
+        }
+
+        if (btnDiff) btnDiff.hidden = !canDiff;
+        if (btnStage) btnStage.hidden = !canStage;
+        if (btnUnstage) btnUnstage.hidden = !canUnstage;
+        if (btnDiscard) btnDiscard.hidden = !canDiscard;
+
+        const hasGitActions = canDiff || canStage || canUnstage || canDiscard;
+        if (dividerGit) dividerGit.hidden = !hasGitActions;
+
+        if (btnRename) btnRename.hidden = !canRename;
+        if (btnNewFile) btnNewFile.hidden = !canNewFile;
+        if (dividerFs) dividerFs.hidden = !canRename && !canNewFile;
+
+        if (btnDelete) btnDelete.hidden = !canDelete;
+
+        // Mostrar menú y calcular posición clamped con offsetHeight/offsetWidth reales
+        menu.hidden = false;
+        const w = menu.offsetWidth || 180;
+        const h = menu.offsetHeight || 300;
+        const x = Math.min(window.innerWidth - w - 8, Math.max(8, e.clientX));
+        const y = Math.min(window.innerHeight - h - 8, Math.max(8, e.clientY));
+        menu.style.left = x + "px";
+        menu.style.top = y + "px";
+      },
+      { capture: true }
+    );
 
     window.addEventListener("click", (e) => {
       if (!menu.contains(e.target)) {
@@ -823,6 +925,24 @@
         break;
       case "reveal":
         vscode.postMessage({ type: "reveal", treeId, rel });
+        break;
+      case "diff":
+        vscode.postMessage({ type: "diff", treeId, rel });
+        break;
+      case "stage":
+        vscode.postMessage({ type: "git", treeId, action: "stage", rel });
+        break;
+      case "unstage":
+        vscode.postMessage({ type: "git", treeId, action: "unstage", rel });
+        break;
+      case "discard":
+        vscode.postMessage({ type: "git", treeId, action: "discard", rel });
+        break;
+      case "rename":
+        vscode.postMessage({ type: "rename", treeId, rel });
+        break;
+      case "newfile":
+        vscode.postMessage({ type: "newFile", treeId, parentRel: rel });
         break;
       case "copy":
         state.clipboard = { treeId, rel, mode: "copy" };

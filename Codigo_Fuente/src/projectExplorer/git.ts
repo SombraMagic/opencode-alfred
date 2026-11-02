@@ -5,6 +5,7 @@
  */
 
 import { execFile } from "node:child_process";
+import { lstat } from "node:fs/promises";
 import * as path from "node:path";
 import type { GitInfo, GitState, RowGit } from "./model";
 
@@ -14,6 +15,9 @@ export type GitActionKind =
   | "push"
   | "commit"
   | "stageAll"
+  | "stage"
+  | "unstage"
+  | "discard"
   | "checkout"
   | "createBranch"
   | "refresh";
@@ -493,6 +497,80 @@ export async function readRepoState(
   return { info, files };
 }
 
+/** Ruta del repo (con "/") a partir de la raíz del árbol y su `rel`. */
+function toRepoRel(toplevelAbs: string, root: string, rel: string): string {
+  const inner = path.relative(toplevelAbs, path.resolve(root)).split(path.sep).join("/");
+  const clean = rel.replace(/^\/+/, "");
+  return inner ? `${inner}/${clean}` : clean;
+}
+
+/** Nombre final de una ruta con "/". */
+function baseName(rel: string): string {
+  const at = rel.lastIndexOf("/");
+  return at >= 0 ? rel.slice(at + 1) : rel;
+}
+
+/** `rel` de una acción por fichero: no vacío, sin `..`, sin `.git` y sin absolutas. */
+function requireRel(rel: string | undefined): string {
+  const value = (rel ?? "").trim();
+  if (!value) {
+    throw new GitError("Falta la ruta del fichero.");
+  }
+  const parts = value.split("/");
+  if (parts.some((p) => p === ".." || p.toLowerCase() === ".git") || /^[A-Za-z]:/.test(value)) {
+    throw new GitError("Ruta no válida para la operación git.");
+  }
+  return value;
+}
+
+/**
+ * Versión que tiene Git de un fichero, en crudo (valen binarios): primero
+ * `HEAD:<repoRel>` y, si no está (añadido staged o renombrado), `:<repoRel>` del
+ * índice. Lanza `GitError` con mensaje corto si ninguna de las dos existe.
+ */
+export async function readGitVersion(
+  root: string,
+  rel: string
+): Promise<{ bytes: Buffer; source: "HEAD" | "indice" }> {
+  const toplevelAbs = await findToplevel(root);
+  if (!toplevelAbs) {
+    throw new GitError("La carpeta no está dentro de un repositorio git.");
+  }
+  const safeRel = requireRel(rel);
+  const repoRel = toRepoRel(toplevelAbs, root, safeRel);
+  const head = await gitExecRaw(toplevelAbs, ["show", `HEAD:${repoRel}`]);
+  if (head.code === 0) {
+    return { bytes: head.bytes, source: "HEAD" };
+  }
+  const index = await gitExecRaw(toplevelAbs, ["show", `:${repoRel}`]);
+  if (index.code === 0) {
+    return { bytes: index.bytes, source: "indice" };
+  }
+  throw new GitError(lastUsefulLine(head.err) || "Git no guarda versión de ese fichero.");
+}
+
+/** `git show` necesita los bytes tal cual: sin decodificar como texto. */
+function gitExecRaw(
+  cwd: string,
+  args: readonly string[]
+): Promise<{ code: number; bytes: Buffer; err: string }> {
+  return new Promise((resolve) => {
+    execFile(
+      "git",
+      ["-C", cwd, ...args],
+      { windowsHide: true, timeout: TIMEOUT_STATUS, maxBuffer: 16 * 1024 * 1024, env: ENV_GIT, encoding: "buffer" },
+      (error, stdout, stderr) => {
+        const err = error as NodeJS.ErrnoException | undefined;
+        resolve({
+          code: typeof err?.code === "number" ? err.code : err ? 1 : 0,
+          bytes: Buffer.isBuffer(stdout) ? stdout : Buffer.from(String(stdout ?? "")),
+          err: Buffer.isBuffer(stderr) ? stderr.toString("utf8") : String(stderr ?? ""),
+        });
+      }
+    );
+  });
+}
+
 /**
  * Ejecuta una acción git. `push` sin upstream exige rama real; `checkout` valida
  * contra la lista de ramas; `createBranch` valida el nombre. `refresh` es no-op.
@@ -500,7 +578,14 @@ export async function readRepoState(
 export async function gitAction(
   root: string,
   action: GitActionKind,
-  opts: { branch?: string; message?: string; upstream: string | null; branchName: string }
+  opts: {
+    branch?: string;
+    message?: string;
+    /** Ruta relativa a la raíz del árbol para `stage`/`unstage`/`discard`. */
+    rel?: string;
+    upstream: string | null;
+    branchName: string;
+  }
 ): Promise<void> {
   if (action === "refresh") {
     return;
@@ -519,6 +604,33 @@ export async function gitAction(
     case "stageAll":
       await mustOk(toplevelAbs, ["add", "-A"], TIMEOUT_LONG);
       return;
+    case "stage": {
+      // `rel` llega relativo a la raíz del árbol, que es el cwd de git aquí.
+      // `:(literal)` evita que `[`, `*` o `?` del nombre se lean como globs.
+      const rel = requireRel(opts.rel);
+      await mustOk(root, ["add", "--", `:(literal)${rel}`], TIMEOUT_LONG);
+      return;
+    }
+    case "unstage": {
+      const rel = requireRel(opts.rel);
+      await mustOk(root, ["restore", "--staged", "--", `:(literal)${rel}`], TIMEOUT_LONG);
+      return;
+    }
+    case "discard": {
+      const rel = requireRel(opts.rel);
+      // Solo ficheros: descartar una carpeta tocaría todo su contenido de golpe.
+      let st;
+      try {
+        st = await lstat(path.join(root, ...rel.split("/")));
+      } catch {
+        throw new GitError(`«${baseName(rel)}» ya no existe en disco.`);
+      }
+      if (st.isDirectory()) {
+        throw new GitError("Solo se pueden descartar cambios de ficheros.");
+      }
+      await mustOk(root, ["restore", "--worktree", "--", `:(literal)${rel}`], TIMEOUT_LONG);
+      return;
+    }
     case "push": {
       if (opts.upstream) {
         await mustOk(toplevelAbs, ["push"], TIMEOUT_LONG);
