@@ -77,6 +77,7 @@ import {
   withLimitsProvider,
 } from "./limits/limits";
 import { VozPanel } from "./panels/voicePanel";
+import { VoiceSettingsPanel } from "./panels/voiceSettingsPanel";
 import { VozDictado } from "./panels/dictadoPanel";
 import { speak, syncSharedConfig } from "./voice/service";
 import { writeEntorno } from "./voice/core/shared.js";
@@ -3222,6 +3223,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand("voz.installMcp", async () => {
       vscode.window.showInformationMessage(await installMcp(context));
+    }),
+    // Los formularios de configuración viven en una pestaña central: la barra
+    // lateral de voz solo conserva el ecualizador, el texto y el botón del MCP.
+    vscode.commands.registerCommand("voz.settings", () => {
+      VoiceSettingsPanel.open(context);
     })
   );
 
@@ -3267,7 +3273,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (!e.affectsConfiguration("voz")) return;
       void syncSharedConfig();
-      voicePanel?.refresh();
+      // La pestaña de ajustes es la que pinta los valores de `voz.*`.
+      VoiceSettingsPanel.current?.refresh();
     })
   );
 

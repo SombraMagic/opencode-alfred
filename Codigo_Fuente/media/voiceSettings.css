@@ -1,0 +1,95 @@
+/* Pestaña central VOZ // AJUSTES: tres tarjetas en columnas. */
+
+body {
+  overflow-y: auto;
+}
+
+.settings {
+  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 0 18px 28px;
+}
+
+.settings .hud-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--bg);
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+  margin-top: 4px;
+}
+
+@media (max-width: 980px) {
+  .settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.card {
+  min-width: 0;
+  padding: 0 12px 14px;
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, var(--bg-soft), transparent 65%);
+}
+
+.card > h2 {
+  margin: 0 -12px 0;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 10px;
+  font-weight: normal;
+  letter-spacing: 2px;
+  color: var(--neon);
+  text-transform: uppercase;
+}
+
+/* Las primitivas (.field, .row2, .hint, .sec) vienen de panel.css. */
+.card .field,
+.card .row2,
+.card .hint,
+.card .sec {
+  margin-top: 12px;
+}
+
+.card .field {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.card .sec {
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  color: var(--text-soft);
+}
+
+.card .hint {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+
+.card .field-label {
+  color: var(--text-soft);
+}
+
+.notice {
+  margin-top: 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--magenta);
+  color: var(--magenta);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+}
+
+.notice[hidden] {
+  display: none;
+}

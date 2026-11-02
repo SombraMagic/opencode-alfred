@@ -15,7 +15,6 @@
 
 /* Solo el stage cede alto cuando la vista es corta: el resto, intacto. */
 .hud-header,
-.readout,
 .fold,
 .dock { flex: none; }
 
@@ -252,23 +251,6 @@
   color: var(--text);
 }
 
-/* ── Lectura ──────────────────────────────────────────── */
-.readout {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 9.5px;
-  letter-spacing: 1px;
-  color: var(--text-dim);
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  padding: 6px 2px;
-  margin-bottom: 14px;
-}
-
-.readout span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#readout-time { color: var(--neon); }
-
 /* ── Ajustes plegables ────────────────────────────────── */
 /* Cerrado al cargar: los controles del motor dejan su sitio a los agentes. */
 .fold {
@@ -379,6 +361,57 @@
   margin-top: auto;
   padding-top: 11px;
   border-top: 1px solid var(--line-soft);
+}
+
+/* El bloque TEXTO se pliega; cerrado deja solo la fila del título. */
+.dock .fold {
+  margin-bottom: 0;
+}
+
+/* La fila del botón va dentro del bloque, con el margen del campo. */
+.dock .actions {
+  margin: 10px 8px 0;
+}
+
+/* TRANSCRIBIR y la rueda de ajustes, en la misma línea y a la misma altura. */
+.actions {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.actions .speak-btn {
+  flex: 1 1 auto;
+}
+
+.config-btn {
+  flex: none;
+  width: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: linear-gradient(180deg, rgba(0, 229, 255, 0.16), rgba(0, 229, 255, 0.05));
+  border: 1px solid var(--neon);
+  color: var(--neon);
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.config-btn svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.config-btn:hover {
+  background: rgba(0, 229, 255, 0.25);
+  box-shadow: 0 0 18px rgba(0, 229, 255, 0.35);
+}
+
+.config-btn:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
 }
 
 /* ── Controles ────────────────────────────────────────── */

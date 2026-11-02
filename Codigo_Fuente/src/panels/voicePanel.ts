@@ -2,26 +2,7 @@ import * as vscode from "vscode";
 import { readFileSync, unwatchFile, watchFile } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import {
-  readSettings,
-  describeMotors,
-  listVoices,
-  devices,
-  inputDevices,
-  speak,
-  syncSharedConfig,
-  measuredFloor,
-} from "../voice/service.js";
-import {
-  CLOUD_URL_DEFAULT,
-  KEY_SECRET,
-  STT_ENGINES,
-  STT_LANGUAGES,
-  WHISPER_MODELS,
-  loadWhisper,
-  whisperInstalled,
-  type SttEngine,
-} from "../voice/stt.js";
+import { readSettings, speak } from "../voice/service.js";
 import { mcpState, setMcpEnabled } from "../voice/mcpInstaller.js";
 import { SysMonitor, type SysSample } from "../sysmon/monitor.js";
 import { listActivities, type ActivityIcon } from "./activity";
@@ -169,51 +150,11 @@ export class VozPanel {
   }
 
   private async pushInitial() {
-    const settings = readSettings();
-    const motors = await describeMotors();
-    const devs = await devices();
-    const inputs = await inputDevices();
-    const cfg = vscode.workspace.getConfiguration("voz");
-    const hasKey = Boolean(await this.context.secrets.get(KEY_SECRET));
-    this.post({
-      type: "init",
-      motors,
-      engine: settings.engine,
-      devices: devs,
-      device: settings.outputDevice,
-      rate: settings.rate,
-      pitch: settings.pitch,
-      volume: settings.volume,
-      // Ajustes del dictado, que ahora se manejan desde este panel.
-      sttEngine: cfg.get<SttEngine>("dictado.engine", "sapi"),
-      engines: STT_ENGINES,
-      language: cfg.get("dictado.language", "es-ES"),
-      languages: STT_LANGUAGES,
-      denoise: cfg.get<boolean>("dictado.denoise", true),
-      tolerance: cfg.get<number>("dictado.noiseTolerance", 6),
-      noiseFloor: cfg.get<number>("dictado.noiseFloor", 0),
-      measuredFloor: measuredFloor() ?? null,
-      inputDevices: inputs,
-      inputDevice: cfg.get<number>("dictado.inputDevice", -1),
-      inputGain: cfg.get<number>("dictado.inputGain", 100),
-      whisperModel: cfg.get("dictado.whisperModel", WHISPER_MODELS[2].id),
-      cloudUrl: cfg.get("dictado.cloudUrl", CLOUD_URL_DEFAULT),
-      cloudModel: cfg.get("dictado.cloudModel", "whisper-1"),
-      hasKey,
-      whisperReady: whisperInstalled(this.whisperDir()),
-      models: WHISPER_MODELS,
-    });
-    const voices = await listVoices(settings.engine);
-    this.post({ type: "voices", voices, selected: settings.voice || voices[0]?.id });
     // Tras un recargo del webview, las tarjetas vuelven sin esperar al siguiente
     // sondeo: `pending` las guarda si aún no ha avisado de que está listo.
     this.post({ type: "agents", agents: this.snapshotAgents() });
     // El interruptor del MCP se repinta al reabrir o recargar el panel.
     void this.pushMcp();
-  }
-
-  private whisperDir() {
-    return join(this.context.globalStorageUri.fsPath, "whisper");
   }
 
   /** Publica el estado del interruptor del MCP; `message` manda en el aviso. */
@@ -256,14 +197,6 @@ export class VozPanel {
     this.post({ type: "agents", agents: this.snapshotAgents() });
   }
 
-  /**
-   * Reenvía el estado al webview. Lo usan los ajustes que cambian fuera del
-   * panel (Settings o settings.json), que antes dejaban la interfaz mintiendo.
-   */
-  refresh() {
-    if (this.ready && this.view?.visible) void this.pushInitial();
-  }
-
   private async onMessage(msg: any) {
     switch (msg?.type) {
       case "ready":
@@ -275,103 +208,10 @@ export class VozPanel {
       case "speak":
         await this.doSpeak(msg);
         break;
-      case "loadVoices": {
-        const voices = await listVoices(msg.engine);
-        // Si la voz guardada no pertenece a este motor, se adopta la primera
-        // y se guarda: si no, el MCP recibiría una voz inexistente.
-        const saved = readSettings().voice;
-        const selected = voices.some((v) => v.id === saved) ? saved : voices[0]?.id;
-        if (selected && selected !== saved) await this.updateSetting("voice", selected);
-        this.post({ type: "voices", voices, selected });
+      case "openSettings":
+        // Los formularios viven en la pestaña central de ajustes.
+        await vscode.commands.executeCommand("voz.settings");
         break;
-      }
-      case "setEngine":
-        await this.updateSetting("engine", msg.engine);
-        break;
-      case "setVoice":
-        await this.updateSetting("voice", msg.voice);
-        break;
-      case "setRate":
-        await this.updateSetting("rate", msg.rate);
-        break;
-      case "setPitch":
-        await this.updateSetting("pitch", msg.pitch);
-        break;
-      case "setVolume":
-        await this.updateSetting("volume", msg.volume);
-        break;
-      case "setDevice":
-        await this.updateSetting("outputDevice", msg.device);
-        break;
-      case "setSttEngine":
-        await this.updateSetting("dictado.engine", String(msg.engine ?? "sapi"));
-        break;
-      case "setLanguage":
-        await this.updateSetting("dictado.language", String(msg.language ?? "es-ES"));
-        break;
-      case "setInputDevice": {
-        const n = Number(msg.device);
-        const device = Number.isFinite(n) && n >= 0 ? Math.floor(n) : -1;
-        await this.updateSetting("dictado.inputDevice", device);
-        this.post({ type: "inputDevice", device });
-        break;
-      }
-      case "setInputGain": {
-        const value = Math.max(0, Math.min(200, Math.round(Number(msg.value) || 0)));
-        await this.updateSetting("dictado.inputGain", value);
-        this.post({ type: "inputGain", value });
-        break;
-      }
-      case "setDenoise":
-        await this.updateSetting("dictado.denoise", Boolean(msg.on));
-        break;
-      case "setTolerance": {
-        // La tolerancia del filtro va de 0 a 18 dB.
-        const db = Math.max(0, Math.min(18, Number(msg.db) || 0));
-        await this.updateSetting("dictado.noiseTolerance", db);
-        break;
-      }
-      case "lockFloor":
-        await this.lockFloor(Boolean(msg.on));
-        break;
-      case "setWhisperModel":
-        await this.updateSetting("dictado.whisperModel", String(msg.model ?? ""));
-        break;
-      case "setCloudUrl": {
-        const raw = String(msg.url ?? "").trim();
-        if (raw && !/^https?:\/\//i.test(raw)) {
-          this.post({ type: "error", message: "La URL debe empezar por http:// o https://." });
-          break;
-        }
-        // Vaciar el campo devuelve el endpoint por defecto.
-        const url = raw || CLOUD_URL_DEFAULT;
-        await this.updateSetting("dictado.cloudUrl", url);
-        this.post({ type: "cloudUrl", url });
-        break;
-      }
-      case "setCloudModel":
-        await this.updateSetting("dictado.cloudModel", String(msg.model ?? "").trim());
-        break;
-      case "saveKey":
-        await this.context.secrets.store(KEY_SECRET, String(msg.key ?? ""));
-        this.post({ type: "key", hasKey: Boolean(msg.key) });
-        break;
-      case "installWhisper": {
-        const dir = this.whisperDir();
-        this.post({ type: "whisper", ready: false, done: false, message: "Preparando Whisper…" });
-        try {
-          await loadWhisper(dir, (m) => this.post({ type: "whisper", ready: false, done: false, message: m }));
-          this.post({ type: "whisper", ready: true, done: true, message: "Whisper listo." });
-        } catch (err) {
-          this.post({
-            type: "whisper",
-            ready: whisperInstalled(dir),
-            done: true,
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
-        break;
-      }
       case "sysmonElevate": {
         // Clic en la temperatura de la CPU: el único sitio donde se pide el UAC.
         const monitor = this.monitor;
@@ -401,61 +241,20 @@ export class VozPanel {
   }
   }
 
-  private async updateSetting(key: string, value: unknown) {
-    const cfg = vscode.workspace.getConfiguration("voz");
-    await cfg.update(key, value, vscode.ConfigurationTarget.Global);
-    // El MCP lee este fichero: sin esto hablaría con otra voz.
-    await syncSharedConfig();
-  }
-
-  /** Fija (o suelta) el fondo con la última medida del dictado. */
-  private async lockFloor(on: boolean) {
-    const cfg = vscode.workspace.getConfiguration("voz");
-    if (!on) {
-      await this.updateSetting("dictado.noiseFloor", 0);
-      this.post({ type: "floorLock", on: false, db: 0 });
-      return;
-    }
-    const measured = measuredFloor();
-    const saved = cfg.get<number>("dictado.noiseFloor", 0);
-    if (measured === undefined && !saved) {
-      this.post({ type: "error", message: "Habla algo para medir el fondo antes de fijarlo." });
-      return;
-    }
-    const val = measured ?? saved;
-    // Un fondo medido por encima de -40 dBFS suele provenir de un fragmento
-    // donde casi todo era voz (percentil 20 contaminado de habla) o de un
-    // micro excesivamente saturado. Evitamos fijar fondos incoherentes.
-    if (val > -40) {
-      this.post({
-        type: "error",
-        message: "No se pudo medir el fondo: graba un par de segundos en silencio.",
-      });
-      return;
-    }
-    const db = Number(val.toFixed(1));
-    await this.updateSetting("dictado.noiseFloor", db);
-    this.post({ type: "floorLock", on: true, db });
-  }
-
   private async doSpeak(msg: any) {
     try {
-      // La envolvente y la duración se envían ANTES de reproducir: si se
-      // enviaran después, el ecualizador reaccionaría con la voz ya terminada.
-      const result = await speak(
-        msg.text,
-        msg.engine,
-        { rate: msg.rate, pitch: msg.pitch, volume: msg.volume, device: msg.device },
-        (info) => {
-          this.post({
-            type: "envelope",
-            values: info.envelope,
-            energy: info.energy,
-            durationMs: info.durationMs,
-          });
-          this.post({ type: "speaking", durationMs: info.durationMs });
-        },
-      );
+      // La voz, la velocidad, el tono, el volumen y la salida salen de los
+      // ajustes: el panel lateral ya no tiene esos controles.
+      const result = await speak(msg.text, readSettings().engine, undefined, (info) => {
+        // La envolvente y la duración se envían ANTES de reproducir: si se
+        // enviaran después, el ecualizador reaccionaría con la voz ya terminada.
+        this.post({
+          type: "envelope",
+          values: info.envelope,
+          energy: info.energy,
+          durationMs: info.durationMs,
+        });
+      });
       this.post({ type: "done", voice: result.voice, engine: result.engine });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -467,7 +266,6 @@ export class VozPanel {
   /** Genera el HTML del panel. Público para las comprobaciones automatizadas. */
   html(webview: vscode.Webview): string {
     const media = vscode.Uri.joinPath(this.context.extensionUri, "media");
-    const nonce = Math.random().toString(36).slice(2);
     const tokensUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "tokens.css"));
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.css"));
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.js"));
@@ -519,71 +317,21 @@ export class VozPanel {
       <div id="agents"></div>
     </div>
 
-    <div class="readout">
-      <span id="readout-engine">—</span>
-      <span id="readout-voice">—</span>
-      <span id="readout-time">00:00</span>
-    </div>
-
-    <!-- Ajustes del motor de voz: plegados para dejar sitio a los agentes. -->
-    <details class="fold" id="cfg">
-      <summary>AJUSTES VOZ</summary>
-      <label class="field"><span class="field-label">MOTOR</span><select id="engine"></select></label>
-      <label class="field"><span class="field-label">VOZ</span><select id="voice"></select></label>
-      <label class="field"><span class="field-label">SALIDA</span><select id="device"></select></label>
-      <label class="field"><span class="field-label">VELOCIDAD <i id="rate-val">0%</i></span><input type="range" id="rate" min="-50" max="100" step="5" value="0" /></label>
-      <label class="field"><span class="field-label">TONO <i id="pitch-val">0Hz</i></span><input type="range" id="pitch" min="-50" max="50" step="5" value="0" /></label>
-      <label class="field"><span class="field-label">VOLUMEN <i id="volume-val">100%</i></span><input type="range" id="volume" min="0" max="100" step="5" value="100" /></label>
-    </details>
-
-    <!-- Ajustes del micrófono del dictado. -->
-    <details class="fold" id="cfg-mic">
-      <summary>AJUSTES MICRÓFONO</summary>
-      <label class="field"><span class="field-label">ENTRADA</span><select id="input-device"></select></label>
-      <label class="field"><span class="field-label">VOLUMEN <i id="input-gain-val">100%</i></span><input id="input-gain" type="range" min="0" max="200" step="10" value="100" /></label>
-      <div class="row2">
-        <button class="ghost-btn" id="denoise" type="button" aria-pressed="true" title="Quita retumbe y siseo del micrófono antes de transcribir">FILTRAR</button>
-        <button class="ghost-btn" id="lock-floor" type="button" aria-pressed="false" title="Fija el último fondo medido por el dictado"><span id="lock-label">FIJAR</span></button>
-      </div>
-      <label class="field"><span class="field-label">TOLERANCIA <i id="tolerance-value">+6 dB</i></span><input id="tolerance" type="range" min="0" max="18" step="1" value="6" /></label>
-      <div class="hint" id="floor">Fondo sin medir todavía.</div>
-    </details>
-
-    <!-- El bloque CONFIGURACIÓN del dictado: reconocedor, Whisper y nube. -->
-    <details class="fold" id="cfg-whisper">
-      <summary>AJUSTES WHISPER</summary>
-      <div class="sec">RECONOCEDOR</div>
-      <label class="field"><span class="field-label">MOTOR</span><select id="stt-engine"></select></label>
-      <div class="hint" id="engine-hint"></div>
-      <label class="field"><span class="field-label">IDIOMA</span><select id="language"></select></label>
-      <div class="sub" id="whisper-group">
-        <div class="sec">WHISPER LOCAL</div>
-        <div class="field">
-          <span class="field-label">MODELO WHISPER
-            <button class="mini" id="install-whisper" type="button" title="Descarga e instala Whisper (una sola vez)">PREPARAR</button>
-          </span>
-          <select id="whisper-model"></select>
-        </div>
-        <div class="hint" id="whisper-hint"></div>
-      </div>
-      <div class="sub" id="cloud-group">
-        <div class="sec">NUBE (OPENAI)</div>
-        <label class="field"><span class="field-label">URL DE LA API</span><input id="cloud-url" type="text" spellcheck="false" title="Cualquier API compatible con OpenAI" placeholder="https://api.openai.com/v1/audio/transcriptions" /></label>
-        <label class="field"><span class="field-label">MODELO NUBE</span><input id="cloud-model" type="text" /></label>
-        <div class="field">
-          <span class="field-label">CLAVE API <i id="key-state"></i></span>
-          <div class="row2">
-            <input id="key" type="password" placeholder="sk-…" />
-            <button class="ghost-btn" id="save-key" type="button">GUARDAR</button>
-          </div>
-        </div>
-      </div>
-    </details>
-
-    <!-- Pie: siempre abajo, nunca se comprime. -->
+    <!-- Pie: el texto se pliega; la rueda abre los ajustes en una pestaña central. -->
     <div class="dock">
-      <label class="field"><span class="field-label">TEXTO</span><textarea id="text" rows="3" placeholder="Escribe o pega el texto que quieres que se lea…"></textarea></label>
-      <button id="speak" class="speak-btn"><span class="speak-glyph">▶</span><span id="speak-label">TRANSCRIBIR</span></button>
+      <details class="fold text-fold" id="fold-text" open>
+        <summary>TEXTO</summary>
+        <label class="field"><textarea id="text" rows="3" placeholder="Escribe o pega el texto que quieres que se lea…"></textarea></label>
+        <div class="actions">
+          <button id="speak" class="speak-btn"><span class="speak-glyph">▶</span><span id="speak-label">TRANSCRIBIR</span></button>
+          <button id="btn-config" class="config-btn" type="button" title="Ajustes de voz, micrófono y Whisper" aria-label="Abrir los ajustes de voz">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.2" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.7 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.7a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.7a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.3 9v.09A1.7 1.7 0 0 0 20.86 10H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z" />
+            </svg>
+          </button>
+        </div>
+      </details>
       <div class="mcp-row"><button id="mcp-toggle" class="ghost-btn" type="button" disabled title="Servidor MCP de Alfred: voz y pizarra para tu agente"><span class="mcp-dot off" id="mcp-dot"></span>ALFRED MCP</button><span class="mcp-hint" id="mcp-hint">…</span></div>
     </div>
   </div>
