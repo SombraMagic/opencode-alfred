@@ -191,6 +191,27 @@ export async function deletePath(abs: string, useTrash: boolean): Promise<void> 
   }
 }
 
+/** Nombres de metadatos de versiones que el vigilante de la raíz ve como entrada hija. */
+const VCS_WATCH_NAMES = new Set([".git", ".hg", ".svn"]);
+
+/**
+ * ¿El aviso de `fs.watch` corresponde a metadatos de versiones? Se compara el primer
+ * segmento, así valen tanto `.git` como `.git/index`. `.gitignore` y `.github` NO cuentan:
+ * son ficheros del proyecto y sí deben recontar. Sin ese filtro, git toca `.git`,
+ * el vigilante reescanea, `loadGit` vuelve a ejecutar git y el bucle no para.
+ */
+export function isVcsWatcherName(name: string | Buffer | null): boolean {
+  if (!name) {
+    return false;
+  }
+  const text = typeof name === "string" ? name : name.toString("utf8");
+  if (!text) {
+    return false;
+  }
+  const first = text.split(/[\\/]+/)[0] ?? "";
+  return VCS_WATCH_NAMES.has(first.toLowerCase());
+}
+
 /** Copia recursiva sin sobrescribir (existe => error claro). */
 export async function copyPath(srcAbs: string, destAbs: string): Promise<void> {
   try {

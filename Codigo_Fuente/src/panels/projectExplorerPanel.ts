@@ -29,6 +29,7 @@ import {
   copyPath,
   countElements,
   deletePath,
+  isVcsWatcherName,
   isWithin,
   movePath,
   OpError,
@@ -80,6 +81,13 @@ interface TreeRuntime {
   watchers: Map<string, FSWatcher>;
   watchDirty: Set<string>;
   watchTimer: ReturnType<typeof setTimeout> | null;
+  /** Cola FIFO de rescans del árbol: nunca dos mutaciones a la vez sobre el mismo `Tree`. */
+  rescanQueue: string[];
+  /** Los `rel` ya encolados, para no meter duplicados. */
+  rescanSet: Set<string>;
+  rescanBusy: boolean;
+  /** Promesas de los que esperan: se resuelven cuando la cola queda vacía. */
+  rescanWaiters: Array<() => void>;
   suppressUntil: number;
   /** Cola FIFO de acciones git (con texto para el `status busy`). */
   gitQueue: { action: GitActionKind; branch?: string; message?: string; text: string }[];
@@ -229,6 +237,10 @@ export class ProjectExplorerPanel {
       watchers: new Map(),
       watchDirty: new Set(),
       watchTimer: null,
+      rescanQueue: [],
+      rescanSet: new Set(),
+      rescanBusy: false,
+      rescanWaiters: [],
       suppressUntil: 0,
       gitQueue: [],
       gitRunning: false,
@@ -388,6 +400,8 @@ export class ProjectExplorerPanel {
     st.contentAbort?.abort();
     st.contentAbort = null;
     st.contentPending = false;
+    // El escaneo completo manda: los rescans en cola ya no hacen nada.
+    this.cancelRescans(st);
     // Los ids del árbol viejo dejan de valer: la búsqueda se rehace desde cero.
     st.searchGen += 1;
     st.resultIds = null;
@@ -451,14 +465,71 @@ export class ProjectExplorerPanel {
     }
   }
 
-  /** Rescan incremental de un subdirectorio (padre de una operación o aviso del watcher). */
-  private async rescanSubtree(st: TreeRuntime, rel: string): Promise<void> {
-    await this.rescanSubtreeInner(st, rel);
-    // El subárbol nuevo trae ids distintos: la búsqueda activa se rehace entera.
-    this.resumeSearch(st);
+  /**
+   * Rescan incremental de un subdirectorio (padre de una operación o aviso del watcher).
+   * Encola `rel` y espera a que la cola del árbol quede vacía: así nunca hay dos
+   * mutaciones a la vez sobre el mismo `Tree` y los avisos seguidos se agrupan.
+   */
+  private enqueueRescan(st: TreeRuntime, rel: string): Promise<void> {
+    if (this.disposed) {
+      return Promise.resolve();
+    }
+    if (!st.rescanSet.has(rel)) {
+      st.rescanSet.add(rel);
+      st.rescanQueue.push(rel);
+    }
+    this.drainRescan(st);
+    return new Promise<void>((resolve) => {
+      st.rescanWaiters.push(resolve);
+    });
   }
 
-  private async rescanSubtreeInner(st: TreeRuntime, rel: string): Promise<void> {
+  /** Un solo drenaje por árbol. Al vaciar la cola resuelve todas las esperas. */
+  private drainRescan(st: TreeRuntime): void {
+    if (st.rescanBusy) {
+      return;
+    }
+    st.rescanBusy = true;
+    void (async () => {
+      try {
+        while (st.rescanQueue.length > 0 && !this.disposed) {
+          const rel = st.rescanQueue.shift() as string;
+          st.rescanSet.delete(rel);
+          try {
+            await this.rescanSubtreeNow(st, rel);
+          } catch {
+            // Un rescan que falla no debe parar la cola: se pasa al siguiente aviso.
+          }
+          // El subárbol nuevo trae ids distintos: la búsqueda activa se rehace entera.
+          this.resumeSearch(st);
+        }
+      } finally {
+        st.rescanBusy = false;
+        this.releaseRescanWaiters(st);
+        // Algo pudo entrar justo al cerrar el bucle: no se pierde el aviso.
+        if (st.rescanQueue.length > 0 && !this.disposed) {
+          this.drainRescan(st);
+        }
+      }
+    })();
+  }
+
+  private releaseRescanWaiters(st: TreeRuntime): void {
+    const waiters = st.rescanWaiters.splice(0);
+    for (const resolve of waiters) {
+      resolve();
+    }
+  }
+
+  /** El escaneo completo manda: tira la cola de rescans y suelta a quien esperara. */
+  private cancelRescans(st: TreeRuntime): void {
+    st.rescanQueue.length = 0;
+    st.rescanSet.clear();
+    this.releaseRescanWaiters(st);
+  }
+
+  /** Cuerpo del rescan incremental. Solo lo llama `drainRescan`. */
+  private async rescanSubtreeNow(st: TreeRuntime, rel: string): Promise<void> {
     const tree = st.tree;
     if (!tree || this.disposed || !st.root) {
       return;
@@ -1142,7 +1213,7 @@ export class ProjectExplorerPanel {
     if (this.disposed) {
       return;
     }
-    await this.rescanSubtree(st, parentRel);
+    await this.enqueueRescan(st, parentRel);
     await this.loadGit(st);
     this.recomputeView(st);
   }
@@ -1247,7 +1318,10 @@ export class ProjectExplorerPanel {
     }
     const keep = new Set<string>([""]);
     for (const rel of st.expanded) {
-      if (st.tree?.hasDir(rel) && rel !== "") {
+      // Se guarda lo que el usuario tiene abierto, no lo que el árbol tiene en este instante:
+      // durante un reescaneo la carpeta puede faltar un momento y cerrar/abrir el vigilante
+      // de ahí saldría un aviso falso.
+      if (rel !== "") {
         keep.add(rel);
       }
     }
@@ -1264,13 +1338,23 @@ export class ProjectExplorerPanel {
       if (st.watchers.size >= MAX_WATCHERS) {
         break;
       }
+      // Solo se abre lo que el árbol ya conoce: así no se intenta en cada refresco.
+      if (rel !== "" && !st.tree?.hasDir(rel)) {
+        continue;
+      }
       const abs = this.relAbs(st, rel);
       if (!abs) {
         continue;
       }
       try {
-        const watcher = watch(abs, { recursive: false }, () => {
+        const watcher = watch(abs, { recursive: false }, (_event, filename) => {
           if (this.disposed || Date.now() < st.suppressUntil) {
+            return;
+          }
+          // `git` toca `.git` (o `.hg`/`.svn`) desde la propia raíz: no es un cambio
+          // del proyecto. Sin este filtro el vigilante dispara `rescanSubtree("")`,
+          // `loadGit` vuelve a ejecutar git y el bucle no para nunca.
+          if (isVcsWatcherName(filename)) {
             return;
           }
           st.watchDirty.add(rel);
@@ -1302,10 +1386,10 @@ export class ProjectExplorerPanel {
     if (rels.length === 0) {
       return;
     }
-    for (const rel of rels) {
-      if (!this.disposed) {
-        await this.rescanSubtree(st, rel);
-      }
+    // Todos los avisos entran por la cola del árbol: se agrupan y no se solapan.
+    await Promise.all(rels.map((rel) => this.enqueueRescan(st, rel)));
+    if (this.disposed) {
+      return;
     }
     await this.loadGit(st);
     this.syncWatchers(st);
@@ -1417,6 +1501,8 @@ export class ProjectExplorerPanel {
       clearTimeout(st.watchTimer);
       st.watchTimer = null;
     }
+    // La cola de rescans es del árbol viejo: se tira y se suelta a quien esperara.
+    this.cancelRescans(st);
     st.tree = null;
     st.gitFiles = new Map();
     st.git = null;
@@ -1546,6 +1632,8 @@ export class ProjectExplorerPanel {
         w.close();
       }
       st.watchers.clear();
+      // Nadie debe quedarse esperando a una cola que ya no se va a drenar.
+      this.cancelRescans(st);
       st.tree = null;
       st.gitFiles = new Map();
     }
