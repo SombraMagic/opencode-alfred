@@ -10,6 +10,12 @@ export type FilterId = "all" | "changed" | "staged" | "untracked" | "unpushed" |
 
 export type RowKind = "dir" | "file" | "link" | "missing";
 
+/** Clave de ordenación de los hijos de un directorio. */
+export type SortKey = "name" | "size" | "date";
+
+/** Sentido de la ordenación. */
+export type SortDir = "asc" | "desc";
+
 export type GitState =
   | "clean"
   | "modified"
@@ -69,7 +75,8 @@ export interface TreeMeta {
   root: string;
   label: string;
   showHidden: boolean;
-  sort: "size" | "name";
+  sort: SortKey;
+  sortDir: SortDir;
   filter: FilterId;
   query: string;
   expanded: string[];

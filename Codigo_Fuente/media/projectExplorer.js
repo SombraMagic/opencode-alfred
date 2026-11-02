@@ -18,7 +18,10 @@
     };
   }
 
-  const ROW_H = 24;
+  const ROW_H = 30;
+
+  const SVG_ARROW_UP = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 13V3M4.5 6.5L8 3l3.5 3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const SVG_ARROW_DOWN = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 3v10M4.5 9.5L8 13l3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   // Estado global
   const state = {
@@ -164,7 +167,8 @@
       rootPath: document.getElementById(id + "-root-path"),
       btnRoot: document.getElementById(id + "-btn-root"),
       btnHidden: document.getElementById(id + "-btn-hidden"),
-      btnSort: document.getElementById(id + "-btn-sort"),
+      btnSorts: document.querySelectorAll("#panel-" + id + " .pe-sort-btn"),
+      btnSortDir: document.getElementById(id + "-btn-sort-dir"),
       btnRefresh: document.getElementById(id + "-btn-refresh"),
       // Git
       gitBar: document.getElementById(id + "-git-bar"),
@@ -270,10 +274,20 @@
     // Barra de raíz
     d.btnRoot.addEventListener("click", () => vscode.postMessage({ type: "chooseRoot", treeId: id }));
     d.btnHidden.addEventListener("click", () => vscode.postMessage({ type: "toggleHidden", treeId: id }));
-    d.btnSort.addEventListener("click", () => {
-      const nextSort = (t.meta && t.meta.sort === "size") ? "name" : "size";
-      vscode.postMessage({ type: "setSort", treeId: id, sort: nextSort });
-    });
+    if (d.btnSorts) {
+      d.btnSorts.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const sort = btn.dataset.sort;
+          if (sort) vscode.postMessage({ type: "setSort", treeId: id, sort: sort });
+        });
+      });
+    }
+    if (d.btnSortDir) {
+      d.btnSortDir.addEventListener("click", () => {
+        const nextDir = (t.meta && t.meta.sortDir === "asc") ? "desc" : "asc";
+        vscode.postMessage({ type: "setSortDir", treeId: id, dir: nextDir });
+      });
+    }
     d.btnRefresh.addEventListener("click", () => vscode.postMessage({ type: "refresh", treeId: id }));
 
     // Tira Git
@@ -1064,8 +1078,17 @@
     d.rootPath.title = m.root || m.label || "";
 
     d.btnHidden.classList.toggle("active", !!m.showHidden);
-    d.btnSort.classList.toggle("active", m.sort === "size");
-    d.btnSort.title = m.sort === "size" ? "Ordenado por tamaño (clic para ordenar por nombre)" : "Ordenado por nombre (clic para ordenar por tamaño)";
+    if (d.btnSorts) {
+      d.btnSorts.forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.sort === m.sort);
+      });
+    }
+    if (d.btnSortDir) {
+      const isAsc = m.sortDir === "asc";
+      d.btnSortDir.innerHTML = isAsc ? SVG_ARROW_UP : SVG_ARROW_DOWN;
+      d.btnSortDir.title = isAsc ? "Orden ascendente" : "Orden descendente";
+      d.btnSortDir.setAttribute("aria-label", isAsc ? "Orden ascendente" : "Orden descendente");
+    }
 
     if (typeof m.query === "string" && d.searchInput.value !== m.query) {
       d.searchInput.value = m.query;
@@ -1273,6 +1296,7 @@
           label: "OpenCode_Alfred",
           showHidden: false,
           sort: "size",
+          sortDir: "desc",
           filter: "all",
           query: "",
           expanded: ["Codigo_Fuente", "Codigo_Fuente/src"],
@@ -1292,6 +1316,7 @@
           label: "Documentacion",
           showHidden: false,
           sort: "name",
+          sortDir: "asc",
           filter: "all",
           query: "",
           expanded: [],

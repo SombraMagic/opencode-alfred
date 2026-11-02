@@ -8,6 +8,8 @@ import type {
   GitInfo,
   Row,
   ScanState,
+  SortDir,
+  SortKey,
   TreeId,
   TreeMeta,
 } from "../projectExplorer/model";
@@ -44,6 +46,8 @@ const KEY_ROOTS = "opencodeAgents.projectExplorer.roots";
 const KEY_EXPANDED = "opencodeAgents.projectExplorer.expanded";
 const KEY_HIDDEN = "opencodeAgents.projectExplorer.hidden";
 const KEY_SPLIT = "opencodeAgents.projectExplorer.split";
+const KEY_SORT = "opencodeAgents.projectExplorer.sort";
+const KEY_SORT_DIR = "opencodeAgents.projectExplorer.sortDir";
 
 /** Topes internos del panel. */
 const MAX_EXPANDED = 500;
@@ -62,7 +66,8 @@ interface TreeRuntime {
   /** null = todavía sin raíz válida. */
   tree: Tree | null;
   showHidden: boolean;
-  sort: "size" | "name";
+  sort: SortKey;
+  sortDir: SortDir;
   filter: FilterId;
   query: string;
   /** `rel` expandidos + "" para la raíz. Mutado por computeRows (ancestros). */
@@ -236,6 +241,7 @@ export class ProjectExplorerPanel {
       tree: null,
       showHidden: false,
       sort: "size",
+      sortDir: "desc",
       filter: "all",
       query: "",
       expanded: new Set<string>([""]),
@@ -279,10 +285,18 @@ export class ProjectExplorerPanel {
     this.split = clampRatio(savedSplit);
     const savedHidden = this.state.get<unknown>(KEY_HIDDEN);
     const hidden = isRecord(savedHidden) ? savedHidden : {};
+    const savedSort = this.state.get<unknown>(KEY_SORT);
+    const sortRec = isRecord(savedSort) ? savedSort : {};
+    const savedSortDir = this.state.get<unknown>(KEY_SORT_DIR);
+    const sortDirRec = isRecord(savedSortDir) ? savedSortDir : {};
 
     for (const id of ["a", "b"] as TreeId[]) {
       const st = this.trees.get(id) as TreeRuntime;
       st.showHidden = readBool(hidden[id], false);
+      const key: unknown = sortRec[id];
+      const dir: unknown = sortDirRec[id];
+      st.sort = isSortKey(key) ? key : "size";
+      st.sortDir = isSortDir(dir) ? dir : "desc";
       st.expanded = this.readExpanded(id);
       const root = id === "a" ? a : b;
       if (root) {
@@ -393,6 +407,21 @@ export class ProjectExplorerPanel {
     }
     base[st.id] = list;
     void this.state.update(KEY_EXPANDED, base);
+  }
+
+  /** Orden por árbol persistido con la misma forma que `KEY_HIDDEN` (`{a:"size",b:"name"}`). */
+  private persistSort(st: TreeRuntime): void {
+    const raw = this.state.get<unknown>(KEY_SORT);
+    const base = isRecord(raw) ? { ...raw } : {};
+    base[st.id] = st.sort;
+    void this.state.update(KEY_SORT, base);
+  }
+
+  private persistSortDir(st: TreeRuntime): void {
+    const raw = this.state.get<unknown>(KEY_SORT_DIR);
+    const base = isRecord(raw) ? { ...raw } : {};
+    base[st.id] = st.sortDir;
+    void this.state.update(KEY_SORT_DIR, base);
   }
 
   private async saveRoots(): Promise<void> {
@@ -855,6 +884,7 @@ export class ProjectExplorerPanel {
       expanded: st.expanded,
       showHidden: st.showHidden,
       sort: st.sort,
+      sortDir: st.sortDir,
       gitMap: st.gitFiles,
       filter: st.filter,
       resultIds: wantsResults ? st.resultIds ?? new Set<number>() : undefined,
@@ -940,7 +970,23 @@ export class ProjectExplorerPanel {
         return;
       }
       case "setSort": {
-        st.sort = message.sort;
+        if (st.sort !== message.sort) {
+          // Cambio de clave: sentido por defecto (nombre A→Z; tamaño y fecha, lo primero más).
+          st.sort = message.sort;
+          st.sortDir = message.sort === "name" ? "asc" : "desc";
+        }
+        // Misma clave: conserva el sentido actual (la conmutación va por `setSortDir`).
+        this.persistSort(st);
+        this.persistSortDir(st);
+        // `postInit` reenvía el meta: sin él la webview se queda con el orden viejo (botón atascado).
+        this.postInit();
+        this.recomputeView(st);
+        return;
+      }
+      case "setSortDir": {
+        st.sortDir = message.dir;
+        this.persistSortDir(st);
+        this.postInit();
         this.recomputeView(st);
         return;
       }
@@ -1847,6 +1893,7 @@ export class ProjectExplorerPanel {
       label: st.label,
       showHidden: st.showHidden,
       sort: st.sort,
+      sortDir: st.sortDir,
       filter: st.filter,
       query: st.query,
       expanded: [...st.expanded].filter((r) => r !== "").slice(0, MAX_EXPANDED),
@@ -1984,7 +2031,8 @@ type IncomingMessage =
   | { type: "setLayout"; layout: "one" | "two" }
   | { type: "setSplit"; ratio: number }
   | { type: "toggleHidden"; treeId: TreeId }
-  | { type: "setSort"; treeId: TreeId; sort: "size" | "name" }
+  | { type: "setSort"; treeId: TreeId; sort: SortKey }
+  | { type: "setSortDir"; treeId: TreeId; dir: SortDir }
   | { type: "expand"; treeId: TreeId; rel: string }
   | { type: "collapse"; treeId: TreeId; rel: string }
   | { type: "refresh"; treeId: TreeId }
@@ -2038,8 +2086,12 @@ function parseIncoming(raw: unknown): IncomingMessage | undefined {
     case "toggleHidden":
       return id ? { type: "toggleHidden", treeId: id } : undefined;
     case "setSort":
-      return id && (m.sort === "size" || m.sort === "name")
+      return id && isSortKey(m.sort)
         ? { type: "setSort", treeId: id, sort: m.sort }
+        : undefined;
+    case "setSortDir":
+      return id && isSortDir(m.dir)
+        ? { type: "setSortDir", treeId: id, dir: m.dir }
         : undefined;
     case "expand":
     case "collapse":
@@ -2121,6 +2173,14 @@ function parseIncoming(raw: unknown): IncomingMessage | undefined {
 
 function treeId(value: unknown): TreeId | undefined {
   return value === "a" || value === "b" ? value : undefined;
+}
+
+function isSortKey(value: unknown): value is SortKey {
+  return value === "name" || value === "size" || value === "date";
+}
+
+function isSortDir(value: unknown): value is SortDir {
+  return value === "asc" || value === "desc";
 }
 
 /** `rel` aceptado: cadena corta, sin absolutas, `..` ni `\0`; normalizado a "/". "" = raíz. */

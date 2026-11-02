@@ -7,7 +7,7 @@
 
 import { lstat, readdir, stat } from "node:fs/promises";
 import * as path from "node:path";
-import type { FilterId, Row, RowGit } from "./model";
+import type { FilterId, Row, RowGit, SortDir, SortKey } from "./model";
 import type { GitFileState } from "./git";
 
 /** Tope global de entradas del escaneo. */
@@ -443,12 +443,17 @@ export class Tree {
   }
 }
 
-/** Hijos visibles de un directorio, ordenados: dirs primero y luego lo pedido. */
+/**
+ * Hijos visibles de un directorio, ordenados: dirs siempre primero y luego lo
+ * pedido dentro de cada grupo. El empate va SIEMPRE por nombre ascendente, para
+ * que el orden sea estable.
+ */
 export function sortedVisibleChildren(
   tree: Tree,
   dirId: number,
   showHidden: boolean,
-  sort: "size" | "name",
+  sort: SortKey,
+  sortDir: SortDir,
   sizeOf: (id: number) => number
 ): number[] {
   const kids = tree.children.get(dirId);
@@ -466,6 +471,8 @@ export function sortedVisibleChildren(
     }
     kept.push(id);
   }
+  // `asc` vale +1: la comparación natural. `desc` la invierte.
+  const sign = sortDir === "asc" ? 1 : -1;
   kept.sort((x, y) => {
     const ex = tree.entries.get(x) as FsEntry;
     const ey = tree.entries.get(y) as FsEntry;
@@ -474,21 +481,22 @@ export function sortedVisibleChildren(
     if (dx !== dy) {
       return dx - dy;
     }
-    if (sort === "size") {
-      const sx = ex.kind === "dir" ? sizeOf(x) : ex.size;
-      const sy = ey.kind === "dir" ? sizeOf(y) : ey.size;
-      if (sx !== sy) {
-        return sy - sx;
-      }
-      return compareNames(ex.name, ey.name);
-    }
-    const byName = compareNames(ex.name, ey.name);
-    if (byName !== 0) {
-      return byName;
-    }
     const sx = ex.kind === "dir" ? sizeOf(x) : ex.size;
     const sy = ey.kind === "dir" ? sizeOf(y) : ey.size;
-    return sy - sx;
+    let primary = 0;
+    if (sort === "size") {
+      primary = sign * (sx - sy);
+    } else if (sort === "date") {
+      primary = sign * (ex.mtime - ey.mtime);
+    } else {
+      primary = sign * compareNames(ex.name, ey.name);
+    }
+    if (primary !== 0) {
+      return primary;
+    }
+    // Con `name` como clave el empate es imposible (nombres únicos por carpeta);
+    // con `size`/`date` decide el nombre ascendente.
+    return compareNames(ex.name, ey.name);
   });
   return kept;
 }
@@ -521,7 +529,8 @@ export interface ComputeParams {
   /** `rel` de directorios expandidos ("" = raíz). No se modifica: en resultado se fuerza internamente. */
   expanded: ReadonlySet<string>;
   showHidden: boolean;
-  sort: "size" | "name";
+  sort: SortKey;
+  sortDir: SortDir;
   /** Estado git por `rel` (vacío si no hay repo). Clave con separador "/". */
   gitMap: ReadonlyMap<string, GitFileState>;
   filter: FilterId;
@@ -723,7 +732,7 @@ export function computeRows(p: ComputeParams): ComputeOut {
       return;
     }
     const dirEntry = tree.entries.get(dirId) as FsEntry;
-    const kids = sortedVisibleChildren(tree, dirId, p.showHidden, p.sort, sizeOf);
+    const kids = sortedVisibleChildren(tree, dirId, p.showHidden, p.sort, p.sortDir, sizeOf);
     for (const id of kids) {
       const e = tree.entries.get(id) as FsEntry;
       if (res) {
