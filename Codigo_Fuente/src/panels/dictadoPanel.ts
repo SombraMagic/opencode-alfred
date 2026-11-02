@@ -73,6 +73,7 @@ export class VozDictado {
     view: vscode.WebviewView,
     private readonly context: vscode.ExtensionContext,
     private readonly onIdea: () => Promise<void>,
+    private readonly sendToSession?: (text: string) => Promise<string | undefined>,
   ) {
     this.view = view;
   }
@@ -561,7 +562,11 @@ export class VozDictado {
     }
   }
 
-  /** Manda el bloc de notas al terminal activo (donde suele correr el agente). */
+  /**
+   * Manda el bloc de notas al terminal activo (donde suele correr el agente). Sin terminal
+   * de VS Code, lo manda a la sesión viva de opencode por el servidor; si tampoco hay,
+   * copia al portapapeles.
+   */
   private async sendPrompt(raw: string) {
     // Las rutas del prompt viajan dentro del texto: espera a que las imágenes
     // pegadas estén escritas antes de mandarlo.
@@ -592,6 +597,18 @@ export class VozDictado {
       }, 100);
       this.state("idle", `Enviado a ${terminal.name}.`);
       return;
+    }
+
+    if (this.sendToSession) {
+      try {
+        const enviado = await this.sendToSession(text);
+        if (enviado) {
+          this.state("idle", `Enviado a ${enviado}.`);
+          return;
+        }
+      } catch {
+        // Sin servidor o sin sesión: sigue al portapapeles de siempre.
+      }
     }
 
     await vscode.env.clipboard.writeText(text);

@@ -921,6 +921,19 @@ export function activate(context: vscode.ExtensionContext): void {
     return undefined;
   }
 
+  /**
+   * Manda un prompt a la sesión viva de la TUI por el servidor, sin teclear en ninguna
+   * terminal: es el camino cuando opencode corre fuera de VS Code. Devuelve el título de la
+   * sesión o undefined si no hay a qué enviarlo.
+   */
+  async function sendPromptToLiveSession(text: string): Promise<string | undefined> {
+    if (sessionAgent !== "opencode") return undefined;
+    const session = await liveSession();
+    if (!session) return undefined;
+    await opencodeApi("POST", `/api/session/${encodeURIComponent(session.id)}/prompt`, { text });
+    return session.title || session.id;
+  }
+
   /** Sesiones con ejecución en marcha según `/api/session/active`; vacío si no responde. */
   async function runningSessionIds(): Promise<Set<string>> {
     try {
@@ -3247,7 +3260,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // Panel inferior: dictado (voz a texto).
   const dictadoProvider: vscode.WebviewViewProvider = {
     resolveWebviewView: async (view) => {
-      dictado = new VozDictado(view, context, openIdea);
+      dictado = new VozDictado(view, context, openIdea, sendPromptToLiveSession);
       await dictado.init();
     },
   };
