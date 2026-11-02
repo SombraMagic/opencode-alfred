@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 2 de noviembre de 2026 · versión **0.7.25**
+Última revisión: 2 de noviembre de 2026 · versión **0.8.0**
 
 ## Resumen
 
@@ -9,8 +9,27 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.25** está empaquetada e instalada en local (`--force`), **sin release en GitHub**: el campo
-`version` subió solo para poder instalar con VS Code abierto. Entran el **Explorador del proyecto**
+La **0.8.0** está empaquetada en `Instalable/` (`opencode-alfred-0.8.0.vsix`), **sin release en GitHub
+ni tag**, y entra la pestaña central **Bases de datos (MariaDB)** (`opencodeAgents.databases`, botón
+de cilindro en la segunda fila de `Control`). Con `typecheck` y `compile` en verde y revisión **PASS**.
+
+**Verificado**: `typecheck` y `compile` en verde; el núcleo (`src/databases/`: conexión, túnel SSH,
+introspección, CRUD, buscador, DDL, consola, volcado y exportación) probado contra un MariaDB
+desechable. El `.vsix` contiene `dist/extension.js`, `dist/alfred-mcp.js`, `media/databases.*`,
+`resources/stt-sapi.ps1` y `node_modules/mysql2` + `node_modules/ssh2`.
+
+**Sin verificar en VS Code real**: la webview de la pestaña (rejilla, consola, diálogos y el aspecto),
+los diálogos nativos (contraseña en el almacén, confirmación de borrado y de escritura), el túnel SSH
+contra un servidor real (solo con pruebas de núcleo) y el volcado con `mariadb-dump` lanzado desde la
+extensión (el respaldo JS sí está probado).
+
+**Nuevo ajuste**: `opencodeAgents.mariadbDumpPath` (vacío = buscar en `PATH` y `C:\xampp`).
+
+**Dependencias nuevas**: `mysql2` y `ssh2` (externas de esbuild, en `dependencies`). El `.vsix` pasa de
+~2,3 MB a ~8,1 MB por sus dependencias transitivas.
+
+La **0.7.25** quedó empaquetada e instalada en local, **sin release en GitHub**: el
+campo `version` subió solo para poder instalar con VS Code abierto. Entraron el **Explorador del proyecto**
 (descrito debajo) con su menú contextual, los **tramos por agente** en la línea de tiempo de las
 estadísticas de prompts y el **UAC de la temperatura de la CPU al pulsar**, no al arrancar. Con
 `typecheck` y `compile` en verde.
@@ -284,6 +303,12 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 
 ## Siguiente
 
+0. **Bases de datos en VS Code real** (0.8.0): abrir la pestaña desde `Control` y recorrer alta de
+   conexión con contraseña en el almacén, túnel SSH (contraseña, clave y agente), huella
+   recordada, explorador, rejilla con buscador y edición, consola con confirmación escrita y la
+   copia `.sql`. Comprobar el volcado con `mariadb-dump` desde la extensión.
+   - **La cuenta `root` del XAMPP de este equipo usa GSSAPI y no vale**: crear una cuenta con
+     `mysql_native_password` o `ed25519` para las pruebas en vivo.
 1. **Mente local en vivo**: pulsar `MENTE LOCAL` y recorrer la pestaña con VS Code real
    (instalar, encender, descargar un modelo, apagar) y comprobar que el proveedor `ollama`
    aparece en `CONECTORES` y en `ASIGNAR AGENTES`. Hasta ahora está verificado el código, no

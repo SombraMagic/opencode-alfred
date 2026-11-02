@@ -14,7 +14,7 @@ async function main() {
     platform: "node",
     mainFields: ["module", "main"],
     outfile: "dist/extension.js",
-    external: ["vscode", "node:sqlite", "koffi", "mpg123-decoder", "ws"],
+    external: ["vscode", "node:sqlite", "koffi", "mpg123-decoder", "ws", "mysql2", "ssh2"],
     logLevel: "info",
   });
   // Servidor MCP `mcp_alfred`: proceso stdio aparte, sin `vscode`, con los mismos externos.
@@ -28,7 +28,7 @@ async function main() {
     platform: "node",
     mainFields: ["module", "main"],
     outfile: "dist/alfred-mcp.js",
-    external: ["vscode", "node:sqlite", "koffi", "mpg123-decoder", "ws"],
+    external: ["vscode", "node:sqlite", "koffi", "mpg123-decoder", "ws", "mysql2", "ssh2"],
     logLevel: "info",
   });
   if (watch) {

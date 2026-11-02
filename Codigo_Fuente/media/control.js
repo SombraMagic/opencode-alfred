@@ -18,6 +18,7 @@
     voz: document.getElementById("btn-voz"),
     promptStats: document.getElementById("btn-prompt-stats"),
     project: document.getElementById("btn-project"),
+    db: document.getElementById("btn-db"),
     // Dibujo del proveedor dentro del botón de sesión (path vacío hasta el primer render).
     sessionLogo: document.querySelector("#btn-session svg path"),
   };
@@ -101,6 +102,9 @@
   el.promptStats.addEventListener("click", () => act({ type: "openPromptStats" }));
   if (el.project) {
     el.project.addEventListener("click", () => act({ type: "openProjectExplorer" }));
+  }
+  if (el.db) {
+    el.db.addEventListener("click", () => act({ type: "openDatabases" }));
   }
 
   window.addEventListener("message", (event) => {

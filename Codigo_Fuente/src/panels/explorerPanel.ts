@@ -73,7 +73,8 @@ export type ExplorerAction =
   | { type: "openDictado" }
   | { type: "openVoice" }
   | { type: "openPromptStats" }
-  | { type: "openProjectExplorer" };
+  | { type: "openProjectExplorer" }
+  | { type: "openDatabases" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([

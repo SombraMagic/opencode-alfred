@@ -3,6 +3,26 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.8.0] - 2026-11-02
+
+- **Bases de datos (MariaDB)**: pestaña central con el icono nuevo de `Control` y el comando
+  `opencodeAgents.databases` («opencode: Bases de datos (MariaDB)»).
+- **Conexiones**: la contraseña va al almacén seguro de VS Code, con TLS y **túnel SSH** (por
+  contraseña, clave o agente). La huella del servidor SSH se recuerda y se verifica en cada conexión.
+- **Explorador de bases y tablas**: crear base y eliminarla solo si está vacía (sin tablas, rutinas
+  ni eventos). Crear, eliminar, truncar y renombrar tablas.
+- **Rejilla de datos**: paginación, orden por columna y buscador único que recorre todas las
+  columnas de la tabla. Edición de celdas, inserción y borrado por lotes cuando la tabla tiene clave
+  primaria o índice único.
+- **Consola SQL**: las sentencias que escriben piden confirmación escrita antes de ejecutarse.
+- **Copia de seguridad completa** de la base a `.sql` con `mariadb-dump`; si no está, un volcador
+  propio de respaldo. Exportación de una tabla a CSV, JSON o SQL.
+- **Nuevo ajuste** `opencodeAgents.mariadbDumpPath`: ruta a `mariadb-dump.exe` o `mysqldump.exe`.
+  Vacío = buscar en el `PATH` y en `C:\xampp`.
+- **Aviso**: las cuentas de MariaDB con autenticación `gssapi` o SSPI no sirven, porque ni `mysql2` ni
+  el conector oficial de Node las soportan. Hace falta una cuenta con `mysql_native_password` o
+  `ed25519`.
+
 ## [0.7.25] - 2026-11-02
 
 - **Explorador del proyecto**: pestaña central (icono de carpeta en `Control`, comando

@@ -16,3 +16,12 @@ AGENTS.md
 CLAUDE.md
 MEMORY.md
 pront.md
+node_modules/ssh2/test/**
+node_modules/ssh2/examples/**
+node_modules/ssh2/.github/**
+node_modules/ssh2/lib/protocol/crypto/build/**
+node_modules/cpu-features/**
+**/*.pdb
+**/*.iobj
+**/*.ipdb
+**/*.obj

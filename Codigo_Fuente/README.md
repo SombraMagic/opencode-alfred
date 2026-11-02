@@ -44,7 +44,8 @@ opencode), el cerebro de `OLLAMA` (la pestaña
 de Ollama, que brilla mientras el servidor responde), la foto del generador de imágenes (en verde
 mientras está compartido con los agentes) y el
 bocadillo del chatbot (se enciende cuando responde el servidor de Ollama). La segunda fila
-abre pizarra, dictado, voz, estadísticas de prompt y el explorador del proyecto. Al estrechar la
+abre pizarra, dictado, voz, estadísticas de prompt, el explorador del proyecto y las bases de datos
+(MariaDB). Al estrechar la
 barra las filas saltan a más líneas y los botones se estiran.
 
 ### Explorador del proyecto
@@ -69,6 +70,30 @@ trabajo.
   y mover arrastrando (`Ctrl` = copiar) o con el menú contextual Copiar/Cortar/Pegar, dentro del
   mismo árbol o entre los dos, sin sobrescribir nunca. Las rutas se validan dentro de la raíz de
   su árbol: `.git` y la raíz no se tocan y no se siguen symlinks.
+
+### Bases de datos (MariaDB)
+
+Pestaña central —comando `opencodeAgents.databases` («opencode: Bases de datos (MariaDB)»), o el
+icono de cilindro de la segunda fila de `Control`, tras el explorador del proyecto—. Trabaja con
+servidores MariaDB o MySQL.
+
+- **Conexiones**: alta, edición y borrado de servidores. La contraseña va al almacén seguro de
+  VS Code, nunca al `settings.json`. TLS opcional y **túnel SSH** por contraseña, clave o agente;
+  la huella del servidor SSH se recuerda y se verifica en cada conexión.
+- **Explorador**: lista de bases y tablas. Crear base y eliminarla solo si está vacía (sin tablas,
+  rutinas ni eventos). Crear, eliminar, truncar y renombrar tablas.
+- **Rejilla de datos**: paginación, orden por columna y un buscador único que recorre todas las
+  columnas de la tabla. Edición de celdas, inserción y borrado por lotes cuando la tabla tiene clave
+  primaria o índice único.
+- **Consola SQL**: ejecuta sentencias libres. Las que escriben piden confirmación escrita antes de
+  correr.
+- **Copias y exportación**: copia completa de la base a un `.sql` con `mariadb-dump`; si no está
+  instalado, un volcador propio de respaldo. Exporta una tabla a CSV, JSON o SQL.
+- **Requisitos**: una cuenta con `mysql_native_password` o `ed25519`. Las cuentas con autenticación
+  `gssapi` o SSPI no sirven, porque ni `mysql2` ni el conector oficial de Node las soportan.
+  `mariadb-dump` (o `mysqldump`) es opcional: solo hace falta para la copia completa en su versión
+  nativa. Si no está en el `PATH` ni en `C:\xampp`, indica la ruta en
+  `opencodeAgents.mariadbDumpPath`.
 
 ### Contexto
 
@@ -293,6 +318,7 @@ El selector del mando decide qué config lee y escribe la extensión:
 | Subagentes de Claude | `~/.claude/agents` y `<proyecto>/.claude/agents` |
 | Adjuntos del dictado | `<proyecto>/.alfred/adjuntos` (o el almacén global si no hay carpeta) |
 | Explorador del proyecto | los ficheros del proyecto abierto: papelera, copiar y mover, solo dentro de la raíz de cada árbol |
+| Bases de datos | el servidor MariaDB o MySQL elegido: DDL, filas y consultas. Las contraseñas van al almacén de VS Code. Las copias `.sql` van a la carpeta que elijas |
 
 Las bases de datos de opencode se abren **en estricta solo lectura**. Nunca se escribe en
 ellas.
@@ -300,7 +326,8 @@ ellas.
 ## Ajustes
 
 `opencodeAgents.*`: `globalConfigDir`, `blenderPath` (ruta a `blender.exe`; vacío =
-autodetectar), `defaultModel`, `showBuiltins`, `schemaUrl`,
+autodetectar), `mariadbDumpPath` (ruta a `mariadb-dump.exe` o `mysqldump.exe`; vacío = buscar en
+el `PATH` y en `C:\xampp`), `defaultModel`, `showBuiltins`, `schemaUrl`,
 `dataDir`, `watchLive`, `liveIntervalMs`, `modelsCachePath`, `showAllProviders`,
 `limitsProviders`, `goPlan`.
 

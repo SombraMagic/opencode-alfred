@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="%%TOKENS%%" rel="stylesheet" />
+  <link href="%%STYLE%%" rel="stylesheet" />
+  <title>Bases de datos</title>
+</head>
+<body>
+  <div class="db-root">
+    <!-- Barra superior -->
+    <header class="db-header">
+      <div class="db-conn-block">
+        <div class="db-status-dot" id="db-status-dot" title="Sin conexión"></div>
+        <label for="sel-profile" class="db-label">CONEXIÓN:</label>
+        <select id="sel-profile" class="db-select" title="Seleccionar conexión">
+          <option value="">(Sin conexiones)</option>
+        </select>
+        <button id="btn-connect" class="db-btn db-btn-primary" type="button" title="Conectar o desconectar">CONECTAR</button>
+        <div class="db-btn-group">
+          <button id="btn-profile-new" class="db-icon-btn" type="button" title="Nueva conexión" aria-label="Nueva conexión">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M8 2.5v11M2.5 8h11" stroke-linecap="round" />
+            </svg>
+          </button>
+          <button id="btn-profile-edit" class="db-icon-btn" type="button" title="Editar conexión actual" aria-label="Editar conexión actual">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+              <path d="M11.5 2.5l2 2L5 13H3v-2l8.5-8.5z" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <button id="btn-profile-del" class="db-icon-btn db-icon-btn-danger" type="button" title="Eliminar conexión actual" aria-label="Eliminar conexión actual">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+              <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6 7v5M10 7v5M3.5 4.5l.8 9a1 1 0 0 0 1 .9h5.4a1 1 0 0 0 1-.9l.8-9" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <button id="btn-refresh-all" class="db-icon-btn" type="button" title="Refrescar catálogo" aria-label="Refrescar catálogo">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+              <path d="M13.5 8A5.5 5.5 0 1 1 12 4.2L13.5 2.5M13.5 2.5V6M13.5 2.5H10" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="db-server-info" id="db-server-info" title="Información del servidor"></div>
+
+      <div class="db-search-block">
+        <input id="input-search" class="db-input" type="text" placeholder="Buscar en tabla..." title="Búsqueda rápida en todas las columnas no binarias" />
+        <button id="btn-search" class="db-icon-btn" type="button" title="Ejecutar búsqueda" aria-label="Ejecutar búsqueda">
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4">
+            <circle cx="6.5" cy="6.5" r="4" />
+            <path d="M9.5 9.5L13.5 13.5" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button id="btn-count-rows" class="db-btn db-btn-subtle" type="button" title="Contar filas exactas en la tabla">CONTAR</button>
+      </div>
+    </header>
+
+    <!-- Contenido principal -->
+    <main class="db-main">
+      <!-- Columna izquierda: explorador de bases y tablas -->
+      <aside class="db-sidebar">
+        <!-- Tarjeta BASES DE DATOS -->
+        <section class="db-card db-card-dbs">
+          <div class="db-card-header">
+            <span class="db-card-title">BASES DE DATOS</span>
+            <div class="db-card-actions">
+              <button id="btn-db-create" class="db-icon-btn" type="button" title="Crear nueva base de datos" aria-label="Crear nueva base de datos">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4">
+                  <path d="M8 2v12M2 8h12" stroke-linecap="round" />
+                </svg>
+              </button>
+              <button id="btn-db-backup" class="db-icon-btn" type="button" title="Copia de seguridad de la base activa" aria-label="Copia de seguridad de la base activa">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                  <path d="M3 2.5h8l3 3v8H3v-11z" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M5 2.5v3h5v-3M5 13.5v-4h6v4" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+              <button id="btn-db-refresh" class="db-icon-btn" type="button" title="Refrescar bases de datos" aria-label="Refrescar bases de datos">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                  <path d="M13.5 8A5.5 5.5 0 1 1 12 4.2L13.5 2.5M13.5 2.5V6M13.5 2.5H10" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="db-list-wrap">
+            <ul id="list-dbs" class="db-list">
+              <li class="db-empty-note">Sin conexión</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- Tarjeta TABLAS -->
+        <section class="db-card db-card-tables">
+          <div class="db-card-header">
+            <span class="db-card-title">TABLAS</span>
+            <div class="db-card-actions">
+              <button id="btn-table-create" class="db-icon-btn" type="button" title="Crear nueva tabla" aria-label="Crear nueva tabla">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4">
+                  <path d="M8 2v12M2 8h12" stroke-linecap="round" />
+                </svg>
+              </button>
+              <button id="btn-table-export" class="db-icon-btn" type="button" title="Exportar tabla activa" aria-label="Exportar tabla activa">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                  <path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M2 13.5h12" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+              <button id="btn-table-truncate" class="db-icon-btn db-icon-btn-warn" type="button" title="Vaciar tabla activa (TRUNCATE)" aria-label="Vaciar tabla activa">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                  <path d="M2.5 13.5h11M3.5 11l9-9M12.5 11l-9-9" stroke-linecap="round" />
+                </svg>
+              </button>
+              <button id="btn-table-drop" class="db-icon-btn db-icon-btn-danger" type="button" title="Eliminar tabla activa (DROP)" aria-label="Eliminar tabla activa">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                  <path d="M2.5 4.5h11M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6 7v5M10 7v5M3.5 4.5l.8 9a1 1 0 0 0 1 .9h5.4a1 1 0 0 0 1-.9l.8-9" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="db-list-wrap">
+            <ul id="list-tables" class="db-list">
+              <li class="db-empty-note">Selecciona una base</li>
+            </ul>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Panel central de pestañas -->
+      <section class="db-content">
+        <nav class="db-tabs-bar">
+          <button class="db-tab-btn active" data-tab="datos" type="button">DATOS</button>
+          <button class="db-tab-btn" data-tab="estructura" type="button">ESTRUCTURA</button>
+          <button class="db-tab-btn" data-tab="consulta" type="button">CONSULTA</button>
+        </nav>
+
+        <!-- Pestaña 1: DATOS -->
+        <div id="tab-pane-datos" class="db-pane active">
+          <div class="db-toolbar">
+            <button id="btn-row-insert" class="db-btn db-btn-primary" type="button">INSERTAR FILA</button>
+            <button id="btn-rows-delete" class="db-btn db-btn-danger" type="button" disabled>BORRAR SELECCIÓN</button>
+            <button id="btn-toolbar-export" class="db-btn" type="button">EXPORTAR</button>
+            <button id="btn-data-refresh" class="db-icon-btn" type="button" title="Recargar datos de la tabla" aria-label="Recargar datos">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M13.5 8A5.5 5.5 0 1 1 12 4.2L13.5 2.5M13.5 2.5V6M13.5 2.5H10" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <div class="db-toolbar-spacer"></div>
+            <span id="label-table-metrics" class="db-metrics">—</span>
+          </div>
+
+          <div class="db-grid-container" id="grid-container">
+            <table class="db-grid" id="data-grid">
+              <thead id="grid-head"></thead>
+              <tbody id="grid-body"></tbody>
+            </table>
+            <div id="grid-empty" class="db-grid-placeholder">Selecciona una tabla para explorar sus datos.</div>
+          </div>
+
+          <div class="db-pagination-bar">
+            <div class="db-pagination-controls">
+              <button id="btn-page-prev" class="db-btn db-btn-subtle" type="button" disabled>ANTERIOR</button>
+              <span id="label-page-num" class="db-page-num">PÁGINA 1</span>
+              <button id="btn-page-next" class="db-btn db-btn-subtle" type="button" disabled>SIGUIENTE</button>
+            </div>
+            <div class="db-pagination-options">
+              <label for="sel-page-size" class="db-label-sm">FILAS POR PÁGINA:</label>
+              <select id="sel-page-size" class="db-select-sm">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="250">250</option>
+                <option value="500">500</option>
+              </select>
+              <span id="label-query-time" class="db-query-time">0 ms</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pestaña 2: ESTRUCTURA -->
+        <div id="tab-pane-estructura" class="db-pane">
+          <div class="db-structure-scroll">
+            <div class="db-struct-block">
+              <div class="db-struct-head">
+                <span class="db-struct-title">COLUMNAS</span>
+                <div class="db-struct-actions">
+                  <button id="btn-table-rename" class="db-btn db-btn-subtle" type="button">RENOMBRAR TABLA</button>
+                  <button id="btn-struct-refresh" class="db-icon-btn" type="button" title="Refrescar estructura" aria-label="Refrescar estructura">
+                    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+                      <path d="M13.5 8A5.5 5.5 0 1 1 12 4.2L13.5 2.5M13.5 2.5V6M13.5 2.5H10" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <table class="db-meta-table" id="table-cols">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Tipo</th>
+                    <th>Nulo</th>
+                    <th>Defecto</th>
+                    <th>Clave</th>
+                    <th>Extra</th>
+                    <th>Comentario</th>
+                  </tr>
+                </thead>
+                <tbody id="body-cols"></tbody>
+              </table>
+            </div>
+
+            <div class="db-struct-block">
+              <div class="db-struct-head">
+                <span class="db-struct-title">ÍNDICES</span>
+              </div>
+              <table class="db-meta-table" id="table-indexes">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Único</th>
+                    <th>Columnas</th>
+                  </tr>
+                </thead>
+                <tbody id="body-indexes"></tbody>
+              </table>
+            </div>
+
+            <div class="db-struct-block">
+              <div class="db-struct-head">
+                <span class="db-struct-title">CLAVES FORÁNEAS</span>
+              </div>
+              <table class="db-meta-table" id="table-fks">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Columna</th>
+                    <th>Tabla ref.</th>
+                    <th>Columna ref.</th>
+                    <th>On Delete</th>
+                    <th>On Update</th>
+                  </tr>
+                </thead>
+                <tbody id="body-fks"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pestaña 3: CONSULTA -->
+        <div id="tab-pane-consulta" class="db-pane">
+          <div class="db-console-editor-wrap">
+            <textarea id="sql-editor" class="db-sql-editor" spellcheck="false" placeholder="SELECT * FROM ...; (Ctrl+Enter para ejecutar)"></textarea>
+            <div class="db-console-toolbar">
+              <button id="btn-sql-run" class="db-btn db-btn-primary" type="button">EJECUTAR (Ctrl+Enter)</button>
+              <button id="btn-sql-clear" class="db-btn db-btn-subtle" type="button">LIMPIAR</button>
+              <span class="db-console-hint">Las sentencias de modificación pedirán confirmación.</span>
+            </div>
+          </div>
+
+          <div class="db-console-results" id="console-results">
+            <div class="db-console-placeholder">Los resultados de la consulta aparecerán aquí.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Barra de estado / busy / avisos -->
+    <footer class="db-footer">
+      <div class="db-footer-status">
+        <span id="footer-busy" class="db-status-busy hidden">
+          <span class="db-spinner"></span>
+          <span id="footer-busy-text">Cargando...</span>
+          <button id="btn-cancel-op" class="db-btn-cancel-busy" type="button">CANCELAR</button>
+        </span>
+        <span id="footer-notice" class="db-status-notice"></span>
+        <span id="footer-error" class="db-status-error"></span>
+      </div>
+      <div class="db-footer-actions">
+        <button id="btn-open-backup-dir" class="db-link-btn" type="button">Abrir carpeta de copias</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ── MODALES ──────────────────────────────────────────────────────────── -->
+
+  <!-- Modal 1: Perfil de conexión -->
+  <div id="modal-profile" class="db-modal-overlay hidden">
+    <div class="db-modal db-modal-wide">
+      <div class="db-modal-header">
+        <span class="db-modal-title" id="profile-modal-title">CONEXIÓN MARIADB</span>
+        <button class="db-modal-close" data-close="modal-profile" type="button" aria-label="Cerrar">✕</button>
+      </div>
+      <form id="form-profile" class="db-modal-body">
+        <input type="hidden" id="prof-id" />
+        <div class="db-form-row">
+          <label class="db-form-label" for="prof-name">Nombre de perfil:</label>
+          <input class="db-input" id="prof-name" type="text" required placeholder="p. ej. Servidor Local" />
+        </div>
+        <div class="db-form-cols">
+          <div class="db-form-row flex-2">
+            <label class="db-form-label" for="prof-host">Host:</label>
+            <input class="db-input" id="prof-host" type="text" required value="127.0.0.1" />
+          </div>
+          <div class="db-form-row flex-1">
+            <label class="db-form-label" for="prof-port">Puerto:</label>
+            <input class="db-input" id="prof-port" type="number" required value="3306" />
+          </div>
+        </div>
+        <div class="db-form-cols">
+          <div class="db-form-row flex-1">
+            <label class="db-form-label" for="prof-user">Usuario:</label>
+            <input class="db-input" id="prof-user" type="text" required value="root" />
+          </div>
+          <div class="db-form-row flex-1">
+            <label class="db-form-label" for="prof-pass">Contraseña:</label>
+            <input class="db-input" id="prof-pass" type="password" placeholder="(Sin cambiar si ya existe)" />
+          </div>
+        </div>
+        <div class="db-form-cols">
+          <div class="db-form-row flex-1">
+            <label class="db-form-label" for="prof-database">Base inicial (opcional):</label>
+            <input class="db-input" id="prof-database" type="text" placeholder="nombre_bd" />
+          </div>
+          <div class="db-form-row flex-1">
+            <label class="db-form-label" for="prof-ssl">SSL:</label>
+            <select class="db-select" id="prof-ssl">
+              <option value="off">off (desactivado)</option>
+              <option value="require">require</option>
+              <option value="verify">verify</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Plegable Túnel SSH -->
+        <fieldset class="db-fieldset">
+          <legend class="db-legend">
+            <label class="db-checkbox-label">
+              <input type="checkbox" id="prof-ssh-enabled" />
+              <span>Habilitar túnel SSH</span>
+            </label>
+          </legend>
+          <div id="prof-ssh-fields" class="db-fieldset-body hidden">
+            <div class="db-form-cols">
+              <div class="db-form-row flex-2">
+                <label class="db-form-label" for="prof-ssh-host">Host SSH:</label>
+                <input class="db-input" id="prof-ssh-host" type="text" placeholder="bastion.empresa.com" />
+              </div>
+              <div class="db-form-row flex-1">
+                <label class="db-form-label" for="prof-ssh-port">Puerto SSH:</label>
+                <input class="db-input" id="prof-ssh-port" type="number" value="22" />
+              </div>
+            </div>
+            <div class="db-form-cols">
+              <div class="db-form-row flex-1">
+                <label class="db-form-label" for="prof-ssh-user">Usuario SSH:</label>
+                <input class="db-input" id="prof-ssh-user" type="text" placeholder="ubuntu" />
+              </div>
+              <div class="db-form-row flex-1">
+                <label class="db-form-label" for="prof-ssh-auth">Autenticación:</label>
+                <select class="db-select" id="prof-ssh-auth">
+                  <option value="password">Contraseña</option>
+                  <option value="key">Clave privada</option>
+                  <option value="agent">Agente SSH</option>
+                </select>
+              </div>
+            </div>
+            <div id="prof-ssh-row-pw" class="db-form-row">
+              <label class="db-form-label" for="prof-ssh-pw">Contraseña SSH:</label>
+              <input class="db-input" id="prof-ssh-pw" type="password" placeholder="(Sin cambiar si ya existe)" />
+            </div>
+            <div id="prof-ssh-row-key" class="db-form-cols hidden">
+              <div class="db-form-row flex-2">
+                <label class="db-form-label" for="prof-ssh-keypath">Ruta clave privada:</label>
+                <input class="db-input" id="prof-ssh-keypath" type="text" placeholder="C:\Users\...\.ssh\id_rsa" />
+              </div>
+              <div class="db-form-row flex-1">
+                <label class="db-form-label" for="prof-ssh-passphrase">Passphrase:</label>
+                <input class="db-input" id="prof-ssh-passphrase" type="password" placeholder="Passphrase" />
+              </div>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="db-modal-footer">
+          <button class="db-btn" data-close="modal-profile" type="button">CANCELAR</button>
+          <button class="db-btn db-btn-primary" type="submit">GUARDAR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Crear base de datos -->
+  <div id="modal-create-db" class="db-modal-overlay hidden">
+    <div class="db-modal">
+      <div class="db-modal-header">
+        <span class="db-modal-title">NUEVA BASE DE DATOS</span>
+        <button class="db-modal-close" data-close="modal-create-db" type="button">✕</button>
+      </div>
+      <form id="form-create-db" class="db-modal-body">
+        <div class="db-form-row">
+          <label class="db-form-label" for="new-db-name">Nombre de la base de datos:</label>
+          <input class="db-input" id="new-db-name" type="text" required placeholder="mi_nueva_bd" />
+        </div>
+        <p class="db-form-hint">Se creará con juego de caracteres <code>utf8mb4</code> y cotejamiento <code>utf8mb4_unicode_ci</code>.</p>
+        <div class="db-modal-footer">
+          <button class="db-btn" data-close="modal-create-db" type="button">CANCELAR</button>
+          <button class="db-btn db-btn-primary" type="submit">CREAR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3: Crear tabla -->
+  <div id="modal-create-table" class="db-modal-overlay hidden">
+    <div class="db-modal db-modal-wide">
+      <div class="db-modal-header">
+        <span class="db-modal-title">NUEVA TABLA</span>
+        <button class="db-modal-close" data-close="modal-create-table" type="button">✕</button>
+      </div>
+      <form id="form-create-table" class="db-modal-body">
+        <div class="db-form-row">
+          <label class="db-form-label" for="new-tbl-name">Nombre de la tabla:</label>
+          <input class="db-input" id="new-tbl-name" type="text" required placeholder="usuarios" />
+        </div>
+
+        <div class="db-create-cols-head">
+          <span class="db-form-label">COLUMNAS DE LA TABLA</span>
+          <button id="btn-add-spec-col" class="db-btn db-btn-subtle" type="button">+ AÑADIR COLUMNA</button>
+        </div>
+
+        <div class="db-create-cols-list" id="create-cols-list">
+          <!-- Filas de columnas dinámicas se inyectan por JS -->
+        </div>
+
+        <div class="db-modal-footer">
+          <button class="db-btn" data-close="modal-create-table" type="button">CANCELAR</button>
+          <button class="db-btn db-btn-primary" type="submit">CREAR TABLA</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 4: Confirmación destructiva (Drop DB, Drop Table, Truncate Table) -->
+  <div id="modal-confirm-destructive" class="db-modal-overlay hidden">
+    <div class="db-modal">
+      <div class="db-modal-header">
+        <span class="db-modal-title" id="destructive-title">CONFIRMAR ACCIÓN</span>
+        <button class="db-modal-close" data-close="modal-confirm-destructive" type="button">✕</button>
+      </div>
+      <form id="form-confirm-destructive" class="db-modal-body">
+        <p id="destructive-msg" class="db-warning-text"></p>
+        <div class="db-form-row">
+          <label class="db-form-label" for="destructive-input">Escribe <strong id="destructive-expected"></strong> para confirmar:</label>
+          <input class="db-input" id="destructive-input" type="text" autocomplete="off" required />
+        </div>
+        <div class="db-modal-footer">
+          <button class="db-btn" data-close="modal-confirm-destructive" type="button">CANCELAR</button>
+          <button id="btn-destructive-submit" class="db-btn db-btn-danger" type="submit" disabled>CONFIRMAR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 5: Confirmación SQL no read-only -->
+  <div id="modal-confirm-sql" class="db-modal-overlay hidden">
+    <div class="db-modal">
+      <div class="db-modal-header">
+        <span class="db-modal-title">CONFIRMAR EJECUCIÓN SQL</span>
+        <button class="db-modal-close" data-close="modal-confirm-sql" type="button">✕</button>
+      </div>
+      <form id="form-confirm-sql" class="db-modal-body">
+        <p class="db-warning-text">El script contiene sentencias que modifican datos o esquema (INSERT, UPDATE, DELETE, DDL).</p>
+        <div class="db-form-row">
+          <label class="db-form-label" for="sql-confirm-input">Escribe <strong>EJECUTAR</strong> para confirmar:</label>
+          <input class="db-input" id="sql-confirm-input" type="text" autocomplete="off" required placeholder="EJECUTAR" />
+        </div>
+        <div class="db-modal-footer">
+          <button class="db-btn" data-close="modal-confirm-sql" type="button">CANCELAR</button>
+          <button id="btn-sql-confirm-submit" class="db-btn db-btn-danger" type="submit" disabled>EJECUTAR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 6: Insertar fila -->
+  <div id="modal-insert-row" class="db-modal-overlay hidden">
+    <div class="db-modal db-modal-wide">
+      <div class="db-modal-header">
+        <span class="db-modal-title" id="insert-row-title">INSERTAR FILA</span>
+        <button class="db-modal-close" data-close="modal-insert-row" type="button">✕</button>
+      </div>
+      <form id="form-insert-row" class="db-modal-body">
+        <div id="insert-row-fields" class="db-insert-fields-list">
+          <!-- Campos dinámicos según columnas -->
+        </div>
+        <div class="db-modal-footer">
+          <button class="db-btn" data-close="modal-insert-row" type="button">CANCELAR</button>
+          <button class="db-btn db-btn-primary" type="submit">INSERTAR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 7: Visor binario hexadecimal -->
+  <div id="modal-hex-viewer" class="db-modal-overlay hidden">
+    <div class="db-modal db-modal-wide">
+      <div class="db-modal-header">
+        <span class="db-modal-title" id="hex-modal-title">VISOR BINARIO</span>
+        <button class="db-modal-close" data-close="modal-hex-viewer" type="button">✕</button>
+      </div>
+      <div class="db-modal-body">
+        <div class="db-hex-info" id="hex-info">0 bytes</div>
+        <pre class="db-hex-dump" id="hex-dump"></pre>
+      </div>
+      <div class="db-modal-footer">
+        <button class="db-btn" data-close="modal-hex-viewer" type="button">CERRAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 8: Exportar tabla -->
+  <div id="modal-export-table" class="db-modal-overlay hidden">
+    <div class="db-modal">
+      <div class="db-modal-header">
+        <span class="db-modal-title" id="export-modal-title">EXPORTAR TABLA</span>
+        <button class="db-modal-close" data-close="modal-export-table" type="button">✕</button>
+      </div>
+      <form id="form-export-table" class="db-modal-body">
+        <p>Elige el formato de exportación para la tabla activa:</p>
+        <div class="db-export-radios">
+          <label class="db-radio-label">
+            <input type="radio" name="export-format" value="csv" checked />
+            <span>CSV (valores separados por coma con BOM UTF-8)</span>
+          </label>
+          <label class="db-radio-label">
+            <input type="radio" name="export-format" value="json" />
+            <span>JSON (matriz de objetos compacta)</span>
+          </label>
+          <label class="db-radio-label">
+            <input type="radio" name="export-format" value="sql" />
+            <span>SQL (sentencias INSERT en lotes de 100)</span>
+          </label>
+        </div>
+        <div class="db-modal-footer">
+          <button class="db-btn" data-close="modal-export-table" type="button">CANCELAR</button>
+          <button class="db-btn db-btn-primary" type="submit">EXPORTAR...</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 9: Renombrar tabla -->
+  <div id="modal-rename-table" class="db-modal-overlay hidden">
+    <div class="db-modal">
+      <div class="db-modal-header">
+        <span class="db-modal-title">RENOMBRAR TABLA</span>
+        <button class="db-modal-close" data-close="modal-rename-table" type="button">✕</button>
+      </div>
+      <form id="form-rename-table" class="db-modal-body">
+        <div class="db-form-row">
+          <label class="db-form-label" for="rename-new-name">Nuevo nombre para la tabla:</label>
+          <input class="db-input" id="rename-new-name" type="text" required />
+        </div>
+        <div class="db-modal-footer">
+          <button class="db-btn" data-close="modal-rename-table" type="button">CANCELAR</button>
+          <button class="db-btn db-btn-primary" type="submit">RENOMBRAR</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
+</body>
+</html>

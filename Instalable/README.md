@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.25.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.8.0.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -12,9 +12,24 @@ No hace falta compilar nada ni instalar Node.
 | Windows | necesario para la voz y el dictado sin conexión (SAPI) |
 | Blender | opcional: solo lo usa el Visor Alfred 3D para exportar y renderizar. Sin él, el visor abre lo ya exportado (caché o `.glb` al lado) y renderiza con el motor `VISOR` |
 | Ollama | opcional: es el cerebro de **Mente local**. Se instala desde el propio panel con `winget` |
+| MariaDB / MySQL | opcional: solo para **Bases de datos**. Cuenta con `mysql_native_password` o `ed25519` (no `gssapi`) |
 
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
+
+## Novedades de la 0.8.0
+
+- **Bases de datos (MariaDB)**: pestaña central con el icono de cilindro de `Control`. Conexiones
+  con la contraseña en el almacén seguro de VS Code, TLS y **túnel SSH** (contraseña, clave o
+  agente); la huella del servidor se recuerda y se verifica.
+- **Explorador de bases y tablas**: crear base y eliminarla solo si está vacía. Crear, eliminar,
+  truncar y renombrar tablas.
+- **Rejilla de datos**: paginación, orden por columna y un buscador que recorre todas las columnas.
+  Edición de celdas, inserción y borrado por lotes con clave primaria o índice único.
+- **Consola SQL** con confirmación escrita para las sentencias que escriben.
+- **Copia completa a `.sql`** con `mariadb-dump` (o un volcador propio si no está), y exportación de
+  una tabla a CSV, JSON o SQL. Ajuste nuevo: `opencodeAgents.mariadbDumpPath`.
+- **Aviso**: las cuentas con `gssapi` o SSPI no sirven; usa `mysql_native_password` o `ed25519`.
 
 ## Novedades de la 0.7.25
 
@@ -257,19 +272,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.25.vsix`.
+3. Elige `opencode-alfred-0.8.0.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.25.vsix
+code --install-extension opencode-alfred-0.8.0.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.25.vsix --force
+code --install-extension opencode-alfred-0.8.0.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

@@ -43,7 +43,7 @@ Bienvenidos a Alfred.
   agentes, MCP, skills y plugins de cada uno, con interruptores para activar y
   desactivar. Y una vista **Control** con el grupo de sesión (`‹ [terminal] ›`) y dos filas de
   botones de icono: los conectores, `ASIGNAR AGENTES`, `OLLAMA` (Mente local), el generador de
-  imágenes y el chatbot, más pizarra, dictado, voz y estadísticas de prompt.
+  imágenes y el chatbot, más pizarra, dictado, voz, estadísticas de prompt y bases de datos.
 - **Contexto bajo control.** Cuánto has gastado de la ventana del modelo, qué parte es
   prompt fijo, y un botón para compactar antes de que reviente.
 - **Estadísticas de verdad.** Tokens, coste, tiempo y sesiones por agente, leídos en
@@ -83,6 +83,10 @@ Bienvenidos a Alfred.
   pestañas (disquete y carpeta), en `.alfred/.pizarras/`.
 - **Visor Alfred 3D.** Abre ficheros `.blend` como pestaña de edición: órbita, objetos,
   cámaras, luces, animaciones y render de un frame o de toda la tirada. Con Blender o sin él.
+- **Bases de datos (MariaDB).** Pestaña central con su botón en `Control`: conexiones con
+  contraseña en el almacén de VS Code, TLS y túnel SSH; explorador de bases y tablas; rejilla con
+  paginación, buscador, edición y borrado por lotes; consola SQL con confirmación para lo que
+  escribe; y copia completa a `.sql` con `mariadb-dump`, más exportación de tablas a CSV, JSON o SQL.
 
 Todo en español, en una sola extensión.
 
@@ -104,11 +108,12 @@ formato que el CLI espera, sin pisar comentarios ni claves que no gestiona la ex
 | `<raíz>/.alfred/adjuntos` | Adjuntos del dictado; sin proyecto, en el almacenamiento global |
 | `<raíz>/.alfred/imagenes` | Imágenes generadas por el panel de imágenes; sin proyecto, en el almacenamiento global |
 | `<almacén global>/alfred3d/` y `<nombre>.glb` junto al `.blend` | Caché del visor 3D y sidecar que se lee cuando no hay Blender; el `.blend` nunca se guarda |
+| Servidores MariaDB que des de alta | Lee y escribe datos y estructura; la contraseña va a `secrets`; las copias `.sql` van a la carpeta que elijas |
 
 No escribe `~/.claude.json` (las conmutaciones de MCP pasan por el propio CLI) y nunca
 manda credenciales al webview: las claves viven en `secrets` de VS Code. Solo sale a la
 red si lo pides, al consultar límites de consumo, al generar imágenes o al elegir un motor
-de voz o dictado en la nube.
+de voz o dictado en la nube, o al conectar a una base MariaDB que hayas dado de alta.
 
 ## Instalación
 

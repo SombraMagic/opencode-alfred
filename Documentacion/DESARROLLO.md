@@ -31,6 +31,8 @@
 │  │  ├─ projectExplorer/    explorador de ficheros del proyecto: `model`, `scanner`,
 │  │  │                      `search`, `git` y `operations` (solo `operations.ts` importa
 │  │  │                      `vscode`: la papelera)
+│  │  ├─ databases/          MariaDB: conexiones, túnel SSH, introspección, CRUD, consola,
+│  │  │                      copia `.sql` y exportación (sin `vscode`)
 │  │  ├─ mcp/                servidor `mcp_alfred` (voz y pizarra) → `dist/alfred-mcp.js`
 │  │  ├─ voice/              motores de voz y dictado
 │  │  ├─ sysmon/             monitor del equipo: lanza `resources/sysmon-lhm.ps1` y lee
@@ -49,7 +51,10 @@
 ```
 
 El panel de Mente local es `src/panels/menteLocalPanel.ts` con `media/menteLocal.js` y
-`media/menteLocal.css`. En `src/ollama/*` solo `service.ts` importa `vscode` (`client`,
+`media/menteLocal.css`. La pestaña de **Bases de datos** es `src/panels/databasesPanel.ts` con
+`media/databases.html`, `databases.js` y `databases.css`; el backend es `src/databases/` (`mysql2`
+y `ssh2` van externos en esbuild). El ajuste `opencodeAgents.mariadbDumpPath` apunta al binario de
+la copia completa. En `src/ollama/*` solo `service.ts` importa `vscode` (`client`,
 `process` y `provider` no); el alta de `provider.ollama` va al config global con
 `jsonc-parser` y `writeAtomic`.
 
