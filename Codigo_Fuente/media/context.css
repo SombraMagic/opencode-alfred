@@ -1,18 +1,11 @@
 /* Contexto — HUD de la ventana de contexto (matriz de celdas + leyenda fija) */
 
 :root {
-  --text-soft: #9db6c6;
   /* Un color por grupo de la leyenda; el mismo en la matriz y en la leyenda. */
   --g-sistema: var(--neon);
   --g-conversacion: var(--magenta);
   --g-sin-atribuir: var(--amber);
-  --g-libre: #7f97a8;
-}
-
-/* tokens.css no oscurece todo en tema claro: aquí sí. */
-body.vscode-light {
-  --text-soft: #47606f;
-  --g-libre: #8aa0ac;
+  --g-libre: color-mix(in srgb, var(--text) 55%, transparent);
 }
 
 /* El color de cada grupo lo consumen las celdas y el cuadradito de la leyenda. */
@@ -25,7 +18,7 @@ body.vscode-light {
   padding: 0 10px 10px;
 }
 
-/* Cabecera más apretada que la de tokens.css: aquí cada píxel de alto cuenta. */
+/* Cabecera más apretada que la de theme/base.css: aquí cada píxel de alto cuenta. */
 .hud-header {
   padding: 6px 0;
   margin-bottom: 8px;
@@ -228,7 +221,7 @@ abbr {
   margin: 0 0 10px;
   padding: 8px;
   border-left: 3px solid var(--magenta);
-  background: rgba(255, 45, 149, 0.1);
+  background: color-mix(in srgb, var(--magenta) 10%, transparent);
   color: var(--text);
   font-size: 10px;
   line-height: 1.45;

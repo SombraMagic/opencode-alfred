@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data: blob:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="%%TOKENS%%" rel="stylesheet" />
+%%THEME_LINKS%%
 <link href="%%STYLE%%" rel="stylesheet" />
 <title>Pizarra</title>
 </head>
@@ -232,6 +232,7 @@
       </div>
     </div>
   </div>
+%%THEME_SCRIPT%%
 <script nonce="%%NONCE%%" src="%%WORKFLOW%%"></script>
 <script nonce="%%NONCE%%" src="%%UI%%"></script>
 <script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>

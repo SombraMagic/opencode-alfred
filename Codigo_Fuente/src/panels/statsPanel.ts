@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { StatsSnapshot } from "../stats/opencodeStats";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 export interface StatsPanelHandlers {
   reset(agent?: string): Promise<void>;
@@ -56,6 +57,7 @@ export class StatsPanel {
       async (message: { type?: string; agent?: string }) => {
         switch (message.type) {
           case "ready":
+            this.postTheme();
             if (this.last) {
               this.post({ type: "stats", payload: this.last });
             }
@@ -91,11 +93,13 @@ export class StatsPanel {
     void this.panel.webview.postMessage(message);
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "stats.css")
-    );
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "stats.js")
     );
@@ -112,7 +116,7 @@ export class StatsPanel {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="${styleUri}" rel="stylesheet" />
+${themeLinks(this.extensionUri, webview, ["stats.css"])}
 <title>Estadísticas de agentes</title>
 </head>
 <body>
@@ -160,6 +164,7 @@ export class StatsPanel {
 
   <p class="hint">El botón <strong>Reiniciar</strong> guarda un punto de partida por agente: el contador muestra 0 y vuelve a sumar. <strong>Ver histórico</strong> borra ese punto de partida. Los datos provienen de las bases de datos de opencode (nada se escribe en ellas).</p>
 </div>
+${themeScript(this.extensionUri, webview, nonce)}
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

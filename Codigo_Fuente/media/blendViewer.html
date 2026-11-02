@@ -5,7 +5,7 @@
 <!-- `blob:` en connect-src: three baja las texturas embebidas del GLB con fetch() sobre un blob:. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data: blob:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%'; font-src %%CSP%%; connect-src %%CSP%% blob: data:;" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="%%TOKENS%%" rel="stylesheet" />
+%%THEME_LINKS%%
 <link href="%%STYLE%%" rel="stylesheet" />
 <title>Visor Alfred 3D</title>
 </head>
@@ -129,6 +129,7 @@
       }
     }
   </script>
+  %%THEME_SCRIPT%%
   <script type="module" nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
 </body>
 </html>

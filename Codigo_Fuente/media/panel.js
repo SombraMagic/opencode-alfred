@@ -74,9 +74,9 @@
   let frames = 0;
   let accent = "#00e5ff";
 
-  /** Paleta de Claude: coincide con los puntos de media/claudeAgent.css. */
+  /** Paleta de Claude: coincide con los puntos de media/claudeAgent.css.
+      El rojo sale del token del tema (`--danger`) porque también es el rojo de estado. */
   const PALETTE = {
-    red: "#e05a5a",
     blue: "#4a9eff",
     green: "#3fb950",
     yellow: "#d4a72c",
@@ -130,6 +130,7 @@
     if (typeof value !== "string") return "";
     if (/^#[0-9a-f]{6}$/i.test(value)) return value;
     const name = value.toLowerCase();
+    if (name === "red") return tokenColor("--danger") || tokenColor("--magenta");
     // hasOwn: un "constructor" o "__proto__" no debe colar como color.
     return Object.hasOwn(PALETTE, name) ? PALETTE[name] : "";
   }
@@ -164,9 +165,14 @@
     };
   }
 
+  /** Color de un token del tema: el lienzo de las tarjetas no entiende `var()`. */
+  function tokenColor(name) {
+    return getComputedStyle(document.body).getPropertyValue(name).trim();
+  }
+
   /** Acento del tema actual, para teñir los píxeles. */
   function readAccent() {
-    accent = getComputedStyle(document.body).getPropertyValue("--neon").trim() || "#00e5ff";
+    accent = tokenColor("--neon") || "#00e5ff";
   }
 
   function drawCard(card) {

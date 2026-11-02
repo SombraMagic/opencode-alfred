@@ -40,6 +40,7 @@ import { runConsole, statementsOf } from "../databases/console";
 import { exportTable, type ExportFormat } from "../databases/export";
 import { dumpDatabase, type DumpConnection, type DumpOptions } from "../databases/dump";
 import { ident, qualified } from "../databases/quote";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 const KEY_PROFILES = "opencodeAgents.dbProfiles";
 const KEY_HOST_KEYS = "opencodeAgents.sshHostKeys";
@@ -512,6 +513,7 @@ export class DatabasesPanel {
     this.panel.webview.onDidReceiveMessage(
       (message: { type?: string; action?: unknown }) => {
         if (message?.type === "ready") {
+          this.postTheme();
           void this.init();
           return;
         }
@@ -1472,6 +1474,11 @@ export class DatabasesPanel {
     void this.panel.webview.postMessage({ type: "state", state });
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    void this.panel.webview.postMessage({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     try {
       const nonce = getNonce();
@@ -1484,7 +1491,8 @@ export class DatabasesPanel {
       return template
         .replaceAll("%%CSP%%", webview.cspSource)
         .replaceAll("%%NONCE%%", nonce)
-        .replaceAll("%%TOKENS%%", uriIn("tokens.css"))
+        .replaceAll("%%THEME_LINKS%%", themeLinks(this.context.extensionUri, webview, []))
+        .replaceAll("%%THEME_SCRIPT%%", themeScript(this.context.extensionUri, webview, nonce))
         .replaceAll("%%STYLE%%", uriIn("databases.css"))
         .replaceAll("%%SCRIPT%%", uriIn("databases.js"));
     } catch (err) {

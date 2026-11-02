@@ -1,4 +1,4 @@
-/* Asignación — tablero de agentes, favoritos y modelos. La base vive en tokens.css. */
+/* Asignación — tablero de agentes, favoritos y modelos. La base vive en theme/base.css. */
 
 /* La vista ocupa el alto justo: scrollean las columnas, nunca la página. */
 html,
@@ -20,7 +20,6 @@ body {
   padding: 0 12px 8px;
   /* Regla de color del panel: `--text-dim` SOLO para lo apagado (`:disabled`, vacíos,
      placeholder); de lo secundario, solo el precio usa este intermedio. */
-  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
 }
 
 /* ── Cabecera ──────────────────────────────────────────── */

@@ -192,6 +192,10 @@
         "category": "Alfred"
       },
       {
+        "command": "opencodeAgents.theme",
+        "title": "Alfred: Estilo visual"
+      },
+      {
         "command": "opencodeAgents.resetAllStats",
         "title": "opencode: Reiniciar contadores de todos los agentes"
       },
@@ -359,6 +363,20 @@
           },
           "default": [],
           "description": "Ids de proveedor cuyo consumo se sigue en el panel «Límites de consumo». Se marcan desde la fila de cada conector."
+        },
+        "opencodeAgents.theme": {
+          "type": "string",
+          "enum": [
+            "alfred",
+            "manoli"
+          ],
+          "enumDescriptions": [
+            "Tema Alfred: HUD oscuro, el aspecto de siempre.",
+            "Tema Manoli: grises claros y tonos pastel."
+          ],
+          "default": "alfred",
+          "scope": "window",
+          "description": "Estilo visual de los paneles de Alfred."
         },
         "opencodeAgents.goPlan": {
           "type": "string",

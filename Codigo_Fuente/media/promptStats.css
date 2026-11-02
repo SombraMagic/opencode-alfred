@@ -1,13 +1,8 @@
 /* Prompts — HUD de la pestaña de estadísticas de prompts */
 
-:root {
-  color-scheme: dark light;
-}
-
 body {
   /* Texto secundario (metadatos, rótulos y estados vacíos). `--text-dim` se queda
      solo para lo apagado y lo deshabilitado. */
-  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
   padding: 0 10px 18px;
 }
 
@@ -143,10 +138,6 @@ body {
   font-size: 10px;
   line-height: 1.45;
   overflow-wrap: anywhere;
-}
-
-body.vscode-light .banner {
-  background: color-mix(in srgb, var(--magenta) 8%, transparent);
 }
 
 .notice {
@@ -521,11 +512,7 @@ body.vscode-light .banner {
 }
 
 .lane-icon.root {
-  border: 1px solid color-mix(in srgb, #fff 55%, transparent);
-}
-
-body.vscode-light .lane-icon.root {
-  border-color: color-mix(in srgb, #000 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 30%, transparent);
 }
 
 .lane-name {
@@ -580,11 +567,7 @@ body.vscode-light .lane-icon.root {
 }
 
 .seg.root {
-  border: 1px solid color-mix(in srgb, #fff 50%, transparent);
-}
-
-body.vscode-light .seg.root {
-  border-color: color-mix(in srgb, #000 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 30%, transparent);
 }
 
 .axis-track {

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /** Modelo del catálogo vivo, en la forma que espera el tablero de asignación. */
 export interface ModelEntry {
@@ -156,6 +157,7 @@ export class AssignPanel {
     this.panel.webview.onDidReceiveMessage(
       (message: { type?: string; action?: AssignAction }) => {
         if (message?.type === "ready") {
+          this.postTheme();
           if (this.last) {
             this.post({ type: "assign", payload: this.last });
           }
@@ -270,11 +272,13 @@ export class AssignPanel {
     void this.panel.webview.postMessage(message);
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const tokensUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
-    );
     const styleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "assign.css")
     );
@@ -290,7 +294,8 @@ export class AssignPanel {
     return template
       .replaceAll("%%CSP%%", webview.cspSource)
       .replaceAll("%%NONCE%%", nonce)
-      .replaceAll("%%TOKENS%%", tokensUri.toString())
+      .replaceAll("%%THEME_LINKS%%", themeLinks(this.extensionUri, webview, []))
+      .replaceAll("%%THEME_SCRIPT%%", themeScript(this.extensionUri, webview, nonce))
       .replaceAll("%%STYLE%%", styleUri.toString())
       .replaceAll("%%SCRIPT%%", scriptUri.toString());
   }

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { PromptStatsSnapshot } from "../stats/promptFlow";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 export interface PromptStatsPanelHandlers {
   refresh(): Promise<void>;
@@ -71,6 +72,7 @@ export class PromptStatsPanel {
       async (message: { type?: string; on?: boolean; ids?: unknown }) => {
         switch (message.type) {
           case "ready":
+            this.postTheme();
             this.post({ type: "showGaps", on: this.showGaps });
             if (this.last) {
               this.post({ type: "promptStats", payload: this.last });
@@ -118,14 +120,13 @@ export class PromptStatsPanel {
     void this.panel.webview.postMessage(message);
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const tokensUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "promptStats.css")
-    );
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "promptStats.js")
     );
@@ -142,8 +143,7 @@ export class PromptStatsPanel {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="${tokensUri}" rel="stylesheet" />
-<link href="${styleUri}" rel="stylesheet" />
+${themeLinks(this.extensionUri, webview, ["promptStats.css"])}
 <title>Estadísticas de prompts</title>
 </head>
 <body>
@@ -232,6 +232,7 @@ export class PromptStatsPanel {
     </section>
   </div>
 </div>
+${themeScript(this.extensionUri, webview, nonce)}
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

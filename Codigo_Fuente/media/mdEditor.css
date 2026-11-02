@@ -1,6 +1,6 @@
 /* Resaltado de Markdown compartido (media/mdEditor.js).
-   Cada panel enlaza tokens.css, su hoja y ESTA después: los colores salen de
-   las variables de tokens.css (tema claro incluido), sin definir ninguna aquí. */
+   Cada panel enlaza theme/base.css, su hoja y ESTA después: los colores salen de
+   las variables de theme/base.css (tema claro incluido), sin definir ninguna aquí. */
 
 /* ── Overlay de las textarea ───────────────────────────── */
 /* El envoltorio no pinta nada: solo da el contexto de posición. */

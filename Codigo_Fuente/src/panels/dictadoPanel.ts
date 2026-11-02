@@ -34,6 +34,7 @@ import {
 import { PauseDetector } from "../voice/pause.js";
 import { setMeasuredFloor } from "../voice/service.js";
 import { PizarraPanel } from "./pizarraPanel.js";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /** El bloc de notas sobrevive al panel y a VS Code. */
 const KEY_NOTE = "voz.dictado.note";
@@ -147,6 +148,11 @@ export class VozDictado {
     else this.pending.push(msg);
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme() {
+    this.post({ type: "theme", theme: currentTheme() });
+  }
+
   private flush() {
     this.ready = true;
     const queued = this.pending;
@@ -162,6 +168,7 @@ export class VozDictado {
     switch (msg?.type) {
       case "ready":
         this.flush();
+        this.postTheme();
         break;
       case "start":
         await this.startListening();
@@ -615,15 +622,14 @@ export class VozDictado {
   html(webview: vscode.Webview): string {
     const media = vscode.Uri.joinPath(this.context.extensionUri, "media");
     const nonce = Math.random().toString(36).slice(2);
-    const css = [
-      webview.asWebviewUri(vscode.Uri.joinPath(media, "tokens.css")),
-      webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.css")),
-      webview.asWebviewUri(vscode.Uri.joinPath(media, "dictado.css")),
-      webview.asWebviewUri(vscode.Uri.joinPath(media, "mdEditor.css")),
-    ]
-      .map((uri) => `<link rel="stylesheet" href="${uri}" />`)
-      .join("\n");
-    const script = `<script nonce="${nonce}" src="${webview.asWebviewUri(
+    const css = themeLinks(
+      this.context.extensionUri,
+      webview,
+      ["panel.css", "dictado.css"],
+      ["mdEditor.css"]
+    );
+    const script = `${themeScript(this.context.extensionUri, webview, nonce)}
+<script nonce="${nonce}" src="${webview.asWebviewUri(
       vscode.Uri.joinPath(media, "mdEditor.js"),
     )}"></script>
 <script nonce="${nonce}" src="${webview.asWebviewUri(

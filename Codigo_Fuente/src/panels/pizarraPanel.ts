@@ -20,6 +20,7 @@ import { readdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { isRecord, Scene, sanitizeScene } from "../pizarra/scene";
 import { readSceneFile, readSceneText, SCENE_FILE, WORK_FILE, writeAtomic, writeSceneFile } from "../pizarra/files";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 const execFileAsync = promisify(execFile);
 
@@ -602,6 +603,7 @@ export class PizarraPanel {
     switch (message?.type) {
       case "ready":
         this.ready = true;
+        this.postTheme();
         this.flush();
         return;
       case "bgColor": {
@@ -910,6 +912,11 @@ export class PizarraPanel {
     }
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
+  }
+
   private flush(): void {
     const queued = this.pending;
     this.pending = [];
@@ -931,7 +938,8 @@ export class PizarraPanel {
     return template
       .replaceAll("%%CSP%%", webview.cspSource)
       .replaceAll("%%NONCE%%", nonce)
-      .replaceAll("%%TOKENS%%", uriIn("tokens.css"))
+      .replaceAll("%%THEME_LINKS%%", themeLinks(this.context.extensionUri, webview, []))
+      .replaceAll("%%THEME_SCRIPT%%", themeScript(this.context.extensionUri, webview, nonce))
       .replaceAll("%%STYLE%%", uriIn("pizarra.css"))
       .replaceAll("%%WORKFLOW%%", uriIn("pizarraWorkflow.js"))
       .replaceAll("%%UI%%", uriIn("pizarraUi.js"))

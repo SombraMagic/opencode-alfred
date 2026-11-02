@@ -80,6 +80,7 @@ import {
 import { VozPanel } from "./panels/voicePanel";
 import { VoiceSettingsPanel } from "./panels/voiceSettingsPanel";
 import { VozDictado } from "./panels/dictadoPanel";
+import { currentTheme, THEMES } from "./panels/theme";
 import { speak, syncSharedConfig } from "./voice/service";
 import { writeEntorno } from "./voice/core/shared.js";
 import { installMcp, MCP_NAME, MCP_OFF_KEY, nodeBinary, serverScriptPath } from "./voice/mcpInstaller";
@@ -183,6 +184,7 @@ export function activate(context: vscode.ExtensionContext): void {
     onAction: (action) => handleAction(action),
     onReady: () => updateExplorer(),
   });
+  const blendViewer = new BlendViewerProvider(context);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(ExplorerPanel.viewType, explorer, {
       webviewOptions: { retainContextWhenHidden: true },
@@ -195,7 +197,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // Visor de .blend como editor de solo lectura: el fichero nunca se modifica.
     vscode.window.registerCustomEditorProvider(
       BlendViewerProvider.viewType,
-      new BlendViewerProvider(context),
+      blendViewer,
       { webviewOptions: { retainContextWhenHidden: false } }
     )
   );
@@ -2374,6 +2376,25 @@ export function activate(context: vscode.ExtensionContext): void {
       DatabasesPanel.open(context)
     ),
 
+    // El tema se aplica solo: lo reparte el oyente de configuración. Aquí no se avisa.
+    vscode.commands.registerCommand("opencodeAgents.theme", async () => {
+      const actual = currentTheme();
+      const picked = await vscode.window.showQuickPick(
+        THEMES.map((item) => ({
+          label: item.label,
+          description: item.id === actual ? "activo" : item.description,
+          id: item.id,
+        })),
+        { placeHolder: "Estilo visual de Alfred" }
+      );
+      if (!picked) {
+        return;
+      }
+      await vscode.workspace
+        .getConfiguration("opencodeAgents")
+        .update("theme", picked.id, vscode.ConfigurationTarget.Global);
+    }),
+
     vscode.commands.registerCommand(
       "opencodeAgents.openInAlfred3D",
       async (uri?: vscode.Uri) => {
@@ -3098,6 +3119,38 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
+  /**
+   * Reparte el estilo visual vigente a todos los paneles abiertos. Cada panel decide
+   * cómo avisar a su webview; aquí solo se recorren los que ya existen.
+   */
+  function publishTheme(): void {
+    for (const panel of [
+      AssignPanel.current,
+      ChatbotPanel.current,
+      ClaudeAgentPanel.current,
+      ConnectorsPanel.current,
+      DatabasesPanel.current,
+      EditorPanel.current,
+      ImageGenPanel.current,
+      MenteLocalPanel.current,
+      PizarraPanel.current,
+      ProjectExplorerPanel.current,
+      PromptStatsPanel.current,
+      StatsPanel.current,
+      VoiceSettingsPanel.current,
+    ]) {
+      panel?.postTheme();
+    }
+    InstructionsPanel.broadcastTheme();
+    explorer.postTheme();
+    control.postTheme();
+    contextView.postTheme();
+    limitsView.postTheme();
+    blendViewer.postTheme();
+    voicePanel?.postTheme();
+    dictado?.postTheme();
+  }
+
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       refresh();
@@ -3110,6 +3163,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("opencodeAgents")) {
+        if (e.affectsConfiguration("opencodeAgents.theme")) {
+          publishTheme();
+        }
         restartPolling();
         refresh();
         if (

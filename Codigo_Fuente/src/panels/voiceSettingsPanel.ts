@@ -19,6 +19,7 @@ import {
   whisperInstalled,
   type SttEngine,
 } from "../voice/stt.js";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /**
  * Pestaña central con los ajustes de voz, micrófono y Whisper. Vive fuera de
@@ -116,6 +117,7 @@ export class VoiceSettingsPanel {
   private async onMessage(msg: any) {
     switch (msg?.type) {
       case "ready":
+        this.postTheme();
         await this.pushInitial();
         break;
       case "loadVoices": {
@@ -261,12 +263,15 @@ export class VoiceSettingsPanel {
     void this.panel.webview.postMessage(msg);
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
+  }
+
   /** Genera el HTML de la pestaña. */
   private html(webview: vscode.Webview): string {
     const media = vscode.Uri.joinPath(this.context.extensionUri, "media");
-    const tokensUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "tokens.css"));
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.css"));
-    const ownStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "voiceSettings.css"));
+    const nonce = getNonce();
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "voiceSettings.js"));
 
     return `<!DOCTYPE html>
@@ -275,9 +280,7 @@ export class VoiceSettingsPanel {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource};" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link rel="stylesheet" href="${tokensUri}" />
-<link rel="stylesheet" href="${styleUri}" />
-<link rel="stylesheet" href="${ownStyleUri}" />
+${themeLinks(this.context.extensionUri, webview, ["panel.css", "voiceSettings.css"])}
 </head>
 <body>
   <div class="settings">
@@ -342,6 +345,7 @@ export class VoiceSettingsPanel {
     </div>
     <div class="notice" id="notice" hidden></div>
   </div>
+  ${themeScript(this.context.extensionUri, webview, nonce)}
   <script src="${scriptUri}"></script>
 </body>
 </html>`;
@@ -351,4 +355,13 @@ export class VoiceSettingsPanel {
     VoiceSettingsPanel.current = undefined;
     for (const d of this.disposables) d.dispose();
   }
+}
+
+function getNonce(): string {
+  let text = "";
+  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
 }

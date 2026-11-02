@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import type { ExplorerAction } from "./explorerPanel";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 export interface ControlData {
   sessionAgent: string;
@@ -97,6 +98,7 @@ export class ControlPanel implements vscode.WebviewViewProvider {
     view.webview.onDidReceiveMessage((message: { type?: string; action?: unknown }) => {
       if (message?.type === "ready") {
         this.ready = true;
+        this.postTheme();
         if (this.last) {
           this.post(this.last);
         }
@@ -132,17 +134,13 @@ export class ControlPanel implements vscode.WebviewViewProvider {
     void this.view?.webview.postMessage({ type: "data", payload: data });
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    void this.view?.webview.postMessage({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const tokensUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "explorer.css")
-    );
-    const controlUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "control.css")
-    );
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "control.js")
     );
@@ -160,9 +158,7 @@ export class ControlPanel implements vscode.WebviewViewProvider {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="${tokensUri}" rel="stylesheet" />
-<link href="${styleUri}" rel="stylesheet" />
-<link href="${controlUri}" rel="stylesheet" />
+${themeLinks(this.extensionUri, webview, ["explorer.css", "control.css"])}
 <title>ALFRED // CONTROL</title>
 </head>
 <body>
@@ -190,6 +186,7 @@ export class ControlPanel implements vscode.WebviewViewProvider {
     </div>
   </div>
 </div>
+${themeScript(this.extensionUri, webview, nonce)}
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

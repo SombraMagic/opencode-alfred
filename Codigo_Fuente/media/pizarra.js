@@ -15,6 +15,35 @@
   /** Widgets de wireframe de la capa INTERFACES (`pizarraUi.js`). Sin ella, la pizarra va igual. */
   const PZUi = globalThis.PZUi || null;
 
+  /** Acento del HUD para el overlay del lienzo: el canvas no entiende `var()`.
+      Se cachea hasta que cambia `data-theme` (lo pone media/theme.js). */
+  let tonoNeon = { tema: null, color: null };
+  function neonHud() {
+    const tema = document.body.dataset.theme || "";
+    if (tonoNeon.tema !== tema) {
+      const valor = getComputedStyle(document.body).getPropertyValue("--neon").trim();
+      tonoNeon = { tema, color: valor || "#00e5ff" };
+    }
+    return tonoNeon.color;
+  }
+
+  /** Fondo del tema para los huecos de las asas: misma caché por tema que `neonHud`. */
+  let tonoFondo = { tema: null, color: null };
+  function fondoHud() {
+    const tema = document.body.dataset.theme || "";
+    if (tonoFondo.tema !== tema) {
+      const valor = getComputedStyle(document.body).getPropertyValue("--bg").trim();
+      tonoFondo = { tema, color: valor || "#0b1418" };
+    }
+    return tonoFondo.color;
+  }
+
+  /** El tema cambió: se sueltan los dos colores cacheados del overlay. */
+  function olvidaTonosHud() {
+    tonoNeon = { tema: null, color: tonoNeon.color };
+    tonoFondo = { tema: null, color: tonoFondo.color };
+  }
+
   /** Alto del lienzo del panel: referencia de la escala. `W` sigue al marco; un lienzo fijado cambia los dos. */
   const SIZE = 1024;
   /** Topes del ancho del lienzo: fuera no se dibuja, dentro se copia el aspecto del panel. */
@@ -1982,7 +2011,8 @@
     // líneas se distingan. El ajuste sigue usando el paso fino.
     const salto = rejillaTam * Math.max(1, Math.ceil(3 / pasoPx));
     t.save();
-    t.strokeStyle = "rgba(0, 229, 255, 0.12)";
+    t.strokeStyle = neonHud();
+    t.globalAlpha = 0.12;
     t.lineWidth = Math.max(0.5, px(1));
     t.beginPath();
     for (let x = 0; x <= W; x += salto) {
@@ -2994,7 +3024,7 @@
 
   function cuadro(t, p, lado, color, hueco) {
     if (hueco) {
-      t.fillStyle = "#0b1418";
+      t.fillStyle = fondoHud();
       t.fillRect(p.x - lado / 2, p.y - lado / 2, lado, lado);
     }
     t.strokeStyle = color;
@@ -3087,7 +3117,7 @@
     const fantasma = (x, y, w, h, rotulo) => {
       octx.save();
       octx.globalAlpha = 0.5;
-      octx.strokeStyle = "#00e5ff";
+      octx.strokeStyle = neonHud();
       octx.lineWidth = px(2);
       octx.setLineDash([px(6), px(4)]);
       octx.strokeRect(x, y, w, h);
@@ -3106,7 +3136,7 @@
     const cajaHost = (r) => {
       octx.save();
       octx.globalAlpha = 0.6;
-      octx.strokeStyle = "#00e5ff";
+      octx.strokeStyle = neonHud();
       octx.lineWidth = px(2);
       octx.setLineDash([px(6), px(4)]);
       octx.strokeRect(r.x, r.y, r.w, r.h);
@@ -3139,24 +3169,26 @@
       (tool === "select" || tool === "node") &&
       selNodes.indexOf(hoverNode) < 0
     ) {
-      contornoNodo(octx, hoverNode, "#00e5ff", true);
+      contornoNodo(octx, hoverNode, neonHud(), true);
       for (const a of asasLado(hoverNode)) cuadro(octx, a.p, lado, "#2f8fff");
     }
 
     if (flujoVisible && selNodes.length === 1) {
       const n = selNodes[0];
-      contornoNodo(octx, n, "#00e5ff", false);
+      contornoNodo(octx, n, neonHud(), false);
       for (const a of asasLado(n)) cuadro(octx, a.p, lado, "#2f8fff");
-      for (const a of asasEsquina(n)) cuadro(octx, a.p, px(HANDLE), "#00e5ff");
+      for (const a of asasEsquina(n)) cuadro(octx, a.p, px(HANDLE), neonHud());
     } else if (flujoVisible && selNodes.length > 1) {
       const b = cajaDeNodos(selNodes);
       octx.save();
-      octx.strokeStyle = "#00e5ff";
+      octx.strokeStyle = neonHud();
       octx.lineWidth = px(2);
       octx.setLineDash([px(8), px(6)]);
       octx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
       octx.setLineDash([]);
-      for (const n of selNodes) contornoNodo(octx, n, "rgba(0, 229, 255, 0.45)", false);
+      octx.globalAlpha = 0.45;
+      for (const n of selNodes) contornoNodo(octx, n, neonHud(), false);
+      octx.globalAlpha = 1;
       octx.restore();
     }
 
@@ -3166,8 +3198,8 @@
       const rot = hs[hs.length - 1];
       const ladoImagen = px(HANDLE);
       octx.save();
-      octx.strokeStyle = "#00e5ff";
-      octx.fillStyle = "#00e5ff";
+      octx.strokeStyle = neonHud();
+      octx.fillStyle = neonHud();
       octx.lineWidth = px(2);
       octx.beginPath();
       octx.moveTo(cs[0].x, cs[0].y);
@@ -3189,10 +3221,10 @@
     if (state.layers.ui !== false && PZUi && selUi && state.ui.nodes.indexOf(selUi) >= 0) {
       const b = PZUi.place(state.ui.nodes, selUi);
       octx.save();
-      octx.strokeStyle = "#00e5ff";
+      octx.strokeStyle = neonHud();
       octx.lineWidth = px(2);
       octx.strokeRect(b.x, b.y, b.w, b.h);
-      for (const asa of PZUi.handlePoints(b)) cuadro(octx, asa, px(HANDLE_NODO), "#00e5ff");
+      for (const asa of PZUi.handlePoints(b)) cuadro(octx, asa, px(HANDLE_NODO), neonHud());
       octx.restore();
     }
 
@@ -3201,7 +3233,8 @@
       if (r && r.points.length >= 2) {
         const pts = r.points;
         octx.save();
-        octx.strokeStyle = "rgba(0, 229, 255, 0.55)";
+        octx.strokeStyle = neonHud();
+        octx.globalAlpha = 0.55;
         octx.lineWidth = px(8);
         PZFlow.roundedPath(octx, pts, 10);
         octx.stroke();
@@ -3216,15 +3249,15 @@
               .slice(1, -1)
               .map((i) => pts[i]);
         octx.save();
-        octx.strokeStyle = "#00e5ff";
-        octx.fillStyle = "#00e5ff";
+        octx.strokeStyle = neonHud();
+        octx.fillStyle = neonHud();
         octx.lineWidth = px(2);
         for (const p of [pts[0], pts[pts.length - 1]]) {
           octx.beginPath();
           octx.arc(p.x, p.y, px(5), 0, Math.PI * 2);
           octx.fill();
         }
-        for (const p of asas) cuadro(octx, p, px(9), "#00e5ff");
+        for (const p of asas) cuadro(octx, p, px(9), neonHud());
         const hasta = codos ? codos - 1 : usuario.length - 3;
         for (let s = 1; s <= hasta; s++) {
           const a = usuario[s];
@@ -3233,9 +3266,9 @@
           const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
           octx.beginPath();
           octx.arc(m.x, m.y, px(3), 0, Math.PI * 2);
-          octx.fillStyle = "#0b1418";
+          octx.fillStyle = fondoHud();
           octx.fill();
-          octx.strokeStyle = "#00e5ff";
+          octx.strokeStyle = neonHud();
           octx.stroke();
         }
         octx.restore();
@@ -3246,11 +3279,13 @@
       const a = drag.from;
       const b = drag.to;
       octx.save();
-      octx.strokeStyle = "#00e5ff";
-      octx.fillStyle = "rgba(0, 229, 255, 0.08)";
+      octx.strokeStyle = neonHud();
+      octx.fillStyle = neonHud();
+      octx.globalAlpha = 0.08;
       octx.lineWidth = px(1.5);
       octx.setLineDash([px(6), px(4)]);
       octx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+      octx.globalAlpha = 1;
       octx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
       octx.restore();
     }
@@ -6146,6 +6181,14 @@
     if (m.type === "sceneRejected") {
       // Se dice, pero no se toca nada de la pantalla: lo dibujado sigue aquí.
       setStatus("La escena no ha pasado la validación del host; la pantalla no se toca.", "error");
+      return;
+    }
+    if (m.type === "theme") {
+      // media/theme.js va antes que este script en pizarra.html, así que aquí `data-theme` ya
+      // lleva el tema nuevo: se sueltan los colores cacheados del overlay y se recompone, para
+      // que rejilla y asas tomen el tono sin esperar a que el usuario toque nada.
+      olvidaTonosHud();
+      redraw();
     }
   });
 

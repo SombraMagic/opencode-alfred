@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="%%TOKENS%%" rel="stylesheet" />
+%%THEME_LINKS%%
 <link href="%%STYLE%%" rel="stylesheet" />
 <title>Límites de consumo</title>
 </head>
@@ -20,6 +20,7 @@
   <div id="list" class="cards"></div>
   <p id="hint" class="hint">Leyendo límites…</p>
 </div>
+%%THEME_SCRIPT%%
 <script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
 </body>
 </html>

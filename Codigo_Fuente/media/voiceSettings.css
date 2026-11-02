@@ -5,7 +5,6 @@ body {
 }
 
 .settings {
-  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
   max-width: 1500px;
   margin: 0 auto;
   padding: 0 18px 28px;

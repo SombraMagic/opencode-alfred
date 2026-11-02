@@ -1,7 +1,6 @@
 /* ALFRED // PROJECT EXPLORER — Explorador del proyecto con HUD y virtualización */
 
 :root {
-  --text-soft: color-mix(in srgb, var(--text) 72%, transparent);
   --row-h: 30px;
   --split-ratio: 0.5;
 }
@@ -450,7 +449,7 @@ html, body {
 
 .pe-search-input-wrap:focus-within {
   border-color: var(--neon);
-  box-shadow: 0 0 6px rgba(0, 229, 255, 0.25);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--neon) 25%, transparent);
 }
 
 .pe-search-icon {
@@ -735,7 +734,7 @@ html, body {
 .pe-git-badge.m { color: var(--amber); background: color-mix(in srgb, var(--amber) 15%, transparent); }
 .pe-git-badge.s { color: var(--green); background: color-mix(in srgb, var(--green) 15%, transparent); }
 .pe-git-badge.u { color: var(--magenta); background: color-mix(in srgb, var(--magenta) 15%, transparent); }
-.pe-git-badge.d { color: #ff4d4d; background: rgba(255, 77, 77, 0.15); }
+.pe-git-badge.d { color: var(--danger); background: var(--danger-dim); }
 .pe-git-badge.r { color: var(--violet); background: color-mix(in srgb, var(--violet) 15%, transparent); }
 .pe-git-badge.p { color: var(--neon); background: color-mix(in srgb, var(--neon) 15%, transparent); }
 
@@ -930,8 +929,8 @@ html, body {
 }
 
 .pe-ctx-danger:hover:not(:disabled) {
-  background: rgba(255, 77, 77, 0.15);
-  color: #ff4d4d;
+  background: var(--danger-dim);
+  color: var(--danger);
 }
 
 .pe-ctx-divider {
@@ -954,7 +953,7 @@ html, body {
 .pe-modal-card {
   background: var(--bg-raised);
   border: 1px solid var(--neon);
-  box-shadow: 0 0 16px rgba(0, 229, 255, 0.25);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--neon) 25%, transparent);
   padding: 14px;
   width: 280px;
   display: flex;
@@ -1042,22 +1041,4 @@ html, body {
 @keyframes pe-fade-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Tema claro (VS Code light) ────────────────────────────── */
-body.vscode-light {
-  --bg: #f8fafc;
-  --bg-soft: #f1f5f9;
-  --bg-raised: #ffffff;
-  --line: rgba(0, 150, 200, 0.3);
-  --line-soft: rgba(0, 150, 200, 0.15);
-  --text: #0f172a;
-  --text-dim: #64748b;
-  --text-soft: #334155;
-}
-body.vscode-light .pe-row.selected {
-  background: rgba(0, 150, 200, 0.15);
-}
-body.vscode-light .pe-row.is-md {
-  background: rgba(0, 150, 200, 0.08);
 }

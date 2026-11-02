@@ -1,20 +1,18 @@
-:root {
-  color-scheme: light dark;
-}
-
-* {
-  box-sizing: border-box;
-}
+/* Estadísticas de agentes — paleta del tema Alfred.
+   Solo consume las variables de themes/*.css y theme/base.css: el ajuste
+   `opencodeAgents.theme` decide los colores, esta hoja decide la forma. */
 
 body {
   margin: 0;
   padding: 0 16px 40px;
-  font-family: var(--vscode-font-family);
-  font-size: var(--vscode-font-size);
-  color: var(--vscode-foreground);
-  background: var(--vscode-editor-background);
+  color: var(--text);
+  background: var(--bg);
+  /* La tabla no cabe a lo ancho: cada celda es `nowrap`, así que la barra va en el cuerpo.
+     `theme/base.css` pone `overflow-x: hidden`; esto lo repone para este panel. */
+  overflow-x: auto;
 }
 
+/* ── Cabecera fija ────────────────────────────────────── */
 .head {
   position: sticky;
   top: 0;
@@ -24,19 +22,20 @@ body {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 0 12px;
-  background: var(--vscode-editor-background);
-  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
 }
 
 .head h1 {
   margin: 0;
   font-size: 1.25em;
+  color: var(--text);
 }
 
 .sub {
   margin: 4px 0 0;
-  opacity: 0.7;
   font-size: 0.85em;
+  color: var(--text-soft);
 }
 
 .head-actions {
@@ -45,32 +44,49 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Botones ──────────────────────────────────────────── */
 button {
   font-family: inherit;
   font-size: inherit;
   padding: 6px 12px;
   border-radius: 4px;
-  border: 1px solid var(--vscode-button-border, transparent);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
   cursor: pointer;
 }
 
-button.primary {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+button:hover:not(:disabled) {
+  color: var(--neon);
+  border-color: var(--neon);
 }
 
-button.primary:hover {
-  background: var(--vscode-button-hoverBackground);
+button:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
+}
+
+button.primary {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--on-accent);
+}
+
+button.primary:hover:not(:disabled) {
+  background: transparent;
+  color: var(--neon);
 }
 
 button.secondary {
-  background: var(--vscode-button-secondaryBackground, transparent);
-  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-  border-color: var(--vscode-panel-border);
+  background: transparent;
+  color: var(--text);
+  border-color: var(--line);
 }
 
-button.secondary:hover {
-  background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.08));
+button.secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+  color: var(--neon);
+  border-color: var(--neon);
 }
 
 button.mini {
@@ -78,14 +94,17 @@ button.mini {
   font-size: 0.8em;
 }
 
+/* ── Aviso de error ───────────────────────────────────── */
 .banner {
   margin: 12px 0;
   padding: 10px 12px;
   border-radius: 4px;
-  border-left: 3px solid var(--vscode-inputValidation-errorBorder, #f14c4c);
-  background: var(--vscode-inputValidation-errorBackground, rgba(241, 76, 76, 0.12));
+  border-left: 3px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--text);
 }
 
+/* ── Tarjetas de totales ──────────────────────────────── */
 .totals {
   display: flex;
   flex-wrap: wrap;
@@ -94,8 +113,9 @@ button.mini {
 }
 
 .totals .stat {
-  border: 1px solid var(--vscode-panel-border);
+  border: 1px solid var(--line);
   border-radius: 6px;
+  background: var(--bg-soft);
   padding: 8px 12px;
   min-width: 120px;
 }
@@ -105,15 +125,18 @@ button.mini {
   font-size: 0.75em;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  opacity: 0.65;
+  color: var(--text-soft);
 }
 
 .totals .stat .v {
   display: block;
   font-size: 1.15em;
   font-weight: 600;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
+/* ── Barra de filtro ──────────────────────────────────── */
 .toolbar {
   display: flex;
   align-items: center;
@@ -126,9 +149,14 @@ button.mini {
   max-width: 320px;
   padding: 6px 8px;
   border-radius: 4px;
-  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+.toolbar #search:focus {
+  outline: none;
+  border-color: var(--neon);
 }
 
 .toolbar .live {
@@ -136,9 +164,10 @@ button.mini {
   align-items: center;
   gap: 6px;
   font-size: 0.9em;
-  opacity: 0.9;
+  color: var(--text-soft);
 }
 
+/* ── Tabla ────────────────────────────────────────────── */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -149,14 +178,20 @@ th,
 td {
   padding: 6px 10px;
   text-align: left;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--line-soft);
   white-space: nowrap;
+}
+
+th {
+  color: var(--text-soft);
+  font-weight: 600;
 }
 
 th.num,
 td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-family: var(--mono);
 }
 
 th.sortable {
@@ -165,7 +200,7 @@ th.sortable {
 }
 
 th.sortable:hover {
-  color: var(--vscode-textLink-foreground);
+  color: var(--neon);
 }
 
 th.sorted-asc::after {
@@ -179,15 +214,16 @@ th.sorted-desc::after {
 }
 
 tbody tr:hover {
-  background: var(--vscode-list-hoverBackground);
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
 }
 
 tr.working td {
-  background: var(--vscode-editor-findMatchHighlightBackground, rgba(255, 200, 0, 0.14));
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
 }
 
 td.agent {
   font-weight: 600;
+  color: var(--text);
 }
 
 .state {
@@ -196,6 +232,7 @@ td.agent {
   gap: 6px;
 }
 
+/* ── Distintivos de estado ────────────────────────────── */
 .badge {
   display: inline-block;
   padding: 1px 7px;
@@ -205,14 +242,15 @@ td.agent {
 }
 
 .badge.working {
-  background: var(--vscode-charts-orange, #d18616);
-  color: #1b1b1b;
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--on-accent);
   font-weight: 600;
 }
 
 .badge.idle {
-  border-color: var(--vscode-panel-border);
-  opacity: 0.7;
+  border-color: var(--line-soft);
+  color: var(--text-soft);
 }
 
 td.actions {
@@ -223,13 +261,14 @@ td.actions button {
   margin-right: 4px;
 }
 
+/* ── Nota al pie ──────────────────────────────────────── */
 .hint {
   font-size: 0.82em;
-  opacity: 0.7;
+  color: var(--text-soft);
   margin-top: 18px;
   max-width: 760px;
 }
 
 .hint strong {
-  opacity: 0.95;
+  color: var(--text);
 }

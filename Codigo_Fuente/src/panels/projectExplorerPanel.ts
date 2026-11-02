@@ -40,6 +40,7 @@ import {
   resolveInside,
   samePath,
 } from "../projectExplorer/operations";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 const KEY_LAYOUT = "opencodeAgents.projectExplorer.layout";
 const KEY_ROOTS = "opencodeAgents.projectExplorer.roots";
@@ -904,6 +905,7 @@ export class ProjectExplorerPanel {
     switch (message.type) {
       case "ready":
         this.ready = true;
+        this.postTheme();
         this.postInit();
         for (const st of this.trees.values()) {
           this.recomputeView(st);
@@ -1963,6 +1965,13 @@ export class ProjectExplorerPanel {
     void this.panel.webview.postMessage(message);
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    if (!this.disposed) {
+      void this.panel.webview.postMessage({ type: "theme", theme: currentTheme() });
+    }
+  }
+
   private getHtml(webview: vscode.Webview): string {
     try {
       const nonce = getNonce();
@@ -1975,7 +1984,8 @@ export class ProjectExplorerPanel {
       return template
         .replaceAll("%%CSP%%", webview.cspSource)
         .replaceAll("%%NONCE%%", nonce)
-        .replaceAll("%%TOKENS%%", uriIn("tokens.css"))
+        .replaceAll("%%THEME_LINKS%%", themeLinks(this.extensionUri, webview, []))
+        .replaceAll("%%THEME_SCRIPT%%", themeScript(this.extensionUri, webview, nonce))
         .replaceAll("%%STYLE%%", uriIn("projectExplorer.css"))
         .replaceAll("%%SCRIPT%%", uriIn("projectExplorer.js"));
     } catch (err) {

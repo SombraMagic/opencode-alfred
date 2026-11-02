@@ -1,4 +1,4 @@
-/* Pizarra — editor de imagen por capas. La base vive en tokens.css. */
+/* Pizarra — editor de imagen por capas. La base vive en theme/base.css. */
 
 /* Sin scanlines: ensucian las capturas que se copian fuera. */
 body::before { content: none; }
@@ -20,7 +20,6 @@ body {
   min-height: 0;
   padding: 0 12px 6px;
   /* Regla del HUD: `--text-dim` SOLO para lo apagado; lo secundario, aquí. */
-  --text-soft: color-mix(in srgb, var(--text) 82%, transparent);
 }
 
 /* ── Cabecera ──────────────────────────────────────────── */
@@ -114,11 +113,6 @@ body {
   font-size: 9px;
   letter-spacing: 0.5px;
   color: var(--neon);
-}
-
-/* Tema claro: el cian sobre el tinte baja de 4,5:1; el estado lo dicen borde y tinte. */
-body.vscode-light .pz-tab.on {
-  color: var(--text);
 }
 
 /* Añadir y eliminar: un `.ghost-btn` de la cabecera, un poco más pequeño. */

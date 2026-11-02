@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { AgentFrontmatter } from "../agents/types";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 import { deleteAgent } from "../agents/store";
 import { ValidationIssue } from "../agents/validate";
 import {
@@ -180,6 +181,7 @@ export class ClaudeAgentPanel {
       async (message: ClaudeAgentMessage) => {
         switch (message.type) {
           case "ready":
+            this.postTheme();
             this.post({ type: "init", payload: this.init });
             break;
           case "validate":
@@ -209,6 +211,11 @@ export class ClaudeAgentPanel {
 
   private post(message: unknown): void {
     void this.panel.webview.postMessage(message);
+  }
+
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
   }
 
   /** Datos del mensaje, con el estado actual como respaldo si el webview omite algo. */
@@ -350,15 +357,6 @@ export class ClaudeAgentPanel {
 
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const tokensUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "claudeAgent.css")
-    );
-    const mdStyleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "mdEditor.css")
-    );
     const mdScriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "mdEditor.js")
     );
@@ -379,9 +377,7 @@ export class ClaudeAgentPanel {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="${tokensUri}" rel="stylesheet" />
-<link href="${styleUri}" rel="stylesheet" />
-<link href="${mdStyleUri}" rel="stylesheet" />
+${themeLinks(this.extensionUri, webview, ["claudeAgent.css"], ["mdEditor.css"])}
 <title>Subagente de Claude</title>
 </head>
 <body>
@@ -538,6 +534,7 @@ export class ClaudeAgentPanel {
     </section>
   </main>
 </div>
+${themeScript(this.extensionUri, webview, nonce)}
 <script nonce="${nonce}" src="${mdScriptUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

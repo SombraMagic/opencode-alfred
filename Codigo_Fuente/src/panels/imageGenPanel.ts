@@ -27,6 +27,7 @@ import {
 } from "../images/share";
 import type { ImageShare } from "../images/share";
 import { setActivity } from "./activity";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 const execFileAsync = promisify(execFile);
 
@@ -551,6 +552,7 @@ export class ImageGenPanel {
     this.panel.webview.onDidReceiveMessage(
       (message: { type?: string; action?: unknown }) => {
         if (message?.type === "ready") {
+          this.postTheme();
           if (this.last) {
             this.post({ type: "state", state: this.last });
           }
@@ -1122,6 +1124,11 @@ export class ImageGenPanel {
     void this.panel.webview.postMessage(message);
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    void this.panel.webview.postMessage({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
     const uriIn = (file: string): string =>
@@ -1136,7 +1143,8 @@ export class ImageGenPanel {
     return template
       .replaceAll("%%CSP%%", webview.cspSource)
       .replaceAll("%%NONCE%%", nonce)
-      .replaceAll("%%TOKENS%%", uriIn("tokens.css"))
+      .replaceAll("%%THEME_LINKS%%", themeLinks(this.context.extensionUri, webview, []))
+      .replaceAll("%%THEME_SCRIPT%%", themeScript(this.context.extensionUri, webview, nonce))
       .replaceAll("%%STYLE%%", uriIn("imageGen.css"))
       .replaceAll("%%SCRIPT%%", uriIn("imageGen.js"));
   }

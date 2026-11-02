@@ -7,6 +7,7 @@
 import * as vscode from "vscode";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 import {
   RenderCancelledError,
   alfred3dRoot,
@@ -32,6 +33,9 @@ const DIR_INVALIDA =
 export class BlendViewerProvider implements vscode.CustomReadonlyEditorProvider {
   public static readonly viewType = "opencodeAgents.blendViewer";
 
+  /** Pestañas abiertas, para repartirles el cambio de estilo visual. */
+  private readonly sessions = new Set<BlendViewerSession>();
+
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   openCustomDocument(uri: vscode.Uri): vscode.CustomDocument {
@@ -43,7 +47,16 @@ export class BlendViewerProvider implements vscode.CustomReadonlyEditorProvider 
     panel: vscode.WebviewPanel,
     _token: vscode.CancellationToken
   ): void {
-    new BlendViewerSession(this.context, document.uri, panel);
+    const session = new BlendViewerSession(this.context, document.uri, panel);
+    this.sessions.add(session);
+    panel.onDidDispose(() => this.sessions.delete(session));
+  }
+
+  /** Avisa del tema a los visores abiertos. */
+  postTheme(): void {
+    for (const session of this.sessions) {
+      session.postTheme();
+    }
   }
 }
 
@@ -137,6 +150,7 @@ class BlendViewerSession {
     switch (message?.type) {
       case "ready":
         this.ready = true;
+        this.postTheme();
         this.flush();
         void this.enviarBlender();
         void this.enviarInit();
@@ -570,6 +584,11 @@ class BlendViewerSession {
     }
   }
 
+  /** Avisa al visor del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview, media: vscode.Uri): string {
     const nonce = getNonce();
     const uriIn = (file: string) => webview.asWebviewUri(vscode.Uri.joinPath(media, file)).toString();
@@ -582,7 +601,8 @@ class BlendViewerSession {
     return template
       .replaceAll("%%CSP%%", webview.cspSource)
       .replaceAll("%%NONCE%%", nonce)
-      .replaceAll("%%TOKENS%%", uriIn("tokens.css"))
+      .replaceAll("%%THEME_LINKS%%", themeLinks(this.context.extensionUri, webview, []))
+      .replaceAll("%%THEME_SCRIPT%%", themeScript(this.context.extensionUri, webview, nonce))
       .replaceAll("%%STYLE%%", uriIn("blendViewer.css"))
       .replaceAll("%%SCRIPT%%", uriIn("blendViewer.js"))
       .replaceAll("%%THREE%%", uriIn("three/three.module.min.js"));

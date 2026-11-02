@@ -1,5 +1,5 @@
 /* Visor Alfred 3D — visor del GLB exportado de un .blend y lanzador de renders.
-   La base vive en tokens.css: aquí solo el HUD de tres columnas. */
+   La base vive en theme/base.css: aquí solo el HUD de tres columnas. */
 
 /* La vista ocupa el alto justo: no hay scroll de página, scrollea cada columna. */
 html,
@@ -17,7 +17,6 @@ body {
   height: 100%;
   min-height: 0;
   /* Regla del HUD: `--text-dim` SOLO para lo apagado; lo secundario va aquí. */
-  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
 }
 
 /* ── Cabecera ──────────────────────────────────────────── */
@@ -192,7 +191,7 @@ button.bv-row {
   color: var(--neon);
 }
 
-/* Luz: el interruptor de tokens.css y el nombre al lado. */
+/* Luz: el interruptor de theme/base.css y el nombre al lado. */
 .bv-row .switch {
   flex: none;
 }
@@ -437,7 +436,7 @@ button.bv-row {
 /* ── Lienzo ────────────────────────────────────────────── */
 .bv-stage {
   position: relative;
-  /* Por encima de las scanlines de tokens.css (body::before, z-index 10): el 3D se ve limpio. */
+  /* Por encima de las scanlines de theme/base.css (body::before, z-index 10): el 3D se ve limpio. */
   z-index: 11;
   min-width: 0;
   min-height: 0;

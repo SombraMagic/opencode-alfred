@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { AgentsMdFile, deleteAgentsMd, readAgentsMd, saveAgentsMd } from "../agents/store";
 import { Scope } from "../agents/types";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /**
  * Panel propio para el AGENTS.md (global o de proyecto). No comparte formulario con el
@@ -9,6 +10,13 @@ import { Scope } from "../agents/types";
 export class InstructionsPanel {
   private static readonly panels = new Map<Scope, InstructionsPanel>();
   private static readonly viewType = "opencodeAgents.instructions";
+
+  /** Avisa del tema a las pestañas de instrucciones abiertas. */
+  static broadcastTheme(): void {
+    for (const panel of InstructionsPanel.panels.values()) {
+      panel.postTheme();
+    }
+  }
 
   private readonly panel: vscode.WebviewPanel;
   private readonly extensionUri: vscode.Uri;
@@ -85,6 +93,7 @@ export class InstructionsPanel {
       async (message) => {
         switch (message.type) {
           case "ready":
+            this.postTheme();
             this.post({
               type: "init",
               payload: { file: this.data.file, exists: this.data.exists, text: this.data.text },
@@ -114,6 +123,11 @@ export class InstructionsPanel {
 
   private post(message: unknown): void {
     void this.panel.webview.postMessage(message);
+  }
+
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
   }
 
   private async handleSave(payload?: { text?: string }): Promise<void> {
@@ -199,15 +213,6 @@ export class InstructionsPanel {
     const targets = global
       ? "Instrucciones para todos los agentes"
       : "Instrucciones para los agentes de este proyecto";
-    const tokensUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "editor.css")
-    );
-    const mdStyleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "mdEditor.css")
-    );
     const mdScriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "mdEditor.js")
     );
@@ -228,9 +233,7 @@ export class InstructionsPanel {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="${tokensUri}" rel="stylesheet" />
-<link href="${styleUri}" rel="stylesheet" />
-<link href="${mdStyleUri}" rel="stylesheet" />
+${themeLinks(this.extensionUri, webview, ["editor.css"], ["mdEditor.css"])}
 <title>${heading}</title>
 </head>
 <body>
@@ -260,6 +263,7 @@ export class InstructionsPanel {
     </section>
   </main>
 </div>
+${themeScript(this.extensionUri, webview, nonce)}
 <script nonce="${nonce}" src="${mdScriptUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

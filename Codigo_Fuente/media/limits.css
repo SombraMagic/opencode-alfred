@@ -1,14 +1,5 @@
 /* Límites de consumo — tarjetas por proveedor con barras de porcentaje */
 
-:root {
-  /* Secundario que no es estado apagado: rótulos de ventana y avisos. */
-  --text-soft: #8fb4c9;
-}
-
-body.vscode-light {
-  --text-soft: #42606f;
-}
-
 .hud {
   padding: 0 10px 14px;
 }

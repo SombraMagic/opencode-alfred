@@ -4,7 +4,7 @@
  * responde) el panel sigue abierto pero bloqueado y no manda nada al modelo.
  *
  * El marcado está en `media/chatbot.html` (lo escribe `interfaz`): aquí solo se rellenan los
- * huecos `%%CSP%% %%NONCE%% %%TOKENS%% %%STYLE%% %%SCRIPT%%` (mismos que el generador de
+ * huecos `%%CSP%% %%NONCE%% %%THEME_LINKS%% %%STYLE%% %%THEME_SCRIPT%% %%SCRIPT%%` (mismos que el generador de
  * imágenes) y se atiende al webview, que no es de fiar. La clave de OpenAI nunca viaja a él.
  *
  * PROTOCOLO
@@ -53,6 +53,7 @@ import { writeAtomic } from "../pizarra/files";
 import { speak } from "../voice/service.js";
 import { KEY_OPENAI, imagenesDir, readSettings as readImageSettings } from "./imageGenPanel";
 import { setActivity } from "./activity";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 const KEY_PREFS = "opencodeAgents.chatbot";
 const MAX_TEXT = 100_000;
@@ -257,6 +258,7 @@ export class ChatbotPanel {
     this.panel.webview.onDidReceiveMessage(
       (message: unknown) => {
         if ((message as { type?: unknown } | undefined)?.type === "ready") {
+          this.postTheme();
           void this.sendAll();
           return;
         }
@@ -659,6 +661,11 @@ export class ChatbotPanel {
     return event;
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    void this.panel.webview.postMessage({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
     const media = (file: string): string =>
@@ -672,7 +679,8 @@ export class ChatbotPanel {
     return template
       .replaceAll("%%CSP%%", webview.cspSource)
       .replaceAll("%%NONCE%%", nonce)
-      .replaceAll("%%TOKENS%%", media("tokens.css"))
+      .replaceAll("%%THEME_LINKS%%", themeLinks(this.context.extensionUri, webview, []))
+      .replaceAll("%%THEME_SCRIPT%%", themeScript(this.context.extensionUri, webview, nonce))
       .replaceAll("%%STYLE%%", media("chatbot.css"))
       .replaceAll("%%SCRIPT%%", media("chatbot.js"));
   }

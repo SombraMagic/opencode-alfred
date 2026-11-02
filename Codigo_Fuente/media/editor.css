@@ -1,9 +1,5 @@
 /* Editor de agentes de opencode — mismo lenguaje visual que claudeAgent.css.
-   Usa media/tokens.css (los paneles lo enlazan antes que esta hoja). */
-
-:root {
-  color-scheme: light dark;
-}
+   Usa media/theme/base.css (los paneles lo enlazan antes que esta hoja). */
 
 body {
   padding: 0 16px 32px;
@@ -97,25 +93,14 @@ button.secondary:hover:not(:disabled) {
 
 /* Va después de button.secondary: con la misma especificidad gana el orden. */
 button.danger {
-  color: #e05a5a;
-  border-color: #e05a5a;
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 button.danger:hover:not(:disabled) {
-  color: #ff7b7b;
-  border-color: #ff7b7b;
-  box-shadow: 0 0 8px rgba(224, 90, 90, 0.35);
-}
-
-/* Tema claro: el rojo claro del HUD no contrasta sobre blanco (mismo criterio que .banner.error). */
-body.vscode-light button.danger {
-  color: #b3261e;
-  border-color: #b3261e;
-}
-
-body.vscode-light button.danger:hover:not(:disabled) {
-  color: #8f1d16;
-  border-color: #8f1d16;
+  color: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--danger) 35%, transparent);
 }
 
 button.small {
@@ -149,8 +134,8 @@ button:disabled {
 }
 
 .banner.error {
-  border-left-color: #e05a5a;
-  color: #e05a5a;
+  border-left-color: var(--danger);
+  color: var(--danger);
   background: var(--line-soft);
 }
 
@@ -454,7 +439,7 @@ select:disabled {
 .c-accent .dot { background: var(--magenta); }
 .c-success .dot { background: var(--green); }
 .c-warning .dot { background: var(--amber); }
-.c-error .dot { background: #e05a5a; }
+.c-error .dot { background: var(--danger); }
 .c-info .dot { background: #4a9eff; }
 
 /* ── Avanzado ──────────────────────────────────────────── */
@@ -528,8 +513,8 @@ details.advanced > summary:focus-visible {
 }
 
 .issues li.error {
-  border-left-color: #e05a5a;
-  color: #e05a5a;
+  border-left-color: var(--danger);
+  color: var(--danger);
 }
 
 .issues li.warning {
@@ -545,17 +530,6 @@ details.advanced > summary:focus-visible {
 .issues li.ok {
   border-left-color: var(--green);
   color: var(--green);
-}
-
-/* Contraste en tema claro: el rojo de la paleta no llega. */
-body.vscode-light .issues li.error,
-body.vscode-light .banner.error {
-  border-left-color: #b3261e;
-  color: #b3261e;
-}
-
-body.vscode-light .combo-popup {
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
 
 /* ── Estrecho ──────────────────────────────────────────── */

@@ -1,9 +1,8 @@
-/* ALFRED // CHATBOT: HUD sobre tokens.css */
+/* ALFRED // CHATBOT: HUD sobre theme/base.css */
 body::before { content: none; }
 
 html, body { height: 100%; }
 body {
-  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
   overflow: hidden;
 }
 
@@ -32,9 +31,9 @@ select.cb-input { max-width: 240px; }
 .cb-btn:hover:not(:disabled) { border-color: var(--neon); color: var(--neon); }
 .cb-btn:disabled { color: var(--text-dim); cursor: default; }
 .cb-btn[aria-expanded="true"] { border-color: var(--neon); color: var(--neon); }
-.cb-primary { border-color: var(--neon); color: var(--neon); background: rgba(0, 229, 255, 0.08); }
+.cb-primary { border-color: var(--neon); color: var(--neon); background: color-mix(in srgb, var(--neon) 8%, transparent); }
 .cb-icon { padding: 5px 9px; font-size: 14px; line-height: 1; }
-.cb-send.stop { border-color: var(--magenta); color: var(--magenta); background: rgba(255, 45, 149, 0.08); }
+.cb-send.stop { border-color: var(--magenta); color: var(--magenta); background: color-mix(in srgb, var(--magenta) 8%, transparent); }
 :focus-visible { outline: 2px solid var(--neon); outline-offset: 1px; }
 
 .cb-chips { display: flex; gap: 4px; align-self: center; flex-wrap: wrap; }
@@ -49,7 +48,7 @@ select.cb-input { max-width: 240px; }
 /* ---- aviso locked ---- */
 .cb-lock {
   display: flex; gap: 10px; align-items: center; padding: 8px 12px;
-  background: rgba(255, 176, 0, 0.1); border-bottom: 1px solid var(--amber); color: var(--text);
+  background: color-mix(in srgb, var(--amber) 10%, transparent); border-bottom: 1px solid var(--amber); color: var(--text);
 }
 .cb-lock[hidden] { display: none; }
 .cb-lock-tag { color: var(--amber); font-weight: 700; letter-spacing: 0.12em; }
@@ -72,7 +71,7 @@ select.cb-input { max-width: 240px; }
   display: flex; flex-direction: column; gap: 2px; background: var(--bg);
 }
 .cb-chat:hover { border-color: var(--line); }
-.cb-chat.active { border-color: var(--neon); background: rgba(0, 229, 255, 0.07); }
+.cb-chat.active { border-color: var(--neon); background: color-mix(in srgb, var(--neon) 7%, transparent); }
 .cb-chat-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 20px; }
 .cb-chat-date { font-size: 10px; color: var(--text-soft); }
 .cb-chat-del {
@@ -109,7 +108,7 @@ select.cb-input { max-width: 240px; }
   border: 1px solid var(--line); font-size: 9px; letter-spacing: 0.06em; color: var(--neon);
   background: var(--bg-raised);
 }
-.cb-msg.user .cb-avatar { color: var(--amber); border-color: rgba(255, 176, 0, 0.5); }
+.cb-msg.user .cb-avatar { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 50%, transparent); }
 .cb-msg.tool .cb-avatar { color: var(--violet); border-color: rgba(169, 112, 255, 0.5); }
 .cb-body { min-width: 0; }
 .cb-role { font-size: 9px; letter-spacing: 0.14em; color: var(--text-soft); margin-bottom: 3px; }

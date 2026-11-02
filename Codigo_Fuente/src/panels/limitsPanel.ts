@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ProviderLimits } from "../limits/limits";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /** Mensajes que el webview tiene permitido pedir. */
 interface LimitsMessage {
@@ -73,6 +74,7 @@ export class LimitsViewProvider implements vscode.WebviewViewProvider {
       if (message?.type !== "ready") {
         return;
       }
+      this.postTheme();
       this.post();
       this.onReady();
     });
@@ -106,11 +108,13 @@ export class LimitsViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    void this.view?.webview.postMessage({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const tokensUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
-    );
     const styleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "limits.css")
     );
@@ -126,7 +130,8 @@ export class LimitsViewProvider implements vscode.WebviewViewProvider {
     return template
       .replaceAll("%%CSP%%", webview.cspSource)
       .replaceAll("%%NONCE%%", nonce)
-      .replaceAll("%%TOKENS%%", tokensUri.toString())
+      .replaceAll("%%THEME_LINKS%%", themeLinks(this.extensionUri, webview, []))
+      .replaceAll("%%THEME_SCRIPT%%", themeScript(this.extensionUri, webview, nonce))
       .replaceAll("%%STYLE%%", styleUri.toString())
       .replaceAll("%%SCRIPT%%", scriptUri.toString());
   }

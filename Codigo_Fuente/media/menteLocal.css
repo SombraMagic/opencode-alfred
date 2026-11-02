@@ -1,14 +1,9 @@
 /* Mente local — HUD del cerebro Ollama: interruptor, modelos, descarga e instalación.
-   Todo sale de tokens.css; aquí solo el reparto y lo propio del panel. */
-
-:root {
-  color-scheme: dark light;
-}
+   Todo sale de theme/base.css; aquí solo el reparto y lo propio del panel. */
 
 body {
   /* Secundario que no es estado apagado. `--text-dim` se reserva para `:disabled`,
      placeholder, «—» y lo que está parado. */
-  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
   padding: 0 12px 18px;
 }
 

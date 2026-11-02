@@ -1,0 +1,32 @@
+/* Tema Manoli — grises claros y tonos pastel.
+   El atributo lo pone media/theme.js en el <body>. Define TODAS las variables
+   que usa la app, no solo las que cambian, para no heredar la paleta oscura.
+
+   Los tonos de acento están oscurecidos respecto al pastel puro para que
+   cualquier texto normal llegue a 4,5:1 sobre --bg (ver contraste en cada
+   comentario). */
+
+body[data-theme="manoli"] {
+  --bg: #e8e4ec;
+  --bg-soft: #f3f1f7;
+  --bg-raised: #fbf9fe;
+  --line: rgba(122, 100, 150, 0.30);
+  --line-soft: rgba(122, 100, 150, 0.15);
+  --text: #3a3446;              /* 9,5:1 sobre --bg */
+  --text-dim: #8d8699;          /* solo estado apagado */
+  --text-soft: color-mix(in srgb, var(--text) 74%, transparent); /* 4,7:1 */
+  --neon: #7c548f;              /* 4,8:1 */
+  --neon-dim: rgba(124, 84, 143, 0.35);
+  --magenta: #a03e6b;           /* 4,9:1 */
+  --amber: #7d5a1c;             /* 5,0:1 */
+  --green: #316a54;             /* 5,0:1 */
+  --violet: #6a4fae;            /* 5,0:1 */
+  --danger: #a1332c;            /* 5,5:1 */
+  --danger-dim: rgba(161, 51, 44, 0.22);
+  --on-accent: #fbf9fe;
+  --texture-opacity: 0.35;
+  --texture-tint: rgba(124, 84, 143, 0.06);
+  --mono: "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+
+  color-scheme: light;
+}

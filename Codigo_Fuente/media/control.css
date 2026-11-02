@@ -146,15 +146,6 @@ body {
   box-shadow: 0 0 8px var(--neon-dim), 0 0 14px var(--neon-dim);
 }
 
-/* Tema claro: el cian oscuro de ese tema no aguanta un trazo de 15 px sobre el tinte.
-   Ahí el encendido va en el relleno, el borde y el halo, y el icono queda en `--text`. */
-body.vscode-light .icon-btn.on,
-body.vscode-light .icon-btn.on:hover,
-body.vscode-light .icon-btn.on:focus-visible {
-  color: var(--text);
-  box-shadow: 0 0 6px var(--neon-dim), 0 0 10px var(--neon-dim);
-}
-
 /* Sin acción posible (otro proveedor, o un hueco sin implementar): apagado y sin brillo.
    Va después de `.on` para que un botón encendido y deshabilitado también se apague. */
 .icon-btn:disabled {

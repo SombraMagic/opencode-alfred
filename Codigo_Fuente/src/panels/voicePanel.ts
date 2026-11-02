@@ -6,6 +6,7 @@ import { readSettings, speak } from "../voice/service.js";
 import { mcpState, setMcpEnabled } from "../voice/mcpInstaller.js";
 import { SysMonitor, type SysSample } from "../sysmon/monitor.js";
 import { listActivities, type ActivityIcon } from "./activity";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /** Fichero donde el MCP publica cada reproducción (misma ruta que voz-core). */
 const nowFile = join(
@@ -141,6 +142,11 @@ export class VozPanel {
     else this.pending.push(msg);
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme() {
+    this.post({ type: "theme", theme: currentTheme() });
+  }
+
   /** El webview ya cargó: entrega lo que quedó en cola. */
   private flush() {
     this.ready = true;
@@ -201,6 +207,7 @@ export class VozPanel {
     switch (msg?.type) {
       case "ready":
         this.flush();
+        this.postTheme();
         // El monitor no puede esperar al primer sondeo: la última muestra se
         // reenvía en cuanto el webview está listo.
         this.post({ type: "sysmon", data: this.lastSample });
@@ -266,8 +273,7 @@ export class VozPanel {
   /** Genera el HTML del panel. Público para las comprobaciones automatizadas. */
   html(webview: vscode.Webview): string {
     const media = vscode.Uri.joinPath(this.context.extensionUri, "media");
-    const tokensUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "tokens.css"));
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.css"));
+    const nonce = getNonce();
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.js"));
     const equalizerUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "equalizer.js"));
 
@@ -277,8 +283,7 @@ export class VozPanel {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource}; img-src ${webview.cspSource} data:;" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link rel="stylesheet" href="${tokensUri}" />
-<link rel="stylesheet" href="${styleUri}" />
+${themeLinks(this.context.extensionUri, webview, ["panel.css"])}
 </head>
 <body>
   <div class="hud">
@@ -335,6 +340,7 @@ export class VozPanel {
       <div class="mcp-row"><button id="mcp-toggle" class="ghost-btn" type="button" disabled title="Servidor MCP de Alfred: voz y pizarra para tu agente"><span class="mcp-dot off" id="mcp-dot"></span>ALFRED MCP</button><span class="mcp-hint" id="mcp-hint">…</span></div>
     </div>
   </div>
+  ${themeScript(this.context.extensionUri, webview, nonce)}
   <script src="${equalizerUri}"></script>
   <script src="${scriptUri}"></script>
 </body>
@@ -348,4 +354,13 @@ export class VozPanel {
     unwatchFile(nowFile);
     for (const d of this.disposables) d.dispose();
   }
+}
+
+function getNonce(): string {
+  let text = "";
+  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
 }

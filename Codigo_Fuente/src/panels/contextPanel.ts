@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { ContextWindowInfo } from "../stats/contextWindow";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 export class ContextViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "opencodeAgents.context";
@@ -32,6 +33,7 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
       if (this.last) {
         this.post(this.last);
       }
+      this.postTheme();
       this.onReady();
     });
 
@@ -67,14 +69,13 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
     void this.view?.webview.postMessage({ type: "context", payload: info });
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    void this.view?.webview.postMessage({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const tokensUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "context.css")
-    );
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "context.js")
     );
@@ -91,8 +92,7 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="${tokensUri}" rel="stylesheet" />
-<link href="${styleUri}" rel="stylesheet" />
+${themeLinks(this.extensionUri, webview, ["context.css"])}
 <title>Contexto</title>
 </head>
 <body>
@@ -120,6 +120,7 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
     </div>
   </section>
 </div>
+${themeScript(this.extensionUri, webview, nonce)}
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

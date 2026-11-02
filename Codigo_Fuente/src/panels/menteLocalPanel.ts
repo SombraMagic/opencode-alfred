@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import type { MenteLocalAction, MenteLocalState } from "../ollama/service";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /** Acciones que el webview tiene permitido pedir: la lista de `MenteLocalAction`. */
 const ACTION_TYPES = new Set<string>([
@@ -115,6 +116,7 @@ export class MenteLocalPanel {
     this.panel.webview.onDidReceiveMessage(
       (message: { type?: string }) => {
         if (message?.type === "ready") {
+          this.postTheme();
           if (this.last) {
             this.post({ type: "state", state: this.last });
           }
@@ -149,14 +151,13 @@ export class MenteLocalPanel {
     void this.panel.webview.postMessage(message);
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const tokensUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "menteLocal.css")
-    );
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "menteLocal.js")
     );
@@ -168,8 +169,7 @@ export class MenteLocalPanel {
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${csp}; script-src 'nonce-${nonce}';">
-<link rel="stylesheet" href="${tokensUri}">
-<link rel="stylesheet" href="${styleUri}">
+${themeLinks(this.extensionUri, webview, ["menteLocal.css"])}
 <title>Mente local</title>
 </head>
 <body>
@@ -260,6 +260,7 @@ export class MenteLocalPanel {
     <p class="pista" id="servidor-pista">La dirección debe empezar por http:// o https://.</p>
   </section>
 </main>
+${themeScript(this.extensionUri, webview, nonce)}
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

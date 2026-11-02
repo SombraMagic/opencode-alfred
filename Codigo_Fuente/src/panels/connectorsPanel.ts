@@ -7,6 +7,7 @@ import type {
   FormAnswer,
   FormValue,
 } from "../agents/connectors";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 export type ConnectorAction =
   | { type: "select"; id: string }
@@ -232,6 +233,7 @@ export class ConnectorsPanel {
     this.panel.webview.onDidReceiveMessage(
       (message: { type?: string; action?: unknown }) => {
         if (message?.type === "ready") {
+          this.postTheme();
           if (this.last) {
             this.post({ type: "connectors", payload: this.last });
           }
@@ -274,11 +276,13 @@ export class ConnectorsPanel {
     void this.panel.webview.postMessage(message);
   }
 
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
+  }
+
   private getHtml(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const tokensUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
-    );
     const styleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "connectors.css")
     );
@@ -294,7 +298,8 @@ export class ConnectorsPanel {
     return template
       .replaceAll("%%CSP%%", webview.cspSource)
       .replaceAll("%%NONCE%%", nonce)
-      .replaceAll("%%TOKENS%%", tokensUri.toString())
+      .replaceAll("%%THEME_LINKS%%", themeLinks(this.extensionUri, webview, []))
+      .replaceAll("%%THEME_SCRIPT%%", themeScript(this.extensionUri, webview, nonce))
       .replaceAll("%%STYLE%%", styleUri.toString())
       .replaceAll("%%SCRIPT%%", scriptUri.toString());
   }

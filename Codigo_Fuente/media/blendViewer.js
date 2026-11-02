@@ -206,7 +206,7 @@ function ensureRenderer() {
   return true;
 }
 
-/** Color de un token del HUD, para la rejilla. Los tokens no se releen si cambia el tema. */
+/** Color de un token del HUD, para la rejilla. Se relee al cambiar de tema (`repaintGrid`). */
 function themeColor(name, fallback) {
   const value = getComputedStyle(document.body).getPropertyValue(name).trim();
   if (!value) return fallback;
@@ -215,6 +215,30 @@ function themeColor(name, fallback) {
   } catch {
     return fallback;
   }
+}
+
+/** Última rejilla construida: se rehace con los tokens del tema activo. */
+let gridSpec = null;
+
+/** Rehace la rejilla del suelo con los colores del tema (no se actualizan solos). */
+function repaintGrid() {
+  if (!scene || !gridSpec) return;
+  if (gridHelper) {
+    scene.remove(gridHelper);
+    gridHelper.geometry.dispose();
+    gridHelper.material.dispose();
+  }
+  gridHelper = new THREE.GridHelper(
+    gridSpec.span,
+    gridSpec.divisions,
+    themeColor("--neon", 0x00e5ff),
+    themeColor("--text-dim", 0x2a4a5a)
+  );
+  gridHelper.position.set(gridSpec.center.x, gridSpec.floorY, gridSpec.center.z);
+  gridHelper.material.transparent = true;
+  gridHelper.material.opacity = 0.24;
+  gridHelper.material.depthWrite = false;
+  scene.add(gridHelper);
 }
 
 function paintHeader() {
@@ -445,6 +469,7 @@ function liberarEscena() {
   root = null;
   scene = null;
   gridHelper = null;
+  gridSpec = null;
   freeCamera = null;
   sceneCamera = null;
   activeCamera = null;
@@ -504,17 +529,13 @@ function buildScene(gltf) {
   controls.update();
 
   const gridSpan = Math.max(size.x, size.z, 1);
-  gridHelper = new THREE.GridHelper(
-    Math.ceil(gridSpan * 2),
-    20,
-    themeColor("--neon", 0x00e5ff),
-    themeColor("--text-dim", 0x2a4a5a)
-  );
-  gridHelper.position.set(center.x, floorY, center.z);
-  gridHelper.material.transparent = true;
-  gridHelper.material.opacity = 0.24;
-  gridHelper.material.depthWrite = false;
-  scene.add(gridHelper);
+  gridSpec = {
+    span: Math.ceil(gridSpan * 2),
+    divisions: 20,
+    center: center.clone(),
+    floorY,
+  };
+  repaintGrid();
 
   // Relleno fijo: no sale en LUCES ni cuenta para la normalización.
   scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x1b2430, 0.9));
@@ -1350,6 +1371,10 @@ window.addEventListener("message", (event) => {
       return;
     case "blender":
       paintBlender(message);
+      return;
+    case "theme":
+      // theme.js ya puso `data-theme`; la rejilla se repinta con los tokens nuevos.
+      repaintGrid();
       return;
     case "renderDir":
       renderDir = typeof message.dir === "string" && message.dir ? message.dir : null;

@@ -1,5 +1,5 @@
 /* VOZ — interfaz futurista (HUD sci-fi).
-   Paleta, fondo, scanlines y primitivas viven en tokens.css: se enlaza antes. */
+   Paleta, fondo, scanlines y primitivas viven en theme/base.css: se enlaza antes. */
 
 .hud {
   display: flex;
@@ -10,7 +10,6 @@
   padding: 0 10px 18px;
   /* `--text-dim` SOLO para lo apagado (`:disabled`, `.off`, vacíos, placeholder);
      los rótulos del monitor van en este intermedio. */
-  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
 }
 
 /* Solo el stage cede alto cuando la vista es corta: el resto, intacto. */
@@ -391,7 +390,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  background: linear-gradient(180deg, rgba(0, 229, 255, 0.16), rgba(0, 229, 255, 0.05));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--neon) 16%, transparent), color-mix(in srgb, var(--neon) 5%, transparent));
   border: 1px solid var(--neon);
   color: var(--neon);
   cursor: pointer;
@@ -405,8 +404,8 @@
 }
 
 .config-btn:hover {
-  background: rgba(0, 229, 255, 0.25);
-  box-shadow: 0 0 18px rgba(0, 229, 255, 0.35);
+  background: color-mix(in srgb, var(--neon) 25%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--neon) 35%, transparent);
 }
 
 .config-btn:focus-visible {
@@ -452,7 +451,7 @@ textarea:focus,
 input[type="text"]:focus,
 input[type="password"]:focus {
   border-color: var(--neon);
-  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.25);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--neon) 25%, transparent);
 }
 
 textarea { resize: vertical; min-height: 66px; line-height: 1.5; }
@@ -506,7 +505,7 @@ input[type="range"]::-moz-range-thumb {
   justify-content: center;
   gap: 9px;
   padding: 11px;
-  background: linear-gradient(180deg, rgba(0, 229, 255, 0.16), rgba(0, 229, 255, 0.05));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--neon) 16%, transparent), color-mix(in srgb, var(--neon) 5%, transparent));
   border: 1px solid var(--neon);
   color: var(--neon);
   font-family: inherit;
@@ -518,8 +517,8 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .speak-btn:hover {
-  background: rgba(0, 229, 255, 0.25);
-  box-shadow: 0 0 18px rgba(0, 229, 255, 0.35);
+  background: color-mix(in srgb, var(--neon) 25%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--neon) 35%, transparent);
 }
 
 .speak-btn:disabled { opacity: 0.45; cursor: progress; }
@@ -548,9 +547,3 @@ input[type="range"]::-moz-range-thumb {
 
 .mcp-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
 .mcp-dot.off { background: var(--amber); }
-
-/* ── Ajustes por tema ─────────────────────────────────── */
-/* Los colores vienen de tokens.css; aquí solo el degradado del botón. */
-body.vscode-light .speak-btn {
-  background: linear-gradient(180deg, rgba(0, 122, 153, 0.14), transparent);
-}

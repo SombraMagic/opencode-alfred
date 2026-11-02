@@ -1,11 +1,6 @@
 /* Databases Panel CSS — OpenCode Alfred */
 
 :root {
-  --text-soft: #8daabf;
-  --danger: #ff2d95;
-  --danger-dim: rgba(255, 45, 149, 0.25);
-  --warn: #ffb000;
-  --success: #23d18b;
   --header-height: 44px;
   --footer-height: 28px;
 }
@@ -128,7 +123,7 @@ html, body {
 
 .db-btn:hover:not(:disabled) {
   border-color: var(--neon);
-  color: #fff;
+  color: var(--text);
   box-shadow: 0 0 6px var(--neon-dim);
 }
 
@@ -140,13 +135,13 @@ html, body {
 }
 
 .db-btn-primary {
-  background: rgba(0, 229, 255, 0.12);
+  background: color-mix(in srgb, var(--neon) 12%, transparent);
   border-color: var(--neon);
   color: var(--neon);
 }
 
 .db-btn-primary:hover:not(:disabled) {
-  background: rgba(0, 229, 255, 0.24);
+  background: color-mix(in srgb, var(--neon) 24%, transparent);
   box-shadow: 0 0 8px var(--neon);
 }
 
@@ -157,7 +152,7 @@ html, body {
 }
 
 .db-btn-danger:hover:not(:disabled) {
-  background: rgba(255, 45, 149, 0.4);
+  background: color-mix(in srgb, var(--danger) 40%, transparent);
   box-shadow: 0 0 8px var(--danger);
 }
 
@@ -190,7 +185,7 @@ html, body {
 .db-icon-btn:hover:not(:disabled) {
   border-color: var(--neon);
   color: var(--neon);
-  background: rgba(0, 229, 255, 0.08);
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
 }
 
 .db-icon-btn:disabled {
@@ -206,9 +201,9 @@ html, body {
 }
 
 .db-icon-btn-warn:hover:not(:disabled) {
-  border-color: var(--warn);
-  color: var(--warn);
-  background: rgba(255, 176, 0, 0.15);
+  border-color: var(--amber);
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 15%, transparent);
 }
 
 .db-btn-group {
@@ -326,13 +321,13 @@ html, body {
 }
 
 .db-list-item:hover {
-  background: rgba(0, 229, 255, 0.06);
+  background: color-mix(in srgb, var(--neon) 6%, transparent);
 }
 
 .db-list-item.active {
-  background: rgba(0, 229, 255, 0.14);
+  background: color-mix(in srgb, var(--neon) 14%, transparent);
   border-left-color: var(--neon);
-  color: #fff;
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -355,7 +350,7 @@ html, body {
 
 .db-item-badge-view {
   color: var(--amber);
-  border: 1px solid rgba(255, 176, 0, 0.3);
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent);
 }
 
 .db-empty-note {
@@ -427,7 +422,7 @@ html, body {
   gap: 8px;
   padding: 6px 12px;
   border-bottom: 1px solid var(--line-soft);
-  background: rgba(10, 18, 32, 0.6);
+  background: var(--bg-soft);
   flex-shrink: 0;
 }
 
@@ -472,7 +467,7 @@ html, body {
 }
 
 .db-grid th:hover {
-  background: rgba(0, 229, 255, 0.1);
+  background: color-mix(in srgb, var(--neon) 10%, transparent);
 }
 
 .db-col-header-inner {
@@ -491,9 +486,9 @@ html, body {
   font-size: 8px;
   padding: 0 3px;
   border-radius: 2px;
-  background: rgba(255, 176, 0, 0.2);
-  color: var(--warn);
-  border: 1px solid rgba(255, 176, 0, 0.4);
+  background: color-mix(in srgb, var(--amber) 20%, transparent);
+  color: var(--amber);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
 }
 
 .db-sort-indicator {
@@ -507,8 +502,8 @@ html, body {
 }
 
 .db-grid td {
-  border-bottom: 1px solid rgba(0, 229, 255, 0.07);
-  border-right: 1px solid rgba(0, 229, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--neon) 7%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--neon) 5%, transparent);
   padding: 3px 8px;
   white-space: nowrap;
   height: 26px;
@@ -531,11 +526,11 @@ html, body {
 }
 
 .db-grid tr:hover td {
-  background: rgba(0, 229, 255, 0.04);
+  background: color-mix(in srgb, var(--neon) 4%, transparent);
 }
 
 .db-grid tr.selected td {
-  background: rgba(0, 229, 255, 0.12);
+  background: color-mix(in srgb, var(--neon) 12%, transparent);
 }
 
 .db-cell-null {
@@ -551,7 +546,7 @@ html, body {
 }
 
 .db-cell-binary:hover {
-  color: #fff;
+  color: var(--text);
   text-decoration-style: solid;
 }
 
@@ -576,9 +571,9 @@ html, body {
 .db-inline-input {
   flex: 1;
   height: 20px;
-  background: #000;
+  background: var(--bg-soft);
   border: 1px solid var(--neon);
-  color: #fff;
+  color: var(--text);
   font-family: var(--mono);
   font-size: 11px;
   padding: 1px 4px;
@@ -692,7 +687,7 @@ html, body {
 
 .db-meta-table td {
   padding: 4px 8px;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--neon) 5%, transparent);
   color: var(--text);
   vertical-align: middle;
 }
@@ -704,7 +699,7 @@ html, body {
 .db-struct-edit-input {
   background: var(--bg-raised);
   border: 1px solid var(--line);
-  color: #fff;
+  color: var(--text);
   font-family: var(--mono);
   font-size: 11px;
   padding: 2px 5px;
@@ -726,7 +721,7 @@ html, body {
 .db-struct-edit-select {
   background: var(--bg-raised);
   border: 1px solid var(--line);
-  color: #fff;
+  color: var(--text);
   font-family: var(--mono);
   font-size: 10px;
   padding: 2px 4px;
@@ -754,15 +749,15 @@ html, body {
   font-size: 8px;
   font-weight: 700;
   color: var(--amber);
-  background: rgba(255, 176, 0, 0.15);
-  border: 1px solid rgba(255, 176, 0, 0.4);
+  background: color-mix(in srgb, var(--amber) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
   padding: 1px 4px;
   border-radius: 2px;
   white-space: nowrap;
 }
 
 .db-meta-table tr:hover td {
-  background: rgba(0, 229, 255, 0.04);
+  background: color-mix(in srgb, var(--neon) 4%, transparent);
 }
 
 /* ── Pestaña CONSULTA ───────────────────────────────────────────────────── */
@@ -780,7 +775,7 @@ html, body {
   height: 120px;
   background: var(--bg-raised);
   border: 1px solid var(--line);
-  color: #fff;
+  color: var(--text);
   font-family: var(--mono);
   font-size: 12px;
   padding: 8px;
@@ -855,11 +850,11 @@ html, body {
 }
 
 .db-console-error-box {
-  background: rgba(255, 45, 149, 0.1);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
   border: 1px solid var(--danger);
   padding: 10px 12px;
   border-radius: 2px;
-  color: #ff80bf;
+  color: var(--danger);
   font-size: 11px;
   white-space: pre-wrap;
 }
@@ -941,7 +936,7 @@ html, body {
 }
 
 .db-link-btn:hover {
-  color: #fff;
+  color: var(--text);
 }
 
 /* ── Modales ────────────────────────────────────────────────────────────── */
@@ -966,7 +961,7 @@ html, body {
   max-height: 85vh;
   background: var(--bg-soft);
   border: 1px solid var(--neon);
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--neon) 20%, transparent);
   border-radius: 2px;
   display: flex;
   flex-direction: column;
@@ -1009,7 +1004,7 @@ html, body {
 }
 
 .db-modal-close:hover {
-  color: #fff;
+  color: var(--text);
 }
 
 .db-modal-body {
@@ -1178,9 +1173,9 @@ html, body {
 .db-hex-dump {
   margin: 0;
   padding: 8px;
-  background: #000;
+  background: var(--bg-soft);
   border: 1px solid var(--line);
-  color: #a9e0ff;
+  color: var(--text);
   font-family: var(--mono);
   font-size: 11px;
   line-height: 1.4;

@@ -1,0 +1,46 @@
+/* OpenCode Alfred — reglas base comunes a todos los temas.
+   Va DESPUÉS de los temas (themes/*.css) y ANTES de theme/ui.css: solo usa
+   variables, así que el tema decide los colores y este fichero decide la forma. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--mono);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  overflow-x: hidden;
+}
+
+/* Rejilla + scanlines: la textura del HUD.
+   --texture-opacity permite al tema bajarla (Manoli) o apagarla sin tocar
+   los degradados. Por defecto 1, como siempre. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 50% 0%, var(--texture-tint), transparent 62%);
+  pointer-events: none;
+  z-index: 10;
+  opacity: var(--texture-opacity, 1);
+}
+
+/* ── Barra de desplazamiento ───────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

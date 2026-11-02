@@ -1,12 +1,7 @@
-/* ALFRED // CONTROL — explorador. La base (color, tipografía, HUD) vive en tokens.css. */
+/* ALFRED // CONTROL — explorador. La base (color, tipografía, HUD) vive en theme/base.css. */
 
 .hud {
   padding: 0 10px 18px;
-  /* Regla de color de este panel: `--text-dim` SOLO para lo deshabilitado/apagado
-     (`:disabled`, `.agent.disabled`, `.entry.off`, iconos discontinuos y vacíos);
-     nombres, rótulos y botones van con `--text`, y lo secundario (modelo, tokens,
-     leyenda) con este intermedio. */
-  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
   /* Rejilla única del catálogo: los rótulos de área se alinean con estas columnas. */
   --cat-cols: minmax(0, 1fr) minmax(0, 1fr);
 }
@@ -207,15 +202,6 @@
   border-color: var(--neon);
   color: var(--neon);
   box-shadow: 0 0 8px var(--neon-dim), 0 0 14px var(--neon-dim);
-}
-
-/* Tema claro: el cian oscuro de ese tema no aguanta un rótulo de 9 px encima del tinte (3,3:1).
-   Ahí el encendido va en el relleno, el borde y el halo, y el texto se queda en `--text`. */
-body.vscode-light .assign-btn.on,
-body.vscode-light .assign-btn.on:hover,
-body.vscode-light .assign-btn.on:focus-visible {
-  color: var(--text);
-  box-shadow: 0 0 6px var(--neon-dim), 0 0 10px var(--neon-dim);
 }
 
 /* Sin acción posible (otro proveedor, o un hueco sin implementar): tono apagado y sin brillo.

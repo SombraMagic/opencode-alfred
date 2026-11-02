@@ -1,8 +1,4 @@
-/* Subagente de Claude — formulario del frontmatter. Usa media/tokens.css. */
-
-:root {
-  color-scheme: light dark;
-}
+/* Subagente de Claude — formulario del frontmatter. Usa media/theme/base.css. */
 
 * {
   box-sizing: border-box;
@@ -100,25 +96,14 @@ button.secondary:hover:not(:disabled) {
 
 /* Va después de button.secondary: con la misma especificidad gana el orden. */
 button.danger {
-  color: #e05a5a;
-  border-color: #e05a5a;
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 button.danger:hover:not(:disabled) {
-  color: #ff7b7b;
-  border-color: #ff7b7b;
-  box-shadow: 0 0 8px rgba(224, 90, 90, 0.35);
-}
-
-/* Tema claro: el rojo claro del HUD no contrasta sobre blanco (mismo criterio que .banner.error). */
-body.vscode-light button.danger {
-  color: #b3261e;
-  border-color: #b3261e;
-}
-
-body.vscode-light button.danger:hover:not(:disabled) {
-  color: #8f1d16;
-  border-color: #8f1d16;
+  color: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--danger) 35%, transparent);
 }
 
 button.small {
@@ -152,8 +137,8 @@ button:disabled {
 }
 
 .banner.error {
-  border-left-color: #e05a5a;
-  color: #e05a5a;
+  border-left-color: var(--danger);
+  color: var(--danger);
   background: var(--line-soft);
 }
 
@@ -356,7 +341,7 @@ select:disabled {
 }
 
 .chip-x:hover {
-  color: #e05a5a;
+  color: var(--danger);
   border-color: transparent;
 }
 
@@ -387,7 +372,7 @@ select:disabled {
   color: var(--text);
 }
 
-.c-red .dot { background: #e05a5a; }
+.c-red .dot { background: var(--danger); }
 .c-blue .dot { background: #4a9eff; }
 .c-green .dot { background: #3fb950; }
 .c-yellow .dot { background: #d4a72c; }
@@ -467,8 +452,8 @@ details.advanced > summary:focus-visible {
 }
 
 .issues li.error {
-  border-left-color: #e05a5a;
-  color: #e05a5a;
+  border-left-color: var(--danger);
+  color: var(--danger);
 }
 
 .issues li.warning {
@@ -484,17 +469,6 @@ details.advanced > summary:focus-visible {
 .issues li.ok {
   border-left-color: var(--green);
   color: var(--green);
-}
-
-/* Contraste en tema claro: el rojo de la paleta no llega. */
-body.vscode-light .issues li.error,
-body.vscode-light .banner.error {
-  border-left-color: #b3261e;
-  color: #b3261e;
-}
-
-body.vscode-light .chip-x:hover {
-  color: #b3261e;
 }
 
 /* ── Estrecho ──────────────────────────────────────────── */

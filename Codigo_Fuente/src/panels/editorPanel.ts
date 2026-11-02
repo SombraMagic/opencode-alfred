@@ -13,6 +13,7 @@ import { serializeAgentFile } from "../agents/parser";
 import { deleteAgent, findAgent, readConfigInfo, saveAgent } from "../agents/store";
 import { validateAgentName, validateFrontmatter, ValidationIssue } from "../agents/validate";
 import { projectRoot } from "../agents/paths";
+import { currentTheme, themeLinks, themeScript } from "./theme";
 
 interface EditorInit {
   mode: "create" | "edit";
@@ -138,6 +139,7 @@ export class EditorPanel {
       async (message) => {
         switch (message.type) {
           case "ready":
+            this.postTheme();
             this.post({ type: "init", payload: this.init });
             break;
           case "validate":
@@ -167,6 +169,11 @@ export class EditorPanel {
 
   private post(message: unknown): void {
     void this.panel.webview.postMessage(message);
+  }
+
+  /** Avisa al webview del estilo visual vigente. */
+  postTheme(): void {
+    this.post({ type: "theme", theme: currentTheme() });
   }
 
   private computeIssues(payload: {
@@ -303,15 +310,6 @@ export class EditorPanel {
 
   private getHtml(webview: vscode.Webview, name: string): string {
     const nonce = getNonce();
-    const tokensUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "tokens.css")
-    );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "editor.css")
-    );
-    const mdStyleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "mdEditor.css")
-    );
     const mdScriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "mdEditor.js")
     );
@@ -332,9 +330,7 @@ export class EditorPanel {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link href="${tokensUri}" rel="stylesheet" />
-<link href="${styleUri}" rel="stylesheet" />
-<link href="${mdStyleUri}" rel="stylesheet" />
+${themeLinks(this.extensionUri, webview, ["editor.css"], ["mdEditor.css"])}
 <title>Editor de agente</title>
 </head>
 <body>
@@ -470,6 +466,7 @@ export class EditorPanel {
     </section>
   </main>
 </div>
+${themeScript(this.extensionUri, webview, nonce)}
 <script nonce="${nonce}" src="${mdScriptUri}"></script>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

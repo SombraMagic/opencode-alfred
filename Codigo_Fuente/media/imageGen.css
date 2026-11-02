@@ -1,17 +1,12 @@
 /* Generador de imágenes — HUD de ComfyUI y OpenAI: conexión, ajustes y resultado.
-   Todo sale de tokens.css; aquí solo el reparto y lo propio del panel. */
+   Todo sale de theme/base.css; aquí solo el reparto y lo propio del panel. */
 
 /* Sin scanlines: ensucian las capturas que se copian fuera. */
 body::before { content: none; }
 
-:root {
-  color-scheme: dark light;
-}
-
 body {
   /* Secundario que no es estado apagado. `--text-dim` se reserva para `:disabled`,
      placeholder, «—» y lo que está parado. */
-  --text-soft: color-mix(in srgb, var(--text) 68%, transparent);
   padding: 0 12px 18px;
 }
 
@@ -19,7 +14,7 @@ body {
   display: none !important;
 }
 
-/* Los rótulos son texto secundario, no estado apagado: tokens.css los deja en `--text-dim`. */
+/* Los rótulos son texto secundario, no estado apagado: theme/base.css los deja en `--text-dim`. */
 .label {
   color: var(--text-soft);
 }
