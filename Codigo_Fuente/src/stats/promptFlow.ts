@@ -97,6 +97,19 @@ const LOOKBACK_MS = 24 * 60 * 60 * 1000;
  */
 const ROOT_TOLERANCE_MS = ABANDONED_MS;
 const TEXT_MAX = 180;
+/**
+ * Hueco máximo en ms para unir dos tramos de una MISMA sesión cuando OTRA sesión trabajó en
+ * medio. Por encima, el tramo se corta y la espera queda como hueco visible en la línea de
+ * tiempo: si no, el relevo de otro agente se taparía extendiendo el tramo del primero.
+ */
+const SEGMENT_GAP_MS = 1000;
+/**
+ * Hueco máximo en ms para unir dos tramos de la misma sesión cuando NO trabajó ninguna otra
+ * sesión en medio (pausa pura: el modelo pensando, una espera sin mensajes). Por encima
+ * (p. ej. 5 minutos parado) tampoco se unen: el hueco es real y debe verse. Sin otro agente
+ * en medio es el único freno; con él manda `SEGMENT_GAP_MS`.
+ */
+const SEGMENT_IDLE_MS = 60_000;
 
 type Db = NonNullable<ReturnType<typeof openSqliteReadOnly>>;
 
@@ -201,7 +214,12 @@ function toMsg(row: Record<string, unknown>): Msg | undefined {
 interface LaneAcc {
   agent: string;
   root: boolean;
-  spans: Map<string, { start: number; end: number }>;
+  /**
+   * Tramos por sesión, en orden de `start` y sin solapes entre sí (se unen al acumular).
+   * Varios por sesión porque una misma sesión puede parar y volver a trabajar: fundirlos en
+   * uno solo taparía el hueco en la línea de tiempo.
+   */
+  spans: Map<string, PromptSegment[]>;
   input: number;
   output: number;
   reasoning: number;
@@ -230,6 +248,59 @@ function laneAcc(agent: string): LaneAcc {
     estimated: false,
     priced: false,
   };
+}
+
+/**
+ * Cuándo deja de ser trabajo un mensaje: al completarse, en `now` si el turno sigue vivo
+ * (aún no se sabe dónde parará) y si no, en su actualización; nunca antes de su creación.
+ */
+function finishOf(msg: Msg, live: boolean, now: number): number {
+  return Math.max(msg.completed ?? (live ? now : msg.updated > 0 ? msg.updated : msg.created), msg.created);
+}
+
+/** Intervalo activo de un mensaje assistant, con su sesión. */
+interface MessageActivity {
+  session: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * `true` si algún mensaje de una sesión DISTINTA de `session` estuvo activo dentro del hueco
+ * abierto `(from, to)`. Un solape (`to <= from`) no es hueco: la sesión seguía trabajando.
+ */
+function otherActiveBetween(activities: MessageActivity[], session: string, from: number, to: number): boolean {
+  if (to <= from) {
+    return false;
+  }
+  for (const a of activities) {
+    if (a.session !== session && a.start < to && a.end > from) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Ordena los tramos por `start` y une los que se solapan. Dentro de una sesión la unión ya se
+ * hace al acumular, así que esto solo afecta al mismo agente en dos sesiones que trabajaron a
+ * la vez (subagentes en paralelo): sin unirlas la fila pintaría barras superpuestas y `workMs`
+ * contaría doble el solape. Tramos separados por un hueco, aunque sean de sesiones distintas,
+ * nunca se unen: ahí va el hueco visible que el usuario espera.
+ */
+function coalesceSpans(spans: PromptSegment[]): PromptSegment[] {
+  const out: PromptSegment[] = [];
+  for (const s of spans.slice().sort((a, b) => a.start - b.start)) {
+    const last = out[out.length - 1];
+    if (last && s.start <= last.end) {
+      if (s.end > last.end) {
+        last.end = s.end;
+      }
+    } else {
+      out.push({ start: s.start, end: s.end });
+    }
+  }
+  return out;
 }
 
 export function scanOpencodePrompts(options: ScanPromptOptions): PromptScanResult {
@@ -535,6 +606,13 @@ function buildPrompt(
   }
 
   const lanes = new Map<string, LaneAcc>();
+  // Ventana de actividad de cada mensaje admitido, con su sesión: sirve para saber si otra
+  // sesión trabajó en el hueco entre dos tramos de la misma.
+  const activities: MessageActivity[] = taken.map((msg) => ({
+    session: msg.session,
+    start: msg.created,
+    end: finishOf(msg, live, now),
+  }));
   for (const msg of taken) {
     const lane = lanes.get(msg.agent) ?? laneAcc(msg.agent);
     lanes.set(msg.agent, lane);
@@ -548,12 +626,25 @@ function buildPrompt(
     lane.cacheWrite += msg.tokens.cacheWrite;
     lane.total += msg.tokens.total;
 
-    const span = lane.spans.get(msg.session);
-    const finish = msg.completed ?? (live ? now : msg.updated > 0 ? msg.updated : msg.created);
-    if (!span) {
-      lane.spans.set(msg.session, { start: msg.created, end: Math.max(finish, msg.created) });
-    } else if (finish > span.end) {
-      span.end = finish;
+    // `taken` viene ordenado por `created`, así que los mensajes de una sesión llegan en orden
+    // y basta mirar su último tramo; no se ordena por `seq`, que puede venir desajustado.
+    const spans = lane.spans.get(msg.session) ?? [];
+    lane.spans.set(msg.session, spans);
+    const msgStart = msg.created;
+    const msgEnd = finishOf(msg, live, now);
+    const prev = spans[spans.length - 1];
+    if (prev) {
+      const limite = otherActiveBetween(activities, msg.session, prev.end, msgStart) ? SEGMENT_GAP_MS : SEGMENT_IDLE_MS;
+      if (msgStart - prev.end <= limite) {
+        // Mismo tramo continuo: se solapa o el hueco es corto para el caso.
+        if (msgEnd > prev.end) {
+          prev.end = msgEnd;
+        }
+      } else {
+        spans.push({ start: msgStart, end: msgEnd });
+      }
+    } else {
+      spans.push({ start: msgStart, end: msgEnd });
     }
 
     if (msg.cost > 0) {
@@ -599,9 +690,7 @@ function buildPrompt(
   };
 
   for (const acc of lanes.values()) {
-    const segments = [...acc.spans.values()]
-      .map((s) => ({ start: s.start, end: Math.max(s.end, s.start) }))
-      .sort((a, b) => a.start - b.start);
+    const segments = coalesceSpans([...acc.spans.values()].flat());
     const lane: PromptLane = {
       agent: acc.agent,
       color: options.colorOf(acc.agent),
