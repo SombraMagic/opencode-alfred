@@ -496,6 +496,11 @@
   // tocar el DOM cuando no cambió nada.
   const SM_STALE_MS = 15000;
   let smSignature = "";
+  // La temperatura de CPU necesita permisos: mientras no haya lectura, el propio
+  // dato es el botón que los pide. `smBusy` mantiene los puntos suspensivos
+  // mientras el host eleva el proceso, y `smCpuPending` guarda lo que tocaría pintar.
+  let smBusy = false;
+  let smCpuPending = "—";
 
   const smCpu = {
     cell: $("sm-cpu-temp").closest(".sysmon-cell"),
@@ -559,14 +564,19 @@
     return u == null || !t ? null : (u / t) * 100;
   }
 
-  /** Pinta una celda: valor, carga, ancho de la barra y estado apagado. */
-  function smPaintCell(cell, value, loadText) {
-    smWrite(cell.value, value);
+  /** Carga, ancho de la barra y estado apagado de una celda. */
+  function smPaintLoad(cell, loadText) {
     smWrite(cell.load, loadText);
     const pct = loadText === "—" ? 0 : parseFloat(loadText);
     const width = pct + "%";
     if (cell.fill.style.width !== width) cell.fill.style.width = width;
     cell.cell.classList.toggle("off", loadText === "—");
+  }
+
+  /** Pinta una celda: valor, carga, ancho de la barra y estado apagado. */
+  function smPaintCell(cell, value, loadText) {
+    smWrite(cell.value, value);
+    smPaintLoad(cell, loadText);
   }
 
   /** `title` del modelo de GPU en las dos celdas que lo comparten. */
@@ -580,6 +590,44 @@
       }
     }
   }
+
+  /**
+   * Temperatura de CPU en un solo sitio: valor, guion apagado y afordancia de
+   * botón. Solo el "—" se puede pulsar; con un número no se ofrece nada.
+   */
+  function smPaintCpuTemp(text) {
+    if (smCpu.value.textContent !== text) smCpu.value.textContent = text;
+    smCpu.value.classList.toggle("off", text === "—");
+    const pedir = text === "—";
+    smCpu.value.classList.toggle("can-pedir", pedir);
+    if (pedir) {
+      smCpu.value.title = "Pedir permisos para leer la temperatura de la CPU";
+      smCpu.value.setAttribute("role", "button");
+      smCpu.value.setAttribute("tabindex", "0");
+      smCpu.value.removeAttribute("aria-disabled");
+    } else {
+      if (smCpu.value.hasAttribute("title")) smCpu.value.removeAttribute("title");
+      smCpu.value.removeAttribute("role");
+      smCpu.value.removeAttribute("tabindex");
+      smCpu.value.removeAttribute("aria-disabled");
+    }
+  }
+
+  /** Pide los permisos; con "…" o con valor numérico el gesto no hace nada. */
+  function smPedirTemp() {
+    if (smBusy || !smCpu.value.classList.contains("can-pedir")) return;
+    post({ type: "sysmonElevate" });
+  }
+
+  // Un solo oyente, enlazado al cargar: el campo se repinta, pero no se reengancha.
+  smCpu.value.addEventListener("click", smPedirTemp);
+  smCpu.value.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    smPedirTemp();
+  });
+  // El HTML nace con el "—" y sin muestra no habría afordancia: se sincroniza una vez.
+  smPaintCpuTemp(smCpuPending);
 
   /** Pinta el monitor; sin muestra fresca queda todo en guiones. */
   function paintSysmon(data) {
@@ -599,12 +647,17 @@
     const vramLoad = fresh ? smLoad(smRatio(gpu.vramUsed, gpu.vramTotal)) : "—";
     const gpuName = typeof gpu.name === "string" ? gpu.name.trim() : "";
 
+    // Lo que tocaría pintar en la temperatura de CPU: con el UAC abierto el
+    // campo sigue en "…" y solo se guarda el valor pendiente.
+    smCpuPending = cpuTemp;
+
     // El `at` cambia siempre: la firma va con lo que se ve.
     const signature = [cpuTemp, cpuLoad, ramTotal, ramLoad, gpuTemp, gpuLoad, vramTotal, vramLoad, gpuName].join("|");
     if (signature === smSignature) return;
     smSignature = signature;
 
-    smPaintCell(smCpu, cpuTemp, cpuLoad);
+    if (!smBusy) smPaintCpuTemp(cpuTemp);
+    smPaintLoad(smCpu, cpuLoad);
     smPaintCell(smRam, ramTotal, ramLoad);
     smPaintCell(smGpu, gpuTemp, gpuLoad);
     smPaintCell(smVram, vramTotal, vramLoad);
@@ -745,6 +798,13 @@
 
       case "sysmon":
         paintSysmon(msg.data);
+        break;
+
+      case "sysmonBusy":
+        // Pidiendo permisos: "…" en el dato y sin afordancia, que no se pida dos
+        // veces. Al acabar se repinta lo último que tocaba (— o la temperatura).
+        smBusy = msg.on === true;
+        smPaintCpuTemp(smBusy ? "…" : smCpuPending);
         break;
 
       case "floorLock":

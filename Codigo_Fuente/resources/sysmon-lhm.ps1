@@ -17,6 +17,23 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Windows crea la consola del proceso elevado aunque Start-Process lleve
+# -WindowStyle Hidden (RunAs ignora ese flag), así que se oculta desde dentro.
+# Sin consola GetConsoleWindow devuelve cero y no hay nada que ocultar.
+try {
+  Add-Type -Namespace AlfredSysMon -Name Native -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("kernel32.dll")]
+public static extern System.IntPtr GetConsoleWindow();
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
+'@
+  $console = [AlfredSysMon.Native]::GetConsoleWindow()
+  if ($console -ne [System.IntPtr]::Zero) {
+    [void][AlfredSysMon.Native]::ShowWindow($console, 0)
+  }
+}
+catch { }
+
 # La DLL vive en resources/lhm; se admite también junto al propio script.
 if (-not $Dll) {
   $Dll = Join-Path $PSScriptRoot "lhm\LibreHardwareMonitorLib.dll"

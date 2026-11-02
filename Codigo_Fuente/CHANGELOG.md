@@ -3,6 +3,25 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.7.25] - 2026-11-02
+
+- **Explorador del proyecto**: pestaña central (icono de carpeta en `Control`, comando
+  `opencodeAgents.projectExplorer`) con uno o dos árboles, cada uno con su raíz. Tamaño lógico por
+  fichero con barra y porcentaje respecto al padre, iconos por tipo y `.md` resaltados; búsqueda por
+  nombre, carpeta y contenido en texto; filtros git con insignias y `+N −M`; rama, `fetch`,
+  `pull --ff-only`, `push`, commit de lo staged, `ADD ALL`, `checkout` y rama nueva por la CLI.
+  Borrar a la papelera y copiar o mover entre árboles (arrastre o menú), siempre dentro de la raíz
+  y sin sobrescribir.
+- **Menú contextual del explorador**, sin menú nativo sobre el árbol: comparar con Git
+  (`vscode.diff`), stage/unstage, descartar cambios (solo modificados, con confirmación), renombrar
+  y crear fichero. Git recibe pathspec literal y los watchers de las carpetas expandidas se cierran
+  antes de renombrar o borrar.
+- **Línea de tiempo de estadísticas de prompts**: cada agente guarda varios tramos en su fila. Si un
+  agente para mientras otro trabaja, el hueco queda vacío, y al retomar se dibuja un tramo nuevo.
+  `workMs` no cuenta esperas.
+- **Monitor del equipo**: la temperatura de la CPU ya no pide UAC al arrancar VS Code; el permiso se
+  pide solo al pulsar ese dato (subrayado punteado). El resto del monitor sigue sin permisos.
+
 ## [0.7.24] - 2026-11-01
 
 - **Monitor del equipo en el panel de VOZ**: dos filas encima del ecualizador con `CPU`

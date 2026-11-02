@@ -44,8 +44,31 @@ opencode), el cerebro de `OLLAMA` (la pestaña
 de Ollama, que brilla mientras el servidor responde), la foto del generador de imágenes (en verde
 mientras está compartido con los agentes) y el
 bocadillo del chatbot (se enciende cuando responde el servidor de Ollama). La segunda fila
-abre pizarra, dictado, voz y estadísticas de prompt. Al estrechar la barra las filas saltan a
-más líneas y los botones se estiran.
+abre pizarra, dictado, voz, estadísticas de prompt y el explorador del proyecto. Al estrechar la
+barra las filas saltan a más líneas y los botones se estiran.
+
+### Explorador del proyecto
+
+Pestaña central —comando `opencodeAgents.projectExplorer` («opencode: Explorador del proyecto»),
+o el icono de carpeta de la segunda fila de `Control`—. Uno o dos árboles de ficheros, cada uno
+con su raíz elegida; el diseño, las raíces, lo expandido y la división se recuerdan por espacio de
+trabajo.
+
+- **Vista**: tamaño lógico de cada fichero con barra y porcentaje respecto al padre, tamaños
+  redondeados, iconos SVG por tipo y los `.md` resaltados.
+- **Búsqueda**: por nombre o carpeta y por contenido en texto (1 MB por fichero, sin binarios;
+  omite `.git`, `node_modules`, `dist` y `build`). El resultado es un árbol podado con sus
+  ancestros.
+- **Git**: chips `TODO`, `CAMBIOS`, `STAGED`, `NUEVOS`, `SIN PUSH` y `LIMPIOS`, insignias
+  `M`/`S`/`?`/`D`/`R`/`↑` y `+N −M` por fichero. Por la CLI de git: rama, `fetch`,
+  `pull --ff-only`, `push` (con `-u` si no hay upstream y con confirmación), commit de lo staged,
+  `ADD ALL`, `checkout` y rama nueva.
+- **Menú contextual**: sin menú nativo sobre el árbol —comparar con Git (`vscode.diff`),
+  stage/unstage, descartar cambios (solo modificados, con confirmación), renombrar y crear fichero—.
+- **Operaciones**: borrar a la papelera con confirmación (permanente tras segundo aviso); copiar
+  y mover arrastrando (`Ctrl` = copiar) o con el menú contextual Copiar/Cortar/Pegar, dentro del
+  mismo árbol o entre los dos, sin sobrescribir nunca. Las rutas se validan dentro de la raíz de
+  su árbol: `.git` y la raíz no se tocan y no se siguen symlinks.
 
 ### Contexto
 
@@ -74,10 +97,11 @@ tarjeta de cada proveedor recuerda si estaba plegada.
   desaparecen al terminar.
 - Encima del ecualizador hay un **monitor del equipo**: `CPU` (temperatura y uso), `RAM`
   (total y uso), `GPU` (temperatura y uso) y `VRAM` (total y uso), con su barra de bloques.
-  Se refresca cada 2 s y solo con la vista abierta; sin muestra, pinta guiones. La
-  temperatura de la CPU necesita permisos de administrador: Windows pide UAC una sola vez
-  por sesión y, si se cancela, cargas, memoria y GPU se leen igual y esa temperatura queda
-  en `—` hasta reiniciar VS Code.
+  Se refresca cada 2 s y solo con la vista abierta; sin muestra, pinta guiones. Al arrancar no
+  se pide nada: la temperatura de la CPU sale en `—` hasta que se pulse ese dato (subrayado
+  punteado), y ese clic es el único que abre el UAC. Mientras espera se pinta `…`; si se cancela,
+  vuelve `—` con un aviso. Sin permisos, el uso de CPU, la RAM, la GPU, la VRAM y la temperatura
+  de la GPU se leen igual, y no aparece ninguna ventana de PowerShell.
 - Dictado: bloc de notas con adjuntos (imágenes pegadas, ficheros arrastrados o `ADJUNTAR`),
   configuración plegable y tres motores (SAPI, Whisper local, nube compatible con OpenAI).
 
@@ -268,6 +292,7 @@ El selector del mando decide qué config lee y escribe la extensión:
 | Agentes de opencode | `~/.config/opencode/agent/<nombre>.md` y `<proyecto>/.opencode/agent/<nombre>.md` |
 | Subagentes de Claude | `~/.claude/agents` y `<proyecto>/.claude/agents` |
 | Adjuntos del dictado | `<proyecto>/.alfred/adjuntos` (o el almacén global si no hay carpeta) |
+| Explorador del proyecto | los ficheros del proyecto abierto: papelera, copiar y mover, solo dentro de la raíz de cada árbol |
 
 Las bases de datos de opencode se abren **en estricta solo lectura**. Nunca se escribe en
 ellas.

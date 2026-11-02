@@ -28,6 +28,8 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Ningún hijo puede abrir una barra horizontal: esta vista es una barra lateral. */
+  overflow-x: hidden;
 }
 
 /* ── Monitor del equipo (CPU, RAM, GPU, VRAM) ─────────── */
@@ -40,16 +42,13 @@
   /* Huecos recortados (entre celdas 6→4, dentro de la celda 4→2) para pagar el
      ancho fijo de etiqueta y valor. */
   gap: 3px 4px;
-  /* 1 px por lado fuera del padding del panel: el `%` mide 23,88 de texto y no
-     devuelve los 2 px que se le pedían, así que la barra se queda corta. Es un
-     pelo más ancha que el resto de filas y no se nota. */
-  margin: 2px -1px 0;
+  margin: 2px 0 0;
   font-variant-numeric: tabular-nums;
 }
 
 /* Barra lateral estrecha: una celda por fila.
-   Dos columnas con el peor caso ("7,8 GB" + "100%") piden 295,96 px de vista
-   para dejar 24 px de barra: a 305 deja 28,52 y a 300, 26,02. Por eso, por
+   Dos columnas con el peor caso ("7,8 GB" + "100%") piden 294,7 px de vista
+   para dejar 24 px de barra: a 305 deja 29,13 y a 300, 26,63. Por eso, por
    debajo de 281 una celda por fila. */
 @media (max-width: 280px) {
   .sysmon {
@@ -117,7 +116,8 @@
   flex: none;
   min-width: 22px;
   font-size: 9.5px;
-  letter-spacing: 0.4px;
+  /* Sin tracking: `100%` pasa de 23,88 a 22,27 y esos 1,6 px los gana la barra. */
+  letter-spacing: 0;
   color: var(--neon);
   text-align: right;
   white-space: nowrap;
@@ -129,6 +129,25 @@
 .sm-value.off,
 .sm-pct.off {
   color: var(--text-dim);
+}
+
+/* Temperatura de CPU sin lectura: el propio dato es el botón que pide los
+   permisos. Solo con la clase puesta (la pone paintSysmon con el "—"); con un
+   número el campo vuelve a ser texto normal. */
+.sm-value.can-pedir {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.sm-value.can-pedir:hover,
+.sm-value.can-pedir:focus-visible {
+  color: var(--neon);
+}
+
+.sm-value.can-pedir:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 1px;
 }
 
 /* ── Ecualizador de barras ────────────────────────────── */

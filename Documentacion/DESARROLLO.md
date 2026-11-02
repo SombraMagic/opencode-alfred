@@ -63,7 +63,9 @@ host valida antes de tocar disco (sin symlinks, `.git` y raíz protegidos): la w
 `init`, `view`, `scan`, `git`, `status` y `op`. Topes: escaneo de 150.000 entradas y profundidad
 64 (`scanner.ts`), 5.000 filas virtualizadas por árbol, y búsqueda de contenido de 1 MB por
 fichero y 1.000 coincidencias (`search.ts`). El estado (diseño, raíces, expandidas, ocultos,
-división) vive en `workspaceState` bajo `opencodeAgents.projectExplorer.*`.
+división) vive en `workspaceState` bajo `opencodeAgents.projectExplorer.*`. El menú contextual de
+la webview —sin menú nativo sobre el árbol— manda `rename`, `newFile` y las acciones git `stage`,
+`unstage` y `discard`; comparar con Git abre `vscode.diff`.
 
 ## Comandos
 

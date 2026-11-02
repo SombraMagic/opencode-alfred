@@ -57,9 +57,12 @@ Bienvenidos a Alfred.
   conexión con lo que ya trae Windows. El panel enseña también lo que está en marcha aunque
   no sea un agente: generar una imagen, transcribir voz o cargar modelos de Ollama salen con
   borde discontinuo e icono. Encima del ecualizador lleva un **monitor del equipo** con
-  temperatura y uso de CPU y GPU, y memoria y VRAM, con su barra de bloques. La temperatura
-  de la CPU pide permisos de administrador una vez por sesión (UAC); sin ellos esa
-  temperatura sale en `—` y el resto se lee igual. Sin muestra, todo en guiones.
+  temperatura y uso de CPU y GPU, y memoria y VRAM, con su barra de bloques. Al arrancar no
+  pide permisos: la temperatura de la CPU sale en `—` hasta que pulses ese dato en el monitor
+  (subrayado punteado), y ese clic es el único que abre el UAC. Mientras espera se pinta `…`;
+  si se cancela, vuelve `—` con un aviso. El uso de CPU, la RAM, la GPU, la VRAM y la
+  temperatura de la GPU se leen sin permisos y sin ninguna ventana de PowerShell. Sin
+  muestra, todo en guiones.
 - **Mente local.** El cerebro Ollama, en su pestaña: instalar o desinstalar con `winget`,
   modelos con su tamaño y el espacio del disco, descargar, borrar y encender o apagar. Al
   encender, Ollama aparece en los conectores y en la asignación de modelos de opencode.

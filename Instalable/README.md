@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.7.24.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.7.25.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Antes de empezar
@@ -16,15 +16,35 @@ No hace falta compilar nada ni instalar Node.
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
 
+## Novedades de la 0.7.25
+
+- **Explorador del proyecto**: pestaña central con el icono de carpeta de `Control`. Uno o dos
+  árboles, cada uno con su raíz. Tamaño de cada fichero con barra y porcentaje respecto al padre,
+  iconos por tipo y `.md` resaltados. Búsqueda por nombre, carpeta y contenido en texto. Chips de
+  filtro git con insignias y `+N −M`, y operaciones por la CLI: rama, `fetch`, `pull --ff-only`,
+  `push`, commit de lo staged, `ADD ALL`, `checkout` y rama nueva. Borrar va a la papelera con
+  confirmación; copiar y mover por arrastre (`Ctrl` = copiar) o por el menú, dentro del mismo árbol
+  o entre los dos, siempre dentro de la raíz y sin sobrescribir.
+- **Menú contextual del explorador** (no hay menú nativo sobre el árbol): comparar con Git
+  (`vscode.diff`), stage/unstage, descartar cambios —solo modificados, con confirmación—, renombrar
+  y crear fichero.
+- **Línea de tiempo de estadísticas de prompts**: cada agente guarda varios tramos; si para mientras
+  otro trabaja, el hueco queda vacío, y al retomar sale un tramo nuevo. `workMs` no cuenta esperas.
+- **Monitor del equipo**: la temperatura de la CPU ya no pide UAC al arrancar; solo al pulsar ese
+  dato. El resto del monitor (uso de CPU, RAM, GPU, VRAM y temperatura de la GPU) sigue sin
+  permisos y sin ventanas de PowerShell.
+
 ## Novedades de la 0.7.24
 
 - **Monitor del equipo en el panel de VOZ**: encima del ecualizador, dos filas con `CPU`
   (temperatura y uso), `RAM` (total y uso), `GPU` (temperatura y uso) y `VRAM` (total y uso),
   cada una con su barra de bloques. Se refresca cada 2 s y solo con la vista abierta.
-- **La temperatura de la CPU pide permisos de administrador**: Windows muestra un aviso de UAC
-  una sola vez por sesión, después de un aviso en VS Code. Si se cancela, se siguen leyendo las
-  cargas, la memoria y la GPU, y esa temperatura queda en `—` hasta reiniciar VS Code. Sin
-  muestra, el monitor pinta guiones.
+- **La temperatura de la CPU pide permisos de administrador, pero solo si la pides tú**: al
+  arrancar no hay UAC ni ventana de PowerShell (la consola del helper se oculta). La temperatura
+  sale en `—` hasta que pulses ese dato en el monitor (subrayado punteado); ese clic es el único
+  que abre el UAC y, mientras espera, se pinta `…`. Si se cancela, vuelve `—` y un aviso recuerda
+  que el resto del monitor sigue. Sin permisos se leen igual el uso de CPU, la RAM, la GPU, la
+  VRAM y la temperatura de la GPU. Sin muestra, el monitor pinta guiones.
 - Los datos los lee **LibreHardwareMonitorLib** (licencia MPL-2.0, incluida en el paquete junto
   a su texto de licencia). El proceso que lee se lanza una sola vez y termina al cerrar VS Code.
 
@@ -237,19 +257,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.7.23.vsix`.
+3. Elige `opencode-alfred-0.7.25.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.7.23.vsix
+code --install-extension opencode-alfred-0.7.25.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.7.23.vsix --force
+code --install-extension opencode-alfred-0.7.25.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

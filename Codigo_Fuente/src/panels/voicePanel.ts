@@ -33,9 +33,6 @@ const nowFile = join(
   "now.json",
 );
 
-/** El aviso del UAC del monitor sale una sola vez por sesión de VS Code. */
-let sysmonWarned = false;
-
 /** Agente que está trabajando ahora mismo, tal como lo pinta el panel. */
 export interface WorkingAgent {
   name: string;
@@ -92,8 +89,8 @@ export class VozPanel {
       view.onDidChangeVisibility(() => {
         if (view.visible) {
           void this.pushInitial();
-          // El proceso sigue vivo aunque la vista esté oculta: relanzarlo pediría
-          // otro UAC, así que aquí solo se reanuda el sondeo.
+          // El proceso sigue vivo aunque la vista esté oculta: aquí solo se
+          // reanuda el sondeo, nunca se lanza otro.
           this.startSysPolling();
         } else {
           this.stopSysPolling();
@@ -106,14 +103,6 @@ export class VozPanel {
       script: join(this.context.extensionUri.fsPath, "resources", "sysmon-lhm.ps1"),
       outFile: join(this.context.globalStorageUri.fsPath, "sysmon.json"),
     });
-    // La temperatura de la CPU necesita administrador. Se avisa antes del primer
-    // arranque (el mensaje no bloquea: el monitor sale detrás) y una sola vez.
-    if (!sysmonWarned) {
-      sysmonWarned = true;
-      void vscode.window.showInformationMessage(
-        "El monitor del equipo pedirá permisos de administrador para leer la temperatura de la CPU. Sin ellos se leen igual las cargas, la memoria y la GPU.",
-      );
-    }
 
     view.webview.html = this.html(view.webview);
     await this.pushInitial();
@@ -383,6 +372,22 @@ export class VozPanel {
         }
         break;
       }
+      case "sysmonElevate": {
+        // Clic en la temperatura de la CPU: el único sitio donde se pide el UAC.
+        const monitor = this.monitor;
+        if (!monitor) break;
+        // Con un helper elevado bueno no hay nada que pedir: ni «…» ni UAC.
+        const busy = !monitor.elevated;
+        if (busy) this.post({ type: "sysmonBusy", on: true });
+        const result = await monitor.elevate();
+        if (busy) this.post({ type: "sysmonBusy", on: false });
+        if (result === "fallo") {
+          void vscode.window.showInformationMessage(
+            "No se pudo leer la temperatura de la CPU: el resto del monitor sigue funcionando.",
+          );
+        }
+        break;
+      }
       case "toggleMcp": {
         let message: string;
         try {
@@ -590,7 +595,7 @@ export class VozPanel {
 
   dispose() {
     this.stopSysPolling();
-    // No mata el proceso: va elevado y se va solo al morir su -ParentPid.
+    // No mata el proceso: se va solo al morir su -ParentPid.
     this.monitor?.dispose();
     unwatchFile(nowFile);
     for (const d of this.disposables) d.dispose();

@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 1 de noviembre de 2026 · versión **0.7.24**
+Última revisión: 2 de noviembre de 2026 · versión **0.7.25**
 
 ## Resumen
 
@@ -9,18 +9,62 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
 
-La **0.7.24** está empaquetada e instalada en local (`--force`), **sin release en GitHub**: el
-panel de VOZ gana un **monitor del equipo** de dos filas encima del ecualizador (`CPU` con
-temperatura y uso, `RAM` y `VRAM` con total y uso, `GPU` con temperatura y uso), con barra de
-bloques y sondeo cada 2 s solo con la vista visible y sin repintado si la muestra no cambia. Los
-datos los lee **LibreHardwareMonitorLib** (0.9.4, MPL-2.0, en `resources/lhm/`) desde un proceso
-de PowerShell persistente (`resources/sysmon-lhm.ps1`, en `src/sysmon/`), uno por sesión y uno
-solo aunque haya dos ventanas, que escribe `sysmon.json` en el almacenamiento global y muere con
-el host. La temperatura de la CPU exige administrador: el UAC se pide una vez por sesión con un
-aviso previo en VS Code; si se cancela el UAC, o no llega la primera muestra en 20 s, se arranca
-sin elevar y esa temperatura queda en `—` hasta reiniciar VS Code. **Sin verificar en vivo**: el
-UAC real aceptado y cancelado, el proceso elevado escribiendo y muriendo con VS Code, el aspecto
-del bloque a ~300 px de barra lateral y dos ventanas a la vez (mutex).
+La **0.7.25** está empaquetada e instalada en local (`--force`), **sin release en GitHub**: el campo
+`version` subió solo para poder instalar con VS Code abierto. Entran el **Explorador del proyecto**
+(descrito debajo) con su menú contextual, los **tramos por agente** en la línea de tiempo de las
+estadísticas de prompts y el **UAC de la temperatura de la CPU al pulsar**, no al arrancar. Con
+`typecheck` y `compile` en verde.
+
+**Línea de tiempo de las estadísticas de prompts**: cada agente guarda varios tramos en su fila. Si
+el agente para mientras otro trabaja, el hueco queda vacío; si vuelve, se dibuja un tramo nuevo.
+`workMs` no cuenta las esperas.
+
+**Monitor del equipo**: al arrancar VS Code no se pide elevación: ni UAC ni ventana de PowerShell
+(la consola del helper se oculta con `ShowWindow`). La temperatura de la CPU sale en `—` hasta que
+se pulsa ese dato en el monitor (subrayado punteado); ese clic es el único que abre el UAC y,
+mientras espera, se pinta `…`. Si se cancela, vuelve `—` con un aviso de que el resto del monitor
+sigue, y el uso de CPU, la RAM, la GPU, la VRAM y la temperatura de la GPU se leen igual sin
+permisos. Sustituye al aviso al arranque que traía la 0.7.24.
+
+**Sin verificar en vivo**: el UAC real aceptado y cancelado desde ese clic y el proceso elevado
+escribiendo y muriendo con VS Code. **Sin ver en VS Code**: la webview real del explorador —los dos
+árboles, el arrastre entre columnas, el menú contextual y los diálogos de borrado y de push— y los
+huecos del timeline con dos agentes alternando. El aspecto del bloque a ~300 px de barra lateral y
+dos ventanas a la vez (mutex) siguen pendientes desde la 0.7.24.
+
+El **Explorador del proyecto** de esta 0.7.25 es una pestaña central
+(`opencodeAgents.projectExplorer`) que abre el icono nuevo de carpeta de la vista `Control`
+(`btn-project`). Una o dos columnas, cada árbol con raíz independiente. Lista ficheros y carpetas
+con su tamaño lógico (`stat.size`), barra y porcentaje respecto al padre, tamaños redondeados,
+iconos SVG por tipo y `.md` resaltados. Busca por nombre o carpeta y por contenido en texto (tope
+1 MB por fichero, sin binarios; omite `.git`, `node_modules`, `dist` y `build`) y muestra el
+resultado en un árbol podado con sus ancestros. Chips de filtro git —`TODO`, `CAMBIOS`, `STAGED`,
+`NUEVOS`, `SIN PUSH`, `LIMPIOS`— con insignias `M`/`S`/`?`/`D`/`R`/`↑` y `+N −M`. Git por CLI:
+rama, `fetch`, `pull --ff-only`, `push` (con `-u` si no hay upstream y con confirmación), commit
+de lo staged, `ADD ALL`, `checkout` y rama nueva. Borra a la papelera con confirmación
+(permanente tras segundo aviso); copiar y mover por arrastre (`Ctrl` = copiar) y por menú
+contextual Copiar/Cortar/Pegar, dentro del mismo árbol y entre árboles, sin sobrescribir. **Sin
+menú nativo sobre el árbol**: el menú contextual de la webview trae comparar con Git
+(`vscode.diff`), stage/unstage, descartar cambios (solo modificados, con confirmación), renombrar y
+crear fichero. Git recibe pathspec literal y los watchers de las carpetas expandidas se cierran
+antes de renombrar o borrar. Las rutas
+van relativas y el host las valida dentro de la raíz de su árbol: sin symlinks, `.git` y la
+raíz protegidos, raíces anidadas entre columnas bloqueadas. El estado vive en `workspaceState`
+(`opencodeAgents.projectExplorer.layout`, `.roots`, `.expanded`, `.hidden`, `.split`). Escaneo
+con tope de 150.000 entradas y profundidad 64, filas virtualizadas y watchers no recursivos de la
+raíz más las carpetas expandidas. El explorador quedó revisado (`PASS`).
+
+Va sobre la **0.7.24**, empaquetada e instalada en local (`--force`) y **sin release en GitHub** —su
+`.vsix` ya no está en `Instalable/`, sustituido por el de la 0.7.25—: el panel de VOZ gana un
+**monitor del equipo** de dos filas encima del ecualizador (`CPU` con temperatura y uso, `RAM` y
+`VRAM` con total y uso, `GPU` con temperatura y uso), con barra de bloques y sondeo cada 2 s solo
+con la vista visible y sin repintado si la muestra no cambia. Los datos los lee
+**LibreHardwareMonitorLib** (0.9.4, MPL-2.0, en `resources/lhm/`) desde un proceso de PowerShell
+persistente (`resources/sysmon-lhm.ps1`, en `src/sysmon/`), uno por sesión y uno solo aunque haya
+dos ventanas, que escribe `sysmon.json` en el almacenamiento global y muere con el host. La
+temperatura de la CPU exigía administrador: el UAC se pedía una vez por sesión con un aviso previo
+en VS Code; si se cancelaba, o no llegaba la primera muestra en 20 s, se arrancaba sin elevar y esa
+temperatura quedaba en `—` hasta reiniciar VS Code.
 
 Va sobre la **0.7.23**, empaquetada, instalada (`--force`) y **publicada** (tag `v0.7.23` y
 release en GitHub con el `.vsix` adjunto): el panel de **estadísticas de prompts** queda
@@ -221,6 +265,12 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   con el motor y la cámara del `.blend`. Blender es **opcional** y se autodetecta: sin él
   abren las escenas ya cacheadas y las que traen un `.glb` al lado del `.blend` (sidecar).
   El `.blend` nunca se guarda.
+
+- **Explorador del proyecto**: pestaña central de una o dos columnas con árboles de ficheros de
+  raíz independiente, tamaño con barra y porcentaje respecto al padre, búsqueda por nombre y por
+  contenido (texto, sin binarios), filtros git con insignias y `+N −M`, operaciones de git por
+  CLI (fetch, pull `--ff-only`, push, commit, ramas) y borrar a papelera, copiar o mover entre
+  árboles sin sobrescribir. Estado en `workspaceState`. **Sin ver en VS Code real.**
 
 - **Mente local (Ollama)**: pestaña central con el cerebro local del equipo. Detecta la
   instalación y la da de alta o de baja con `winget`; enciende el cerebro (arranca
