@@ -559,6 +559,17 @@ body.vscode-light .lane-icon.root {
   border: 1px solid var(--line-soft);
 }
 
+/* Frontera entre prompts encadenados: separa el hueco real entre prompts del
+   tiempo muerto que queda dentro de un prompt. */
+.lane-bound {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed color-mix(in srgb, var(--neon) 45%, transparent);
+  pointer-events: none;
+}
+
 .seg {
   position: absolute;
   top: 2px;

@@ -167,14 +167,34 @@
     return (s && s.prompts) || [];
   }
 
-  /** Duración del prompt: un vivo crece con el `scannedAt` del sondeo. */
-  function durOf(p, s) {
-    if (!p) return 0;
-    const start = num(p.startedAt);
+  /**
+   * Fin del prompt. En uno cerrado manda su última actividad: el silencio
+   * hasta el `idle` no es trabajo y dejaba un tramo vacío al final que se
+   * confundía con el hueco entre prompts. Uno vivo sigue creciendo con el
+   * `scannedAt` del sondeo.
+   */
+  function endOf(p, s) {
     const ended = num(p.endedAt);
     const now = num(s && s.scannedAt);
-    const end = p.live && now > ended ? now : ended;
-    return Math.max(0, end - start);
+    if (p.live && now > ended) {
+      return now;
+    }
+    let last = 0;
+    for (const lane of p.lanes || []) {
+      for (const seg of lane.segments || []) {
+        const end = num(seg && seg.end);
+        if (end > last) {
+          last = end;
+        }
+      }
+    }
+    return last > 0 && ended > 0 ? Math.min(ended, last) : ended;
+  }
+
+  /** Duración del prompt: ya recortada al final de su actividad. */
+  function durOf(p, s) {
+    if (!p) return 0;
+    return Math.max(0, endOf(p, s) - num(p.startedAt));
   }
 
   /** Prompt sin selección previa: el vivo si lo hay; si no, el más reciente. */
@@ -538,10 +558,20 @@
     );
   }
 
-  function lanesHtml(agents) {
+  function lanesHtml(agents, items, w) {
     if (!agents.some((a) => a.hasSeg)) {
       return '<p class="empty">Esta selección no tiene actividad de ningún agente.</p>';
     }
+    // Frontera de cada prompt dentro de la pista: sin ella, el tiempo muerto de
+    // un prompt se confunde con el hueco entre prompts.
+    const span = Math.max(1, w.to - w.from);
+    const bounds = items
+      .map((item, i) => {
+        if (i === 0 || item.off <= w.from || item.off >= w.to) return "";
+        const left = ((item.off - w.from) / span) * 100;
+        return '<span class="lane-bound" style="left:' + left.toFixed(3) + '%"></span>';
+      })
+      .join("");
     return agents.map((a) => {
       const segs = a.segments.map((seg) => {
         const tip =
@@ -565,7 +595,7 @@
         '<span class="chip" title="Tokens de este agente">' + esc(fmtTokens(a.total)) + "</span>" +
         '<span class="chip" title="Coste de este agente">' + esc(fmtCost(a)) + "</span>" +
         "</div>" +
-        '<div class="lane-track">' + segs + "</div>" +
+        '<div class="lane-track">' + bounds + segs + "</div>" +
         "</div>"
       );
     }).join("");
@@ -638,7 +668,7 @@
       "#" + (state.showGaps ? 1 : 0);
     if (laneKey !== sig.lanes) {
       sig.lanes = laneKey;
-      if (el.lanes) el.lanes.innerHTML = lanesHtml(agents);
+      if (el.lanes) el.lanes.innerHTML = lanesHtml(agents, chain.items, w);
     }
 
     const axisKey = w.from + "#" + w.to + "#" + (state.showGaps ? 1 : 0);
