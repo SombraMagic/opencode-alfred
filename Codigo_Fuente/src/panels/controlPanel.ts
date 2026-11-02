@@ -24,6 +24,7 @@ const ACTION_TYPES = new Set<string>([
   "openDictado",
   "openVoice",
   "openPromptStats",
+  "openProjectExplorer",
 ]);
 
 /** El webview no es de fiar: solo pasan las acciones del mando, con su forma exacta. */
@@ -60,6 +61,8 @@ function parseAction(raw: unknown): ExplorerAction | undefined {
       return { type: "openVoice" };
     case "openPromptStats":
       return { type: "openPromptStats" };
+    case "openProjectExplorer":
+      return { type: "openProjectExplorer" };
   }
   return undefined;
 }
@@ -179,6 +182,7 @@ export class ControlPanel implements vscode.WebviewViewProvider {
       <button id="btn-dictado" class="icon-btn" type="button" title="Dictado (bloc de notas)" aria-label="Dictado (bloc de notas)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></button>
       <button id="btn-voz" class="icon-btn" type="button" title="Voz (ecualizador y voces)" aria-label="Voz (ecualizador y voces)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg></button>
       <button id="btn-prompt-stats" class="icon-btn" type="button" title="Estadísticas de prompt" aria-label="Estadísticas de prompt"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 4-6"/></svg></button>
+      <button id="btn-project" class="icon-btn" type="button" title="Explorador del proyecto" aria-label="Explorador del proyecto"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h4l2 2h8A1.5 1.5 0 0 1 20 7.5v11a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3 18.5z"/><path d="M6.5 10.5h3.5M6.5 13.5h5.5M6.5 16.5h8"/></svg></button>
     </div>
   </div>
 </div>

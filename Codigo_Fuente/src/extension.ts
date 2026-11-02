@@ -65,6 +65,7 @@ import { PromptStatsPanel } from "./panels/promptStatsPanel";
 import { ContextViewProvider } from "./panels/contextPanel";
 import { ControlPanel } from "./panels/controlPanel";
 import type { ControlData } from "./panels/controlPanel";
+import { ProjectExplorerPanel } from "./panels/projectExplorerPanel";
 import { LimitsViewProvider } from "./panels/limitsPanel";
 import {
   collectLimits,
@@ -2363,6 +2364,10 @@ export function activate(context: vscode.ExtensionContext): void {
       void ImageGenPanel.open(context)
     ),
 
+    vscode.commands.registerCommand("opencodeAgents.projectExplorer", () =>
+      ProjectExplorerPanel.open(context)
+    ),
+
     vscode.commands.registerCommand(
       "opencodeAgents.openInAlfred3D",
       async (uri?: vscode.Uri) => {
@@ -3075,6 +3080,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
       case "openPromptStats":
         openPromptStatsPanel();
+        return;
+
+      case "openProjectExplorer":
+        ProjectExplorerPanel.open(context);
         return;
     }
   }

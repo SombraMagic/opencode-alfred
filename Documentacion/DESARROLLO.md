@@ -28,6 +28,9 @@
 │  │  ├─ pizarra/            escena, capa INTERFACES (`ui.ts`) y ficheros de la pizarra
 │  │  │                      (sin `vscode`; la capa la pinta `media/pizarraUi.js`)
 │  │  ├─ ollama/             mente local: `client`, `process`, `provider` y `service`
+│  │  ├─ projectExplorer/    explorador de ficheros del proyecto: `model`, `scanner`,
+│  │  │                      `search`, `git` y `operations` (solo `operations.ts` importa
+│  │  │                      `vscode`: la papelera)
 │  │  ├─ mcp/                servidor `mcp_alfred` (voz y pizarra) → `dist/alfred-mcp.js`
 │  │  ├─ voice/              motores de voz y dictado
 │  │  ├─ sysmon/             monitor del equipo: lanza `resources/sysmon-lhm.ps1` y lee
@@ -49,6 +52,18 @@ El panel de Mente local es `src/panels/menteLocalPanel.ts` con `media/menteLocal
 `media/menteLocal.css`. En `src/ollama/*` solo `service.ts` importa `vscode` (`client`,
 `process` y `provider` no); el alta de `provider.ollama` va al config global con
 `jsonc-parser` y `writeAtomic`.
+
+El **Explorador del proyecto** es `src/panels/projectExplorerPanel.ts`, con `media/projectExplorer.*`
+(`.js`, `.css`, el icono `.svg` y la plantilla `.html` —una de las webviews cuyo HTML no vive en el
+`.ts`: el host la lee y sustituye `%%STYLE%%` y `%%SCRIPT%%` por las URIs del CSS y el JS—). El
+contrato host↔webview son mensajes JSON con rutas **relativas a la raíz de cada árbol**, que el
+host valida antes de tocar disco (sin symlinks, `.git` y raíz protegidos): la webview manda
+`ready`, `chooseRoot`, `setLayout`, `setSplit`, `toggleHidden`, `setSort`, `expand`, `collapse`,
+`refresh`, `search`, `setFilter`, `open`, `reveal`, `delete`, `transfer` y `git`; el host devuelve
+`init`, `view`, `scan`, `git`, `status` y `op`. Topes: escaneo de 150.000 entradas y profundidad
+64 (`scanner.ts`), 5.000 filas virtualizadas por árbol, y búsqueda de contenido de 1 MB por
+fichero y 1.000 coincidencias (`search.ts`). El estado (diseño, raíces, expandidas, ocultos,
+división) vive en `workspaceState` bajo `opencodeAgents.projectExplorer.*`.
 
 ## Comandos
 

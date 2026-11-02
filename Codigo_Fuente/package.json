@@ -177,6 +177,11 @@
         "category": "opencode"
       },
       {
+        "command": "opencodeAgents.projectExplorer",
+        "title": "Explorador del proyecto",
+        "category": "opencode"
+      },
+      {
         "command": "opencodeAgents.openInAlfred3D",
         "title": "Abrir en Alfred 3D",
         "category": "Alfred"

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data:; style-src %%CSP%% 'unsafe-inline'; script-src %%CSP%% 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="%%TOKENS%%" rel="stylesheet" />
+  <link href="%%STYLE%%" rel="stylesheet" />
+  <title>Explorador del proyecto</title>
+</head>
+<body>
+  <div class="pe-root">
+    <!-- Cabecera principal -->
+    <header class="pe-header">
+      <div class="pe-title-wrap">
+        <div class="hud-dot"></div>
+        <h1 class="hud-title">EXPLORADOR</h1>
+      </div>
+      <div class="pe-header-actions">
+        <button id="btn-toggle-layout" class="pe-btn-head" type="button" title="Alternar 1 o 2 columnas">
+          <svg class="pe-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+            <rect x="2" y="2" width="12" height="12" rx="1.5" />
+            <line x1="8" y1="2" x2="8" y2="14" class="pe-layout-split-line" />
+          </svg>
+          <span id="label-layout" class="pe-btn-label">2 COLUMNAS</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Contenedor de paneles -->
+    <main id="panels-container" class="pe-container layout-one">
+      <!-- PANEL A -->
+      <section id="panel-a" class="pe-panel" data-tree="a">
+        <!-- Barra de raíz -->
+        <div class="pe-root-bar">
+          <div class="pe-root-info" title="Carpeta raíz del árbol">
+            <svg class="pe-icon pe-folder-icon" viewBox="0 0 16 16" width="14" height="14" fill="none">
+              <path d="M1.5 3.5A1 1 0 0 1 2.5 2.5h3.6l1.4 1.5h6a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-8z" stroke="#ffb000" stroke-width="1.2" fill="rgba(255,176,0,0.15)" />
+            </svg>
+            <span id="a-root-path" class="pe-root-path">—</span>
+          </div>
+          <div class="pe-root-controls">
+            <button id="a-btn-root" class="pe-icon-btn" type="button" title="Cambiar carpeta raíz" aria-label="Cambiar carpeta raíz">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M2 13.5h12M8 2.5v8M4.5 7L8 10.5 11.5 7" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button id="a-btn-hidden" class="pe-icon-btn" type="button" title="Mostrar u ocultar archivos ocultos" aria-label="Archivos ocultos">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+                <circle cx="8" cy="8" r="3" />
+                <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z" />
+              </svg>
+            </button>
+            <button id="a-btn-sort" class="pe-icon-btn" type="button" title="Ordenar por tamaño o nombre" aria-label="Ordenar">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M3 4h10M3 8h7M3 12h4" stroke-linecap="round" />
+              </svg>
+            </button>
+            <button id="a-btn-refresh" class="pe-icon-btn" type="button" title="Refrescar árbol" aria-label="Refrescar árbol">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9l1.6-1.6V6h-3.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tira GIT -->
+        <div id="a-git-bar" class="pe-git-bar">
+          <div class="pe-git-branch-zone">
+            <svg class="pe-icon pe-git-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="#ff2d95" stroke-width="1.3">
+              <circle cx="4" cy="4" r="2" />
+              <circle cx="4" cy="12" r="2" />
+              <circle cx="12" cy="7" r="2" />
+              <path d="M4 6v4M4 8c2 0 4-1 6-1" stroke-linecap="round" />
+            </svg>
+            <span id="a-git-branch" class="pe-git-branch" title="Rama actual">sin git</span>
+            <span id="a-git-sync" class="pe-git-sync" title="Adelantado / Atrasado con respecto a upstream"></span>
+          </div>
+
+          <div class="pe-git-actions">
+            <button id="a-btn-fetch" class="pe-icon-btn pe-git-btn" type="button" title="git fetch" aria-label="git fetch">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M8 3v9M4.5 8.5L8 12l3.5-3.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button id="a-btn-pull" class="pe-icon-btn pe-git-btn" type="button" title="git pull" aria-label="git pull">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M4 2v6M4 5l-2 2M4 5l2 2M12 14V8M12 11l-2-2M12 11l2-2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button id="a-btn-push" class="pe-icon-btn pe-git-btn" type="button" title="git push" aria-label="git push">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M8 13V4M4.5 7.5L8 4l3.5 3.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button id="a-btn-git-refresh" class="pe-icon-btn pe-git-btn" type="button" title="Actualizar estado Git" aria-label="Actualizar Git">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M12.5 8a4.5 4.5 0 1 1-1.3-3.2l1.3-1.3V6H9.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="pe-git-branch-select-zone">
+            <select id="a-select-branch" class="pe-branch-select" aria-label="Cambiar rama">
+              <option value="">(sin ramas)</option>
+            </select>
+            <button id="a-btn-new-branch" class="pe-icon-btn pe-git-btn" type="button" title="Crear nueva rama" aria-label="Crear rama">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M8 3v10M3 8h10" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="pe-git-commit-zone">
+            <button id="a-btn-stage-all" class="pe-chip pe-stage-all-btn" type="button" title="Preparar todos los cambios (Stage all)">ADD ALL</button>
+            <input id="a-input-commit" class="pe-commit-input" type="text" placeholder="Mensaje de commit…" aria-label="Mensaje de commit" />
+            <button id="a-btn-commit" class="pe-commit-btn" type="button" title="Hacer commit">COMMIT</button>
+          </div>
+        </div>
+
+        <!-- Buscador y chips de filtro git -->
+        <div class="pe-search-bar">
+          <div class="pe-search-input-wrap">
+            <svg class="pe-icon pe-search-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+              <circle cx="7" cy="7" r="4.5" />
+              <path d="M10.5 10.5L14 14" stroke-linecap="round" />
+            </svg>
+            <input id="a-search-input" class="pe-search-input" type="text" placeholder="Buscar por nombre o ruta…" autocomplete="off" spellcheck="false" />
+            <button id="a-search-clear" class="pe-search-clear" type="button" title="Limpiar búsqueda" aria-label="Limpiar búsqueda">✕</button>
+            <div id="a-search-spinner" class="pe-spinner" hidden></div>
+          </div>
+          <div class="pe-filter-chips">
+            <button class="pe-filter-chip active" data-filter="all" type="button">TODO</button>
+            <button class="pe-filter-chip" data-filter="changed" type="button">CAMBIOS <span class="pe-chip-count" id="a-count-changed">0</span></button>
+            <button class="pe-filter-chip" data-filter="staged" type="button">STAGED <span class="pe-chip-count" id="a-count-staged">0</span></button>
+            <button class="pe-filter-chip" data-filter="untracked" type="button">NUEVOS <span class="pe-chip-count" id="a-count-untracked">0</span></button>
+            <button class="pe-filter-chip" data-filter="unpushed" type="button">SIN PUSH <span class="pe-chip-count" id="a-count-unpushed">0</span></button>
+            <button class="pe-filter-chip" data-filter="clean" type="button">LIMPIOS <span class="pe-chip-count" id="a-count-clean">0</span></button>
+          </div>
+        </div>
+
+        <!-- Árbol de archivos virtualizado -->
+        <div id="a-tree-scroll" class="pe-tree-scroll" tabindex="0" role="tree" aria-label="Árbol de archivos A">
+          <div id="a-tree-phantom" class="pe-tree-phantom"></div>
+          <div id="a-tree-viewport" class="pe-tree-viewport"></div>
+          <div id="a-tree-empty" class="pe-tree-empty" hidden>
+            <span class="pe-empty-icon">📂</span>
+            <span id="a-empty-text" class="pe-empty-text">Sin archivos</span>
+          </div>
+        </div>
+
+        <!-- Pie de panel -->
+        <footer class="pe-footer">
+          <div class="pe-footer-line">
+            <span id="a-footer-stats" class="pe-footer-stats">0 archivos · 0 carpetas · 0 B</span>
+            <div class="pe-footer-tags">
+              <span id="a-tag-nogit" class="pe-tag pe-tag-dim" hidden>SIN .GIT</span>
+              <span id="a-tag-truncated" class="pe-tag pe-tag-amber" hidden>TRUNCADO</span>
+            </div>
+          </div>
+          <div id="a-scan-progress" class="pe-scan-bar" hidden>
+            <div class="pe-scan-fill"></div>
+          </div>
+          <div id="a-status-line" class="pe-status-line" hidden>
+            <div class="pe-status-spinner" hidden></div>
+            <span id="a-status-text" class="pe-status-text"></span>
+          </div>
+        </footer>
+      </section>
+
+      <!-- Separador arrastrable -->
+      <div id="split-resizer" class="pe-resizer" title="Arrastrar para ajustar ancho de columnas">
+        <div class="pe-resizer-handle"></div>
+      </div>
+
+      <!-- PANEL B -->
+      <section id="panel-b" class="pe-panel" data-tree="b">
+        <!-- Barra de raíz -->
+        <div class="pe-root-bar">
+          <div class="pe-root-info" title="Carpeta raíz del árbol B">
+            <svg class="pe-icon pe-folder-icon" viewBox="0 0 16 16" width="14" height="14" fill="none">
+              <path d="M1.5 3.5A1 1 0 0 1 2.5 2.5h3.6l1.4 1.5h6a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-8z" stroke="#ffb000" stroke-width="1.2" fill="rgba(255,176,0,0.15)" />
+            </svg>
+            <span id="b-root-path" class="pe-root-path">—</span>
+          </div>
+          <div class="pe-root-controls">
+            <button id="b-btn-root" class="pe-icon-btn" type="button" title="Cambiar carpeta raíz" aria-label="Cambiar carpeta raíz B">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M2 13.5h12M8 2.5v8M4.5 7L8 10.5 11.5 7" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button id="b-btn-hidden" class="pe-icon-btn" type="button" title="Mostrar u ocultar archivos ocultos" aria-label="Archivos ocultos B">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+                <circle cx="8" cy="8" r="3" />
+                <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z" />
+              </svg>
+            </button>
+            <button id="b-btn-sort" class="pe-icon-btn" type="button" title="Ordenar por tamaño o nombre" aria-label="Ordenar B">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M3 4h10M3 8h7M3 12h4" stroke-linecap="round" />
+              </svg>
+            </button>
+            <button id="b-btn-refresh" class="pe-icon-btn" type="button" title="Refrescar árbol" aria-label="Refrescar árbol B">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9l1.6-1.6V6h-3.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tira GIT -->
+        <div id="b-git-bar" class="pe-git-bar">
+          <div class="pe-git-branch-zone">
+            <svg class="pe-icon pe-git-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="#ff2d95" stroke-width="1.3">
+              <circle cx="4" cy="4" r="2" />
+              <circle cx="4" cy="12" r="2" />
+              <circle cx="12" cy="7" r="2" />
+              <path d="M4 6v4M4 8c2 0 4-1 6-1" stroke-linecap="round" />
+            </svg>
+            <span id="b-git-branch" class="pe-git-branch" title="Rama actual">sin git</span>
+            <span id="b-git-sync" class="pe-git-sync" title="Adelantado / Atrasado con respecto a upstream"></span>
+          </div>
+
+          <div class="pe-git-actions">
+            <button id="b-btn-fetch" class="pe-icon-btn pe-git-btn" type="button" title="git fetch" aria-label="git fetch B">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M8 3v9M4.5 8.5L8 12l3.5-3.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button id="b-btn-pull" class="pe-icon-btn pe-git-btn" type="button" title="git pull" aria-label="git pull B">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M4 2v6M4 5l-2 2M4 5l2 2M12 14V8M12 11l-2-2M12 11l2-2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button id="b-btn-push" class="pe-icon-btn pe-git-btn" type="button" title="git push" aria-label="git push B">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M8 13V4M4.5 7.5L8 4l3.5 3.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button id="b-btn-git-refresh" class="pe-icon-btn pe-git-btn" type="button" title="Actualizar estado Git" aria-label="Actualizar Git B">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M12.5 8a4.5 4.5 0 1 1-1.3-3.2l1.3-1.3V6H9.5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="pe-git-branch-select-zone">
+            <select id="b-select-branch" class="pe-branch-select" aria-label="Cambiar rama B">
+              <option value="">(sin ramas)</option>
+            </select>
+            <button id="b-btn-new-branch" class="pe-icon-btn pe-git-btn" type="button" title="Crear nueva rama" aria-label="Crear rama B">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M8 3v10M3 8h10" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="pe-git-commit-zone">
+            <button id="b-btn-stage-all" class="pe-chip pe-stage-all-btn" type="button" title="Preparar todos los cambios (Stage all)">ADD ALL</button>
+            <input id="b-input-commit" class="pe-commit-input" type="text" placeholder="Mensaje de commit…" aria-label="Mensaje de commit B" />
+            <button id="b-btn-commit" class="pe-commit-btn" type="button" title="Hacer commit B">COMMIT</button>
+          </div>
+        </div>
+
+        <!-- Buscador y chips de filtro git -->
+        <div class="pe-search-bar">
+          <div class="pe-search-input-wrap">
+            <svg class="pe-icon pe-search-icon" viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+              <circle cx="7" cy="7" r="4.5" />
+              <path d="M10.5 10.5L14 14" stroke-linecap="round" />
+            </svg>
+            <input id="b-search-input" class="pe-search-input" type="text" placeholder="Buscar por nombre o ruta…" autocomplete="off" spellcheck="false" />
+            <button id="b-search-clear" class="pe-search-clear" type="button" title="Limpiar búsqueda" aria-label="Limpiar búsqueda B">✕</button>
+            <div id="b-search-spinner" class="pe-spinner" hidden></div>
+          </div>
+          <div class="pe-filter-chips">
+            <button class="pe-filter-chip active" data-filter="all" type="button">TODO</button>
+            <button class="pe-filter-chip" data-filter="changed" type="button">CAMBIOS <span class="pe-chip-count" id="b-count-changed">0</span></button>
+            <button class="pe-filter-chip" data-filter="staged" type="button">STAGED <span class="pe-chip-count" id="b-count-staged">0</span></button>
+            <button class="pe-filter-chip" data-filter="untracked" type="button">NUEVOS <span class="pe-chip-count" id="b-count-untracked">0</span></button>
+            <button class="pe-filter-chip" data-filter="unpushed" type="button">SIN PUSH <span class="pe-chip-count" id="b-count-unpushed">0</span></button>
+            <button class="pe-filter-chip" data-filter="clean" type="button">LIMPIOS <span class="pe-chip-count" id="b-count-clean">0</span></button>
+          </div>
+        </div>
+
+        <!-- Árbol de archivos virtualizado -->
+        <div id="b-tree-scroll" class="pe-tree-scroll" tabindex="0" role="tree" aria-label="Árbol de archivos B">
+          <div id="b-tree-phantom" class="pe-tree-phantom"></div>
+          <div id="b-tree-viewport" class="pe-tree-viewport"></div>
+          <div id="b-tree-empty" class="pe-tree-empty" hidden>
+            <span class="pe-empty-icon">📂</span>
+            <span id="b-empty-text" class="pe-empty-text">Sin archivos</span>
+          </div>
+        </div>
+
+        <!-- Pie de panel -->
+        <footer class="pe-footer">
+          <div class="pe-footer-line">
+            <span id="b-footer-stats" class="pe-footer-stats">0 archivos · 0 carpetas · 0 B</span>
+            <div class="pe-footer-tags">
+              <span id="b-tag-nogit" class="pe-tag pe-tag-dim" hidden>SIN .GIT</span>
+              <span id="b-tag-truncated" class="pe-tag pe-tag-amber" hidden>TRUNCADO</span>
+            </div>
+          </div>
+          <div id="b-scan-progress" class="pe-scan-bar" hidden>
+            <div class="pe-scan-fill"></div>
+          </div>
+          <div id="b-status-line" class="pe-status-line" hidden>
+            <div class="pe-status-spinner" hidden></div>
+            <span id="b-status-text" class="pe-status-text"></span>
+          </div>
+        </footer>
+      </section>
+    </main>
+
+    <!-- Menú contextual flotante -->
+    <div id="context-menu" class="pe-context-menu" hidden>
+      <button class="pe-ctx-item" data-action="open" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M2.5 13.5l11-11M6.5 2.5h7v7" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Abrir</span>
+      </button>
+      <button class="pe-ctx-item" data-action="reveal" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <circle cx="8" cy="8" r="3" />
+          <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z" />
+        </svg>
+        <span>Revelar en explorador</span>
+      </button>
+      <div class="pe-ctx-divider"></div>
+      <button class="pe-ctx-item" data-action="copy" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <rect x="5.5" y="5.5" width="8" height="8" rx="1" />
+          <path d="M3.5 10.5h-1a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v1" />
+        </svg>
+        <span>Copiar</span>
+      </button>
+      <button class="pe-ctx-item" data-action="cut" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <circle cx="5" cy="5" r="2" />
+          <circle cx="5" cy="11" r="2" />
+          <path d="M6.5 6.5L13 13M6.5 9.5L13 3" stroke-linecap="round" />
+        </svg>
+        <span>Cortar</span>
+      </button>
+      <button class="pe-ctx-item" data-action="paste" type="button" disabled>
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <rect x="3.5" y="4.5" width="9" height="9.5" rx="1" />
+          <path d="M6 3.5V2.5h4v1" />
+        </svg>
+        <span>Pegar aquí</span>
+      </button>
+      <div class="pe-ctx-divider"></div>
+      <button class="pe-ctx-item pe-ctx-danger" data-action="delete" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M2.5 4.5h11M5.5 4.5v-1a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1M12.5 4.5l-.8 9a1 1 0 0 1-1 .9H5.3a1 1 0 0 1-1-.9l-.8-9" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Borrar</span>
+      </button>
+    </div>
+
+    <!-- Modal para nueva rama -->
+    <div id="branch-modal" class="pe-modal" hidden>
+      <div class="pe-modal-card">
+        <div class="pe-modal-title">NUEVA RAMA GIT</div>
+        <input id="branch-modal-input" class="pe-modal-input" type="text" placeholder="nombre-de-la-rama" autocomplete="off" spellcheck="false" />
+        <div class="pe-modal-actions">
+          <button id="branch-modal-cancel" class="pe-modal-btn" type="button">CANCELAR</button>
+          <button id="branch-modal-ok" class="pe-modal-btn pe-modal-btn-primary" type="button">CREAR</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notificación toast temporal -->
+    <div id="toast-notice" class="pe-toast" hidden>
+      <span id="toast-text" class="pe-toast-text"></span>
+    </div>
+  </div>
+
+  <script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
+</body>
+</html>

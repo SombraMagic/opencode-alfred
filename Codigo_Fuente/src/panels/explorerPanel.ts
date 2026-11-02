@@ -72,7 +72,8 @@ export type ExplorerAction =
   | { type: "openPizarra" }
   | { type: "openDictado" }
   | { type: "openVoice" }
-  | { type: "openPromptStats" };
+  | { type: "openPromptStats" }
+  | { type: "openProjectExplorer" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
@@ -95,6 +96,7 @@ const ACTION_TYPES = new Set<string>([
   "openDictado",
   "openVoice",
   "openPromptStats",
+  "openProjectExplorer",
 ]);
 
 export class ExplorerPanel implements vscode.WebviewViewProvider {
