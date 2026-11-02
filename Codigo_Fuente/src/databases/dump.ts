@@ -52,6 +52,9 @@ export interface DumpConnection {
 /** Filas por sentencia INSERT del volcador JS. */
 const INSERT_BATCH = 500;
 
+/** Tope de bytes de una sentencia INSERT; una fila mayor se escribe sola y nunca se parte. */
+const INSERT_MAX_BYTES = 240 * 1024;
+
 /** Comprobación de cancelación y progreso del proceso nativo. */
 const CANCEL_POLL_MS = 250;
 
@@ -133,6 +136,8 @@ function argumentosNativos(
   // `--defaults-extra-file` tiene que ir el primero o la herramienta lo ignora.
   const args = [`--defaults-extra-file=${credPath}`, "--host", con.host, "--port", String(con.port)];
   args.push("--single-transaction", "--skip-lock-tables", "--triggers", "--hex-blob", "--default-character-set=utf8mb4");
+  // Sin esto, una tabla con BLOB sale en una sola línea de megabytes y ningún visor la abre.
+  args.push("--net-buffer-length=262144");
   if (con.ssl) {
     args.push("--ssl");
   }
@@ -286,20 +291,26 @@ async function volcarFilas(
 ): Promise<number> {
   let rows = 0;
   let lote: string[] = [];
+  let loteBytes = 0;
   const select = `SELECT ${cols.map((c) => ident(c.name)).join(", ")} FROM ${qualified(opts.db, name)}`;
   await s.eachRow(
     select,
     [],
     async (row) => {
-      lote.push(`(${row.map(quoteCell).join(", ")})`);
-      rows++;
-      if (lote.length >= INSERT_BATCH) {
+      const valor = `(${row.map(quoteCell).join(", ")})`;
+      const bytes = Buffer.byteLength(valor);
+      if (lote.length > 0 && (lote.length >= INSERT_BATCH || loteBytes + bytes > INSERT_MAX_BYTES)) {
         if (opts.isCancelled?.()) {
           throw CANCELLED;
         }
         await file.write(loteInsert(name, cols, lote));
         lote = [];
+        loteBytes = 0;
       }
+      lote.push(valor);
+      // El separador `, ` también ocupa: se cuenta para no pasarse del tope.
+      loteBytes += bytes + (lote.length > 1 ? 2 : 0);
+      rows++;
     },
     { timeoutMs: SCAN_TIMEOUT_MS }
   );

@@ -20,7 +20,7 @@ export class StatsPanel {
   static open(context: vscode.ExtensionContext, handlers: StatsPanelHandlers): StatsPanel {
     if (StatsPanel.current) {
       StatsPanel.current.handlers = handlers;
-      StatsPanel.current.panel.reveal(vscode.ViewColumn.Beside);
+      StatsPanel.current.panel.reveal(vscode.ViewColumn.Active);
       if (StatsPanel.current.last) {
         StatsPanel.current.update(StatsPanel.current.last);
       }
@@ -29,7 +29,7 @@ export class StatsPanel {
     const panel = vscode.window.createWebviewPanel(
       StatsPanel.viewType,
       "opencode: estadísticas de agentes",
-      vscode.ViewColumn.Beside,
+      vscode.ViewColumn.Active,
       {
         enableScripts: true,
         retainContextWhenHidden: true,

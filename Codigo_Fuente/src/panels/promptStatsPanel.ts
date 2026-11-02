@@ -27,7 +27,7 @@ export class PromptStatsPanel {
   static open(context: vscode.ExtensionContext, handlers: PromptStatsPanelHandlers): PromptStatsPanel {
     if (PromptStatsPanel.current) {
       PromptStatsPanel.current.handlers = handlers;
-      PromptStatsPanel.current.panel.reveal(vscode.ViewColumn.Beside);
+      PromptStatsPanel.current.panel.reveal(vscode.ViewColumn.Active);
       if (PromptStatsPanel.current.last) {
         PromptStatsPanel.current.update(PromptStatsPanel.current.last);
       }
@@ -36,7 +36,7 @@ export class PromptStatsPanel {
     const panel = vscode.window.createWebviewPanel(
       PromptStatsPanel.viewType,
       "opencode: estadísticas de prompts",
-      vscode.ViewColumn.Beside,
+      vscode.ViewColumn.Active,
       {
         enableScripts: true,
         retainContextWhenHidden: true,

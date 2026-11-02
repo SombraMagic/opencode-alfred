@@ -10,6 +10,7 @@ import type {
   DbColumn,
   DbForeignKey,
   DbIndex,
+  DbStructureColumn,
   DbTableInfo,
   DbTableSpec,
   DbTableSpecColumn,
@@ -45,9 +46,22 @@ const COLUMN_TYPES = [
   "MEDIUMBLOB",
   "LONGBLOB",
   "TINYBLOB",
+  "BINARY",
+  "VARBINARY",
+  "BIT",
   "ENUM",
   "SET",
   "UUID",
+  "INET4",
+  "INET6",
+  "GEOMETRY",
+  "POINT",
+  "LINESTRING",
+  "POLYGON",
+  "MULTIPOINT",
+  "MULTILINESTRING",
+  "MULTIPOLYGON",
+  "GEOMETRYCOLLECTION",
 ];
 
 /** Únicos tipos que admiten `auto_increment`. */
@@ -57,7 +71,16 @@ const INTEGER_TYPES = ["INT", "BIGINT", "SMALLINT", "TINYINT", "MEDIUMINT"];
 const DECIMAL_TYPES = ["DECIMAL", "FLOAT", "DOUBLE"];
 
 /** Tipos de cadena: longitud de un solo número. */
-const STRING_TYPES = ["VARCHAR", "CHAR"];
+const STRING_TYPES = ["VARCHAR", "CHAR", "BINARY", "VARBINARY"];
+
+/** Tipos numéricos: únicos que admiten `UNSIGNED` y `ZEROFILL`. */
+const NUMERIC_TYPES = [...INTEGER_TYPES, ...DECIMAL_TYPES];
+
+/** Únicos tipos que admiten `ON UPDATE CURRENT_TIMESTAMP`. */
+const ON_UPDATE_TYPES = ["DATETIME", "TIMESTAMP"];
+
+/** Tipos que admiten precisión de fracciones de segundo (0..6). */
+const FRACTIONAL_SECONDS_TYPES = ["TIME", "DATETIME", "TIMESTAMP"];
 
 /** `120` o `10,2`. Lo que no encaje aquí es inyección. */
 const LENGTH_RE = /^\d{1,6}(,\d{1,6})?$/;
@@ -82,12 +105,17 @@ function nuloOTexto(value: unknown): string | null {
 /**
  * MariaDB devuelve el defecto como lo escribiría en el DDL: las cadenas van entre
  * comillas (`'hola'`) y las funciones van solas (`current_timestamp()`). Se guarda el
- * valor pelado: el editor lo muestra tal cual y, al crear la tabla, `buildColumn`
+ * valor pelado: el editor lo muestra tal cual y, al crear la tabla, `buildColumnDefinition`
  * lo vuelve a entrecomillar. Sin esto, el viaje ida y vuelta duplica las comillas.
  */
 function defecto(value: unknown): string | null {
   const raw = nuloOTexto(value);
   if (raw === null) {
+    return null;
+  }
+  // MariaDB devuelve la cadena `NULL` (sin comillas) para las columnas TIMESTAMP y
+  // YEAR sin defecto explícito; un defecto de cadena llega entrecomillado (`'NULL'`).
+  if (/^null$/i.test(raw)) {
     return null;
   }
   if (raw.length >= 2 && raw.startsWith("'") && raw.endsWith("'")) {
@@ -248,21 +276,65 @@ function checkType(column: DbTableSpecColumn): string {
   return type;
 }
 
+/**
+ * Trozos de la lista de ENUM/SET separados por comas fuera de comillas simples. Dentro
+ * de un valor entrecomillado la coma no separa y `''` es una comilla. Los valores
+ * sueltos se recortan y los vacíos se descartan; los entrecomillados conservan sus
+ * espacios y se quedan aunque estén vacíos (`enum('','a')` mantiene el `''`).
+ */
+function enumParts(raw: string, column: string): string[] {
+  const parts: string[] = [];
+  const citados: boolean[] = [];
+  let actual = "";
+  let citado = false;
+  let entreComillas = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (entreComillas) {
+      if (ch === "'") {
+        if (raw[i + 1] === "'") {
+          actual += "'";
+          i++;
+        } else {
+          entreComillas = false;
+        }
+      } else {
+        actual += ch;
+      }
+      continue;
+    }
+    if (ch === "'") {
+      entreComillas = true;
+      citado = true;
+    } else if (ch === ",") {
+      parts.push(citado ? actual : actual.trim());
+      citados.push(citado);
+      actual = "";
+      citado = false;
+    } else {
+      actual += ch;
+    }
+  }
+  if (entreComillas) {
+    throw new Error(`Valor no válido en «${column}»: ${raw.trim()}.`);
+  }
+  parts.push(citado ? actual : actual.trim());
+  citados.push(citado);
+  return parts.filter((p, i) => citados[i] || p.length > 0);
+}
+
 /** Lista de valores de ENUM y SET: entre comillas o sueltos. */
 function enumValues(raw: string, column: string): string {
   const list = raw.trim();
   if (!list) {
     throw new Error(`«${column}» necesita la lista de valores de ENUM o SET.`);
   }
-  const parts = list
-    .split(",")
-    .map((p) => p.trim().replace(/^'(.*)'$/, "$1"))
-    .filter((p) => p.length > 0);
+  const parts = enumParts(list, column);
   if (parts.length === 0 || parts.length > 64) {
     throw new Error(`«${column}» necesita entre 1 y 64 valores.`);
   }
   for (const part of parts) {
-    if (part.length > 64 || /['"\\\u0000]/.test(part)) {
+    if (part.length > 64 || part.includes("\u0000")) {
       throw new Error(`Valor no válido en «${column}»: ${part}.`);
     }
   }
@@ -278,6 +350,13 @@ function buildType(type: string, column: DbTableSpecColumn): string {
   if (!length) {
     return type;
   }
+  if (type === "YEAR") {
+    // MariaDB informa siempre `year(4)`; solo 2 y 4 son válidos.
+    if (length !== "2" && length !== "4") {
+      throw new Error(`Longitud no válida para «${column.name}»: ${length}.`);
+    }
+    return `YEAR(${length})`;
+  }
   if (!LENGTH_RE.test(length)) {
     throw new Error(`Longitud no válida para «${column.name}»: ${length}.`);
   }
@@ -287,7 +366,13 @@ function buildType(type: string, column: DbTableSpecColumn): string {
     }
     return `${type}(${length})`;
   }
-  if (!DECIMAL_TYPES.includes(type) && !INTEGER_TYPES.includes(type) && !STRING_TYPES.includes(type)) {
+  if (FRACTIONAL_SECONDS_TYPES.includes(type)) {
+    if (!/^[0-6]$/.test(length)) {
+      throw new Error(`Longitud no válida para «${column.name}»: ${length}.`);
+    }
+    return `${type}(${length})`;
+  }
+  if (!DECIMAL_TYPES.includes(type) && !INTEGER_TYPES.includes(type) && !STRING_TYPES.includes(type) && type !== "BIT") {
     throw new Error(`El tipo ${type} no admite longitud.`);
   }
   return `${type}(${length})`;
@@ -301,8 +386,24 @@ function buildType(type: string, column: DbTableSpecColumn): string {
 const DEFAULT_EXPRESSION = /^CURRENT_TIMESTAMP(\(\d{0,3}\))?$/i;
 
 /** Definición SQL de una columna del spec. */
-function buildColumn(column: DbTableSpecColumn): string {
-  const partes = [ident(column.name), buildType(checkType(column), column)];
+export function buildColumnDefinition(column: DbTableSpecColumn): string {
+  const type = checkType(column);
+  if ((column.unsigned || column.zerofill) && !NUMERIC_TYPES.includes(type)) {
+    throw new Error(`El tipo ${type} no admite UNSIGNED ni ZEROFILL.`);
+  }
+  if (column.onUpdate && !ON_UPDATE_TYPES.includes(type)) {
+    throw new Error(`El tipo ${type} no admite ON UPDATE.`);
+  }
+  if (column.onUpdate && column.autoIncrement) {
+    throw new Error(`«${column.name}» no puede ser auto_increment y llevar ON UPDATE.`);
+  }
+  const partes = [ident(column.name), buildType(type, column)];
+  if (column.unsigned) {
+    partes.push("UNSIGNED");
+  }
+  if (column.zerofill) {
+    partes.push("ZEROFILL");
+  }
   if (!column.nullable) {
     partes.push("NOT NULL");
   }
@@ -313,6 +414,9 @@ function buildColumn(column: DbTableSpecColumn): string {
     const raw = String(column.defaultValue);
     const expr = DEFAULT_EXPRESSION.test(raw.trim()) ? raw.trim().toUpperCase() : "";
     partes.push(`DEFAULT ${expr || quoteValue(raw)}`);
+  }
+  if (column.onUpdate) {
+    partes.push("ON UPDATE CURRENT_TIMESTAMP");
   }
   const comment = (column.comment ?? "").trim();
   if (comment) {
@@ -346,7 +450,7 @@ export async function createTable(s: DbSession, db: string, spec: DbTableSpec): 
       throw new Error(`«${c.name}»: el auto_increment solo vale en enteros que son clave primaria.`);
     }
   }
-  const defs = cols.map(buildColumn);
+  const defs = cols.map(buildColumnDefinition);
   const pk = cols.filter((c) => c.primaryKey).map((c) => ident(c.name));
   if (pk.length > 0) {
     defs.push(`PRIMARY KEY (${pk.join(", ")})`);
@@ -355,6 +459,213 @@ export async function createTable(s: DbSession, db: string, spec: DbTableSpec): 
     `CREATE TABLE ${qualified(db, tableName)} (${defs.join(", ")}) ` +
     "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
   await s.query(sql);
+}
+
+function mensajeDe(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Contenido del primer paréntesis del tipo, respetando las comillas simples: en
+ * `enum('a,b','c')` la coma no cierra nada y un `)` dentro de un valor tampoco.
+ */
+function parenContent(columnType: string): string | undefined {
+  const inicio = columnType.indexOf("(");
+  if (inicio < 0) {
+    return undefined;
+  }
+  let entreComillas = false;
+  for (let i = inicio + 1; i < columnType.length; i++) {
+    const ch = columnType[i];
+    if (ch === "'") {
+      if (entreComillas && columnType[i + 1] === "'") {
+        i++;
+      } else {
+        entreComillas = !entreComillas;
+      }
+    } else if (ch === ")" && !entreComillas) {
+      return columnType.slice(inicio + 1, i).trim();
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Especificación deducida de una columna existente. `information_schema` da el tipo
+ * completo en `columnType` (`int(11) unsigned`), así que de ahí salen la longitud y
+ * los modificadores. No es un viaje perfecto (algún tipo del servidor no está en la
+ * allowlist), pero basta para decidir si una columna cambió.
+ */
+function specFromColumn(c: DbColumn): DbTableSpecColumn {
+  return {
+    name: c.name,
+    type: c.dataType.toUpperCase().replace(/\s+/g, ""),
+    length: parenContent(c.columnType),
+    nullable: c.nullable,
+    defaultValue: c.defaultValue,
+    autoIncrement: /auto_increment/i.test(c.extra),
+    primaryKey: c.key === "PRI",
+    comment: c.comment || undefined,
+    unsigned: /unsigned/i.test(c.columnType),
+    zerofill: /zerofill/i.test(c.columnType),
+    onUpdate: /on update current_timestamp/i.test(c.extra),
+  };
+}
+
+/**
+ * Huella de una columna para saber si cambió. La anchura de los enteros no cuenta:
+ * en MariaDB es solo ancho de presentación (`int(11)` es `int`). El nombre va dentro,
+ * así que renombrar también es un cambio.
+ */
+function columnSignature(c: DbTableSpecColumn): string {
+  const type = texto(c.type).toUpperCase().replace(/\s+/g, "");
+  const length = INTEGER_TYPES.includes(type) ? "" : texto(c.length).trim();
+  return JSON.stringify([
+    texto(c.name).toLowerCase(),
+    type,
+    length,
+    Boolean(c.nullable),
+    c.defaultValue ?? null,
+    Boolean(c.autoIncrement),
+    texto(c.comment).trim(),
+    Boolean(c.unsigned),
+    Boolean(c.zerofill),
+    Boolean(c.onUpdate),
+  ]);
+}
+
+/** Misma colección de nombres, sin importar el orden ni la caja. */
+function mismoConjunto(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  const sa = a.map((n) => n.toLowerCase()).sort();
+  const sb = b.map((n) => n.toLowerCase()).sort();
+  return sa.every((n, i) => n === sb[i]);
+}
+
+/**
+ * Rehace la estructura de una tabla en un solo `ALTER TABLE`: borra las columnas que
+ * faltan, cambia las que vienen con otro nombre o definición, añade las nuevas y
+ * rehace la clave primaria si cambia. No mueve columnas existentes de sitio y no
+ * toca las generadas salvo que se intenten modificar, que es un error.
+ */
+export async function alterTable(
+  s: DbSession,
+  db: string,
+  table: string,
+  columns: DbStructureColumn[]
+): Promise<void> {
+  if (!Array.isArray(columns) || columns.length === 0) {
+    throw new Error("La tabla necesita al menos una columna.");
+  }
+  const actuales = await listColumns(s, db, table);
+  const indices = await listIndexes(s, db, table);
+  const tienePk = indices.some((i) => i.name.toUpperCase() === "PRIMARY");
+  const pkActual = tienePk ? (indices.find((i) => i.name.toUpperCase() === "PRIMARY")?.columns ?? []) : [];
+  const porNombre = new Map(actuales.map((c) => [c.name.toLowerCase(), c]));
+
+  const deseadas: { actual: DbColumn | null; column: DbTableSpecColumn; cambia: boolean }[] = [];
+  const nombres = new Set<string>();
+  const origenes = new Set<string>();
+  for (const entrada of columns) {
+    const column = entrada?.column;
+    if (!column || typeof column !== "object") {
+      throw new Error("Falta la definición de una columna.");
+    }
+    const nombre = texto(column.name).trim();
+    if (!nombre) {
+      throw new Error("Falta el nombre de una columna.");
+    }
+    const clave = nombre.toLowerCase();
+    if (nombres.has(clave)) {
+      throw new Error(`Columna duplicada: ${nombre}.`);
+    }
+    nombres.add(clave);
+
+    const original =
+      entrada.originalName === null || entrada.originalName === undefined ? null : texto(entrada.originalName).trim();
+    if (!original) {
+      deseadas.push({ actual: null, column, cambia: true });
+      continue;
+    }
+    const actual = porNombre.get(original.toLowerCase());
+    if (!actual) {
+      throw new Error(`La columna «${original}» no existe.`);
+    }
+    if (origenes.has(original.toLowerCase())) {
+      throw new Error(`Columna repetida: ${original}.`);
+    }
+    origenes.add(original.toLowerCase());
+    deseadas.push({
+      actual,
+      column,
+      cambia: columnSignature(specFromColumn(actual)) !== columnSignature(column),
+    });
+  }
+
+  if (deseadas.filter((d) => d.column.autoIncrement).length > 1) {
+    throw new Error("Solo una columna puede ser auto_increment.");
+  }
+  for (const d of deseadas) {
+    if (!d.cambia) {
+      continue;
+    }
+    const nombre = texto(d.column.name).trim();
+    const type = checkType(d.column);
+    if (d.column.autoIncrement && (!INTEGER_TYPES.includes(type) || !d.column.primaryKey)) {
+      throw new Error(`«${nombre}»: el auto_increment solo vale en enteros que son clave primaria.`);
+    }
+  }
+
+  const pkDeseada = deseadas.filter((d) => d.column.primaryKey).map((d) => texto(d.column.name).trim());
+  const mismaPk = mismoConjunto(pkActual, pkDeseada);
+  const actualesPk = new Set(pkActual.map((n) => n.toLowerCase()));
+  const deseadasPk = new Set(pkDeseada.map((n) => n.toLowerCase()));
+  const pkOrden = [
+    ...pkActual.filter((n) => deseadasPk.has(n.toLowerCase())),
+    ...pkDeseada.filter((n) => !actualesPk.has(n.toLowerCase())),
+  ];
+
+  const clausulas: string[] = [];
+  if (!mismaPk && pkActual.length > 0) {
+    clausulas.push("DROP PRIMARY KEY");
+  }
+  for (const actual of actuales) {
+    if (!origenes.has(actual.name.toLowerCase())) {
+      clausulas.push(`DROP COLUMN ${ident(actual.name)}`);
+    }
+  }
+  for (const d of deseadas) {
+    if (!d.actual) {
+      continue;
+    }
+    if (/GENERATED/i.test(d.actual.extra)) {
+      if (d.cambia) {
+        throw new Error(`No se puede modificar la columna generada «${d.actual.name}».`);
+      }
+      continue;
+    }
+    if (d.cambia) {
+      clausulas.push(`CHANGE COLUMN ${ident(d.actual.name)} ${buildColumnDefinition(d.column)}`);
+    }
+  }
+  for (const d of deseadas) {
+    if (!d.actual) {
+      clausulas.push(`ADD COLUMN ${buildColumnDefinition(d.column)}`);
+    }
+  }
+  if (!mismaPk && pkDeseada.length > 0) {
+    clausulas.push(`ADD PRIMARY KEY (${pkOrden.map(ident).join(", ")})`);
+  }
+  if (clausulas.length === 0) {
+    return;
+  }
+  try {
+    await s.query(`ALTER TABLE ${qualified(db, table)} ${clausulas.join(", ")}`);
+  } catch (e) {
+    throw new Error(`No se pudo cambiar la estructura: ${mensajeDe(e)}`);
+  }
 }
 
 /** Borra una tabla o una vista. */

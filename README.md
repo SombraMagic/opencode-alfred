@@ -84,9 +84,10 @@ Bienvenidos a Alfred.
 - **Visor Alfred 3D.** Abre ficheros `.blend` como pestaña de edición: órbita, objetos,
   cámaras, luces, animaciones y render de un frame o de toda la tirada. Con Blender o sin él.
 - **Bases de datos (MariaDB).** Pestaña central con su botón en `Control`: conexiones con
-  contraseña en el almacén de VS Code, TLS y túnel SSH; explorador de bases y tablas; rejilla con
-  paginación, buscador, edición y borrado por lotes; consola SQL con confirmación para lo que
-  escribe; y copia completa a `.sql` con `mariadb-dump`, más exportación de tablas a CSV, JSON o SQL.
+  contraseña en el almacén de VS Code, TLS y túnel SSH; explorador de bases y tablas; estructura
+  editable de columnas con confirmación; rejilla con paginación, buscador, edición y borrado por
+  lotes; consola SQL con confirmación para lo que escribe; y copia completa a `.sql` con
+  `mariadb-dump`, más exportación de tablas a CSV, JSON o SQL con líneas acotadas.
 
 Todo en español, en una sola extensión.
 

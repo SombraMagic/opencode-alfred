@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Última revisión: 2 de noviembre de 2026 · versión **0.8.0**
+Última revisión: 2 de noviembre de 2026 · versión **0.8.2**
 
 ## Resumen
 
@@ -8,6 +8,45 @@ La extensión está fusionada, compila, empaqueta y se instala. Los tres contene
 (Explorador + Contexto + Límites de consumo, panel de Voz y panel de Dictado) están
 montados y probados en VS Code real. El repositorio se publica en abierto con la
 estructura `Codigo_Fuente/` · `Documentacion/` · `Instalable/`.
+
+**0.8.2** (2026-11-02): empaquetada en `Instalable/` (`opencode-alfred-0.8.2.vsix`), **sin release en
+GitHub ni tag**, sin commit ni push. Reporte de la persona: «Estadísticas de prompt» se abría en un
+grupo aparte (`ViewColumn.Beside`) en vez del área central. Arreglo: `promptStatsPanel.ts` abre y
+revela en `ViewColumn.Active`; `statsPanel.ts` (estadísticas de agentes) tenía el mismo patrón y
+también se corrige.
+
+Verificado: `typecheck` y `compile` en verde; `.vsix` empaquetado e instalado con `--force`.
+
+**NO verificado en VS Code real**: que la pestaña se abre en el grupo central y no en un contenedor
+aparte, y que reabrir o revelar la pestaña ya abierta no la mueve.
+
+---
+
+Versión anterior: **0.8.1**
+
+**0.8.1** (2026-11-02): empaquetada en `Instalable/` (`opencode-alfred-0.8.1.vsix`), **sin release en
+GitHub ni tag**, sin commit ni push. Corrige cinco fallos del reporte de la persona en «Bases de datos»:
+
+1. **Rejilla**: filas de altura fija (26 px, una línea con elipsis). Los saltos de línea ya no estiran
+   la fila; la celda en edición no rompe la altura.
+2. **Export/volcado**: líneas `INSERT` acotadas a 240 KB (antes una de 1,6 MB bloqueaba los visores);
+   JSON con un objeto por línea; `mariadb-dump` con `--net-buffer-length=262144`. Una fila gigante sigue
+   yendo sola, sin partirse.
+3. **Estructura editable**: añadir, renombrar, modificar y eliminar columnas (tipo, longitud, NULL,
+   defecto, comentario, auto_increment, PK, UNSIGNED, ZEROFILL, ON UPDATE), con confirmación `GUARDAR` y
+   comprobación de que la tabla/columnas no cambiaron por detrás.
+4. **Búsqueda**: botón para limpiar junto al buscador.
+5. **Conexión**: el selector de conexión queda bloqueado mientras hay conexión activa.
+
+Con `typecheck` y `compile` en verde y revisión **PASS**.
+
+**NO verificado en VS Code real**: la rejilla con datos reales (altura fija y celda en edición), la
+estructura editable en la webview (diálogo `GUARDAR` y comprobación contra la base viva), el export
+lanzado desde la extensión y el `mariadb-dump` con el nuevo `--net-buffer-length`.
+
+---
+
+Versión anterior: **0.8.0**
 
 La **0.8.0** está empaquetada en `Instalable/` (`opencode-alfred-0.8.0.vsix`), **sin release en GitHub
 ni tag**, y entra la pestaña central **Bases de datos (MariaDB)** (`opencodeAgents.databases`, botón

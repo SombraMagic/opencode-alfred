@@ -47,6 +47,11 @@
 
       <div class="db-search-block">
         <input id="input-search" class="db-input" type="text" placeholder="Buscar en tabla..." title="Búsqueda rápida en todas las columnas no binarias" />
+        <button id="btn-search-clear" class="db-icon-btn" type="button" title="Limpiar búsqueda" aria-label="Limpiar búsqueda" disabled>
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4">
+            <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke-linecap="round" />
+          </svg>
+        </button>
         <button id="btn-search" class="db-icon-btn" type="button" title="Ejecutar búsqueda" aria-label="Ejecutar búsqueda">
           <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4">
             <circle cx="6.5" cy="6.5" r="4" />
@@ -183,6 +188,10 @@
               <div class="db-struct-head">
                 <span class="db-struct-title">COLUMNAS</span>
                 <div class="db-struct-actions">
+                  <button id="btn-struct-edit" class="db-btn db-btn-primary" type="button" title="Editar estructura de la tabla">EDITAR ESTRUCTURA</button>
+                  <button id="btn-struct-add-col" class="db-btn db-btn-subtle hidden" type="button" title="Añadir columna">+ COLUMNA</button>
+                  <button id="btn-struct-save" class="db-btn db-btn-primary hidden" type="button" title="Guardar cambios de estructura">GUARDAR</button>
+                  <button id="btn-struct-cancel" class="db-btn db-btn-subtle hidden" type="button" title="Cancelar edición">CANCELAR</button>
                   <button id="btn-table-rename" class="db-btn db-btn-subtle" type="button">RENOMBRAR TABLA</button>
                   <button id="btn-struct-refresh" class="db-icon-btn" type="button" title="Refrescar estructura" aria-label="Refrescar estructura">
                     <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -192,7 +201,7 @@
                 </div>
               </div>
               <table class="db-meta-table" id="table-cols">
-                <thead>
+                <thead id="head-cols">
                   <tr>
                     <th>Nombre</th>
                     <th>Tipo</th>

@@ -111,6 +111,18 @@ export interface DbTableSpecColumn {
   autoIncrement: boolean;
   primaryKey: boolean;
   comment?: string;
+  /** `UNSIGNED`, solo en tipos numéricos. */
+  unsigned?: boolean;
+  /** `ZEROFILL`, solo en tipos numéricos. */
+  zerofill?: boolean;
+  /** `ON UPDATE CURRENT_TIMESTAMP`, solo en DATETIME y TIMESTAMP. */
+  onUpdate?: boolean;
+}
+
+/** Columna del editor de estructura: `originalName` null cuando es nueva. */
+export interface DbStructureColumn {
+  originalName: string | null;
+  column: DbTableSpecColumn;
 }
 
 export interface DbTableSpec {

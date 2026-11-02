@@ -19,6 +19,10 @@
   let activeTab = "datos";
   let previousTable = undefined;
   let previousPage = undefined;
+  let structureEditing = false;
+  // Nombres de las columnas tal como estaban al entrar en edición: el host los usa para
+  // rechazar el guardado si la tabla cambió por detrás mientras se editaba.
+  let structureOriginalNames = [];
 
   // ── Elementos del DOM ───────────────────────────────────────────────────
   const selProfile = document.getElementById("sel-profile");
@@ -31,6 +35,7 @@
   const dbServerInfo = document.getElementById("db-server-info");
 
   const inputSearch = document.getElementById("input-search");
+  const btnSearchClear = document.getElementById("btn-search-clear");
   const btnSearch = document.getElementById("btn-search");
   const btnCountRows = document.getElementById("btn-count-rows");
 
@@ -67,9 +72,14 @@
   const selPageSize = document.getElementById("sel-page-size");
   const labelQueryTime = document.getElementById("label-query-time");
 
+  const tableColsHead = document.getElementById("head-cols");
   const tableColsBody = document.getElementById("body-cols");
   const tableIndexesBody = document.getElementById("body-indexes");
   const tableFksBody = document.getElementById("body-fks");
+  const btnStructEdit = document.getElementById("btn-struct-edit");
+  const btnStructAddCol = document.getElementById("btn-struct-add-col");
+  const btnStructSave = document.getElementById("btn-struct-save");
+  const btnStructCancel = document.getElementById("btn-struct-cancel");
   const btnTableRename = document.getElementById("btn-table-rename");
   const btnStructRefresh = document.getElementById("btn-struct-refresh");
 
@@ -172,6 +182,14 @@
       btnRowsDelete.disabled = true;
     }
 
+    if (tableChanged) {
+      structureEditing = false;
+    }
+
+    if (structureEditing && next.notice && next.notice.startsWith("Estructura de ")) {
+      structureEditing = false;
+    }
+
     previousTable = currentState.currentTable;
     previousPage = currentState.data?.page;
 
@@ -218,6 +236,9 @@
     btnConnect.className = "db-btn " + (connected ? "db-btn-danger" : "db-btn-primary");
     btnConnect.disabled = !currentState.profiles || currentState.profiles.length === 0;
 
+    selProfile.disabled = connected;
+    selProfile.title = connected ? "Desconecta antes de cambiar de conexión" : "";
+
     const hasProfile = Boolean(currentState.activeProfileId || (currentState.profiles && currentState.profiles.length > 0));
     btnProfileEdit.disabled = !hasProfile;
     btnProfileDel.disabled = !hasProfile;
@@ -232,6 +253,7 @@
     if (currentState.data?.search !== undefined && document.activeElement !== inputSearch) {
       inputSearch.value = currentState.data.search;
     }
+    btnSearchClear.disabled = !hasTable || !inputSearch.value;
   }
 
   function renderSidebar() {
@@ -517,7 +539,10 @@
       td.appendChild(span);
       return; // Los binarios no son editables en línea
     } else {
-      td.textContent = String(cellVal);
+      const span = document.createElement("span");
+      span.className = "db-cell-text";
+      span.textContent = String(cellVal);
+      td.appendChild(span);
     }
 
     // Doble clic para edición inline si la tabla tiene identidad
@@ -614,10 +639,188 @@
     renderCellContent(td, initialVal, rowIdx, colDef, fullRow);
   }
 
-  function renderTabEstructura() {
+  // ── Pestaña ESTRUCTURA ───────────────────────────────────────────────────
+  const DB_COLUMN_TYPES = [
+    "INT", "BIGINT", "SMALLINT", "TINYINT", "MEDIUMINT",
+    "DECIMAL", "FLOAT", "DOUBLE",
+    "VARCHAR", "CHAR",
+    "TEXT", "MEDIUMTEXT", "LONGTEXT", "TINYTEXT",
+    "DATE", "DATETIME", "TIMESTAMP", "TIME", "YEAR",
+    "BOOLEAN", "JSON",
+    "BLOB", "MEDIUMBLOB", "LONGBLOB", "TINYBLOB",
+    "ENUM", "SET",
+    "UUID", "BINARY", "VARBINARY", "BIT", "INET4", "INET6",
+  ];
+
+  /**
+   * Devuelve crudo lo que va entre paréntesis del tipo, sin tocar comillas: el host espera
+   * la lista de ENUM/SET tal cual (`'a','b'`) y la vuelve a parsear él. Recortar las comillas
+   * aquí rompía los valores que llevan una coma dentro (`enum('a,b','c')`).
+   */
+  function extractLength(columnType, dataType) {
+    if (!columnType) return "";
+    const m = columnType.match(/\((.*)\)/);
+    if (!m) return "";
+    return m[1].trim();
+  }
+
+  function updateStructEditButtons() {
     const hasTable = Boolean(currentState.connected && currentState.currentTable);
-    btnTableRename.disabled = !hasTable;
-    btnStructRefresh.disabled = !hasTable;
+    const isView = Boolean(currentState.tables.find((t) => t.name === currentState.currentTable)?.isView);
+
+    if (structureEditing) {
+      btnStructEdit.classList.add("hidden");
+      btnStructAddCol.classList.remove("hidden");
+      btnStructSave.classList.remove("hidden");
+      btnStructCancel.classList.remove("hidden");
+      btnTableRename.disabled = true;
+      btnStructRefresh.disabled = true;
+    } else {
+      btnStructEdit.classList.remove("hidden");
+      btnStructAddCol.classList.add("hidden");
+      btnStructSave.classList.add("hidden");
+      btnStructCancel.classList.add("hidden");
+      btnTableRename.disabled = !hasTable;
+      btnStructRefresh.disabled = !hasTable;
+
+      if (!hasTable) {
+        btnStructEdit.disabled = true;
+        btnStructEdit.title = "Selecciona una tabla";
+      } else if (isView) {
+        btnStructEdit.disabled = true;
+        btnStructEdit.title = "Una vista no tiene estructura editable";
+      } else {
+        btnStructEdit.disabled = false;
+        btnStructEdit.title = "Editar estructura de la tabla";
+      }
+    }
+  }
+
+  function createEditColRow(data) {
+    const tr = document.createElement("tr");
+    tr.className = "db-struct-edit-row";
+    tr.dataset.originalName = data.originalName !== null && data.originalName !== undefined ? data.originalName : "";
+
+    const isGen = Boolean(data.isGenerated);
+    const typeUpper = (data.type || "VARCHAR").toUpperCase();
+
+    let typeOptions = [...DB_COLUMN_TYPES];
+    if (typeUpper && !typeOptions.includes(typeUpper)) {
+      typeOptions.unshift(typeUpper);
+    }
+
+    const isNoDefault = data.defaultValue === null;
+    const canOnUpdate = typeUpper === "DATETIME" || typeUpper === "TIMESTAMP";
+
+    tr.innerHTML = `
+      <td>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="text" class="db-struct-edit-input col-name" value="${escapeHtml(data.name || "")}" placeholder="nombre" ${isGen ? "disabled" : ""} style="min-width:100px;" required />
+          ${isGen ? '<span class="db-badge-generated" title="Columna generada (solo lectura)">GENERADA</span>' : ""}
+        </div>
+      </td>
+      <td>
+        <select class="db-struct-edit-select col-type" ${isGen ? "disabled" : ""} style="min-width:90px;">
+          ${typeOptions.map((t) => `<option value="${t}" ${t === typeUpper ? "selected" : ""}>${t}</option>`).join("")}
+        </select>
+      </td>
+      <td>
+        <input type="text" class="db-struct-edit-input col-len" value="${escapeHtml(data.length || "")}" placeholder="${typeUpper === "ENUM" || typeUpper === "SET" ? "'a','b'" : "longitud"}" ${isGen ? "disabled" : ""} style="width:70px;" />
+      </td>
+      <td style="text-align:center;">
+        <input type="checkbox" class="col-null" ${data.nullable ? "checked" : ""} ${isGen ? "disabled" : ""} title="Permite NULL" />
+      </td>
+      <td>
+        <div class="db-struct-cell-def">
+          <label class="db-checkbox-label" style="font-size:10px;" title="Sin valor por defecto (NULL)">
+            <input type="checkbox" class="col-no-def" ${isNoDefault ? "checked" : ""} ${isGen ? "disabled" : ""} />
+            <span>SIN DEF</span>
+          </label>
+          <input type="text" class="db-struct-edit-input col-def-val" value="${escapeHtml(data.defaultValue !== null && data.defaultValue !== undefined ? data.defaultValue : "")}" placeholder="defecto" ${isGen || isNoDefault ? "disabled" : ""} style="width:75px;" />
+        </div>
+      </td>
+      <td style="text-align:center;">
+        <input type="checkbox" class="col-ai" ${data.autoIncrement ? "checked" : ""} ${isGen ? "disabled" : ""} title="Auto incremento" />
+      </td>
+      <td style="text-align:center;">
+        <input type="checkbox" class="col-pk" ${data.primaryKey ? "checked" : ""} ${isGen ? "disabled" : ""} title="Clave primaria" />
+      </td>
+      <td style="text-align:center;">
+        <input type="checkbox" class="col-uns" ${data.unsigned ? "checked" : ""} ${isGen ? "disabled" : ""} title="Sin signo (UNSIGNED)" />
+      </td>
+      <td style="text-align:center;">
+        <input type="checkbox" class="col-zf" ${data.zerofill ? "checked" : ""} ${isGen ? "disabled" : ""} title="Relleno con ceros (ZEROFILL)" />
+      </td>
+      <td style="text-align:center;">
+        <input type="checkbox" class="col-onupd" ${data.onUpdate && canOnUpdate ? "checked" : ""} ${isGen || !canOnUpdate ? "disabled" : ""} title="ON UPDATE CURRENT_TIMESTAMP" />
+      </td>
+      <td>
+        <input type="text" class="db-struct-edit-input col-comment" value="${escapeHtml(data.comment || "")}" placeholder="comentario" ${isGen ? "disabled" : ""} style="min-width:90px;" />
+      </td>
+      <td style="text-align:center;">
+        <button type="button" class="db-icon-btn db-icon-btn-danger btn-del-struct-col" title="Quitar columna" aria-label="Quitar columna" ${isGen ? "disabled" : ""}>✕</button>
+      </td>
+    `;
+
+    const typeSelect = tr.querySelector(".col-type");
+    const onUpdCheck = tr.querySelector(".col-onupd");
+    const lenInput = tr.querySelector(".col-len");
+    const noDefCheck = tr.querySelector(".col-no-def");
+    const defValInput = tr.querySelector(".col-def-val");
+    const delBtn = tr.querySelector(".btn-del-struct-col");
+
+    typeSelect.addEventListener("change", () => {
+      const t = typeSelect.value.toUpperCase();
+      const allowed = t === "DATETIME" || t === "TIMESTAMP";
+      onUpdCheck.disabled = isGen || !allowed;
+      if (!allowed) {
+        onUpdCheck.checked = false;
+      }
+      if (t === "ENUM" || t === "SET") {
+        lenInput.placeholder = "'a','b'";
+      } else {
+        lenInput.placeholder = "longitud";
+      }
+    });
+
+    noDefCheck.addEventListener("change", () => {
+      defValInput.disabled = isGen || noDefCheck.checked;
+      if (noDefCheck.checked) {
+        defValInput.value = "";
+      } else {
+        defValInput.focus();
+      }
+    });
+
+    delBtn.addEventListener("click", () => {
+      tr.remove();
+    });
+
+    return tr;
+  }
+
+  function renderTabEstructura() {
+    updateStructEditButtons();
+
+    // Mientras structureEditing esté activo, NO reconstruyas la tabla de columnas
+    if (structureEditing) {
+      return;
+    }
+
+    // Cabecera modo lectura
+    tableColsHead.innerHTML = `
+      <tr>
+        <th>Nombre</th>
+        <th>Tipo</th>
+        <th>Nulo</th>
+        <th>Defecto</th>
+        <th>Clave</th>
+        <th>Extra</th>
+        <th>Comentario</th>
+      </tr>
+    `;
+
+    const hasTable = Boolean(currentState.connected && currentState.currentTable);
 
     // Columnas
     tableColsBody.innerHTML = "";
@@ -772,7 +975,10 @@
               } else if (typeof cellVal === "object" && "b64" in cellVal) {
                 tdB.textContent = `‹binario ${cellVal.bytes} B›`;
               } else {
-                tdB.textContent = String(cellVal);
+                const s = document.createElement("span");
+                s.className = "db-cell-text";
+                s.textContent = String(cellVal);
+                tdB.appendChild(s);
               }
               trB.appendChild(tdB);
             });
@@ -872,6 +1078,22 @@
       search: inputSearch.value.trim(),
       pageSize: Number(selPageSize.value) || 100,
     });
+  });
+
+  btnSearchClear.addEventListener("click", () => {
+    inputSearch.value = "";
+    btnSearchClear.disabled = true;
+    sendAction({
+      type: "loadData",
+      page: 0,
+      search: "",
+      pageSize: Number(selPageSize.value) || 100,
+    });
+  });
+
+  inputSearch.addEventListener("input", () => {
+    const hasTable = Boolean(currentState.connected && currentState.currentTable);
+    btnSearchClear.disabled = !hasTable || !inputSearch.value;
   });
 
   inputSearch.addEventListener("keydown", (e) => {
@@ -1046,6 +1268,164 @@
       closeModal(modalRenameTable);
       sendAction({ type: "renameTable", from: currentState.currentTable, to });
     }
+  });
+
+  // ── Estructura de tabla ──────────────────────────────────────────────────
+  btnStructEdit.addEventListener("click", () => {
+    const isView = currentState.tables.find((t) => t.name === currentState.currentTable)?.isView;
+    if (isView) {
+      showError("Una vista no tiene estructura editable.");
+      return;
+    }
+    if (!currentState.connected || !currentState.currentTable) return;
+
+    structureEditing = true;
+    structureOriginalNames = (currentState.columns || []).map((c) => c.name);
+    updateStructEditButtons();
+
+    tableColsHead.innerHTML = `
+      <tr>
+        <th>Nombre</th>
+        <th>Tipo</th>
+        <th>Longitud</th>
+        <th title="Permite valores NULL">NULL</th>
+        <th>Defecto</th>
+        <th title="Auto incremento">AI</th>
+        <th title="Clave primaria">PK</th>
+        <th title="Sin signo (UNSIGNED)">UNS</th>
+        <th title="Relleno con ceros (ZEROFILL)">ZF</th>
+        <th title="ON UPDATE CURRENT_TIMESTAMP (solo DATETIME/TIMESTAMP)">ON UPD</th>
+        <th>Comentario</th>
+        <th style="width:32px;"></th>
+      </tr>
+    `;
+
+    tableColsBody.innerHTML = "";
+    const cols = currentState.columns || [];
+    for (const col of cols) {
+      const isGen = Boolean(col.extra && col.extra.toUpperCase().includes("GENERATED"));
+      const rowEl = createEditColRow({
+        originalName: col.name,
+        name: col.name,
+        type: col.dataType.toUpperCase(),
+        length: extractLength(col.columnType, col.dataType),
+        nullable: Boolean(col.nullable),
+        defaultValue: col.defaultValue,
+        autoIncrement: Boolean(col.extra && col.extra.toLowerCase().includes("auto_increment")),
+        primaryKey: col.key === "PRI",
+        unsigned: /unsigned/i.test(col.columnType),
+        zerofill: /zerofill/i.test(col.columnType),
+        onUpdate: /on update current_timestamp/i.test(col.extra),
+        comment: col.comment || "",
+        isGenerated: isGen,
+      });
+      tableColsBody.appendChild(rowEl);
+    }
+  });
+
+  btnStructAddCol.addEventListener("click", () => {
+    const rowEl = createEditColRow({
+      originalName: null,
+      name: "",
+      type: "VARCHAR",
+      length: "255",
+      nullable: true,
+      defaultValue: null,
+      autoIncrement: false,
+      primaryKey: false,
+      unsigned: false,
+      zerofill: false,
+      onUpdate: false,
+      comment: "",
+      isGenerated: false,
+    });
+    tableColsBody.appendChild(rowEl);
+    const nameInput = rowEl.querySelector(".col-name");
+    if (nameInput) {
+      nameInput.focus();
+    }
+  });
+
+  btnStructCancel.addEventListener("click", () => {
+    structureEditing = false;
+    updateStructEditButtons();
+    renderTabEstructura();
+  });
+
+  btnStructSave.addEventListener("click", () => {
+    if (!currentState.currentTable) return;
+    const table = currentState.currentTable;
+    // Las columnas que había al entrar en edición: el host aborta si ya no coinciden.
+    const original = structureOriginalNames.slice();
+
+    const rows = tableColsBody.querySelectorAll(".db-struct-edit-row");
+    if (rows.length === 0) {
+      showError("La tabla necesita al menos una columna.");
+      return;
+    }
+
+    const columns = [];
+    const seenNames = new Set();
+
+    for (const row of rows) {
+      const origName = row.dataset.originalName ? row.dataset.originalName.trim() : null;
+      const name = row.querySelector(".col-name").value.trim();
+      const type = row.querySelector(".col-type").value.trim().toUpperCase();
+      const len = row.querySelector(".col-len").value.trim();
+      const nullable = row.querySelector(".col-null").checked;
+      const noDef = row.querySelector(".col-no-def").checked;
+      const defVal = noDef ? null : row.querySelector(".col-def-val").value;
+      const autoIncrement = row.querySelector(".col-ai").checked;
+      const primaryKey = row.querySelector(".col-pk").checked;
+      const unsigned = row.querySelector(".col-uns").checked;
+      const zerofill = row.querySelector(".col-zf").checked;
+      const onUpdate = row.querySelector(".col-onupd").checked && (type === "DATETIME" || type === "TIMESTAMP");
+      const comment = row.querySelector(".col-comment").value.trim();
+
+      if (!name) {
+        showError("Falta el nombre de una columna.");
+        return;
+      }
+
+      const lowerName = name.toLowerCase();
+      if (seenNames.has(lowerName)) {
+        showError(`Columna duplicada: ${name}.`);
+        return;
+      }
+      seenNames.add(lowerName);
+
+      columns.push({
+        originalName: origName || null,
+        column: {
+          name,
+          type,
+          length: len || undefined,
+          nullable,
+          defaultValue: defVal,
+          autoIncrement,
+          primaryKey,
+          comment: comment || undefined,
+          unsigned,
+          zerofill,
+          onUpdate,
+        },
+      });
+    }
+
+    openDestructiveConfirm(
+      "MODIFICAR ESTRUCTURA",
+      `Se aplicarán los cambios de estructura en ${table}. Las columnas que borres pierden sus datos.`,
+      "GUARDAR",
+      () => {
+        sendAction({
+          type: "alterTable",
+          table,
+          original,
+          columns,
+          confirm: "GUARDAR",
+        });
+      }
+    );
   });
 
   btnStructRefresh.addEventListener("click", () => {

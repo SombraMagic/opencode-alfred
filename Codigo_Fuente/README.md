@@ -81,14 +81,19 @@ servidores MariaDB o MySQL.
   VS Code, nunca al `settings.json`. TLS opcional y **túnel SSH** por contraseña, clave o agente;
   la huella del servidor SSH se recuerda y se verifica en cada conexión.
 - **Explorador**: lista de bases y tablas. Crear base y eliminarla solo si está vacía (sin tablas,
-  rutinas ni eventos). Crear, eliminar, truncar y renombrar tablas.
+  rutinas ni eventos). Crear, eliminar, truncar y renombrar tablas. El selector de conexión se bloquea
+  mientras hay una conexión activa.
+- **Estructura editable**: añadir, renombrar, modificar y eliminar columnas (tipo, longitud, NULL,
+  defecto, comentario, auto_increment, PK, UNSIGNED, ZEROFILL y ON UPDATE). Los cambios piden la
+  confirmación `GUARDAR`, y si la tabla cambió por detrás se aborta.
 - **Rejilla de datos**: paginación, orden por columna y un buscador único que recorre todas las
-  columnas de la tabla. Edición de celdas, inserción y borrado por lotes cuando la tabla tiene clave
-  primaria o índice único.
+  columnas de la tabla, con botón para limpiarlo. Filas de altura fija (26 px, una línea con elipsis).
+  Edición de celdas, inserción y borrado por lotes cuando la tabla tiene clave primaria o índice único.
 - **Consola SQL**: ejecuta sentencias libres. Las que escriben piden confirmación escrita antes de
   correr.
 - **Copias y exportación**: copia completa de la base a un `.sql` con `mariadb-dump`; si no está
-  instalado, un volcador propio de respaldo. Exporta una tabla a CSV, JSON o SQL.
+  instalado, un volcador propio de respaldo. Exporta una tabla a CSV, JSON o SQL. Las líneas `INSERT`
+  se acotan a 240 KB (una fila gigante va sola, sin partirse) y el JSON sale con un objeto por línea.
 - **Requisitos**: una cuenta con `mysql_native_password` o `ed25519`. Las cuentas con autenticación
   `gssapi` o SSPI no sirven, porque ni `mysql2` ni el conector oficial de Node las soportan.
   `mariadb-dump` (o `mysqldump`) es opcional: solo hace falta para la copia completa en su versión

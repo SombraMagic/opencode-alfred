@@ -11,12 +11,15 @@ import type {
   DbProfileView,
   DbQueryColumn,
   DbQueryResult,
+  DbStructureColumn,
   DbTableInfo,
   DbTableSpec,
+  DbTableSpecColumn,
 } from "../databases/types";
 import { DbSession } from "../databases/driver";
 import { SshTunnel, type HostKeyStore, type SshSecrets } from "../databases/ssh";
 import {
+  alterTable,
   createDatabase,
   createTable,
   dropDatabase,
@@ -117,6 +120,7 @@ export type DbAction =
   | { type: "createDatabase"; name: string }
   | { type: "dropDatabase"; name: string; confirm: string }
   | { type: "createTable"; spec: DbTableSpec }
+  | { type: "alterTable"; table: string; original: string[]; columns: DbStructureColumn[]; confirm: string }
   | { type: "dropTable"; table: string; confirm: string }
   | { type: "truncateTable"; table: string; confirm: string }
   | { type: "renameTable"; from: string; to: string }
@@ -156,6 +160,32 @@ function parseCell(raw: unknown): { ok: true; cell: DbCell } | { ok: false } {
     }
   }
   return { ok: false };
+}
+
+/** Columna del editor de estructura: mismo saneado que `createTable`. */
+function parseSpecColumn(raw: unknown): DbTableSpecColumn | undefined {
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+  const c = raw as Record<string, unknown>;
+  const name = typeof c.name === "string" ? c.name.trim() : "";
+  const type = typeof c.type === "string" ? c.type.trim().toUpperCase() : "";
+  if (!name || !type) {
+    return undefined;
+  }
+  return {
+    name,
+    type,
+    length: typeof c.length === "string" && c.length.trim() ? c.length.trim() : undefined,
+    nullable: Boolean(c.nullable),
+    defaultValue: typeof c.defaultValue === "string" ? c.defaultValue : null,
+    autoIncrement: Boolean(c.autoIncrement),
+    primaryKey: Boolean(c.primaryKey),
+    comment: typeof c.comment === "string" && c.comment.trim() ? c.comment.trim() : undefined,
+    unsigned: c.unsigned === true,
+    zerofill: c.zerofill === true,
+    onUpdate: c.onUpdate === true,
+  };
 }
 
 function parseAction(raw: unknown): DbAction | undefined {
@@ -280,29 +310,60 @@ function parseAction(raw: unknown): DbAction | undefined {
       if (!name || !Array.isArray(s.columns) || s.columns.length === 0) {
         return undefined;
       }
-      const columns = [];
+      const columns: DbTableSpecColumn[] = [];
       for (const rawCol of s.columns) {
+        const column = parseSpecColumn(rawCol);
+        if (!column) {
+          return undefined;
+        }
+        columns.push(column);
+      }
+      return { type: "createTable", spec: { name, columns } };
+    }
+
+    case "alterTable": {
+      const table = typeof obj.table === "string" ? obj.table.trim() : "";
+      const confirm = typeof obj.confirm === "string" ? obj.confirm : "";
+      if (
+        !table ||
+        !confirm ||
+        !Array.isArray(obj.original) ||
+        obj.original.length === 0 ||
+        !Array.isArray(obj.columns) ||
+        obj.columns.length === 0 ||
+        obj.columns.length > 1017
+      ) {
+        return undefined;
+      }
+      const original: string[] = [];
+      for (const rawName of obj.original) {
+        if (typeof rawName !== "string" || !rawName.trim()) {
+          return undefined;
+        }
+        original.push(rawName.trim());
+      }
+      const columns: DbStructureColumn[] = [];
+      for (const rawCol of obj.columns) {
         if (!rawCol || typeof rawCol !== "object") {
           return undefined;
         }
-        const c = rawCol as Record<string, unknown>;
-        const colName = typeof c.name === "string" ? c.name.trim() : "";
-        const colType = typeof c.type === "string" ? c.type.trim().toUpperCase() : "";
-        if (!colName || !colType) {
+        const entrada = rawCol as Record<string, unknown>;
+        const column = parseSpecColumn(entrada.column);
+        const rawOriginal = entrada.originalName;
+        let originalName: string | null;
+        if (rawOriginal === null) {
+          originalName = null;
+        } else if (typeof rawOriginal === "string" && rawOriginal.trim()) {
+          originalName = rawOriginal.trim();
+        } else {
           return undefined;
         }
-        columns.push({
-          name: colName,
-          type: colType,
-          length: typeof c.length === "string" && c.length.trim() ? c.length.trim() : undefined,
-          nullable: Boolean(c.nullable),
-          defaultValue: typeof c.defaultValue === "string" ? c.defaultValue : null,
-          autoIncrement: Boolean(c.autoIncrement),
-          primaryKey: Boolean(c.primaryKey),
-          comment: typeof c.comment === "string" && c.comment.trim() ? c.comment.trim() : undefined,
-        });
+        if (!column) {
+          return undefined;
+        }
+        columns.push({ originalName, column });
       }
-      return { type: "createTable", spec: { name, columns } };
+      return { type: "alterTable", table, original, columns, confirm };
     }
 
     case "dropTable":
@@ -768,6 +829,35 @@ export class DatabasesPanel {
         const tables = await listTables(this.session, this.state.currentDb);
         this.state = { ...this.state, tables, busy: undefined, notice: `Tabla "${action.spec.name}" creada.` };
         await this.selectTableInternal(action.spec.name);
+        break;
+      }
+
+      case "alterTable": {
+        if (!this.session || !this.state.currentDb || !this.state.currentTable) {
+          throw new Error("No hay tabla seleccionada.");
+        }
+        const table = this.state.currentTable;
+        if (action.table !== table) {
+          throw new Error("La tabla cambió: vuelve a abrir la estructura.");
+        }
+        if (this.state.tables.find((t) => t.name === table)?.isView) {
+          throw new Error("Una vista no tiene estructura editable.");
+        }
+        if (action.confirm !== "GUARDAR") {
+          throw new Error("La confirmación no coincide.");
+        }
+        const vivas = await listColumns(this.session, this.state.currentDb, table);
+        const vivasSet = new Set(vivas.map((c) => c.name.toLowerCase()));
+        const originalSet = new Set(action.original.map((n) => n.toLowerCase()));
+        if (vivasSet.size !== originalSet.size || [...originalSet].some((n) => !vivasSet.has(n))) {
+          throw new Error(
+            "La estructura de la tabla cambió desde que la abriste: recarga y vuelve a intentarlo."
+          );
+        }
+        this.postState({ ...this.state, busy: `Actualizando estructura de ${table}...` });
+        await alterTable(this.session, this.state.currentDb, table, action.columns);
+        this.state = { ...this.state, busy: undefined, notice: `Estructura de ${table} actualizada.` };
+        await this.selectTableInternal(table);
         break;
       }
 

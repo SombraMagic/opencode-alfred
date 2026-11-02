@@ -3,6 +3,24 @@
 Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
 marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
 
+## [0.8.2] - 2026-11-02
+
+- **Estadísticas de prompt y de agentes** se abren en el área central, como el resto de pestañas,
+  en vez de en un grupo aparte.
+
+## [0.8.1] - 2026-11-02
+
+- **Rejilla de datos**: filas de altura fija (26 px, una sola línea con elipsis). Los saltos de línea
+  de un valor ya no estiran la fila, y la celda en edición no rompe la altura.
+- **Exportación y volcado**: las líneas `INSERT` se acotan a 240 KB (antes una de 1,6 MB bloqueaba
+  los visores). El JSON sale con un objeto por línea. `mariadb-dump` usa `--net-buffer-length=262144`.
+  Una fila gigante (un blob) sigue yendo sola, sin partirse.
+- **Estructura editable**: añadir, renombrar, modificar y eliminar columnas, con tipo, longitud, NULL,
+  defecto, comentario, auto_increment, PK, UNSIGNED, ZEROFILL y ON UPDATE. Los cambios exigen
+  confirmación escrita `GUARDAR` y comprueban que la tabla y sus columnas no cambiaron por detrás.
+- **Búsqueda**: botón para limpiar el buscador junto al campo.
+- **Conexión**: el selector de conexión queda bloqueado mientras hay una conexión activa.
+
 ## [0.8.0] - 2026-11-02
 
 - **Bases de datos (MariaDB)**: pestaña central con el icono nuevo de `Control` y el comando

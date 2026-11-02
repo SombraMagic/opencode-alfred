@@ -501,14 +501,33 @@ html, body {
   color: var(--neon);
 }
 
+.db-grid tr {
+  height: 26px;
+  max-height: 26px;
+}
+
 .db-grid td {
   border-bottom: 1px solid rgba(0, 229, 255, 0.07);
   border-right: 1px solid rgba(0, 229, 255, 0.05);
-  padding: 4px 8px;
-  white-space: pre;
+  padding: 3px 8px;
+  white-space: nowrap;
+  height: 26px;
+  max-height: 26px;
+  line-height: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: middle;
   max-width: 320px;
+  box-sizing: border-box;
+}
+
+.db-cell-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 18px;
+  max-height: 18px;
 }
 
 .db-grid tr:hover td {
@@ -538,6 +557,9 @@ html, body {
 
 .db-cell-editing {
   padding: 0 !important;
+  height: 26px;
+  max-height: 26px;
+  vertical-align: middle;
 }
 
 .db-inline-editor {
@@ -545,18 +567,22 @@ html, body {
   align-items: center;
   gap: 4px;
   width: 100%;
-  padding: 2px;
+  height: 26px;
+  padding: 1px 4px;
+  box-sizing: border-box;
   background: var(--bg-raised);
 }
 
 .db-inline-input {
   flex: 1;
+  height: 20px;
   background: #000;
   border: 1px solid var(--neon);
   color: #fff;
   font-family: var(--mono);
   font-size: 11px;
-  padding: 2px 4px;
+  padding: 1px 4px;
+  box-sizing: border-box;
   outline: none;
 }
 
@@ -622,6 +648,7 @@ html, body {
   border: 1px solid var(--line-soft);
   background: var(--bg-soft);
   border-radius: 2px;
+  overflow-x: auto;
 }
 
 .db-struct-head {
@@ -660,12 +687,78 @@ html, body {
   font-weight: 600;
   font-size: 10px;
   background: rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
 }
 
 .db-meta-table td {
-  padding: 6px 10px;
+  padding: 4px 8px;
   border-bottom: 1px solid rgba(0, 229, 255, 0.05);
   color: var(--text);
+  vertical-align: middle;
+}
+
+.db-struct-edit-row td {
+  padding: 3px 6px;
+}
+
+.db-struct-edit-input {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 5px;
+  box-sizing: border-box;
+  outline: none;
+  height: 24px;
+}
+
+.db-struct-edit-input:focus {
+  border-color: var(--neon);
+  box-shadow: 0 0 4px var(--neon-dim);
+}
+
+.db-struct-edit-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.db-struct-edit-select {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 4px;
+  outline: none;
+  height: 24px;
+  box-sizing: border-box;
+}
+
+.db-struct-edit-select:focus {
+  border-color: var(--neon);
+}
+
+.db-struct-edit-select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.db-struct-cell-def {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.db-badge-generated {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--amber);
+  background: rgba(255, 176, 0, 0.15);
+  border: 1px solid rgba(255, 176, 0, 0.4);
+  padding: 1px 4px;
+  border-radius: 2px;
+  white-space: nowrap;
 }
 
 .db-meta-table tr:hover td {

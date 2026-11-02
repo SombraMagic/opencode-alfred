@@ -18,6 +18,13 @@ export type ExportFormat = "csv" | "json" | "sql";
 /** Filas por sentencia INSERT del formato SQL. */
 const SQL_BATCH = 100;
 
+/**
+ * Tope de bytes de una sentencia INSERT (sin contar la cabecera). Un visor que abra
+ * el `.sql` se atraganta con líneas de megabytes: una fila enorme se escribe sola y
+ * nunca se parte.
+ */
+const MAX_STATEMENT_BYTES = 240 * 1024;
+
 /** Filas entre avisos de progreso. */
 const PROGRESS_EVERY = 1000;
 
@@ -154,12 +161,13 @@ export async function exportTable(
   const file = await openAtomicFile(filePath);
   let rows = 0;
   let lote: string[] = [];
+  let loteBytes = 0;
   const insertHead = `INSERT INTO ${qualified(db, table)} (${listaCols}) VALUES `;
   try {
     if (format === "csv") {
       await file.write(`\uFEFF${columns.map((c) => csvCell(c.name)).join(",")}\r\n`);
     } else if (format === "json") {
-      await file.write("[");
+      await file.write("[\n");
     } else {
       await file.write("SET NAMES utf8mb4;\n");
     }
@@ -170,13 +178,18 @@ export async function exportTable(
         if (format === "csv") {
           await file.write(`${row.map(csvCell).join(",")}\r\n`);
         } else if (format === "json") {
-          await file.write(`${rows > 0 ? "," : ""}${jsonRow(columns, row)}`);
+          await file.write(`${rows > 0 ? ",\n" : ""}${jsonRow(columns, row)}`);
         } else {
-          lote.push(`(${row.map(quoteCell).join(", ")})`);
-          if (lote.length >= SQL_BATCH) {
+          const valor = `(${row.map(quoteCell).join(", ")})`;
+          const bytes = Buffer.byteLength(valor);
+          if (lote.length > 0 && (lote.length >= SQL_BATCH || loteBytes + bytes > MAX_STATEMENT_BYTES)) {
             await file.write(`${insertHead}${lote.join(", ")};\n`);
             lote = [];
+            loteBytes = 0;
           }
+          lote.push(valor);
+          // El separador `, ` también ocupa: se cuenta para no pasarse del tope.
+          loteBytes += bytes + (lote.length > 1 ? 2 : 0);
         }
         rows++;
         if (rows % PROGRESS_EVERY === 0 && onProgress) {
@@ -189,7 +202,7 @@ export async function exportTable(
       await file.write(`${insertHead}${lote.join(", ")};\n`);
     }
     if (format === "json") {
-      await file.write("]");
+      await file.write("\n]\n");
     }
     await file.finish();
   } catch (e) {
