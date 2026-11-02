@@ -22,9 +22,12 @@
     zoom: null,
     /** Ids del último conjunto pintado: si cambian, el zoom deja de valer. */
     selectionKey: "",
+    /** Mostrar los huecos reales de tiempo entre prompts en el timeline. */
+    showGaps: false,
   };
 
   const el = {
+    gaps: document.getElementById("btn-gaps"),
     monitor: document.getElementById("btn-monitor"),
     chip: document.getElementById("chip-monitor"),
     refresh: document.getElementById("btn-refresh"),
@@ -471,17 +474,25 @@
   /* ── Eje concatenado ─────────────────────────────────── */
 
   /**
-   * Prompts seleccionados ordenados por inicio, encadenados sin huecos:
+   * Prompts seleccionados ordenados por inicio, encadenados sin huecos
+   * (o con huecos reales entre prompts si showGaps es true):
    * cada uno ocupa `[off, off + dur]` del eje.
    */
   function chainOf(selected, s) {
     const sorted = selected.slice().sort((a, b) => num(a.startedAt) - num(b.startedAt));
     const items = [];
     let off = 0;
-    for (const p of sorted) {
+    let prevEnd = 0;
+    for (let i = 0; i < sorted.length; i++) {
+      const p = sorted[i];
       const dur = Math.max(1, durOf(p, s));
+      if (state.showGaps && i > 0) {
+        const gap = Math.max(0, num(p.startedAt) - prevEnd);
+        off += gap;
+      }
       items.push({ p: p, off: off, dur: dur });
       off += dur;
+      prevEnd = num(p.startedAt) + dur;
     }
     return { items: items, total: Math.max(1, off) };
   }
@@ -613,7 +624,7 @@
 
     const stripKey = chain.items
       .map((i) => [i.p.id, i.off, i.dur, i.p.live ? 1 : 0].join(":"))
-      .join("|") + "#" + w.from + "#" + w.to;
+      .join("|") + "#" + w.from + "#" + w.to + "#" + (state.showGaps ? 1 : 0);
     if (stripKey !== sig.strip) {
       sig.strip = stripKey;
       if (el.strip) el.strip.innerHTML = stripHtml(chain.items, w);
@@ -623,13 +634,14 @@
       .map((a) => [a.agent, a.total, a.cost, a.priced ? 1 : 0, a.costEstimated ? 1 : 0,
         a.hasSeg ? 1 : 0, a.segments.length, a.color, a.root ? 1 : 0].join(":") +
         ":" + a.segments.map((s) => s.left.toFixed(1) + "," + s.width.toFixed(1)).join(";"))
-      .join("|") + "#" + w.from + "#" + w.to + "#" + agents.map((a) => a.agent).join(",");
+      .join("|") + "#" + w.from + "#" + w.to + "#" + agents.map((a) => a.agent).join(",") +
+      "#" + (state.showGaps ? 1 : 0);
     if (laneKey !== sig.lanes) {
       sig.lanes = laneKey;
       if (el.lanes) el.lanes.innerHTML = lanesHtml(agents);
     }
 
-    const axisKey = w.from + "#" + w.to;
+    const axisKey = w.from + "#" + w.to + "#" + (state.showGaps ? 1 : 0);
     if (axisKey !== sig.axis) {
       sig.axis = axisKey;
       if (el.axis) el.axis.innerHTML = axisHtml(w);
@@ -721,6 +733,20 @@
   }
 
   /* ── Cabecera ────────────────────────────────────────── */
+
+  function paintGaps() {
+    if (!el.gaps) {
+      return;
+    }
+    const on = !!state.showGaps;
+    el.gaps.classList.toggle("on", on);
+    el.gaps.setAttribute("aria-pressed", on ? "true" : "false");
+    const tip = on
+      ? "Ocultar los huecos de tiempo entre prompts"
+      : "Mostrar los huecos de tiempo entre prompts";
+    el.gaps.title = tip;
+    el.gaps.setAttribute("aria-label", tip);
+  }
 
   function renderHead(s, prompts, selected) {
     const key = [s.monitor, s.project, s.savedCount, s.scannedAt, s.ok, s.error,
@@ -883,6 +909,15 @@
     });
   }
 
+  if (el.gaps) {
+    el.gaps.addEventListener("click", () => {
+      state.showGaps = !state.showGaps;
+      state.zoom = null;
+      paintGaps();
+      render();
+      send({ type: "setShowGaps", on: state.showGaps });
+    });
+  }
   if (el.monitor) {
     el.monitor.addEventListener("click", () => send({ type: "setMonitor", on: !monitorOn() }));
   }
@@ -921,13 +956,26 @@
 
   window.addEventListener("message", (ev) => {
     const msg = ev.data;
-    if (msg && msg.type === "promptStats" && msg.payload) {
-      state.snapshot = msg.payload;
-      render();
+    if (!msg) {
+      return;
+    }
+    switch (msg.type) {
+      case "promptStats":
+        if (msg.payload) {
+          state.snapshot = msg.payload;
+          render();
+        }
+        break;
+      case "showGaps":
+        state.showGaps = msg.on === true;
+        paintGaps();
+        render();
+        break;
     }
   });
 
   restoreSelection();
+  paintGaps();
   // Las firmas arrancan vacías: el primer render tiene que pintar todo.
   sig.head = NONE;
   send({ type: "ready" });

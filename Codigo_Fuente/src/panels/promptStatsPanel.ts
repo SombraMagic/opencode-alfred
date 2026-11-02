@@ -8,6 +8,9 @@ export interface PromptStatsPanelHandlers {
   remove(ids: string[]): Promise<void>;
 }
 
+/** Preferencia de vista: mostrar u ocultar los huecos de tiempo entre prompts. */
+const SHOW_GAPS_KEY = "opencodeAgents.promptStats.showGaps";
+
 /** Pestaña de estadísticas de prompts: lista de prompts y línea de tiempo de cada uno. */
 export class PromptStatsPanel {
   public static current: PromptStatsPanel | undefined;
@@ -15,9 +18,11 @@ export class PromptStatsPanel {
 
   private readonly panel: vscode.WebviewPanel;
   private readonly extensionUri: vscode.Uri;
+  private readonly globalState: vscode.Memento;
   private readonly disposables: vscode.Disposable[] = [];
   private handlers: PromptStatsPanelHandlers;
   private last?: PromptStatsSnapshot;
+  private showGaps: boolean;
 
   static open(context: vscode.ExtensionContext, handlers: PromptStatsPanelHandlers): PromptStatsPanel {
     if (PromptStatsPanel.current) {
@@ -38,18 +43,26 @@ export class PromptStatsPanel {
         localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media")],
       }
     );
-    PromptStatsPanel.current = new PromptStatsPanel(panel, context.extensionUri, handlers);
+    PromptStatsPanel.current = new PromptStatsPanel(
+      panel,
+      context.extensionUri,
+      context.globalState,
+      handlers
+    );
     return PromptStatsPanel.current;
   }
 
   private constructor(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
+    globalState: vscode.Memento,
     handlers: PromptStatsPanelHandlers
   ) {
     this.panel = panel;
     this.extensionUri = extensionUri;
+    this.globalState = globalState;
     this.handlers = handlers;
+    this.showGaps = globalState.get<boolean>(SHOW_GAPS_KEY, false);
 
     this.panel.webview.html = this.getHtml(this.panel.webview);
 
@@ -58,9 +71,15 @@ export class PromptStatsPanel {
       async (message: { type?: string; on?: boolean; ids?: unknown }) => {
         switch (message.type) {
           case "ready":
+            this.post({ type: "showGaps", on: this.showGaps });
             if (this.last) {
               this.post({ type: "promptStats", payload: this.last });
             }
+            break;
+          case "setShowGaps":
+            // El webview ya repinta en local: al host solo le queda recordar la preferencia.
+            this.showGaps = message.on === true;
+            void this.globalState.update(SHOW_GAPS_KEY, this.showGaps);
             break;
           case "refresh":
             await this.handlers.refresh();
@@ -132,6 +151,11 @@ export class PromptStatsPanel {
   <div class="hud-header">
     <span class="hud-dot"></span>
     <span class="hud-title">ESTADÍSTICAS DE PROMPTS</span>
+    <button id="btn-gaps" class="gaps-btn" type="button" aria-pressed="false" aria-label="Mostrar los huecos de tiempo entre prompts" title="Mostrar los huecos de tiempo entre prompts">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 2.5h8M4 13.5h8M4.8 2.5c0 3 3.2 3.4 3.2 5.5s-3.2 2.5-3.2 5.5M11.2 2.5c0 3-3.2 3.4-3.2 5.5s3.2 2.5 3.2 5.5" />
+      </svg>
+    </button>
     <button id="btn-monitor" class="switch" type="button" aria-pressed="false" aria-label="Monitorizar prompts" title="Escanea y guarda los prompts nuevos mientras opencode trabaja">
       <span class="switch-track"><span class="switch-thumb"></span></span>
       <span class="switch-label">MONITORIZAR</span>

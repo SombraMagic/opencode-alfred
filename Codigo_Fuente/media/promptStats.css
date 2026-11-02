@@ -34,6 +34,43 @@ body {
   white-space: nowrap;
 }
 
+.gaps-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 18px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.gaps-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.gaps-btn:hover {
+  color: var(--text);
+  border-color: var(--text-soft);
+}
+
+.gaps-btn.on {
+  color: var(--green);
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--green) 45%, transparent);
+}
+
+.gaps-btn:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
+}
+
 .switch {
   flex: none;
 }
