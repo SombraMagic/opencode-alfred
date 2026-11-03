@@ -1,0 +1,119 @@
+/* Tema Steampunk — oscuro, latón y cobre, con acabado de taller mecánico.
+   El atributo lo pone media/theme.js en el <body>. Define TODAS las variables
+   que usa la app, no solo las que cambian, para no heredar la paleta oscura
+   de alfred.css.
+
+   Los acentos son claros a propósito: sobre el fondo cálido casi negro llegan
+   de sobra a 4,5:1 (el contraste va comentado variable a variable).
+
+   OJO: aquí NO se toca body::before. La textura la gobierna media/theme/base.css
+   con --texture-opacity/--texture-tint, y media/pizarra.css, media/imageGen.css y
+   media/chatbot.css lo apagan con `body::before { content: none; }` para que las
+   capturas salgan limpias. Un `body[data-theme="steampunk"]::before` tendría más
+   especificidad y volvería a encender las scanlines justo en esos tres paneles. */
+
+body[data-theme="steampunk"] {
+  --bg: #0f0c09;
+  --bg-soft: #17110c;
+  --bg-raised: #1e1711;
+  --line: rgba(214, 166, 96, 0.26);
+  --line-soft: rgba(214, 166, 96, 0.13);
+  --text: #ede0c8;              /* 14,9:1 sobre --bg, pergamino */
+  --text-dim: #8a7660;          /* 4,5:1; solo estado apagado (:disabled, .off, placeholder, —) */
+  --text-soft: color-mix(in srgb, var(--text) 76%, transparent); /* 8,8:1 */
+  --neon: #e8b562;              /* 10,4:1, latón pulido */
+  --neon-dim: rgba(232, 181, 98, 0.45);
+  --magenta: #f2795b;           /* 7,1:1, cobre encendido */
+  --amber: #ffb454;             /* 11,1:1, ámbar de manómetro */
+  --green: #5cc4a2;             /* 9,2:1, cardenillo */
+  --violet: #ab8be0;            /* 7,0:1 */
+  --danger: #e26450;            /* 5,7:1 */
+  --danger-dim: rgba(226, 100, 80, 0.25);
+  --on-accent: #120e0a;
+  --texture-opacity: 1;
+  --texture-tint: rgba(232, 181, 98, 0.10);
+  --mono: "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+
+  color-scheme: dark;
+}
+
+/* ── Metal: decoración propia del tema ─────────────────────
+   Solo adornos sobre componentes compartidos: ni tipografías, ni tamaños, ni
+   márgenes, ni estructura. El selector compuesto `body[data-theme="steampunk"] .x`
+   tiene más especificidad que la clase suelta de theme/ui.css, así que gana aunque
+   este fichero se cargue antes. */
+
+/* Viñeta cálida: oscurece los bordes como el interior de una lámpara de latón.
+   Va en z-index 9, por debajo de las scanlines de theme/base.css (z-index 10).
+   Ningún otro fichero define `body::after`, así que no pisa nada. Ojo: los paneles
+   que apagan la textura (pizarra, generador de imágenes y chatbot) neutralizan
+   `::before` y también esta viñeta con `body[data-theme]::after { content: none; }`,
+   porque ahí lo que se ve tiene que ser exactamente lo que se guarda. Si añades otra
+   capa fija al tema, apágala igual en esos tres. */
+body[data-theme="steampunk"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 38%,
+    rgba(0, 0, 0, 0) 48%,
+    rgba(6, 4, 2, 0.28) 82%,
+    rgba(4, 3, 2, 0.46) 100%
+  );
+  pointer-events: none;
+  z-index: 9;
+}
+
+/* Cabecera: borde de latón en dos tonos. El filete interior claro es el reflejo
+   del metal y la sombra exterior dura separa la chapa del fondo. */
+body[data-theme="steampunk"] .hud-header {
+  border-bottom-color: rgba(232, 181, 98, 0.50);
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 226, 173, 0.14),
+    0 1px 0 rgba(0, 0, 0, 0.60);
+}
+
+/* Piloto: halo de latón encendido, sin neón frío. */
+body[data-theme="steampunk"] .hud-dot {
+  box-shadow:
+    0 0 6px rgba(232, 181, 98, 0.85),
+    0 0 14px rgba(232, 181, 98, 0.28);
+}
+
+/* Título grabado: sombra oscura dura justo debajo (el surco del buril) y un halo
+   tenue de latón alrededor. */
+body[data-theme="steampunk"] .hud-title {
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.85),
+    0 0 10px var(--neon-dim);
+}
+
+/* Botones y chips: bisel metálico (luz arriba, sombra abajo). Los colores y
+   bordes de :hover, :focus-visible, .on y .off los sigue mandando theme/ui.css;
+   aquí solo se añade el relieve. */
+body[data-theme="steampunk"] .ghost-btn,
+body[data-theme="steampunk"] .chip {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 226, 173, 0.24),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.65);
+}
+
+/* Interruptor: la pista es una ranura hundida en la chapa. Sigue cuadrada:
+   la forma la decide theme/ui.css. */
+body[data-theme="steampunk"] .switch-track {
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.70),
+    inset 0 -1px 0 rgba(232, 181, 98, 0.18);
+}
+
+/* Barra de desplazamiento: tubo de latón. El ancho y la pista los manda
+   theme/base.css; aquí solo se cambia el relleno del pulgar. La variante
+   `:horizontal` es para las barras anchas (estadísticas, rejilla de bases,
+   árbol del explorador): en 6 px, un degradado vertical se lee como suciedad. */
+body[data-theme="steampunk"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #c08f4f 0%, #7a5730 55%, #4d3720 100%);
+}
+
+body[data-theme="steampunk"] ::-webkit-scrollbar-thumb:horizontal {
+  background: linear-gradient(90deg, #c08f4f 0%, #7a5730 55%, #4d3720 100%);
+}

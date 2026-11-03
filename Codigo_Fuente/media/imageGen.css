@@ -4,6 +4,11 @@
 /* Sin scanlines: ensucian las capturas que se copian fuera. */
 body::before { content: none; }
 
+/* Y sin la viñeta del tema (Steampunk): aquí se juzga la imagen generada, no un velo.
+   `body[data-theme]::after` empata en especificidad con la regla del tema y gana por
+   orden, porque themeLinks() enlaza los temas antes que este fichero. */
+body[data-theme]::after { content: none; }
+
 body {
   /* Secundario que no es estado apagado. `--text-dim` se reserva para `:disabled`,
      placeholder, «—» y lo que está parado. */

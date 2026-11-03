@@ -3,6 +3,11 @@
 /* Sin scanlines: ensucian las capturas que se copian fuera. */
 body::before { content: none; }
 
+/* Y sin la viñeta del tema (Steampunk): lo que se ve tiene que ser lo que se guarda
+   en el PNG. `body[data-theme]::after` empata en especificidad con la regla del tema
+   y gana por orden, porque themeLinks() enlaza los temas antes que este fichero. */
+body[data-theme]::after { content: none; }
+
 /* La vista ocupa el alto justo: scrollea nada, el lienzo llena el stage en los dos ejes. */
 html,
 body {

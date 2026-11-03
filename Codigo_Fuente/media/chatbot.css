@@ -1,5 +1,8 @@
 /* ALFRED // CHATBOT: HUD sobre theme/base.css */
 body::before { content: none; }
+/* Y sin la viñeta del tema (Steampunk): `body[data-theme]::after` empata en
+   especificidad con la regla del tema y gana por orden. */
+body[data-theme]::after { content: none; }
 
 html, body { height: 100%; }
 body {

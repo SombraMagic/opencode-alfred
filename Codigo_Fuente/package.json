@@ -368,11 +368,13 @@
           "type": "string",
           "enum": [
             "alfred",
-            "manoli"
+            "manoli",
+            "steampunk"
           ],
           "enumDescriptions": [
             "Tema Alfred: HUD oscuro, el aspecto de siempre.",
-            "Tema Manoli: grises claros y tonos pastel."
+            "Tema Manoli: grises claros y tonos pastel.",
+            "Tema Steampunk: latón, cobre y vapor sobre fondo oscuro."
           ],
           "default": "alfred",
           "scope": "window",
