@@ -26,6 +26,29 @@ function num(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+const MAX_ARG_KEYS = 32;
+const MAX_ARG_CHARS = 10_000;
+
+/**
+ * Argumentos de una tool para el guardado: objeto plano y solo valores simples. Un valor
+ * anidado o raro se descarta, para no arrastrar bultos al JSON de la conversación.
+ */
+function sanitizeArgs(raw: unknown): Record<string, unknown> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: Record<string, unknown> = {};
+  let keys = 0;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (keys >= MAX_ARG_KEYS) break;
+    if (!key || key.length > 100) continue;
+    if (typeof value === "string") out[key] = value.slice(0, MAX_ARG_CHARS);
+    else if (typeof value === "boolean" || value === null) out[key] = value;
+    else if (typeof value === "number" && Number.isFinite(value)) out[key] = value;
+    else continue;
+    keys++;
+  }
+  return out;
+}
+
 function sanitizeMessage(raw: unknown): ChatMessage | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const m = raw as Record<string, unknown>;
@@ -56,6 +79,10 @@ function sanitizeMessage(raw: unknown): ChatMessage | undefined {
     if (calls.length) message.toolCalls = calls;
   }
   if (typeof m.toolName === "string" && m.toolName) message.toolName = m.toolName.slice(0, 100);
+  if (m.role === "tool") {
+    const args = sanitizeArgs(m.args);
+    if (args) message.args = args;
+  }
   return message;
 }
 

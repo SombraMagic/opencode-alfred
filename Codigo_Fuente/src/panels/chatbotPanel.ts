@@ -24,10 +24,11 @@
  *      params:{system,temperature,numCtx}, autoSpeak, chats:[{id,title,updatedAt}], activeId}}
  *      (numCtx 0 = el de Ollama; activeId "" = ninguna)
  *   {type:"chat", chat:{id,title,model,messages:[{id,role,content,at,images:[uri],
- *      toolCalls?:[{name,args}],toolName?,metrics?}]}}   (metrics solo de esta sesión)
+ *      toolCalls?:[{name,args}],toolName?,toolArgs?,metrics?}]}}   (metrics solo de esta sesión)
+ *      `toolArgs` son los argumentos de la tool en los mensajes `tool` (botón de copiar prompt).
  *   {type:"event", messageId, event}  con event =
  *      {type:"delta",text} | {type:"thinking",text} | {type:"toolStart",name,args} |
- *      {type:"toolEnd",name,result:string,error?,imageUri?} |
+ *      {type:"toolEnd",name,result:string,error?,last,imageUri?} |
  *      {type:"done",metrics:{evalCount,evalDurationMs,totalMs}} | {type:"error",message}
  *      `messageId` es el del mensaje assistant en curso (el de la ronda que pide la tool, en
  *      toolStart/toolEnd). Al acabar el turno llega un `chat` completo que lo sustituye todo.
@@ -382,6 +383,7 @@ export class ChatbotPanel {
           images: (m.images ?? []).map((f) => this.toUri(f)),
           toolCalls: m.toolCalls,
           toolName: m.toolName,
+          toolArgs: m.args,
           metrics: this.metrics.get(m.id),
         })),
     };
@@ -627,7 +629,9 @@ export class ChatbotPanel {
         this.post({ type: "event", messageId: currentId, event: this.webEvent(event) });
         if (event.type === "done") this.metrics.set(currentId, event.metrics);
         if (event.type === "error") failed = true;
-        if (event.type === "toolEnd") currentId = randomUUID();
+        // Una sola rotación por ronda: con varias herramientas, la respuesta final se pinta
+        // sobre el mismo registro que las tools y no queda detrás de ellas.
+        if (event.type === "toolEnd" && event.last) currentId = randomUUID();
       }
     } finally {
       this.abort = undefined;
@@ -655,6 +659,7 @@ export class ChatbotPanel {
         name: event.name,
         result: event.result.text,
         error: event.error,
+        last: event.last,
         imageUri: event.result.attachment ? this.toUri(event.result.attachment.file) : undefined,
       };
     }

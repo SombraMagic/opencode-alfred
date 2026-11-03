@@ -145,6 +145,7 @@ select.cb-input { max-width: 240px; }
 .cb-toolhead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .cb-toolname { color: var(--violet); font-weight: 700; letter-spacing: 0.08em; }
 .cb-toolstate { font-size: 10px; letter-spacing: 0.1em; color: var(--amber); }
+.cb-toolhead .cb-prompt { margin-left: auto; padding: 1px 7px; font-size: 10px; letter-spacing: 0.06em; }
 .cb-toolcard.done .cb-toolstate { color: var(--green); }
 .cb-toolcard.error .cb-toolstate { color: var(--magenta); }
 .cb-toolargs { margin: 4px 0 0; color: var(--text-soft); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 120px; overflow: auto; font-size: 11px; }

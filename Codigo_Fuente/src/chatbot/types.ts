@@ -17,6 +17,8 @@ export interface ChatMessage {
   toolCalls?: ChatToolCall[];
   /** Nombre de la tool que produjo un mensaje `tool`. */
   toolName?: string;
+  /** Argumentos con los que se llamó a la tool (solo en mensajes `tool`). */
+  args?: Record<string, unknown>;
   at: number;
 }
 
@@ -56,7 +58,8 @@ export type ChatEvent =
   | { type: "delta"; text: string }
   | { type: "thinking"; text: string }
   | { type: "toolStart"; name: string; args: Record<string, unknown> }
-  | { type: "toolEnd"; name: string; result: ToolResult; error?: string }
+  /** `last` es `true` solo en la última herramienta de la ronda. */
+  | { type: "toolEnd"; name: string; result: ToolResult; error?: string; last: boolean }
   | { type: "done"; metrics: ChatMetrics }
   | { type: "error"; message: string };
 

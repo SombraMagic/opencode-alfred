@@ -252,16 +252,20 @@ export async function* runChat(params: ChatRunParams): AsyncGenerator<ChatEvent>
         return;
       }
 
-      for (const call of round_.toolCalls) {
+      const calls = round_.toolCalls;
+      for (let i = 0; i < calls.length; i++) {
+        const call = calls[i];
         if (signal?.aborted) throw new Error("Generación cancelada.");
         yield { type: "toolStart", name: call.name, args: call.args };
         const { result, error } = await registry.run(call.name, call.args, { signal });
-        yield { type: "toolEnd", name: call.name, result, error };
+        // `last` marca el cierre de la ronda: el host rota el id una sola vez por ronda.
+        yield { type: "toolEnd", name: call.name, result, error, last: i === calls.length - 1 };
         const toolMsg: ChatMessage = {
           id: randomUUID(),
           role: "tool",
           content: result.text,
           toolName: call.name,
+          args: call.args,
           images: result.attachment ? [result.attachment.file] : undefined,
           at: Date.now(),
         };

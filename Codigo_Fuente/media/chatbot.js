@@ -193,10 +193,26 @@
     img.addEventListener("load", () => { if (stick) toBottom(); });
     rec.imgs.appendChild(img);
   }
-  function addCard(rec, name, args) {
+  function addCard(rec, name, args, withPrompt) {
     const card = mk("div", "cb-toolcard");
     const head = mk("div", "cb-toolhead");
-    head.append(mk("span", "cb-toolname", toolLabel(name)), mk("span", "cb-toolstate", "EN CURSO"));
+    const state = mk("span", "cb-toolstate", "EN CURSO");
+    head.append(mk("span", "cb-toolname", toolLabel(name)), state);
+    // El prompt de la imagen se copia tal cual se mandó a la herramienta. Las tarjetas de
+    // «LLAMADA» de un mensaje assistant no lo llevan: solo la de la herramienta.
+    const prompt = args && typeof args.prompt === "string" ? args.prompt : "";
+    if (withPrompt !== false && prompt.trim()) {
+      const b = mk("button", "cb-btn cb-prompt", "COPIAR PROMPT");
+      b.type = "button";
+      b.title = "Copiar el prompt con el que se generó la imagen";
+      b.setAttribute("aria-label", b.title);
+      b.addEventListener("click", () => {
+        send({ type: "copy", text: prompt });
+        b.textContent = "COPIADO";
+        setTimeout(() => { b.textContent = "COPIAR PROMPT"; }, 1200);
+      });
+      head.appendChild(b);
+    }
     const a = mk("pre", "cb-toolargs", argsText(args));
     const prog = mk("div", "cb-progress");
     prog.setAttribute("role", "progressbar");
@@ -205,7 +221,7 @@
     res.hidden = true;
     card.append(head, a, prog, res);
     rec.tools.appendChild(card);
-    const c = { name, card, state: head.lastChild, prog, res, closed: false };
+    const c = { name, card, state, prog, res, closed: false };
     rec.cards.push(c);
     return c;
   }
@@ -261,13 +277,13 @@
         rec.text = m.content || "";
         rec.metrics = m.metrics || null;
         if (m.role === "tool") {
-          const card = addCard(rec, m.toolName || "herramienta", {});
+          const card = addCard(rec, m.toolName || "herramienta", m.toolArgs || {});
           card.prog.remove(); card.closed = true; card.card.classList.add("done"); card.state.textContent = "HECHO";
           card.card.querySelector(".cb-toolargs").remove();
           rec.text = "";
           if (m.content) { card.res.textContent = m.content; card.res.hidden = false; }
         } else if (m.toolCalls && m.toolCalls.length) {
-          m.toolCalls.forEach((t) => { const cd = addCard(rec, t.name, t.args); cd.prog.remove(); cd.closed = true; cd.card.classList.add("done"); cd.state.textContent = "LLAMADA"; });
+          m.toolCalls.forEach((t) => { const cd = addCard(rec, t.name, t.args, false); cd.prog.remove(); cd.closed = true; cd.card.classList.add("done"); cd.state.textContent = "LLAMADA"; });
         }
         (m.images || []).forEach((u) => addImage(rec, u));
         el.msgs.appendChild(rec.root);
@@ -275,8 +291,11 @@
         paint(rec);
       });
     }
+    // Red de seguridad: un registro sin nada visible (cascarón de una tool ya cerrada)
+    // solo alargaría la conversación y arrastraría el scroll detrás de la respuesta.
     pending.forEach((r) => {
       if (live.has(r.id)) return;
+      if (!r.text && !r.thought && !r.cards.length && !r.imgs.childElementCount && r.err.hidden) return;
       el.msgs.appendChild(r.root);
       live.set(r.id, r);
     });
