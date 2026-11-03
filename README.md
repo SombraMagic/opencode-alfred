@@ -129,7 +129,7 @@ compilar nada.
 | [`Documentacion/ESTADO.md`](Documentacion/ESTADO.md) | En qué punto está el proyecto y qué viene después |
 | [`Documentacion/DESARROLLO.md`](Documentacion/DESARROLLO.md) | Estructura de carpetas, compilar, depurar y empaquetar |
 | [`Codigo_Fuente/README.md`](Codigo_Fuente/README.md) | Guía completa: cada panel, cada ajuste, con detalle |
-| [`Codigo_Fuente/CHANGELOG.md`](Codigo_Fuente/CHANGELOG.md) | Qué trajo cada versión publicada |
+| [`Documentacion/CHANGELOG.md`](Documentacion/CHANGELOG.md) | Qué trajo cada versión publicada |
 | [`Instalable/README.md`](Instalable/README.md) | Instalar el `.vsix` paso a paso |
 
 ## Requisitos

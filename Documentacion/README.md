@@ -9,7 +9,7 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 | --- | --- |
 | [ESTADO.md](ESTADO.md) | Estado actual, qué está probado y próximos pasos |
 | [DESARROLLO.md](DESARROLLO.md) | Estructura del repositorio, comandos, depuración y empaquetado |
-| [../Codigo_Fuente/CHANGELOG.md](../Codigo_Fuente/CHANGELOG.md) | Qué trajo cada versión publicada |
+| [CHANGELOG.md](CHANGELOG.md) | Qué trajo cada versión publicada |
 | [../LICENSE](../LICENSE) | Licencia MIT |
 | [../Codigo_Fuente/README.md](../Codigo_Fuente/README.md) | Guía de uso completa: paneles y ajustes |
 | [../Instalable/README.md](../Instalable/README.md) | Instalación del `.vsix` |
@@ -19,7 +19,7 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 ```
 /
 ├─ Codigo_Fuente/   código, recursos y compilación (aquí se trabaja y se construye)
-├─ Documentacion/   documentos del proyecto (este índice, estado y desarrollo)
+├─ Documentacion/   documentos del proyecto (este índice, estado, desarrollo e historial)
 ├─ Instalable/      readme de instalación y el .vsix listo para instalar
 ├─ README.md        presentación del proyecto
 └─ LICENSE          licencia MIT

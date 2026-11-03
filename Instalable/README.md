@@ -1,7 +1,19 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.8.2.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.8.8.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
+
+## Qué es
+
+**OpenCode Alfred** es un centro de control de agentes de IA dentro de VS Code: agentes, MCP,
+skills y plugins de opencode —y, de forma experimental, de Claude Code y Codex—, ventana de
+contexto, estadísticas de solo lectura, límites de consumo, voz y dictado, pizarra, generador
+de imágenes, Mente local (Ollama), visor 3D de `.blend` y bases de datos MariaDB. Todo en
+español y en una sola extensión.
+
+La presentación del producto, con lo que hace cada panel, está en el
+[README principal](../README.md); lo que trajo cada versión, en el
+[historial de cambios](../Documentacion/CHANGELOG.md).
 
 ## Antes de empezar
 
@@ -17,290 +29,25 @@ No hace falta compilar nada ni instalar Node.
 La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 **experimentales**: su soporte todavía no funciona del todo bien.
 
-## Novedades de la 0.8.2
-
-- **Estadísticas de prompt y de agentes** se abren en el área central, como el resto de pestañas,
-  en vez de en un grupo aparte.
-
-## Novedades de la 0.8.1
-
-- **Rejilla de datos**: filas de altura fija (una línea con elipsis). Los saltos de línea ya no
-  estiran la fila, y la celda en edición no rompe la altura.
-- **Exportación y volcado**: líneas `INSERT` acotadas a 240 KB; el JSON sale con un objeto por línea.
-  Una fila gigante (un blob) sigue yendo sola.
-- **Estructura editable**: añadir, renombrar, modificar y eliminar columnas, con confirmación `GUARDAR`
-  y comprobación de que la tabla no cambió por detrás.
-- **Búsqueda**: botón para limpiar el buscador junto al campo.
-- **Conexión**: el selector de conexión queda bloqueado mientras hay una conexión activa.
-
-## Novedades de la 0.8.0
-
-- **Bases de datos (MariaDB)**: pestaña central con el icono de cilindro de `Control`. Conexiones
-  con la contraseña en el almacén seguro de VS Code, TLS y **túnel SSH** (contraseña, clave o
-  agente); la huella del servidor se recuerda y se verifica.
-- **Explorador de bases y tablas**: crear base y eliminarla solo si está vacía. Crear, eliminar,
-  truncar y renombrar tablas.
-- **Rejilla de datos**: paginación, orden por columna y un buscador que recorre todas las columnas.
-  Edición de celdas, inserción y borrado por lotes con clave primaria o índice único.
-- **Consola SQL** con confirmación escrita para las sentencias que escriben.
-- **Copia completa a `.sql`** con `mariadb-dump` (o un volcador propio si no está), y exportación de
-  una tabla a CSV, JSON o SQL. Ajuste nuevo: `opencodeAgents.mariadbDumpPath`.
-- **Aviso**: las cuentas con `gssapi` o SSPI no sirven; usa `mysql_native_password` o `ed25519`.
-
-## Novedades de la 0.7.25
-
-- **Explorador del proyecto**: pestaña central con el icono de carpeta de `Control`. Uno o dos
-  árboles, cada uno con su raíz. Tamaño de cada fichero con barra y porcentaje respecto al padre,
-  iconos por tipo y `.md` resaltados. Búsqueda por nombre, carpeta y contenido en texto. Chips de
-  filtro git con insignias y `+N −M`, y operaciones por la CLI: rama, `fetch`, `pull --ff-only`,
-  `push`, commit de lo staged, `ADD ALL`, `checkout` y rama nueva. Borrar va a la papelera con
-  confirmación; copiar y mover por arrastre (`Ctrl` = copiar) o por el menú, dentro del mismo árbol
-  o entre los dos, siempre dentro de la raíz y sin sobrescribir.
-- **Menú contextual del explorador** (no hay menú nativo sobre el árbol): comparar con Git
-  (`vscode.diff`), stage/unstage, descartar cambios —solo modificados, con confirmación—, renombrar
-  y crear fichero.
-- **Línea de tiempo de estadísticas de prompts**: cada agente guarda varios tramos; si para mientras
-  otro trabaja, el hueco queda vacío, y al retomar sale un tramo nuevo. `workMs` no cuenta esperas.
-- **Monitor del equipo**: la temperatura de la CPU ya no pide UAC al arrancar; solo al pulsar ese
-  dato. El resto del monitor (uso de CPU, RAM, GPU, VRAM y temperatura de la GPU) sigue sin
-  permisos y sin ventanas de PowerShell.
-
-## Novedades de la 0.7.24
-
-- **Monitor del equipo en el panel de VOZ**: encima del ecualizador, dos filas con `CPU`
-  (temperatura y uso), `RAM` (total y uso), `GPU` (temperatura y uso) y `VRAM` (total y uso),
-  cada una con su barra de bloques. Se refresca cada 2 s y solo con la vista abierta.
-- **La temperatura de la CPU pide permisos de administrador, pero solo si la pides tú**: al
-  arrancar no hay UAC ni ventana de PowerShell (la consola del helper se oculta). La temperatura
-  sale en `—` hasta que pulses ese dato en el monitor (subrayado punteado); ese clic es el único
-  que abre el UAC y, mientras espera, se pinta `…`. Si se cancela, vuelve `—` y un aviso recuerda
-  que el resto del monitor sigue. Sin permisos se leen igual el uso de CPU, la RAM, la GPU, la
-  VRAM y la temperatura de la GPU. Sin muestra, el monitor pinta guiones.
-- Los datos los lee **LibreHardwareMonitorLib** (licencia MPL-2.0, incluida en el paquete junto
-  a su texto de licencia). El proceso que lee se lanza una sola vez y termina al cerrar VS Code.
-
-## Novedades de la 0.7.23
-
-- **El panel de estadísticas de prompts está reordenado**: la lista de la izquierda es estrecha
-  (224 px), con casilla, texto en una línea y papelera por prompt; marcar filas no cambia lo que
-  se ve debajo, suma un **agregado de la selección** con prompts, trabajo, tokens, coste y agentes.
-- **La línea de tiempo va concatenada, sin huecos**, y se agrupa por agente: una fila y una barra
-  por agente, no por prompt. El zoom opera sobre el total acumulado.
-- **Dos gráficas de barras por agente**: tokens y coste, al lado de la línea de tiempo.
-- **Lo que quedó tras la 0.7.22**: `ASIGNAR AGENTES` pasa a Control como un icono más, entre los
-  conectores y `OLLAMA`, y el mando gana una segunda fila de módulos de solo icono; el dictado ya
-  no deja el panel mudo al soltar y en manos libres cierra el turno con un detector de pausa
-  adaptativo; el historial del generador de imágenes se recarga a mano y al cambiar de carpeta.
-
-## Novedades de la 0.7.22
-
-- **Chatbot de Mente local**: pestaña central que conversa con el modelo de Ollama del panel y
-  puede usar una herramienta de generación de imágenes.
-
-## Novedades de la 0.7.21
-
-- **El generador de imágenes recuerda sus ajustes entre sesiones**: el modelo de cada proveedor,
-  el tamaño, los pasos, la guía, la semilla y si es aleatoria.
-- **Al abrir la pestaña se comprueba el enlace con ComfyUI** y se recarga su catálogo sin pulsar
-  `CONECTAR`; hay un botón de recargar junto a `MODELO` y `CONECTAR` sigue recargando la lista.
-- **`PASOS` y `GUÍA` (CFG) en la misma fila que `SEMILLA`**, y viajan al muestreador de ComfyUI
-  (20 y 7 por defecto).
-
-## Novedades de la 0.7.20
-
-- **Generador de imágenes: la columna de ajustes se estira** y ocupa el hueco que quedaba entre el
-  formulario y la vista previa. La columna derecha mantiene su tamaño tope por alto y sigue pegada
-  a la derecha.
-
-## Novedades de la 0.7.19
-
-- **Generador de imágenes: la vista previa y el historial ya no fuerzan scroll** en pestañas
-  anchas. La columna derecha se queda con el alto que sobra de la ventana y sigue pegada a la
-  derecha.
-- En ventanas bajas (**≤680 px** y **≤580 px** de alto) el formulario se aprieta un poco —prompt
-  más bajo y campos compactos— sin esconder ningún control.
-
-## Novedades de la 0.7.18
-
-- **El panel de VOZ enseña también las actividades que no son agentes**: generar una imagen,
-  transcribir voz y cargar o instalar modelos de Ollama, con la generación que lanza el MCP
-  incluida.
-- Salen como una tarjeta más, con **borde discontinuo e icono delante del nombre** para no
-  confundirlas con un agente de verdad. Al terminar, la tarjeta desaparece.
-
-## Novedades de la 0.7.17
-
-- **Compartir con ALFRED**: casilla en la cabecera del generador de imágenes para que los
-  agentes generen con él por el MCP. Solo se comparte si ComfyUI responde o hay clave de
-  OpenAI; se revalida cada 5 s y se apaga sola al fallar.
-- El botón del generador en **Control** se queda en verde mientras está compartido.
-- El MCP `mcp_alfred` gana `generar_imagen` (prompt, prompt negativo y tamaño) y
-  `consultar_estado`. Lo que genera un agente se guarda en el historial y sus prompts
-  aparecen en el panel.
-
-## Novedades de la 0.7.16
-
-- **La pizarra y el generador de imágenes pierden las scanlines** del tema: las capturas que se
-  copian fuera salen limpias.
-- **El generador guarda semilla**: se fija a mano para repetir una imagen o se sortea en modo
-  `ALEATORIA`; el campo enseña la que se usó (ComfyUI).
-- **Historial borrable**: imágenes una a una desde su miniatura, o todas con el botón de la
-  papelera y confirmación. Solo toca `.alfred/imagenes`.
-- **OpenAI o servicio compatible**: campo de URL base propia además de `https://api.openai.com`,
-  y modelo escribible a mano. La clave sigue en `secrets`.
-
-## Novedades de la 0.7.15
-
-- **Generador de imágenes IA**: el botón de imagen de la vista **Control** abre una pestaña
-  central. Con **ComfyUI** (servidor propio, por defecto `http://localhost:8188`) genera texto a
-  imagen e imagen a imagen, con los checkpoints y las LoRAs que tenga instalados el servidor. Con
-  **OpenAI** genera texto a imagen con una clave propia, que se guarda en `secrets`.
-- Las imágenes se guardan solas en `.alfred/imagenes` (sin proyecto abierto, en el almacén
-  global) y el historial del panel son las 20 últimas.
-
-## Novedades de la 0.7.14
-
-- **La rejilla de `INTERFACES` encaja en el lienzo, no en el padre**: un widget guarda su
-  posición relativa a la caja útil de su contenedor (la barra de una ventana, la tira de las
-  pestañas), y el ajuste se aplicaba a esa coordenada. Dentro de un contenedor, los textos,
-  botones y campos caían fuera de la cuadrícula y el fantasma de la paleta no coincidía con el
-  sitio final. Ahora se encaja en absoluto en los cuatro caminos que colocan o mueven un widget:
-  soltar desde la paleta, arrastrar, las flechas y duplicar.
-- Un hijo nunca se sale de su padre (una raíz sí puede irse a negativo), las flechas solo ajustan
-  el eje que mueven y pulsar hacia fuera del borde no ensucia el historial ni la copia de trabajo.
-  Sin rejilla no se redondea nada.
-
-## Novedades de la 0.7.13
-
-- **La rejilla tiene paso configurable**: junto al botón `REJILLA` hay un campo numérico que lo
-  lleva de 1 a 64 px, siempre cuadrado. Vacío o `0` vuelve a 8; fuera de rango se acota. El
-  encendido y el paso se recuerdan al reabrir la pestaña. Con pasos pequeños la cuadrícula pinta
-  una línea de cada `n` para distinguirse, y el ajuste sigue usando el paso fino.
-- **El ajuste va por la esquina superior izquierda**: textos e imágenes se encajan al moverlos,
-  una selección de varios nodos encaja su caja entera y el nodo nuevo encaja sus dos esquinas.
-  Las flechas mueven una celda (con `Mayús`, diez), `TEXTO` nace en la rejilla y, con la rejilla
-  encendida, las guías inteligentes no desplazan nada; apagada vuelven las guías y el 1/10 px.
-
-## Novedades de la 0.7.12
-
-- **El `Campo` de interfaces puede verse como desplegable**: una casilla `DESPLEGABLE` en el
-  inspector del cajón `INTERFAZ` le pone una flecha al final y acorta el texto para no pisarla.
-  Es solo el aspecto: no hay lista de opciones. Con el widget apagado la flecha va en gris y en
-  cajas muy estrechas no se pinta.
-
-## Novedades de la 0.7.11
-
-- **Guardar y cargar pizarras con nombre**: dos botones de icono en la tira de pizarras, junto
-  al `+` y el `−`. El disquete guarda la pizarra activa con un nombre y la carpeta se queda con
-  la escena completa (`pizarra.json`) y el aplanado (`pizarra.png`); la carpeta o los ficheros
-  piden confirmación antes de pisar una guardada. La carpeta lista las guardadas y sustituye
-  todo lo que hay en la pizarra activa, con deshacer.
-- Se guardan en `<raíz>/.alfred/.pizarras/<Nombre>/` (sin proyecto, en el almacén global).
-
-## Novedades de la 0.7.10
-
-- **Los widgets de interfaces se anidan**: suelta uno de la paleta sobre un contenedor y entra
-  dentro; arrastra uno ya colocado y cambia de contenedor, o sale a la raíz sin moverse de donde
-  se ve. Un marco discontinuo cian marca la caja útil que lo va a recibir. Tope de 8 niveles.
-- **`Encajar` cuenta los widgets**: el lienzo se ajusta también a la capa de interfaces, así que
-  una pizarra solo de widgets se encaja y el PNG que se pega en el bloc los incluye.
-
-## Novedades de la 0.7.9
-
-- **La vista `Control` se queda sin el plegado `CONTROLES`**: la fila de botones ocupa ahora
-  toda la vista, con 6 px de aire arriba y a los lados y sin borde, así que no deja franja
-  muerta ni barra de desplazamiento.
-
-## Novedades de la 0.7.8
-
-- **El saldo de DeepSeek y el coste de OpenAI ya no se quedan en el de la primera clave**: la
-  vista `Límites de consumo` lee la clave de la tabla `credential` de las bases de opencode (la
-  fila activa más reciente) y solo cae a `auth.json` si no hay. opencode v2 ya no actualiza ese
-  fichero al cambiar la clave, que era la causa. De 55,38 USD a los 5,74 USD reales, comprobado
-  en vivo.
-- Un proveedor cuya clave solo viva en `credential` deja de salir como no soportado por los
-  límites.
-
-## Novedades de la 0.7.7
-
-- **Vista `Control` en una sola fila elástica**: el grupo de sesión (`‹ [terminal] ›`) pasa a
-  ser el botón principal —más grande, con relleno cian y halo— y a su lado van cuatro botones
-  de módulo **solo icono**: el enchufe de los conectores, el cerebro de `OLLAMA` y los dos
-  apagados del generador de imágenes y el chatbot. Al estrechar, la fila salta a más líneas y
-  los botones se estiran; por debajo no queda nada, así que no sale barra de desplazamiento.
-- **`MENTE GLOBAL` ahora se llama `OLLAMA`** en esa vista, título y `aria-label`.
-
-## Novedades de la 0.7.6
-
-- **Límites de consumo, una línea por ventana**: cada ventana muestra rótulo, barra y `%` en la
-  misma fila. Las de peticiones (Copilot) añaden `hechas / tope` antes del `%`; con la ventana al
-  tope, la barra deja su sitio al tiempo de reanudación en rojo. El saldo o el gasto (DeepSeek,
-  OpenAI) se queda como estaba.
-- **Sello del último sondeo en la cabecera**: «hace X min» deja su línea y pasa a la izquierda de
-  `REFRESCAR`, así que las tarjetas ganan ese alto.
-
-## Novedades de la 0.7.5
-
-- **Contexto en barra estrecha**: matriz y leyenda se apilan solo por debajo de 300 px. Entre
-  300 y 500 px siguen lado a lado y encogen juntas, así que al estrechar el panel la matriz no
-  se estira a todo lo ancho ni se come la vista.
-- El resto de la 0.7.4 se mantiene: `COMPACTAR` en la cabecera de `Leyenda`, matriz de
-  Contexto 10 × 10 achatada, cabecera apretada y leyenda repartiendo su alto.
-
-## Novedades de la 0.7.4
-
-- **`COMPACTAR` dentro de la leyenda**: deja de ser una tercera columna fuera de la caja y
-  vive en la cabecera de `Leyenda`, justificado a la derecha y más pequeño (8 px). La maqueta
-  vuelve a dos columnas.
-- El resto de la 0.7.3 se mantiene: matriz de Contexto 10 × 10 achatada, cabecera apretada y
-  leyenda repartiendo su alto.
-
-## Novedades de la 0.7.3
-
-- **Matriz de Contexto achatada**: sigue en 10 × 10 casillas, pero cada casilla es ancha y
-  baja, así que la caja baja de ~335 px a ~135-160 px de alto.
-- **`COMPACTAR` a la derecha de la leyenda**, alineado con su parte alta; en barra estrecha
-  (≤ 460 px) se apila debajo, alineado a la derecha.
-- **Menos alto**: la cabecera del HUD va más apretada y la leyenda reparte sus filas por el
-  alto de su caja en vez de dejar hueco.
-
-## Novedades de la 0.7.2
-
-- **Matriz de Contexto cuadrada**: pasa a 10 × 10 (100 casillas, cada una vale un 1 %), más
-  baja y sin cambiar el ancho de la caja; corrige el 10 × 16 de la 0.7.1.
-
-## Novedades de la 0.7.1
-
-- **Vista `Control`** en la barra ALFRED: `‹ [terminal] ›` para abrir
-  la sesión y cambiar de agente, los conectores y Ollama (hoy, una fila de iconos: enchufe,
-  cerebro de `OLLAMA` y los dos módulos apagados, generador de imágenes y chatbot, con su hueco
-  «Próximamente»).
-- **Explorador más corto**: el lanzador de terminales, los conectores y Ollama se mudan a
-  `Control`. Queda `GLOBAL` · `PROYECTO` · `ASIGNAR AGENTES` y, debajo, `ACEPTAR TODOS LOS
-  PERMISOS`. `ASIGNAR AGENTES` se apaga cuando el proveedor activo no es opencode.
-- **Contexto**: la matriz pasa de 20 × 8 a 10 × 16, las mismas 160 celdas con casillas más
-  grandes.
-- **Límites de consumo**: cada tarjeta recuerda si estaba plegada entre sesiones.
-
 ## Instalar
 
 **Desde VS Code**
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.8.2.vsix`.
+3. Elige `opencode-alfred-0.8.8.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.8.2.vsix
+code --install-extension opencode-alfred-0.8.8.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.8.2.vsix --force
+code --install-extension opencode-alfred-0.8.8.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?
@@ -317,6 +64,8 @@ code --install-extension opencode-alfred-0.8.2.vsix --force
 
 Los ajustes viven en `Ajustes → OpenCode Alfred` (`opencodeAgents.*`) y
 `Ajustes → Voz` (`voz.*`).
+
+El detalle de cada panel y de cada ajuste está en el [README principal](../README.md).
 
 ## Desinstalar
 

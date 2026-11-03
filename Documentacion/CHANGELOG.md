@@ -1,7 +1,35 @@
 # Historial de cambios
 
-Una entrada por versión publicada. Este fichero viaja dentro del `.vsix` (lo lee el
-marketplace); el `.vsix` de cada versión está en [`../Instalable/`](../Instalable/).
+Una entrada por versión publicada. El `.vsix` de cada versión está en
+[`../Instalable/`](../Instalable/). El producto, en el [README](../README.md).
+
+Las versiones 0.8.3 a 0.8.7 solo subieron el número para reinstalar el `.vsix` con VS Code
+abierto: no son releases y lo que trajeron está reunido en la 0.8.8.
+
+## [0.8.8] - 2026-11-03
+
+- **Temas visuales**: `Alfred` (oscuro, el de siempre), `Manoli` (claro, grises y pastel) y
+  `Steampunk` (latón y cobre). Se cambian con el comando **Alfred: Estilo visual** y el tema
+  elegido vale para todos los paneles.
+- **Comparador de modelos** (`A↔B` en Control): los favoritos a la izquierda, dos fichas de
+  arrastrar-y-soltar con límites de contexto y salida, cinco tarifas, capacidades, fechas y
+  estado, y caché de comparaciones. Todo de solo lectura.
+- **Puntuaciones de BenchLM** en el comparador: global y por categoría (agéntica, código y
+  conocimiento), más los exámenes con su unidad. La clave se guarda en el almacén seguro de
+  VS Code y se puede probar sin gastar lectura. Si un modelo no se encuentra por su nombre,
+  una fila de **alias** permite escribir su identificador de BenchLM. Atribución
+  «Datos de BenchLM.ai» con enlace.
+- **BenchLM en las tarjetas**: las mismas cuatro puntuaciones aparecen en las tarjetas de
+  modelos de **Conectores** y en **Favoritos** y **Modelos** de la asignación, solo con lo que
+  ya está en la caché del comparador (ninguna lectura nueva) y sin cambiar el alto de la tarjeta.
+- **Tablero de asignación**: los agentes salen en el mismo orden que el Explorador (agentes de
+  proyecto, subagentes de proyecto, agentes globales y subagentes globales; los integrados
+  primero en cada bloque) con su icono y su color. **Favoritos** gana los botones `O` `C` `A`
+  `K` `$` para ordenar por BenchLM o por precio de salida, con la dirección a la vista y el
+  criterio recordado, y marca los modelos gratuitos con el chip `FREE`.
+- **Chatbot**: botón **COPIAR PROMPT** en cada imagen generada, también al reabrir la
+  conversación. Arreglado que la respuesta final desapareciera al terminar un turno en el que
+  el modelo pedía varias herramientas en la misma ronda.
 
 ## [0.8.2] - 2026-11-02
 
