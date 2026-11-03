@@ -4,10 +4,12 @@ import {
   AgentList,
   findAgent,
   listAgents,
+  loadRegistry,
   readConfigInfo,
   saveAgent,
   writeAtomic,
 } from "./agents/store";
+import type { Registry } from "./agents/config";
 import { setAgentModel } from "./agents/assign";
 import {
   DisabledPlugin,
@@ -45,6 +47,14 @@ import {
   refreshImageShare,
 } from "./panels/imageGenPanel";
 import { ChatbotPanel } from "./panels/chatbotPanel";
+import {
+  buildModelSheet,
+  CompareInit,
+  CompareModel,
+  CompareResult,
+  ModelComparePanel,
+  ModelSheet,
+} from "./panels/modelComparePanel";
 import { collectState, liveState, MenteLocalState, readSettings, runAction } from "./ollama/service";
 import { startServer } from "./ollama/process";
 import { workFile } from "./images/share";
@@ -215,6 +225,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const CONNECTORS_SEARCH = "opencodeAgents.connectorsSearch";
   const CONNECTORS_SELECTED = "opencodeAgents.connectorsSelected";
   const PROMPT_MONITOR = "opencodeAgents.promptMonitor";
+  // Fichas de modelo ya resueltas, por clave (modelo sin proveedor), para el panel Comparar.
+  const MODEL_COMPARE_CACHE = "opencodeAgents.modelCompare.cache";
 
   // La detección espera procesos del sistema: se lanza sin bloquear el arranque y, cuando
   // termina, repinta el panel. Hasta entonces el selector muestra solo opencode.
@@ -1124,6 +1136,105 @@ export function activate(context: vscode.ExtensionContext): void {
         `No se pudo leer la lista de modelos de opencode: ${err instanceof Error ? err.message : String(err)}`
       );
     }
+  }
+
+  /** Primera entrada del catálogo vivo cuyo modelo (sin proveedor) es `key`. */
+  function liveModelByKey(key: string): ModelEntry | undefined {
+    return models.find((m) => m.model === key);
+  }
+
+  /**
+   * Modelos que ofrece el comparador: la unión de los grupos de favoritos en orden de grupo
+   * (gana la primera aparición), resuelta contra el catálogo vivo. Lo que no está vivo se omite.
+   */
+  function compareModelList(): CompareModel[] {
+    const list: CompareModel[] = [];
+    const seen = new Set<string>();
+    for (const id of favoriteGroups.flatMap((g) => g.ids)) {
+      const favorite = models.find((m) => m.id === id);
+      const entry = favorite && liveModelByKey(favorite.model);
+      if (!entry || seen.has(entry.model)) {
+        continue;
+      }
+      seen.add(entry.model);
+      list.push({
+        key: entry.model,
+        id: entry.id,
+        name: entry.name,
+        provider: entry.provider,
+        free: entry.free,
+      });
+    }
+    return list;
+  }
+
+  /** Caché persistida de fichas; se tira lo que no sea un objeto con su `key`. */
+  function readCompareCache(): Record<string, ModelSheet> {
+    const stored = context.globalState.get<Record<string, unknown>>(MODEL_COMPARE_CACHE, {});
+    const cache: Record<string, ModelSheet> = {};
+    for (const value of Object.values(stored ?? {})) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        continue;
+      }
+      const sheet = value as ModelSheet;
+      if (typeof sheet.key === "string" && sheet.key) {
+        cache[sheet.key] = sheet;
+      }
+    }
+    return cache;
+  }
+
+  function compareInit(): CompareInit {
+    return { models: compareModelList(), cache: readCompareCache() };
+  }
+
+  /** Resuelve las dos fichas, guarda la caché y devuelve lo que hay que pintar. */
+  async function compareModels(keys: [string, string]): Promise<CompareResult> {
+    try {
+      await refreshModels();
+    } catch {
+      // `refreshModels` ya enseña su error: se compara con el catálogo que haya en memoria.
+    }
+    let registry: Registry | undefined;
+    try {
+      registry = await loadRegistry();
+    } catch {
+      // Sin BD ni caché de models.dev la ficha sale solo con los datos vivos.
+      registry = undefined;
+    }
+    const cache = readCompareCache();
+    const sheets = keys.map((key) => {
+      const entry = liveModelByKey(key);
+      if (!entry) {
+        return null;
+      }
+      const sheet = buildModelSheet(entry, registry?.[entry.provider]?.models?.[entry.model], key);
+      cache[sheet.key] = sheet;
+      return sheet;
+    });
+    if (sheets.some((sheet) => sheet)) {
+      // La caché solo sirve para lo que el panel puede listar: se poda a las keys de la izquierda.
+      const live = new Set(compareModelList().map((model) => model.key));
+      for (const key of Object.keys(cache)) {
+        if (!live.has(key)) {
+          delete cache[key];
+        }
+      }
+      await context.globalState.update(MODEL_COMPARE_CACHE, cache);
+    }
+    return { sheets };
+  }
+
+  /** Abre el comparador. Lee el catálogo vivo de opencode, así que es solo de opencode. */
+  async function openModelComparePanel(): Promise<void> {
+    if (sessionAgent !== "opencode") {
+      void vscode.window.showWarningMessage("La comparación de modelos es solo de opencode.");
+      return;
+    }
+    if (models.length === 0) {
+      await refreshModels();
+    }
+    ModelComparePanel.open(context, { getInit: compareInit, onCompare: compareModels });
   }
 
   async function refreshAgents(): Promise<void> {
@@ -3129,6 +3240,10 @@ export function activate(context: vscode.ExtensionContext): void {
       case "openDatabases":
         DatabasesPanel.open(context);
         return;
+
+      case "openModelCompare":
+        await openModelComparePanel();
+        return;
     }
   }
 
@@ -3146,6 +3261,7 @@ export function activate(context: vscode.ExtensionContext): void {
       EditorPanel.current,
       ImageGenPanel.current,
       MenteLocalPanel.current,
+      ModelComparePanel.current,
       PizarraPanel.current,
       ProjectExplorerPanel.current,
       PromptStatsPanel.current,

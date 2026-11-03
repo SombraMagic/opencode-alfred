@@ -1,0 +1,338 @@
+/* Comparar modelos — lista a la izquierda y dos fichas con sello de fecha.
+   Solo tokens de tema: los colores los decide themes/*.css. */
+
+body {
+  padding: 0 10px 18px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ── Cabecera ─────────────────────────────────────────── */
+.hud-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: var(--bg);
+  margin-bottom: 8px;
+}
+
+.hud-title {
+  flex: 1 1 130px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Los rótulos y botones normales no son estado apagado. */
+.label {
+  color: var(--text-soft);
+}
+
+.ghost-btn {
+  color: var(--text-soft);
+  padding: 3px 8px;
+}
+
+#btn-compare-run:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+  cursor: default;
+}
+
+/* ── Aviso del host ───────────────────────────────────── */
+.banner {
+  margin: 0 0 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--magenta);
+  border-left-width: 3px;
+  background: color-mix(in srgb, var(--magenta) 10%, transparent);
+  color: var(--magenta);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* ── Tablero: lista estrecha y dos fichas ─────────────── */
+.board {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(280px, 2fr) minmax(280px, 2fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.col,
+.slot {
+  min-width: 0;
+}
+
+.col-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 2px 0 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 9px;
+  font-weight: normal;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.count {
+  font-size: 9px;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Lista de modelos ─────────────────────────────────── */
+.list {
+  max-height: calc(100vh - 116px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: 4px;
+}
+
+.mrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--line-soft);
+  cursor: grab;
+}
+
+.mrow:hover {
+  background: var(--bg-soft);
+}
+
+.mrow:active {
+  cursor: grabbing;
+}
+
+.mrow-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* La key solo aparece cuando no es el nombre: es dato secundario. */
+.mrow-key {
+  flex: none;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  color: var(--text-soft);
+}
+
+.mrow .chip {
+  flex: none;
+  font-size: 7.5px;
+  padding: 0 3px;
+}
+
+.chip.free {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
+}
+
+/* ── Hueco de comparación ─────────────────────────────── */
+.slot {
+  display: flex;
+  flex-direction: column;
+  min-height: 140px;
+  padding: 0 8px 8px;
+  border: 1px dashed var(--line);
+  background: var(--bg-soft);
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+/* Zona de soltar válida. */
+.slot.drop-hot {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 7%, var(--bg-soft));
+}
+
+.slot-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  padding-top: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.slot-key {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  color: var(--text-soft);
+}
+
+.slot-clear {
+  flex: none;
+  margin-left: auto;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.slot-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(100vh - 152px);
+  padding-top: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ── Estado vacío y avisos dentro del hueco ───────────── */
+.mc-hint {
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+.mc-hint.bad {
+  color: var(--magenta);
+}
+
+.empty {
+  margin: 6px 2px 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+/* ── Ficha ────────────────────────────────────────────── */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sheet-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* Sello de fecha: ámbar lo recién tomado, suave lo que ya estaba en caché. */
+.sheet-seal {
+  flex: none;
+  font-size: 8px;
+  letter-spacing: 0.8px;
+  color: var(--text-soft);
+}
+
+.sheet-seal.fresh {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+}
+
+.sheet-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.sheet-table th,
+.sheet-table td {
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--line-soft);
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.sheet-table tr:last-child > * {
+  border-bottom: none;
+}
+
+.sheet-label {
+  width: 42%;
+  font-size: 9px;
+  font-weight: normal;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.sheet-value {
+  font-size: 10.5px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Campo ausente: estado apagado. */
+.sheet-value.none {
+  color: var(--text-dim);
+}
+
+.sheet-value.yes {
+  color: var(--green);
+}
+
+.sheet-value.no {
+  color: var(--text-dim);
+}
+
+/* Rótulo de grupo dentro de la tabla. */
+.sheet-table tr.sec > th {
+  padding-top: 9px;
+  border-bottom: none;
+  font-size: 8.5px;
+  letter-spacing: 1.4px;
+  color: var(--neon);
+}
+
+/* ── Estrecho y movimiento reducido ───────────────────── */
+@media (max-width: 860px) {
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .list {
+    max-height: 32vh;
+  }
+
+  .slot-body {
+    max-height: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slot,
+  .hud-dot {
+    animation: none;
+    transition: none;
+  }
+}

@@ -19,6 +19,8 @@
     promptStats: document.getElementById("btn-prompt-stats"),
     project: document.getElementById("btn-project"),
     db: document.getElementById("btn-db"),
+    // El HTML lo añade el panel: sin botón todavía, el cableado se salta.
+    compare: document.getElementById("btn-compare"),
     // Dibujo del proveedor dentro del botón de sesión (path vacío hasta el primer render).
     sessionLogo: document.querySelector("#btn-session svg path"),
   };
@@ -67,6 +69,13 @@
     el.assign.title = opencode ? "Asignar agentes a modelos" : "Solo con opencode";
     el.assign.setAttribute("aria-label", el.assign.title);
 
+    // COMPARAR MODELOS también es de opencode: las fichas salen de su catálogo vivo.
+    if (el.compare) {
+      el.compare.disabled = !opencode;
+      el.compare.title = opencode ? "Comparar modelos" : "Solo con opencode";
+      el.compare.setAttribute("aria-label", el.compare.title);
+    }
+
     // OLLAMA brilla mientras el servidor de Ollama responde.
     const mente = data.menteLocal === true;
     el.mente.classList.toggle("on", mente);
@@ -93,6 +102,7 @@
   el.agentNext.addEventListener("click", () => act({ type: "cycleAgent", delta: 1 }));
   el.connectors.addEventListener("click", () => act({ type: "openConnectors" }));
   el.assign.addEventListener("click", () => act({ type: "openAssign" }));
+  el.compare?.addEventListener("click", () => act({ type: "openModelCompare" }));
   el.mente.addEventListener("click", () => act({ type: "openMenteLocal" }));
   el.image.addEventListener("click", () => act({ type: "openImageGen" }));
   el.chatbot.addEventListener("click", () => act({ type: "openChatbot" }));

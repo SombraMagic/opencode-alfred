@@ -75,7 +75,8 @@ export type ExplorerAction =
   | { type: "openVoice" }
   | { type: "openPromptStats" }
   | { type: "openProjectExplorer" }
-  | { type: "openDatabases" };
+  | { type: "openDatabases" }
+  | { type: "openModelCompare" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
