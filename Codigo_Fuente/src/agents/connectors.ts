@@ -9,6 +9,7 @@ import {
   parseTree,
 } from "jsonc-parser";
 import type { Node } from "jsonc-parser";
+import type { BenchlmScores } from "../benchlm/scores";
 import { Registry, RegistryModel } from "./config";
 import { configFileCandidates, globalOpencodeDir } from "./paths";
 import { loadRegistry, pathExists, writeAtomic } from "./store";
@@ -88,6 +89,8 @@ export interface ConnectorModel {
   reasoning?: boolean;
   vision?: boolean;
   live?: boolean;
+  /** Las cuatro notas de BenchLM ya consultadas (caché del comparador); ausente si no hay. */
+  benchlm?: BenchlmScores;
 }
 
 export interface ConnectorsData {

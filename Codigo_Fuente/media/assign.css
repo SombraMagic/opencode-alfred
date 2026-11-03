@@ -174,8 +174,59 @@ body {
 }
 
 .col-fav .col-title {
+  align-items: center;
   margin: 0 2px;
   padding-top: 9px;
+}
+
+/* Etiqueta y contador pegados a la izquierda; los botones de orden se van a la derecha.
+   Si el contador crece, la etiqueta se recorta: los botones no se desplazan ni envuelven. */
+.col-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Orden de FAVORITOS: cinco botones en la propia línea del título. Sin relleno ni tipografía
+   grande, para que la cabecera de la columna no gane alto al añadirlos. */
+.fav-sort {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  padding: 0 3px;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: normal;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.sort-btn:hover,
+.sort-btn:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+/* Activo: neón y la flecha de su dirección. El apagado se queda en `--text-soft`, nunca
+   en `--text-dim`: esos son botones normales, no estado deshabilitado. */
+.sort-btn.on {
+  color: var(--neon);
+  border-color: var(--neon-dim);
+  background: color-mix(in srgb, var(--neon) 10%, transparent);
 }
 
 .count {
@@ -355,6 +406,34 @@ body {
   white-space: nowrap;
 }
 
+/* Icono del agente: misma figura que el Explorador. El color del frontmatter manda si llega
+   (`--agent-color` desde JS); si no, el del modo. */
+.agent-icon {
+  --agent-color: var(--amber);
+  flex: none;
+  width: 9px;
+  height: 9px;
+  background: var(--agent-color);
+}
+
+.agent-icon.mode-primary {
+  transform: rotate(45deg);
+}
+
+.agent-icon.mode-subagent {
+  --agent-color: var(--green);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+/* Chip FREE en la línea del nombre (FAVORITOS): mismo aspecto que en MODELOS, sin altura
+   extra: la línea ya existe. */
+.card-line .chip.free {
+  flex: none;
+  font-size: 8.5px;
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
+}
+
 /* Scope del agente: PROY / GLOBAL / INTEGRADO. */
 .card .scope {
   flex: none;
@@ -424,6 +503,7 @@ body {
   gap: 5px;
   margin-top: 4px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .card-provider {
@@ -442,6 +522,22 @@ body {
   font-size: 9.5px;
   letter-spacing: 0.3px;
   color: var(--text-soft);
+  white-space: nowrap;
+}
+
+/* Notas de BenchLM: misma línea, recortadas con puntos suspensivos y detalle en el `title`. */
+.card-bench {
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+  color: var(--text-soft);
+}
+
+.card-meta .card-bench {
+  flex: none;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

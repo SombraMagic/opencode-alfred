@@ -14,6 +14,7 @@
     <span class="hud-dot"></span>
     <span class="hud-title" title="Comparar las fichas de dos modelos">COMPARAR MODELOS</span>
     <span class="hud-status" id="status" role="status" aria-live="polite" hidden></span>
+    <button class="ghost-btn mc-icon" id="btn-benchlm-key" type="button" title="Clave de BenchLM" aria-label="Clave de BenchLM"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="12" r="3.5" /><path d="M11.5 12H21M17.5 12v3M20.5 12v2.2" /></svg></button>
     <button class="ghost-btn" id="btn-compare-run" type="button" title="Comparar los dos modelos de las fichas" aria-label="Comparar los dos modelos" disabled>COMPARAR</button>
   </header>
 
@@ -46,6 +47,10 @@
       <div class="slot-body" id="slot-b-body"></div>
     </section>
   </main>
+
+  <footer class="mc-foot">
+    <button class="link-btn" id="btn-benchlm-site" type="button" title="Abrir BenchLM.ai, fuente de las puntuaciones (licencia CC BY-NC)">Datos de BenchLM.ai</button>
+  </footer>
 </div>
 %%THEME_SCRIPT%%
 <script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>

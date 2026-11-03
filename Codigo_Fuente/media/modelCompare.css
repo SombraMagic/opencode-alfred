@@ -314,6 +314,236 @@ body {
   color: var(--neon);
 }
 
+/* ── BenchLM: lo más importante de la ficha ───────────── */
+.bench {
+  padding: 6px 7px 7px;
+  border: 1px solid var(--neon);
+  border-left-width: 3px;
+  background: var(--bg-raised);
+}
+
+.bench .none {
+  color: var(--text-dim);
+}
+
+.bench-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bench-title {
+  flex: none;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  color: var(--neon);
+}
+
+.bench-slug {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--text);
+}
+
+.bench-asof {
+  flex: none;
+  font-size: 9px;
+  color: var(--text-soft);
+}
+
+/* Cuatro cifras: se parten a dos filas si el hueco va estrecho. */
+.bench-cifras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.bench-stat {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 5px;
+  border: 1px solid var(--line-soft);
+  background: var(--bg-soft);
+}
+
+.bench-stat-label {
+  overflow: hidden;
+  font-size: 8px;
+  letter-spacing: 1.1px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-soft);
+}
+
+.bench-score {
+  font-size: 17px;
+  line-height: 1.15;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.bench-puesto {
+  font-size: 8.5px;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+}
+
+.bench-sub {
+  margin: 7px 0 1px;
+  font-size: 8.5px;
+  letter-spacing: 1.4px;
+  color: var(--text-soft);
+}
+
+.bench-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.bench-table td {
+  padding: 2px 3px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.bench-table tr:last-child > td {
+  border-bottom: none;
+}
+
+.bench-cat {
+  width: 64px;
+}
+
+.bench-cat .chip {
+  font-size: 7.5px;
+  letter-spacing: 0.6px;
+  padding: 0 3px;
+}
+
+.bench-name {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.bench-score-cell {
+  width: 96px;
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.bench-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: var(--text-soft);
+}
+
+.bench-empty .ghost-btn {
+  padding: 2px 7px;
+}
+
+.bench .mc-hint {
+  margin-top: 4px;
+}
+
+/* ── Alias de BenchLM: la fila que resuelve «sin coincidencia» ── */
+.bench-alias {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 7px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.bench-alias-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 6px;
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.bench-alias-input:focus-visible {
+  border-color: var(--neon);
+  outline: none;
+}
+
+.bench-alias-input::placeholder {
+  color: var(--text-dim);
+}
+
+/* Mientras la consulta va en vuelo el campo no se toca: estado apagado. */
+.bench-alias-input:disabled,
+.bench-alias .ghost-btn:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+  cursor: default;
+}
+
+.bench-alias .ghost-btn {
+  flex: none;
+  padding: 2px 7px;
+}
+
+/* ── Botón de llave y pie ─────────────────────────────── */
+.mc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 6px;
+}
+
+/* Con clave guardada: el contorno se tiñe, sin texto que estorbe. */
+.mc-icon.set {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
+}
+
+.mc-foot {
+  margin-top: 12px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  color: var(--text-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.link-btn:hover,
+.link-btn:focus-visible {
+  color: var(--neon);
+  outline: none;
+}
+
 /* ── Estrecho y movimiento reducido ───────────────────── */
 @media (max-width: 860px) {
   .board {

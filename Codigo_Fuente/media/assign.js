@@ -1,6 +1,16 @@
 /* Asignación — conecta agentes con modelos favoritos: arrastrar, soltar y líneas. */
 (function () {
-  const vscode = acquireVsCodeApi();
+  // Un arnés headless puede no inyectar la API de VS Code: sin ella el tablero sigue pintando.
+  const vscode =
+    typeof acquireVsCodeApi === "function"
+      ? acquireVsCodeApi()
+      : {
+          postMessage() {},
+          getState() {
+            return null;
+          },
+          setState() {},
+        };
   const SVG = "http://www.w3.org/2000/svg";
 
   const el = {
@@ -12,6 +22,7 @@
     agentsCount: document.getElementById("agents-count"),
     favorites: document.getElementById("favorites"),
     favCount: document.getElementById("fav-count"),
+    favSort: document.getElementById("fav-sort"),
     groups: document.getElementById("groups"),
     models: document.getElementById("models"),
     modelsCount: document.getElementById("models-count"),
@@ -94,8 +105,149 @@
     return ids.filter((id) => catalogIds.has(id)).length;
   }
 
+  // Notas de BenchLM: una coma decimal, formato es-ES.
+  const fmtNota = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
+  const BENCH_NOTAS = [
+    ["overall", "O", "Overall"],
+    ["coding", "C", "Coding"],
+    ["agentic", "A", "Agentic"],
+    ["knowledge", "K", "Knowledge"],
+  ];
+
+  /**
+   * Las cuatro notas de BenchLM en una línea (`O 86,3 · C 82,9 · …`) y su detalle para el
+   * `title`. Solo se pinta lo que el modelo traiga: sin notas devuelve null y no hay hueco.
+   */
+  function benchlmInline(benchlm) {
+    if (!benchlm || typeof benchlm !== "object") return null;
+    const corto = [];
+    const largo = [];
+    for (const [campo, letra, nombre] of BENCH_NOTAS) {
+      const nota = benchlm[campo];
+      if (!nota || typeof nota !== "object") continue;
+      const score = Number(nota.score);
+      if (!Number.isFinite(score)) continue;
+      const valor = fmtNota.format(score);
+      corto.push(letra + " " + valor);
+      const rank = Number(nota.rank);
+      largo.push(nombre + (Number.isFinite(rank) ? " #" + Math.round(rank) : "") + ": " + valor);
+    }
+    if (corto.length === 0) return null;
+    return { corto: corto.join(" · "), largo: "BenchLM · " + largo.join(" · ") };
+  }
+
+  /**
+   * Criterios de orden de FAVORITOS, en el orden de los botones. El último valor es la
+   * dirección natural: las notas van de mejor a peor y el precio, del más barato al más caro.
+   */
+  const SORT_FIELDS = [
+    ["overall", "O", "Overall de BenchLM", true],
+    ["coding", "C", "Coding de BenchLM", true],
+    ["agentic", "A", "Agentic de BenchLM", true],
+    ["knowledge", "K", "Knowledge de BenchLM", true],
+    ["cost", "$", "precio de salida ($/M tokens)", false],
+  ];
+  const SORT_KEYS = new Set(SORT_FIELDS.map((campo) => campo[0]));
+
+  /** Orden inicial: nota global de BenchLM de mayor a menor, el que había antes. */
+  function defaultSort() {
+    return { field: "overall", desc: true };
+  }
+
+  /**
+   * Orden recordado con `setState` (como mucho `{ sort: { field, desc } }`). Un estado raro
+   * —campo que no está en la lista o dirección que no es booleana— cae al inicial.
+   */
+  function readSort() {
+    try {
+      const state = typeof vscode.getState === "function" ? vscode.getState() : null;
+      const saved = state && typeof state === "object" ? state.sort : null;
+      if (saved && SORT_KEYS.has(saved.field) && typeof saved.desc === "boolean") {
+        return { field: saved.field, desc: saved.desc };
+      }
+    } catch (error) {
+      // Estado ilegible: se queda el orden inicial.
+    }
+    return defaultSort();
+  }
+
+  function saveSort() {
+    try {
+      vscode.setState({ sort: { field: sort.field, desc: sort.desc } });
+    } catch (error) {
+      // Sin API de VS Code el orden vive solo en memoria.
+    }
+  }
+
+  let sort = readSort();
+
+  /** Nota de BenchLM del campo pedido; null cuando el modelo no la trae como número. */
+  function benchScore(model, field) {
+    const nota = model.benchlm && model.benchlm[field];
+    if (!nota || typeof nota !== "object") return null;
+    const raw = nota.score;
+    if (raw === null || raw === undefined || raw === "") return null;
+    const score = Number(raw);
+    return Number.isFinite(score) ? score : null;
+  }
+
+  /** Tarifa de salida por millón de tokens; null cuando el modelo no trae precio. */
+  function outCost(model) {
+    const cost = model.cost;
+    if (!cost || typeof cost !== "object") return null;
+    const value = cost.output;
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  }
+
+  /** Valor que ordena el criterio activo: la nota pedida o el precio de salida. */
+  function sortValue(model) {
+    return sort.field === "cost" ? outCost(model) : benchScore(model, sort.field);
+  }
+
+  /**
+   * Favoritos con el criterio activo: primero los modelos con el dato, en la dirección
+   * elegida; después los que no lo tienen, por nombre. Los empates se resuelven por nombre.
+   */
+  function favoriteOrder(a, b) {
+    const valueA = sortValue(a);
+    const valueB = sortValue(b);
+    if (valueA === null || valueB === null) {
+      if (valueA !== valueB) return valueA === null ? 1 : -1;
+      return a.name.localeCompare(b.name, "es");
+    }
+    if (valueA !== valueB) return sort.desc ? valueB - valueA : valueA - valueB;
+    return a.name.localeCompare(b.name, "es");
+  }
+
   function agentKey(agent) {
     return agent.scope + "\u0000" + agent.name;
+  }
+
+  /**
+   * Mismo orden que el Explorador, en cuatro bloques: agentes de proyecto, subagentes de
+   * proyecto, agentes globales y subagentes globales. Dentro de cada bloque van primero los
+   * integrados y después el resto; a igualdad, por nombre.
+   */
+  function agentOrder(a, b) {
+    const blockA = (a.group === "project" ? 0 : 1) * 2 + (a.mode === "subagent" ? 1 : 0);
+    const blockB = (b.group === "project" ? 0 : 1) * 2 + (b.mode === "subagent" ? 1 : 0);
+    if (blockA !== blockB) return blockA - blockB;
+    const builtinA = a.scope === "builtin" ? 0 : 1;
+    const builtinB = b.scope === "builtin" ? 0 : 1;
+    if (builtinA !== builtinB) return builtinA - builtinB;
+    return a.name.localeCompare(b.name, "es");
+  }
+
+  /** Misma figura que el Explorador: rombo para primarios, triángulo para subagentes. */
+  function agentIcon(agent) {
+    const subagent = agent.mode === "subagent";
+    const icon = node("span", "agent-icon mode-" + (subagent ? "subagent" : "primary"));
+    icon.setAttribute("aria-hidden", "true");
+    // El color del frontmatter manda; si no es un hex válido, se queda el del modo.
+    if (typeof agent.color === "string" && /^#[0-9a-f]{6}$/i.test(agent.color)) {
+      icon.style.setProperty("--agent-color", agent.color);
+    }
+    return icon;
   }
 
   function empty(text) {
@@ -167,7 +319,10 @@
       return;
     }
 
-    for (const agent of agents) {
+    // Copia ordenada: el orden del host no se toca y las líneas se apoyan en `agentEls`.
+    const list = [...agents].sort(agentOrder);
+
+    for (const agent of list) {
       const card = node("div", "card agent");
       card.draggable = true;
       card.title = agent.name;
@@ -175,6 +330,7 @@
       if (sel && sel.kind === "agente" && sel.id === agentKey(agent)) card.classList.add("sel");
 
       const line = node("div", "card-line");
+      line.appendChild(agentIcon(agent));
       line.appendChild(node("span", "card-name", agent.name));
       line.appendChild(
         node("span", "chip scope scope-" + agent.scope, SCOPE[agent.scope] || agent.scope)
@@ -420,13 +576,49 @@
     modalReturn = null;
   }
 
+  // ── Orden de FAVORITOS ──────────────────────────────────
+  /** Los cinco botones de orden, en la línea del título; el activo muestra su flecha. */
+  function renderSort() {
+    el.favSort.textContent = "";
+    for (const [field, letra, etiqueta, naturalDesc] of SORT_FIELDS) {
+      const active = sort.field === field;
+      const button = node("button", "sort-btn" + (active ? " on" : ""));
+      button.type = "button";
+      // La flecha dice la dirección que se está viendo: ▼ de mejor a peor, ▲ al revés.
+      button.textContent = letra + (active ? (sort.desc ? "▼" : "▲") : "");
+      const title = "Ordenar por " + etiqueta;
+      button.title = title + (active ? (sort.desc ? " (descendente)" : " (ascendente)") : "");
+      button.setAttribute("aria-label", title);
+      button.setAttribute("aria-pressed", String(active));
+      button.addEventListener("click", () => {
+        // Otro criterio entra con su dirección natural; el activo invierte la suya.
+        if (active) setSort(field, !sort.desc);
+        else setSort(field, naturalDesc);
+      });
+      el.favSort.appendChild(button);
+    }
+  }
+
+  /** Cambia el criterio y repinta solo FAVORITOS, conservando su scroll. */
+  function setSort(field, desc) {
+    sort = { field, desc };
+    saveSort();
+    renderSort();
+    if (!lastData) return;
+    const top = el.favorites.scrollTop;
+    renderFavorites(lastData.models || []);
+    el.favorites.scrollTop = top;
+    scheduleWires();
+  }
+
   // ── Columna FAVORITOS ───────────────────────────────────
   function renderFavorites(models) {
     el.favorites.textContent = "";
     favEls = new Map();
     const list = [...favIds]
       .map((id) => models.find((m) => m.id === id))
-      .filter(Boolean);
+      .filter(Boolean)
+      .sort(favoriteOrder);
     el.favCount.textContent = list.length ? String(list.length) : "";
 
     if (list.length === 0) {
@@ -439,8 +631,24 @@
       card.draggable = true;
       card.title = model.id;
       if (sel && sel.kind === "modelo" && sel.id === model.id) card.classList.add("sel");
-      card.appendChild(node("div", "card-line")).appendChild(node("span", "card-name", model.name));
-      card.appendChild(node("div", "card-provider", model.provider));
+      const line = node("div", "card-line");
+      line.appendChild(node("span", "card-name", model.name));
+      // Gratis: mismo chip que MODELOS, en la línea del nombre para no estirar la tarjeta.
+      if (model.free === true) {
+        line.appendChild(node("span", "chip free", "FREE"));
+        card.classList.add("free");
+      }
+      card.appendChild(line);
+      const prov = node("div", "card-provider", model.provider);
+      // Las notas de BenchLM van en la misma línea del proveedor, tras un separador.
+      const bench = benchlmInline(model.benchlm);
+      if (bench) {
+        prov.appendChild(document.createTextNode(" · "));
+        const nota = node("span", "card-bench", bench.corto);
+        nota.title = bench.largo;
+        prov.appendChild(nota);
+      }
+      card.appendChild(prov);
       const cost = costText(model.cost);
       if (cost) {
         const row = node("div", "card-cost", cost);
@@ -515,6 +723,13 @@
       if (model.free) {
         meta.appendChild(node("span", "chip free", "FREE"));
         card.classList.add("free");
+      }
+      // Las notas de BenchLM cierran la línea; si no caben, se recortan.
+      const bench = benchlmInline(model.benchlm);
+      if (bench) {
+        const nota = node("span", "card-bench", bench.corto);
+        nota.title = bench.largo;
+        meta.appendChild(nota);
       }
       card.appendChild(meta);
 
@@ -766,5 +981,6 @@
     if (message && message.type === "assign") renderAssign(message.payload);
   });
 
+  renderSort();
   vscode.postMessage({ type: "ready" });
 })();

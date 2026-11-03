@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { BenchlmScores } from "../benchlm/scores";
 import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /** Modelo del catálogo vivo, en la forma que espera el tablero de asignación. */
@@ -17,6 +18,8 @@ export interface ModelEntry {
   cost?: { input: number; output: number };
   /** Texto corto a la derecha de la fila (mapeo de un alias, «visto»…). */
   hint?: string;
+  /** Las cuatro notas de BenchLM ya consultadas (caché del comparador); ausente si no hay. */
+  benchlm?: BenchlmScores;
 }
 
 export interface AssignAgent {
@@ -24,6 +27,12 @@ export interface AssignAgent {
   scope: "project" | "global" | "builtin";
   /** Id `proveedor/modelo` del frontmatter, o "" si no tiene. */
   model: string;
+  /** Modo real del agente: los subagentes van después en la lista. */
+  mode: "primary" | "subagent";
+  /** Bloque del Explorador al que pertenece la fila: proyecto o global. */
+  group: "project" | "global";
+  /** Color del frontmatter resuelto a hex `#rrggbb`; ausente si no hay. */
+  color?: string;
   /** Texto corto ya formateado: descripción, «integrado», «sobrescrito por proyecto»… */
   detail?: string;
 }

@@ -48,13 +48,18 @@ import {
 } from "./panels/imageGenPanel";
 import { ChatbotPanel } from "./panels/chatbotPanel";
 import {
+  benchlmFor,
   buildModelSheet,
+  checkBenchlmKey,
+  CompareAliasResult,
   CompareInit,
   CompareModel,
   CompareResult,
   ModelComparePanel,
   ModelSheet,
 } from "./panels/modelComparePanel";
+import { normalizeAlias, readAliases } from "./benchlm/aliases";
+import { benchlmScores, BenchlmScores } from "./benchlm/scores";
 import { collectState, liveState, MenteLocalState, readSettings, runAction } from "./ollama/service";
 import { startServer } from "./ollama/process";
 import { workFile } from "./images/share";
@@ -185,6 +190,12 @@ function promptHex(raw: string): string | undefined {
   return `#${hex.slice(0, 6)}`;
 }
 
+/** `color:` del frontmatter resuelto a hex: valor CSS o nombre de tema. Sin color de relleno. */
+function frontmatterHex(raw: string): string | undefined {
+  const value = raw.trim().toLowerCase();
+  return promptHex(value) ?? PROMPT_THEME_COLORS[value];
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const explorer = new ExplorerPanel(context.extensionUri, {
     onAction: (action) => handleAction(action),
@@ -227,6 +238,11 @@ export function activate(context: vscode.ExtensionContext): void {
   const PROMPT_MONITOR = "opencodeAgents.promptMonitor";
   // Fichas de modelo ya resueltas, por clave (modelo sin proveedor), para el panel Comparar.
   const MODEL_COMPARE_CACHE = "opencodeAgents.modelCompare.cache";
+  // BenchLM: la clave solo vive en `context.secrets`; al webview viaja un booleano, nunca la clave.
+  const BENCHLM_KEY = "opencodeAgents.benchlm.key";
+  // Alias de BenchLM por modelo (clave sin proveedor): el identificador escrito a mano cuando el
+  // slug automático falla.
+  const BENCHLM_ALIASES = "opencodeAgents.benchlm.aliases";
 
   // La detección espera procesos del sistema: se lanza sin bloquear el arranque y, cuando
   // termina, repinta el panel. Hasta entonces el selector muestra solo opencode.
@@ -1177,18 +1193,84 @@ export function activate(context: vscode.ExtensionContext): void {
         continue;
       }
       const sheet = value as ModelSheet;
-      if (typeof sheet.key === "string" && sheet.key) {
-        cache[sheet.key] = sheet;
+      if (typeof sheet.key !== "string" || !sheet.key) {
+        continue;
       }
+      // Las tarjetas de Conectores y Asignación solo usan las cuatro notas: una ficha con
+      // composites y sin exámenes también vale (y no se tira la sección).
+      const benchlm = sheet.benchlm;
+      if (!benchlm || !(Array.isArray(benchlm.exams) || benchlm.overall || benchlm.categories)) {
+        delete sheet.benchlm;
+      }
+      cache[sheet.key] = sheet;
     }
     return cache;
   }
 
-  function compareInit(): CompareInit {
-    return { models: compareModelList(), cache: readCompareCache() };
+  /** Las cuatro notas de BenchLM por modelo, solo desde la caché: aquí no se gasta una lectura. */
+  function benchlmScoresByKey(): Record<string, BenchlmScores> {
+    const scores: Record<string, BenchlmScores> = {};
+    for (const [key, sheet] of Object.entries(readCompareCache())) {
+      const found = benchlmScores(sheet.benchlm);
+      if (found) {
+        scores[key] = found;
+      }
+    }
+    return scores;
   }
 
-  /** Resuelve las dos fichas, guarda la caché y devuelve lo que hay que pintar. */
+  /** Guarda la caché del comparador podada a los modelos que el panel puede listar. */
+  async function saveCompareCache(cache: Record<string, ModelSheet>): Promise<void> {
+    const live = new Set(compareModelList().map((model) => model.key));
+    for (const key of Object.keys(cache)) {
+      if (!live.has(key)) {
+        delete cache[key];
+      }
+    }
+    await context.globalState.update(MODEL_COMPARE_CACHE, cache);
+  }
+
+  /** Lista, caché, si hay clave de BenchLM y los alias guardados. La clave no viaja: solo el booleano. */
+  async function compareInit(): Promise<CompareInit> {
+    const secret = await context.secrets.get(BENCHLM_KEY);
+    return {
+      models: compareModelList(),
+      cache: readCompareCache(),
+      benchlmKey: !!secret,
+      aliases: readAliases(context.globalState.get(BENCHLM_ALIASES, {})),
+    };
+  }
+
+  /** Pide la clave de BenchLM, la valida con `usage` y la guarda en el almacén de secretos. */
+  async function askBenchlmKey(): Promise<void> {
+    const value = await vscode.window.showInputBox({
+      password: true,
+      prompt: "Clave de BenchLM Data (se guarda en el almacén de secretos)",
+      placeHolder: "bld_free_…",
+    });
+    const secret = value?.trim();
+    // Cancelado o vacío: la que estaba guardada sigue siendo la que vale.
+    if (!secret) {
+      return;
+    }
+    const status = await checkBenchlmKey(secret);
+    if (status !== "ok") {
+      void vscode.window.showErrorMessage(
+        status === "no" ? "La clave de BenchLM no es válida" : "No se pudo consultar BenchLM. La clave no se ha guardado."
+      );
+      return;
+    }
+    await context.secrets.store(BENCHLM_KEY, secret);
+    void vscode.window.showInformationMessage("Clave de BenchLM guardada");
+    void ModelComparePanel.current?.sendInit();
+  }
+
+  /** El ranking de BenchLM, en el navegador. */
+  function openBenchlm(): void {
+    void vscode.env.openExternal(vscode.Uri.parse("https://benchlm.ai"));
+  }
+
+  /** Resuelve las dos fichas (con BenchLM si hay clave), guarda la caché y devuelve lo que hay que pintar. */
   async function compareModels(keys: [string, string]): Promise<CompareResult> {
     try {
       await refreshModels();
@@ -1202,27 +1284,76 @@ export function activate(context: vscode.ExtensionContext): void {
       // Sin BD ni caché de models.dev la ficha sale solo con los datos vivos.
       registry = undefined;
     }
+    const secret = await context.secrets.get(BENCHLM_KEY);
+    const aliases = readAliases(context.globalState.get(BENCHLM_ALIASES, {}));
     const cache = readCompareCache();
-    const sheets = keys.map((key) => {
+    const sheets: Array<ModelSheet | null> = [];
+    for (const key of keys) {
       const entry = liveModelByKey(key);
       if (!entry) {
-        return null;
+        sheets.push(null);
+        continue;
       }
       const sheet = buildModelSheet(entry, registry?.[entry.provider]?.models?.[entry.model], key);
-      cache[sheet.key] = sheet;
-      return sheet;
-    });
-    if (sheets.some((sheet) => sheet)) {
-      // La caché solo sirve para lo que el panel puede listar: se poda a las keys de la izquierda.
-      const live = new Set(compareModelList().map((model) => model.key));
-      for (const key of Object.keys(cache)) {
-        if (!live.has(key)) {
-          delete cache[key];
+      if (secret) {
+        // La caché vieja entra por si es fresca: `benchlmFor` la tira si ya pasó la semana.
+        const saved = cache[sheet.key]?.benchlm;
+        if (saved) {
+          sheet.benchlm = saved;
         }
+        // En serie: BenchLM limita a 30 peticiones por minuto y cada modelo gasta hasta dos lecturas.
+        sheet.benchlm = await benchlmFor(sheet, secret, aliases[sheet.key]);
       }
-      await context.globalState.update(MODEL_COMPARE_CACHE, cache);
+      cache[sheet.key] = sheet;
+      sheets.push(sheet);
+    }
+    if (sheets.some((sheet) => sheet)) {
+      await saveCompareCache(cache);
     }
     return { sheets };
+  }
+
+  /**
+   * Guarda (o borra, con alias vacío) el identificador de BenchLM del modelo y devuelve su ficha.
+   * Con alias se consulta solo ese slug y se salta la caché de 7 días: lo acaba de escribir la
+   * persona. Sin clave no se consulta nada.
+   */
+  async function aliasModel(key: string, alias: string): Promise<CompareAliasResult | undefined> {
+    const entry = liveModelByKey(key);
+    if (!entry) {
+      return undefined;
+    }
+    const normalized = normalizeAlias(alias);
+    const aliases = readAliases(context.globalState.get(BENCHLM_ALIASES, {}));
+    if (normalized) {
+      aliases[key] = normalized;
+    } else {
+      delete aliases[key];
+    }
+    await context.globalState.update(BENCHLM_ALIASES, aliases);
+
+    const secret = await context.secrets.get(BENCHLM_KEY);
+    const cache = readCompareCache();
+    const saved = cache[key];
+    if (!secret) {
+      // La ficha guardada conserva lo de models.dev; sin ella se construye solo con lo vivo.
+      const sheet = saved ?? buildModelSheet(entry, undefined, key);
+      return { key, alias: normalized, sheet };
+    }
+    let registry: Registry | undefined;
+    if (!saved) {
+      try {
+        registry = await loadRegistry();
+      } catch {
+        // Sin BD ni caché de models.dev la ficha sale solo con los datos vivos.
+        registry = undefined;
+      }
+    }
+    const sheet = saved ?? buildModelSheet(entry, registry?.[entry.provider]?.models?.[entry.model], key);
+    sheet.benchlm = await benchlmFor(sheet, secret, normalized, true);
+    cache[key] = sheet;
+    await saveCompareCache(cache);
+    return { key, alias: normalized, sheet };
   }
 
   /** Abre el comparador. Lee el catálogo vivo de opencode, así que es solo de opencode. */
@@ -1234,7 +1365,13 @@ export function activate(context: vscode.ExtensionContext): void {
     if (models.length === 0) {
       await refreshModels();
     }
-    ModelComparePanel.open(context, { getInit: compareInit, onCompare: compareModels });
+    ModelComparePanel.open(context, {
+      getInit: compareInit,
+      onCompare: compareModels,
+      onAlias: aliasModel,
+      onBenchlmKey: askBenchlmKey,
+      onOpenBenchlm: openBenchlm,
+    });
   }
 
   async function refreshAgents(): Promise<void> {
@@ -1259,10 +1396,15 @@ export function activate(context: vscode.ExtensionContext): void {
     const row = (agent: Agent, scope: "project" | "global"): AssignAgent => {
       const description = (agent.frontmatter.description ?? "").trim();
       const label = scope === "project" ? "proyecto" : "global";
+      const color = frontmatterHex(agent.frontmatter.color ?? "");
       return {
         name: agent.name,
         scope,
         model: agent.frontmatter.model ?? "",
+        // Como en el explorador: solo "subagent" lo aparta; "all" y lo vacío son primary.
+        mode: agent.frontmatter.mode === "subagent" ? "subagent" : "primary",
+        group: scope,
+        ...(color ? { color } : {}),
         detail:
           description ||
           (agent.shadowed ? `${label} · sombreado por proyecto` : label),
@@ -1275,6 +1417,13 @@ export function activate(context: vscode.ExtensionContext): void {
       ...agentList.global.filter((a) => !builtinNames.has(a.name)).map((a) => row(a, "global")),
     ];
     // Los cuatro integrados siempre salen: el override se resuelve sin `agentList.builtins`.
+    // Modos con los que opencode los trae; el override que declara `mode` manda sobre ellos.
+    const builtinDefaults: Record<string, "primary" | "subagent"> = {
+      build: "primary",
+      plan: "primary",
+      general: "subagent",
+      explore: "subagent",
+    };
     for (const name of BUILTIN_AGENTS) {
       const overrideScope = builtinOverrideScope(name);
       const override = overrideScope
@@ -1282,10 +1431,20 @@ export function activate(context: vscode.ExtensionContext): void {
             (a) => a.name === name
           )
         : undefined;
+      const declared = override?.frontmatter.mode;
+      const color = frontmatterHex(override?.frontmatter.color ?? "");
       agents.push({
         name,
         scope: "builtin",
         model: override?.frontmatter.model ?? "",
+        mode:
+          declared === "subagent" || declared === "primary"
+            ? declared
+            : (builtinDefaults[name] ?? "primary"),
+        // Mismo criterio que el Explorador: el integrado solo cae en el bloque de proyecto cuando
+        // su override vive ahí; con override global o sin override va al de global.
+        group: overrideScope === "project" ? "project" : "global",
+        ...(color ? { color } : {}),
         detail:
           overrideScope === "project"
             ? "sobrescrito por proyecto"
@@ -1294,9 +1453,15 @@ export function activate(context: vscode.ExtensionContext): void {
               : "integrado",
       });
     }
+    // Las cuatro notas de BenchLM ya consultadas se pintan en MODELOS y FAVORITOS; si no las hay,
+    // el modelo sale sin `benchlm` y la tarjeta no pinta nada.
+    const scores = benchlmScoresByKey();
     return {
       agents,
-      models,
+      models: models.map((model) => {
+        const benchlm = scores[model.model];
+        return benchlm ? { ...model, benchlm } : model;
+      }),
       // Se emite la persistencia intacta, sin filtrar por catálogo vivo: el webview pinta
       // mirando `models`, así que un id muerto no sale, y el aviso de borrado cuenta los reales.
       favoriteGroups: favoriteGroups.map((g) => ({ name: g.name, ids: [...g.ids] })),
@@ -1653,6 +1818,15 @@ export function activate(context: vscode.ExtensionContext): void {
     if (data.selected !== connectorsSelected) {
       connectorsSelected = data.selected;
       await context.globalState.update(CONNECTORS_SELECTED, connectorsSelected);
+    }
+    // Las notas ya consultadas de BenchLM se cuelgan aquí, antes de guardar el catálogo: el
+    // repintado de la sonda y los sondeos siguientes las llevan sin gastar lecturas.
+    const scores = benchlmScoresByKey();
+    for (const model of data.models) {
+      const benchlm = scores[model.id];
+      if (benchlm) {
+        model.benchlm = benchlm;
+      }
     }
     connectorsData = data;
     applyCachedLimits(data);
@@ -2302,14 +2476,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const def =
       agentList.project.find((x) => x.name === name) ??
       agentList.global.find((x) => x.name === name);
-    const raw = (def?.frontmatter.color ?? "").trim().toLowerCase();
-    const hex = promptHex(raw);
+    const hex = frontmatterHex(def?.frontmatter.color ?? "");
     if (hex) {
       return hex;
-    }
-    const theme = PROMPT_THEME_COLORS[raw];
-    if (theme) {
-      return theme;
     }
     // Sin color, con un nombre que no es de tema, o sin fichero: se tiñe por rol.
     const mode = def?.frontmatter.mode;

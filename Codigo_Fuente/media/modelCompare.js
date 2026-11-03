@@ -1,7 +1,9 @@
 /* ALFRED // COMPARAR MODELOS — lista de modelos favoritos, dos huecos de
    comparación con arrastrar-y-soltar y fichas selladas con su fecha.
-   El host manda `init` (lista + caché), `compared` (fichas recién tomadas) y
-   `busy`; de aquí solo salen `ready` y la acción `compare`. */
+   El host manda `init` (lista + caché + clave de BenchLM + alias guardados),
+   `compared` (fichas recién tomadas), `aliased` (alias guardado y su ficha) y
+   `busy`; de aquí salen `ready` y las acciones `compare`, `setAlias`,
+   `benchlmKey` y `openBenchlm`. */
 (function () {
   "use strict";
 
@@ -16,6 +18,8 @@
     rows: document.getElementById("model-rows"),
     listEmpty: document.getElementById("list-empty"),
     count: document.getElementById("models-count"),
+    benchKey: document.getElementById("btn-benchlm-key"),
+    benchSite: document.getElementById("btn-benchlm-site"),
     slots: [
       {
         root: document.getElementById("slot-a"),
@@ -39,6 +43,12 @@
     /** Caché de fichas por key: `cache[key]` es un ModelSheet o no está. */
     cache: {},
     slots: [huevoSlot(), huevoSlot()],
+    /** Alias de BenchLM por clave de modelo: `aliases[key]` es el identificador guardado. */
+    aliases: {},
+    /** Keys con un alias en vuelo: la fila de alias se pinta deshabilitada y con BUSCANDO… */
+    aliasEspera: new Set(),
+    /** Hay clave de BenchLM guardada en el host. Decide qué se ofrece en la ficha. */
+    benchlmKey: false,
     busy: false,
     error: "",
     /** Keys con las que se lanzó la comparación en vuelo: si el usuario cambió un
@@ -48,10 +58,21 @@
     cargado: false,
   };
 
+  /** Temporizadores de los alias en vuelo, para que un host mudo no deje el botón en BUSCANDO… */
+  const esperas = new Map();
+
+  /** Tope del alias: el mismo que `MAX_ALIAS` en el host (`src/benchlm/aliases.ts`). */
+  const MAX_ALIAS = 200;
+
   function send(message) {
     if (api) {
       api.postMessage(message);
     }
+  }
+
+  /** Acción del panel hacia el host (compare, benchlmKey, openBenchlm). */
+  function actua(action) {
+    send({ type: "action", action: action });
   }
 
   function guarda() {
@@ -148,6 +169,14 @@
     return "$" + n.toFixed(2);
   }
 
+  /** Una coma decimal y agrupación es-ES: `86,3`, `146,7`, `1.048`. */
+  const fmtNum = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
+
+  function fmtScore(v) {
+    const n = num(v);
+    return n === null ? null : fmtNum.format(n);
+  }
+
   function fmtLista(arr) {
     if (!Array.isArray(arr)) return null;
     const partes = arr.map((x) => texto(x)).filter((x) => x !== null);
@@ -186,6 +215,16 @@
     if (state.busy) {
       el.status.textContent = "Tomando datos…";
     }
+  }
+
+  /** Botón de llave: dice si hay clave guardada sin abrir un formulario desde aquí. */
+  function renderBenchKey() {
+    const titulo = state.benchlmKey
+      ? "Clave de BenchLM configurada: pulsa para cambiarla"
+      : "Clave de BenchLM";
+    el.benchKey.title = titulo;
+    el.benchKey.setAttribute("aria-label", titulo);
+    el.benchKey.classList.toggle("set", state.benchlmKey);
   }
 
   function renderNotice() {
@@ -305,6 +344,227 @@
     };
   }
 
+  /* ── BenchLM: lo más importante de la ficha ─────────── */
+
+  /** Una de las cuatro cifras: puesto `#n` y puntuación grande sobre 100. */
+  function cifra(etiqueta, datos) {
+    const d = ficha(datos) || {};
+    const caja = document.createElement("div");
+    caja.className = "bench-stat";
+
+    const l = nodo("bench-stat-label", etiqueta);
+    caja.appendChild(l);
+
+    const s = fmtScore(d.score);
+    const v = nodo("bench-score", s === null ? "—" : s);
+    if (s === null) {
+      v.classList.add("none");
+    } else {
+      v.title = etiqueta + ": puntuación sobre 100";
+    }
+    caja.appendChild(v);
+
+    const r = num(d.rank);
+    const p = nodo("bench-puesto", r === null ? "sin puesto" : "#" + Math.round(r));
+    if (r === null) p.classList.add("none");
+    caja.appendChild(p);
+    return caja;
+  }
+
+  function filaExamen(ex) {
+    const e = ficha(ex) || {};
+    const tr = document.createElement("tr");
+
+    const tdCat = document.createElement("td");
+    const cat = texto(e.category);
+    if (cat === null) {
+      tdCat.textContent = "—";
+      tdCat.className = "bench-cat none";
+    } else {
+      tdCat.className = "bench-cat";
+      tdCat.appendChild(chip("bench-cat-chip", cat));
+    }
+    tr.appendChild(tdCat);
+
+    const tdNom = document.createElement("td");
+    const nom = texto(e.name);
+    tdNom.className = "bench-name";
+    tdNom.textContent = nom === null ? "—" : nom;
+    if (nom !== null) tdNom.title = nom;
+    tr.appendChild(tdNom);
+
+    const tdScore = document.createElement("td");
+    const sc = fmtScore(e.score);
+    tdScore.className = "bench-score-cell" + (sc === null ? " none" : "");
+    const unidad = texto(e.unit);
+    tdScore.textContent = sc === null ? "—" : sc + (unidad ? " " + unidad : "");
+    tr.appendChild(tdScore);
+    return tr;
+  }
+
+  /* ── Alias de BenchLM: el identificador cuando la búsqueda automática falla ── */
+
+  /** Alias guardado de una clave de modelo; "" si no hay. */
+  function aliasDe(key) {
+    const v = typeof key === "string" ? state.aliases[key] : null;
+    return typeof v === "string" ? v : "";
+  }
+
+  /** Marca o desmarca un alias en vuelo. `true` arranca el tope de espera. */
+  function marcarEspera(key, on) {
+    const previo = esperas.get(key);
+    if (previo !== undefined) {
+      clearTimeout(previo);
+      esperas.delete(key);
+    }
+    if (!on) {
+      state.aliasEspera.delete(key);
+      return;
+    }
+    state.aliasEspera.add(key);
+    esperas.set(
+      key,
+      setTimeout(() => {
+        esperas.delete(key);
+        state.aliasEspera.delete(key);
+        renderSlots();
+      }, 20000)
+    );
+  }
+
+  /** Un `init` o un `aliased` cierran todas las esperas: el host ya contestó. */
+  function limpiaEsperas() {
+    for (const key of [...esperas.keys()]) {
+      clearTimeout(esperas.get(key));
+    }
+    esperas.clear();
+    state.aliasEspera.clear();
+  }
+
+  /**
+   * Fila del alias: SIEMPRE visible, también con «sin coincidencia» o sin clave de BenchLM,
+   * que son justo los casos en los que hace falta. Enter en el input hace lo mismo que BUSCAR.
+   */
+  function filaAlias(sheet) {
+    const key = texto(sheet.key) || "";
+
+    const caja = document.createElement("form");
+    caja.className = "bench-alias";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "bench-alias-input";
+    input.value = aliasDe(key);
+    input.placeholder = "alias en BenchLM";
+    input.title =
+      "Identificador del modelo en BenchLM (por ejemplo claude-sonnet-4-5, " +
+      "o la URL de su ficha). Vacío y BUSCAR vuelve a la búsqueda automática.";
+    input.setAttribute("aria-label", "Alias del modelo en BenchLM");
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.maxLength = MAX_ALIAS;
+    caja.appendChild(input);
+
+    const boton = document.createElement("button");
+    boton.type = "submit";
+    boton.className = "ghost-btn bench-alias-btn";
+    boton.textContent = "BUSCAR";
+    boton.title = "Guardar el alias y consultar BenchLM con él";
+    caja.appendChild(boton);
+
+    const esperando = key !== "" && state.aliasEspera.has(key);
+    const pintarEspera = (on) => {
+      input.disabled = on;
+      boton.disabled = on;
+      boton.textContent = on ? "BUSCANDO…" : "BUSCAR";
+    };
+    pintarEspera(esperando);
+
+    caja.addEventListener("submit", (event) => {
+      event.preventDefault();
+      // Sin clave de modelo no hay a qué atar el alias.
+      if (!key || state.aliasEspera.has(key)) return;
+      pintarEspera(true);
+      marcarEspera(key, true);
+      actua({ type: "setAlias", key: key, alias: input.value.trim() });
+    });
+    return caja;
+  }
+
+  /** Bloque BenchLM de una ficha: cifras, exámenes, error o la invitación a lo que falte. */
+  function bloqueBenchlm(sheet) {
+    const caja = document.createElement("div");
+    caja.className = "bench";
+
+    const d = ficha(sheet.benchlm);
+    const err = d ? texto(d.error) : null;
+
+    const cab = document.createElement("div");
+    cab.className = "bench-head";
+    cab.appendChild(nodo("bench-title", "BENCHLM"));
+    const rotulo = d ? texto(d.slug) || texto(d.name) : null;
+    const slug = nodo("bench-slug", rotulo === null ? "sin datos" : rotulo);
+    if (rotulo === null) slug.classList.add("none");
+    else slug.title = rotulo;
+    cab.appendChild(slug);
+    const asOf = d ? texto(d.dataAsOf) : null;
+    if (asOf !== null) cab.appendChild(nodo("bench-asof", "datos de " + asOf));
+    caja.appendChild(cab);
+
+    // Sin datos y sin clave: se ofrece añadirla. Con clave y sin comparar: a COMPARAR.
+    if (!d) {
+      const linea = document.createElement("p");
+      linea.className = "bench-empty";
+      if (!state.benchlmKey) {
+        linea.appendChild(nodo("bench-empty-text", "Sin clave de BenchLM."));
+        const boton = document.createElement("button");
+        boton.type = "button";
+        boton.className = "ghost-btn";
+        boton.textContent = "AÑADIR CLAVE";
+        boton.title = "Guardar una clave de BenchLM.ai para traer las puntuaciones";
+        boton.addEventListener("click", () => actua({ type: "benchlmKey" }));
+        linea.appendChild(boton);
+      } else {
+        linea.textContent = "Aún no consultado. Pulsa COMPARAR.";
+      }
+      caja.appendChild(linea);
+    } else if (err !== null) {
+      caja.appendChild(pista(err, true));
+    } else {
+      const cats = ficha(d.categories) || {};
+      const f = num(d.fetchedAt);
+      if (f !== null && f > 0) {
+        caja.title = "Puntuaciones tomadas de BenchLM el " + fmtFechaHora(f);
+      }
+      const cifras = document.createElement("div");
+      cifras.className = "bench-cifras";
+      cifras.appendChild(cifra("OVERALL", d.overall));
+      cifras.appendChild(cifra("CODING", cats.coding));
+      cifras.appendChild(cifra("AGENTIC", cats.agentic));
+      cifras.appendChild(cifra("KNOWLEDGE", cats.knowledge));
+      caja.appendChild(cifras);
+
+      if (Array.isArray(d.exams) && d.exams.length) {
+        const sub = document.createElement("p");
+        sub.className = "bench-sub";
+        sub.textContent = "EXÁMENES";
+        caja.appendChild(sub);
+        const tabla = document.createElement("table");
+        tabla.className = "bench-table";
+        const cuerpo = document.createElement("tbody");
+        for (const ex of d.exams) {
+          cuerpo.appendChild(filaExamen(ex));
+        }
+        tabla.appendChild(cuerpo);
+        caja.appendChild(tabla);
+      }
+    }
+
+    // El alias va SIEMPRE, también cuando el error es justo «sin coincidencia»: es lo que lo resuelve.
+    caja.appendChild(filaAlias(sheet));
+    return caja;
+  }
+
   function renderFicha(sheet, seal) {
     const wrap = document.createElement("div");
     wrap.className = "sheet";
@@ -319,6 +579,8 @@
       head.appendChild(chip(seal.fresco ? "sheet-seal fresh" : "sheet-seal", seal.txt, seal.titulo));
     }
     wrap.appendChild(head);
+    // Las puntuaciones van lo primero: debajo del nombre y antes de los datos de models.dev.
+    wrap.appendChild(bloqueBenchlm(sheet));
 
     const table = document.createElement("table");
     table.className = "sheet-table";
@@ -435,6 +697,10 @@
       }
     }
     state.cache = ficha(p.cache) || {};
+    state.aliases = ficha(p.aliases) || {};
+    state.benchlmKey = p.benchlmKey === true;
+    renderBenchKey();
+    limpiaEsperas();
 
     if (!state.cargado) {
       state.cargado = true;
@@ -482,8 +748,36 @@
     }
     state.error = texto(msg.error) || "";
     setBusy(false);
+    // El repintado devuelve todas las filas de alias a BUSCAR.
+    limpiaEsperas();
     renderSlots();
     renderNotice();
+  }
+
+  /** El host guardó el alias ("" = borrado) y devuelve la ficha ya consultada. */
+  function onAliased(msg) {
+    const key = texto(msg.key);
+    if (key === null) return;
+    const alias = typeof msg.alias === "string" ? msg.alias.trim() : "";
+    if (alias !== "") {
+      state.aliases[key] = alias;
+    } else {
+      delete state.aliases[key];
+    }
+    const hoja = ficha(msg.sheet);
+    if (hoja) {
+      state.cache[key] = hoja;
+      // El hueco que tenga ese modelo se repinta con la ficha nueva, sin gastar otra lectura.
+      for (let i = 0; i < 2; i++) {
+        const slot = state.slots[i];
+        if (slot.key !== key) continue;
+        slot.sheet = hoja;
+        slot.freshAt = num(hoja.fetchedAt) || Date.now();
+        slot.missing = false;
+      }
+    }
+    marcarEspera(key, false);
+    renderSlots();
   }
 
   window.addEventListener("message", (event) => {
@@ -493,6 +787,8 @@
       onInit(msg.payload);
     } else if (msg.type === "compared") {
       onCompared(msg);
+    } else if (msg.type === "aliased") {
+      onAliased(msg);
     } else if (msg.type === "busy") {
       setBusy(msg.on === true);
     }
@@ -553,7 +849,11 @@
     send({ type: "action", action: { type: "compare", keys: [a, b] } });
   });
 
+  el.benchKey.addEventListener("click", () => actua({ type: "benchlmKey" }));
+  el.benchSite.addEventListener("click", () => actua({ type: "openBenchlm" }));
+
   renderSlots();
   renderHeader();
+  renderBenchKey();
   send({ type: "ready" });
 })();

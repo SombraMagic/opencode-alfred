@@ -751,14 +751,30 @@ body {
   letter-spacing: 1px;
 }
 
+/* Una sola línea: las notas de BenchLM y CONTEXTO/SALIDA se recortan con puntos suspensivos. */
 .model-meta {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
   gap: 4px 12px;
   margin-top: 5px;
+  overflow: hidden;
   font-size: 9.5px;
   color: var(--text-dim);
+}
+
+/* Ceden espacio entre sí; el recorte va con `title` en cada trozo. */
+.model-meta > span {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Notas de BenchLM: dato secundario pero legible, no estado apagado. */
+.model-meta .model-bench {
+  color: var(--text-soft);
 }
 
 .model-meta .val {

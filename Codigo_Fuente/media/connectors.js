@@ -741,6 +741,37 @@
     return String(value);
   }
 
+  // Notas de BenchLM: una coma decimal, formato es-ES.
+  const fmtNota = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
+  const BENCH_NOTAS = [
+    ["overall", "O", "Overall"],
+    ["coding", "C", "Coding"],
+    ["agentic", "A", "Agentic"],
+    ["knowledge", "K", "Knowledge"],
+  ];
+
+  /**
+   * Las cuatro notas de BenchLM en una línea (`O 86,3 · C 82,9 · …`) y su detalle para el
+   * `title`. Solo se pinta lo que el modelo traiga: sin notas devuelve null y no hay hueco.
+   */
+  function benchlmInline(benchlm) {
+    if (!benchlm || typeof benchlm !== "object") return null;
+    const corto = [];
+    const largo = [];
+    for (const [campo, letra, nombre] of BENCH_NOTAS) {
+      const nota = benchlm[campo];
+      if (!nota || typeof nota !== "object") continue;
+      const score = Number(nota.score);
+      if (!Number.isFinite(score)) continue;
+      const valor = fmtNota.format(score);
+      corto.push(letra + " " + valor);
+      const rank = Number(nota.rank);
+      largo.push(nombre + (Number.isFinite(rank) ? " #" + Math.round(rank) : "") + ": " + valor);
+    }
+    if (corto.length === 0) return null;
+    return { corto: corto.join(" · "), largo: "BenchLM · " + largo.join(" · ") };
+  }
+
   function modelCard(model) {
     const card = node("article", "model-card");
 
@@ -779,12 +810,21 @@
     card.appendChild(prices);
 
     const meta = node("div", "model-meta");
+    // BenchLM va antes de CONTEXTO: es lo más importante de la línea.
+    const bench = benchlmInline(model.benchlm);
+    if (bench) {
+      const span = node("span", "model-bench", bench.corto);
+      span.title = bench.largo;
+      meta.appendChild(span);
+    }
     const context = node("span", null, "CONTEXTO ");
     context.appendChild(node("span", "val", tokens(model.context)));
+    context.title = "Ventana de contexto: " + tokens(model.context) + " tokens";
     meta.appendChild(context);
     if (model.output) {
       const output = node("span", null, "SALIDA ");
       output.appendChild(node("span", "val", tokens(model.output)));
+      output.title = "Máximo de tokens de salida: " + tokens(model.output) + " tokens";
       meta.appendChild(output);
     }
     card.appendChild(meta);
