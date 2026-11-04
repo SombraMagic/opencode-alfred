@@ -498,6 +498,8 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── Límites de consumo ───────────────────────────────────────────────────
   // El temporizador vive lo que la vista: se arma al ready y se apaga al cerrarla.
   let limitsViewOpen = false;
+  // Agente de sesión con el que se armó la vista: `refresh()` la rearma solo si cambia.
+  let limitsAgent: SessionAgent | undefined;
   const limitsView = new LimitsViewProvider(
     context.extensionUri,
     () => {
@@ -526,6 +528,11 @@ export function activate(context: vscode.ExtensionContext): void {
     );
   }
 
+  /** Ids de la vista: con Claude de agente de sesión, solo el plan de su cuenta. */
+  function limitsViewIds(): string[] {
+    return sessionAgent === "claude" ? ["claude"] : limitsProviderIds();
+  }
+
   function goPlanSetting(): "go" | "go-plus" {
     return vscode.workspace.getConfiguration("opencodeAgents").get<string>("goPlan") === "go-plus"
       ? "go-plus"
@@ -542,7 +549,8 @@ export function activate(context: vscode.ExtensionContext): void {
   /** Sondeo de 10 min: solo con la vista abierta y lista de proveedores no vacía. */
   function armLimitsTimer(): void {
     stopLimitsTimer();
-    if (!limitsViewOpen || limitsProviderIds().length === 0) {
+    limitsAgent = sessionAgent;
+    if (!limitsViewOpen || limitsViewIds().length === 0) {
       return;
     }
     limitsTimer = setInterval(() => {
@@ -634,11 +642,16 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push({ dispose: () => clearInterval(menteLocalTimer) });
 
   async function refreshLimits(force = false): Promise<void> {
-    const providers = await collectLimits(limitsProviderIds(), {
+    const agent = sessionAgent;
+    const providers = await collectLimits(limitsViewIds(), {
       goPlan: goPlanSetting(),
       force,
       api: opencodeApi,
     });
+    // El agente de sesión cambió durante la recogida: esta lista ya no es la de la vista.
+    if (agent !== sessionAgent) {
+      return;
+    }
     limitsView.update(providers);
   }
 
@@ -831,6 +844,11 @@ export function activate(context: vscode.ExtensionContext): void {
     if (sessionAgent !== "opencode") {
       AssignPanel.close();
       ConnectorsPanel.close();
+    }
+    // Otro agente de sesión cambia la lista de Límites (con Claude, solo su plan).
+    if (limitsViewOpen && sessionAgent !== limitsAgent) {
+      armLimitsTimer();
+      void refreshLimits();
     }
     void refreshAgents();
     void refreshCatalog();

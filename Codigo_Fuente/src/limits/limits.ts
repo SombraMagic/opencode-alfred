@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import type { OpencodeApi } from "../agents/connectors";
 import { configFileCandidates, globalOpencodeDir, opencodeAuthPath, opencodeDataDir } from "../agents/paths";
+import { claudeHome } from "../providers/claude";
 import { listDbFiles, openSqliteReadOnly } from "../stats/opencodeStats";
 
 export type LimitWindow = {
@@ -48,6 +49,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   "opencode-go": "OpenCode Go",
   openai: "OpenAI",
   "github-copilot": "GitHub Copilot",
+  claude: "Claude",
 };
 
 const resultCache = new Map<string, { at: number; value: ProviderLimits }>();
@@ -490,6 +492,146 @@ async function copilotLimits(at: number): Promise<ProviderLimits> {
     throw new Error("GitHub no devolvió JSON.");
   }
   return parseCopilotQuota(res.body, at);
+}
+
+// ── Claude Code (plan de la cuenta: sesión de 5 h y semanales) ──────────────
+
+/** Rótulos de `limits[].kind`. */
+const CLAUDE_LABELS: Record<string, string> = {
+  session: "Sesión (5 h)",
+  weekly_all: "Semana",
+  weekly_opus: "Semana · Opus",
+  weekly_sonnet: "Semana · Sonnet",
+};
+
+/** Respaldo sin `limits[]`: campo viejo de la respuesta y el `kind` que le corresponde. */
+const CLAUDE_LEGACY: Array<[field: string, kind: string]> = [
+  ["five_hour", "session"],
+  ["seven_day", "weekly_all"],
+  ["seven_day_opus", "weekly_opus"],
+  ["seven_day_sonnet", "weekly_sonnet"],
+];
+
+const CLAUDE_EXPIRED = "La sesión de Claude Code caducó: abre Claude Code para renovarla.";
+
+/**
+ * `GET /api/oauth/usage` (la ruta interna del `/usage` de Claude Code, sin documentar):
+ * una ventana por entrada de `limits[]` con `percent`; si no sale ninguna, los campos
+ * viejos `five_hour`/`seven_day*` con `utilization`. Los dos ya vienen en 0-100.
+ */
+export function parseClaudeUsage(
+  body: unknown,
+  plan: string | undefined,
+  updatedAt: number
+): ProviderLimits {
+  const obj = (body ?? {}) as Record<string, unknown>;
+  const windows: LimitWindow[] = [];
+  const push = (id: string, label: string, percent: number, resets: unknown): void => {
+    const win: LimitWindow = {
+      id,
+      label,
+      used: Math.max(0, Math.min(100, percent)),
+      limit: 100,
+      unit: "porcentaje",
+    };
+    const resetsAt = toEpochMs(resets);
+    if (resetsAt !== undefined) {
+      win.resetsAt = resetsAt;
+    }
+    windows.push(win);
+  };
+  for (const raw of Array.isArray(obj.limits) ? obj.limits : []) {
+    const entry = (raw ?? {}) as Record<string, unknown>;
+    const percent = finiteNumber(entry.percent);
+    if (percent === undefined) {
+      continue;
+    }
+    const kind = typeof entry.kind === "string" ? entry.kind : "";
+    // Un kind que no conocemos se nombra por su grupo, con su ámbito si lo trae.
+    const group = entry.group === "session" ? "Sesión" : entry.group === "weekly" ? "Semana" : "";
+    const scope =
+      typeof entry.scope === "string" && entry.scope.trim() ? ` · ${entry.scope.trim()}` : "";
+    const label = Object.hasOwn(CLAUDE_LABELS, kind)
+      ? CLAUDE_LABELS[kind]
+      : group
+        ? group + scope
+        : kind;
+    push(kind, label, percent, entry.resets_at);
+  }
+  if (windows.length === 0) {
+    for (const [field, kind] of CLAUDE_LEGACY) {
+      const old = (obj[field] ?? {}) as Record<string, unknown>;
+      const percent = finiteNumber(old.utilization);
+      if (percent !== undefined) {
+        push(kind, CLAUDE_LABELS[kind], percent, old.resets_at);
+      }
+    }
+  }
+  return {
+    id: "claude",
+    name: nameOf("claude"),
+    ...(plan ? { plan } : {}),
+    status: "ok",
+    windows,
+    updatedAt,
+  };
+}
+
+/** «team» → «Team»; si el tier lleva el multiplicador de Max, «Max 20x». */
+function claudePlan(oauth: Record<string, unknown>): string | undefined {
+  const sub = typeof oauth.subscriptionType === "string" ? oauth.subscriptionType.trim() : "";
+  if (!sub) {
+    return undefined;
+  }
+  const tier =
+    typeof oauth.rateLimitTier === "string" ? /(\d+x)/.exec(oauth.rateLimitTier)?.[1] : undefined;
+  return sub[0].toUpperCase() + sub.slice(1) + (tier ? ` ${tier}` : "");
+}
+
+/**
+ * Límites del plan con el token OAuth de Claude Code. Solo lectura: nunca se refresca el
+ * token (el refresh token rota y dejaría a Claude Code sin sesión) ni se escribe
+ * `.credentials.json`, y el token no sale de esta función.
+ */
+async function claudeLimits(at: number): Promise<ProviderLimits> {
+  let oauth: Record<string, unknown> | undefined;
+  try {
+    const creds = JSON.parse(
+      await fs.readFile(join(claudeHome(), ".credentials.json"), "utf8")
+    ) as Record<string, unknown> | null;
+    const raw = creds?.claudeAiOauth;
+    oauth = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : undefined;
+  } catch {
+    // Sin fichero o ilegible. El error de JSON.parse puede citar el token: no se propaga.
+  }
+  const token = typeof oauth?.accessToken === "string" ? oauth.accessToken.trim() : "";
+  if (!oauth || !token) {
+    throw new Error("Sin sesión de Claude Code en este equipo: inicia sesión con claude.");
+  }
+  // Caducado: lo renueva Claude Code al usarse. Aquí ni se refresca ni se llama a la red.
+  const expiresAt = toEpochMs(oauth.expiresAt);
+  if (expiresAt !== undefined && expiresAt <= at) {
+    throw new Error(CLAUDE_EXPIRED);
+  }
+  const res = await httpJson("https://api.anthropic.com/api/oauth/usage", {
+    Authorization: `Bearer ${token}`,
+    "anthropic-beta": "oauth-2025-04-20",
+  });
+  // El 429 va antes que el HTML: el tope de Cloudflare también llega como página.
+  if (res.status === 429) {
+    throw new Error("Claude limita las consultas de uso: se reintentará.");
+  }
+  if (res.isHtml) {
+    // Nunca se propaga el HTML (bloqueo de Cloudflare, portal cautivo): solo el estado.
+    throw new Error(`Claude no devolvió JSON (${res.status}).`);
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new Error(CLAUDE_EXPIRED);
+  }
+  if (res.status !== 200) {
+    throw new Error(`Claude respondió ${res.status}.`);
+  }
+  return parseClaudeUsage(res.body, claudePlan(oauth), at);
 }
 
 // ── OpenCode Go (estimación local sobre las BD de opencode, solo lectura) ───
@@ -1048,7 +1190,10 @@ async function hasGoConnection(): Promise<boolean> {
   return false;
 }
 
-/** Proveedores con adaptador de límites: lista blanca de escrituras a `limitsProviders`. */
+/**
+ * Proveedores con adaptador de límites: lista blanca de escrituras a `limitsProviders`.
+ * `claude` no está a propósito: su tarjeta la pone el agente de sesión, no este ajuste.
+ */
 export const LIMITS_ADAPTER_IDS = ["deepseek", "openai", "github-copilot", "opencode-go"] as const;
 
 /**
@@ -1172,6 +1317,8 @@ async function limitsFor(
         return await copilotLimits(now);
       case "opencode-go":
         return await goLimits(now, plan, api);
+      case "claude":
+        return await claudeLimits(now);
       default:
         throw new Error(`Sin adaptador de límites para «${id}».`);
     }
