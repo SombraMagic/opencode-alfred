@@ -29,6 +29,7 @@ import {
   setSkillEnabled,
 } from "./agents/catalog";
 import { globalOpencodeDir, isSamePath, projectRoot } from "./agents/paths";
+import { resolveCommand } from "./agents/executable";
 import { validateAgentName } from "./agents/validate";
 import { EditorPanel } from "./panels/editorPanel";
 import {
@@ -670,7 +671,7 @@ export function activate(context: vscode.ExtensionContext): void {
       data.connectors.map(async (entry) => {
         const pid = entry.providerId || entry.id;
         entry.limitsOn = on.has(pid);
-        const next = entry.configured ? await supportsLimits(pid) : false;
+        const next = entry.configured ? await supportsLimits(pid, opencodeApi) : false;
         if (next !== entry.limitsSupported) {
           entry.limitsSupported = next;
           changed = true;
@@ -3695,8 +3696,10 @@ function opencodeApi(method: string, route: string, body?: unknown): Promise<str
   if (body !== undefined) {
     args.push("-d", JSON.stringify(body));
   }
+  // En Windows el comando del PATH es un shim .cmd de npm: se lanza el .exe real.
+  const target = resolveCommand("opencode");
   return new Promise((resolve, reject) => {
-    execFile("opencode", args, { windowsHide: true, timeout: 15000 }, (err, stdout, stderr) => {
+    execFile(target.file, [...target.prefix, ...args], { windowsHide: true, timeout: 15000 }, (err, stdout, stderr) => {
       if (err) {
         // El CLI cuenta el motivo por stderr; stdout queda vacío cuando falla.
         const detail = (stderr || stdout || err.message).trim();

@@ -3,8 +3,25 @@
 Una entrada por versión publicada. El `.vsix` de cada versión está en
 [`../Instalable/`](../Instalable/). El producto, en el [README](../README.md).
 
-Las versiones 0.8.3 a 0.8.7 solo subieron el número para reinstalar el `.vsix` con VS Code
-abierto: no son releases y lo que trajeron está reunido en la 0.8.8.
+Las versiones 0.8.3 a 0.8.7 y 0.8.9 a 0.8.11 solo subieron el número para reinstalar el `.vsix`
+con VS Code abierto: no son releases y lo que trajeron está reunido en la 0.8.8 y la 0.8.12.
+
+## [0.8.12] - 2026-11-04
+
+- **Conectores en equipos nuevos**: arreglado que todos los conectores aparecieran con
+  «Este conector no declara métodos de alta» cuando opencode se instaló con npm en Windows.
+  La extensión lanzaba el shim `opencode.cmd` como si fuera un ejecutable, y Node lo rechaza;
+  ahora resuelve y lanza el `.exe` real que hay detrás. El mismo arreglo vale para el alta del
+  servidor MCP de voz y pizarra y para Claude Code.
+- **Límites de OpenCode Go**: vuelve a aparecer su interruptor en Conectores cuando la cuenta
+  viene enlazada a la integración `opencode` (OpenCode v2), que es lo normal en una instalación
+  nueva. La sonda consulta `/api/provider` y usa la activación real de `opencode-go`.
+- **Límites de DeepSeek y OpenAI**: vuelve a ofrecerse su interruptor cuando la clave está en el
+  `env` de `~/.config/opencode/service.json`, que es donde la guarda OpenCode v2. Antes solo se
+  miraban `auth.json` y la tabla `credential`.
+- **Límites de GitHub Copilot**: vuelve a ofrecerse su interruptor. OpenCode v2 guarda el token
+  OAuth (`access`) en la tabla `credential`, no en `auth.json`, y la sonda solo leía el segundo.
+  Ahora la lectura de campos de autenticación cae a la credencial activa.
 
 ## [0.8.8] - 2026-11-03
 

@@ -18,6 +18,7 @@ import {
   setMcpEnabled as setOpencodeMcpEnabled,
   type McpServer,
 } from "../agents/catalog";
+import { resolveCommand } from "../agents/executable";
 
 /** Nombre con el que se registra el servidor MCP de la extensión (voz y pizarra). */
 export const MCP_NAME = "mcp_alfred";
@@ -91,10 +92,16 @@ export function serverCommand(extensionPath: string): { command: string; args: s
 
 /** Ejecuta un comando y devuelve su salida. */
 function run(cmd: string, args: string[]): Promise<{ ok: boolean; out: string }> {
+  const target = resolveCommand(cmd);
   return new Promise((resolve) => {
-    execFile(cmd, args, { windowsHide: true, timeout: 60000 }, (err, stdout, stderr) => {
-      resolve({ ok: !err, out: `${stdout}${stderr}`.trim() });
-    });
+    execFile(
+      target.file,
+      [...target.prefix, ...args],
+      { windowsHide: true, timeout: 60000 },
+      (err, stdout, stderr) => {
+        resolve({ ok: !err, out: `${stdout}${stderr}`.trim() });
+      },
+    );
   });
 }
 

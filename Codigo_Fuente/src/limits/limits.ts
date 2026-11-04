@@ -1,7 +1,8 @@
 import * as fs from "fs/promises";
+import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import type { OpencodeApi } from "../agents/connectors";
-import { configFileCandidates, opencodeAuthPath, opencodeDataDir } from "../agents/paths";
+import { configFileCandidates, globalOpencodeDir, opencodeAuthPath, opencodeDataDir } from "../agents/paths";
 import { listDbFiles, openSqliteReadOnly } from "../stats/opencodeStats";
 
 export type LimitWindow = {
@@ -142,18 +143,12 @@ async function readAuth(): Promise<Record<string, Record<string, unknown>>> {
   return {};
 }
 
-async function readAuthField(id: string, field: string): Promise<string> {
-  const auth = await readAuth();
-  const value = auth[id]?.[field];
-  return typeof value === "string" ? value : "";
-}
-
 /**
- * Clave `api` de un proveedor: primero la tabla `credential` (donde opencode v2 guarda
- * las claves nuevas), luego el auth.json heredado. Nunca se loguea ni viaja al webview.
+ * Fila activa más reciente de la tabla `credential` para esa integración. OpenCode v2
+ * guarda aquí las claves (`key`) y los tokens OAuth (`access`).
  */
-async function readProviderKey(id: string): Promise<string> {
-  let best: { key: string; updated: number } | undefined;
+async function readCredential(id: string): Promise<Record<string, unknown> | undefined> {
+  let best: { value: Record<string, unknown>; updated: number } | undefined;
   for (const file of listDbFiles(opencodeDataDir())) {
     const db = openSqliteReadOnly(file);
     if (!db) {
@@ -174,14 +169,13 @@ async function readProviderKey(id: string): Promise<string> {
       } catch {
         continue; // `value` ilegible: se prueba con la siguiente BD
       }
-      const key = (parsed as Record<string, unknown> | undefined)?.key;
-      if (typeof key !== "string" || !key.trim()) {
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         continue;
       }
-      // Varias bases con clave: manda la fila actualizada más tarde (epoch ms).
+      // Varias bases con credencial: manda la fila actualizada más tarde (epoch ms).
       const updated = finiteNumber(row.time_updated) ?? 0;
       if (!best || updated > best.updated) {
-        best = { key, updated };
+        best = { value: parsed as Record<string, unknown>, updated };
       }
     } catch {
       // BD sin tabla `credential` (esquema v1): se ignora y sigue
@@ -193,7 +187,60 @@ async function readProviderKey(id: string): Promise<string> {
       }
     }
   }
-  return best ? best.key : await readAuthField(id, "key");
+  return best?.value;
+}
+
+async function readAuthField(id: string, field: string): Promise<string> {
+  const auth = await readAuth();
+  const value = auth[id]?.[field];
+  if (typeof value === "string" && value) {
+    return value;
+  }
+  const stored = (await readCredential(id))?.[field];
+  return typeof stored === "string" ? stored : "";
+}
+
+/** Variables que OpenCode v2 guarda en `service.json` para cada proveedor. */
+const SERVICE_KEY_ENVS: Record<string, string[]> = {
+  deepseek: ["DEEPSEEK_API_KEY"],
+  openai: ["OPENAI_API_KEY"],
+};
+
+/** Clave del `env` de `service.json`: es donde v2 deja las variables del servicio. */
+async function readServiceKey(id: string): Promise<string> {
+  const names = SERVICE_KEY_ENVS[id];
+  if (!names || names.length === 0) {
+    return "";
+  }
+  try {
+    const parsed = JSON.parse(
+      await fs.readFile(join(globalOpencodeDir(), "service.json"), "utf8")
+    ) as { env?: Record<string, unknown> };
+    for (const name of names) {
+      const value = parsed.env?.[name];
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+  } catch {
+    // sin service.json o ilegible: se prueba con lo demás
+  }
+  return "";
+}
+
+/**
+ * Clave `api` de un proveedor: primero la tabla `credential` (donde opencode v2 guarda
+ * las claves nuevas), luego el auth.json heredado y el `env` de `service.json`. Nunca
+ * se loguea ni viaja al webview.
+ */
+async function readProviderKey(id: string): Promise<string> {
+  const stored = (await readCredential(id))?.key;
+  if (typeof stored === "string" && stored.trim()) {
+    return stored;
+  }
+  const authKey = (await readAuth())[id]?.key;
+  const legacy = typeof authKey === "string" ? authKey : "";
+  return legacy || (await readServiceKey(id));
 }
 
 // ── DeepSeek ────────────────────────────────────────────────────────────────
@@ -1045,7 +1092,7 @@ export async function repaintIfLatest<T>(
 }
 
 /** ¿El panel de límites puede ofrecer este proveedor? Cacheado 10 min. */
-export async function supportsLimits(id: string): Promise<boolean> {
+export async function supportsLimits(id: string, api?: OpencodeApi): Promise<boolean> {
   const hit = supportCache.get(id);
   if (hit && Date.now() - hit.at < SUPPORT_CACHE_MS) {
     return hit.value;
@@ -1056,7 +1103,7 @@ export async function supportsLimits(id: string): Promise<boolean> {
   if (running) {
     return running;
   }
-  const probe = probeSupport(id).then((value) => {
+  const probe = probeSupport(id, api).then((value) => {
     supportCache.set(id, { at: Date.now(), value });
     supportInFlight.delete(id);
     return value;
@@ -1065,7 +1112,7 @@ export async function supportsLimits(id: string): Promise<boolean> {
   return probe;
 }
 
-async function probeSupport(id: string): Promise<boolean> {
+async function probeSupport(id: string, api?: OpencodeApi): Promise<boolean> {
   try {
     if (id === "deepseek" || id === "openai") {
       return (await readProviderKey(id)) !== "";
@@ -1075,6 +1122,21 @@ async function probeSupport(id: string): Promise<boolean> {
       return access !== "" && (await copilotProbe(access));
     }
     if (id === "opencode-go") {
+      // La consola enlaza OpenCode Go con la integración `opencode`: manda el
+      // servidor, que ya resolvió si la cuenta tiene Go habilitado.
+      if (api) {
+        try {
+          const parsed = JSON.parse(await api("GET", "/api/provider")) as {
+            data?: Array<{ id?: string; activation?: string }>;
+          };
+          const go = (parsed.data ?? []).find((provider) => provider.id === "opencode-go");
+          if (go) {
+            return go.activation === "enabled";
+          }
+        } catch {
+          // sin servidor: sigue la comprobación local
+        }
+      }
       return await hasGoConnection();
     }
     return false;
