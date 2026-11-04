@@ -177,9 +177,19 @@ function catalogLimit(db: Db, model: string): number {
     return 0;
   }
   try {
-    const row = db
-      .prepare("SELECT value FROM kv WHERE key='models-dev:catalog'")
-      .get() as { value?: unknown } | undefined;
+    let row: { value?: unknown } | undefined;
+    for (const key of ["models-dev:v2:catalog", "models-dev:catalog"]) {
+      try {
+        row = db.prepare("SELECT value FROM kv WHERE key=?").get(key) as
+          | { value?: unknown }
+          | undefined;
+        if (typeof row?.value === "string") {
+          break;
+        }
+      } catch {
+        row = undefined; // BD sin tabla kv (esquema v1 viejo): a por la siguiente
+      }
+    }
     if (typeof row?.value !== "string") {
       return 0;
     }

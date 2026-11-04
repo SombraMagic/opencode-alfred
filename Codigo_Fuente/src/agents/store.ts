@@ -322,9 +322,19 @@ function readDbCatalog(dataDir: string): Registry | undefined {
       continue;
     }
     try {
-      const row = db.prepare("SELECT value FROM kv WHERE key = ?").get("models-dev:catalog") as
-        | { value: unknown }
-        | undefined;
+      let row: { value: unknown } | undefined;
+      for (const key of ["models-dev:v2:catalog", "models-dev:catalog"]) {
+        try {
+          row = db.prepare("SELECT value FROM kv WHERE key = ?").get(key) as
+            | { value: unknown }
+            | undefined;
+          if (row?.value) {
+            break;
+          }
+        } catch {
+          row = undefined; // BD sin tabla kv (esquema v1 viejo)
+        }
+      }
       const wrapper = row?.value ? JSON.parse(String(row.value)) : undefined;
       const body = (wrapper as { body?: unknown } | undefined)?.body;
       if (typeof body === "string") {
