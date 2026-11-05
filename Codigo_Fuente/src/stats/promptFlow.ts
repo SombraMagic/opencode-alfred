@@ -79,6 +79,9 @@ export interface ScanPromptOptions {
   ratesFor(provider: string, model: string): PromptRates | undefined;
 }
 
+/** Lo que necesita el armado de prompts; `dataDir` sólo lo usa el lector de opencode. */
+export type PromptBuildOptions = Omit<ScanPromptOptions, "dataDir">;
+
 export interface PromptScanResult {
   ok: boolean;
   error?: string;
@@ -90,7 +93,7 @@ export interface PromptScanResult {
 /** Sin `idle` ni user siguiente: pasado esto sin actividad, el prompt se cierra como abandonado. */
 const ABANDONED_MS = 15 * 60 * 1000;
 /** Un prompt puede haber empezado antes de `since`: margen suficiente para no perderlo. */
-const LOOKBACK_MS = 24 * 60 * 60 * 1000;
+export const LOOKBACK_MS = 24 * 60 * 60 * 1000;
 /**
  * Tolerancia para el `time_updated` de las sesiones raíz: un turno vivo al reabrir VS Code no
  * ha vuelto a escribirse, así que la mira hacia atrás cubre como mínimo la ventana de turno vivo.
@@ -120,8 +123,11 @@ interface SessionRow {
   updated: number;
 }
 
-/** Mensaje ya parseado de `session_message`. */
-interface Msg {
+/**
+ * Mensaje ya parseado de `session_message`. Los lectores de Claude Code y Codex traducen sus
+ * registros a esta misma forma (`idle` = fin de turno) para reutilizar el armado de prompts.
+ */
+export interface Msg {
   session: string;
   seq: number;
   type: string;
@@ -428,6 +434,18 @@ export function scanOpencodePrompts(options: ScanPromptOptions): PromptScanResul
     list.push(msg);
     bySession.set(msg.session, list);
   }
+  return promptsFromSessions(trees, bySession, options);
+}
+
+/**
+ * Prompts de cada sesión raíz y su árbol, ya con los mensajes agrupados por sesión. Lo comparten
+ * el lector de opencode y los de Claude Code y Codex.
+ */
+export function promptsFromSessions(
+  trees: Map<string, Set<string>>,
+  bySession: Map<string, Msg[]>,
+  options: PromptBuildOptions
+): PromptScanResult {
   for (const list of bySession.values()) {
     list.sort((a, b) => a.seq - b.seq || a.created - b.created);
   }
@@ -517,7 +535,7 @@ function promptsOfRoot(
   rootId: string,
   tree: Set<string>,
   bySession: Map<string, Msg[]>,
-  options: ScanPromptOptions
+  options: PromptBuildOptions
 ): PromptRecord[] {
   const root = bySession.get(rootId) ?? [];
   const out: PromptRecord[] = [];
@@ -539,7 +557,7 @@ function buildPrompt(
   tree: Set<string>,
   bySession: Map<string, Msg[]>,
   user: Msg,
-  options: ScanPromptOptions,
+  options: PromptBuildOptions,
   userIndex: number
 ): PromptRecord | undefined {
   const { now } = options;

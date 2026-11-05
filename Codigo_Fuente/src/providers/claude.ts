@@ -417,7 +417,7 @@ function effectiveModel(settings: JsonObject | undefined): string {
 }
 
 /** Carpeta de sesiones del proyecto: la ruta con todo lo no alfanumérico en `-`. */
-function projectSessionsDir(root: string): string | undefined {
+export function projectSessionsDir(root: string): string | undefined {
   const base = path.join(claudeHome(), "projects");
   const slug = root.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
   try {
@@ -430,7 +430,7 @@ function projectSessionsDir(root: string): string | undefined {
 }
 
 /** Los `.jsonl` de la carpeta, del más reciente al más viejo; `limit` corta la lista. */
-function sessionFiles(dir: string, limit?: number): string[] {
+export function sessionFiles(dir: string, limit?: number): string[] {
   let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -469,7 +469,7 @@ function num(value: unknown): number {
 }
 
 /** Quita las etiquetas XML con su contenido: los comandos locales no son parte del mensaje. */
-function plainText(text: string): string {
+export function plainText(text: string): string {
   return text
     .replace(/<[^>]*>[\s\S]*?<\/[^>]*>/g, " ")
     .replace(/<\/?[^>]*>/g, " ")

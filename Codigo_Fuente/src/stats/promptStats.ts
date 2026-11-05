@@ -12,6 +12,7 @@ import {
   type PromptSegment,
   type PromptStatsSnapshot,
 } from "./promptFlow";
+import { scanClaudePrompts, scanCodexPrompts } from "./promptCli";
 
 /** Máximo de registros guardados en disco (de todos los proyectos). */
 const MAX_SAVED = 500;
@@ -283,6 +284,8 @@ export class PromptStatsService {
 
   collect(options: {
     project: string | undefined;
+    /** Agente de sesión: decide de qué registros salen los prompts. */
+    agent: "opencode" | "claude" | "codex";
     colorOf(agent: string): string | undefined;
     now?: number;
   }): Promise<PromptStatsSnapshot> {
@@ -293,17 +296,22 @@ export class PromptStatsService {
         return this.snapshot([], [], scannedAt, options.project);
       }
 
-      // Con la monitorización apagada no se consulta ninguna base de opencode.
+      // Con la monitorización apagada no se consulta ninguna base ni registro de sesión.
       let scan: PromptScanResult | undefined;
       if (this.monitor) {
-        scan = scanOpencodePrompts({
-          dataDir: opencodeDataDir(),
+        const build = {
           project: options.project,
           since: this.since,
           now: scannedAt,
           colorOf: options.colorOf,
           ratesFor,
-        });
+        };
+        scan =
+          options.agent === "claude"
+            ? scanClaudePrompts(build)
+            : options.agent === "codex"
+              ? scanCodexPrompts(build)
+              : scanOpencodePrompts({ ...build, dataDir: opencodeDataDir() });
         if (scan.ok) {
           await this.merge(scan.completed);
         }

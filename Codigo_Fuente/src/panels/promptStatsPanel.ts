@@ -36,7 +36,7 @@ export class PromptStatsPanel {
     }
     const panel = vscode.window.createWebviewPanel(
       PromptStatsPanel.viewType,
-      "opencode: estadísticas de prompts",
+      "Alfred: estadísticas de prompts",
       vscode.ViewColumn.Active,
       {
         enableScripts: true,
@@ -156,16 +156,16 @@ ${themeLinks(this.extensionUri, webview, ["promptStats.css"])}
         <path d="M4 2.5h8M4 13.5h8M4.8 2.5c0 3 3.2 3.4 3.2 5.5s-3.2 2.5-3.2 5.5M11.2 2.5c0 3-3.2 3.4-3.2 5.5s3.2 2.5 3.2 5.5" />
       </svg>
     </button>
-    <button id="btn-monitor" class="switch" type="button" aria-pressed="false" aria-label="Monitorizar prompts" title="Escanea y guarda los prompts nuevos mientras opencode trabaja">
+    <button id="btn-monitor" class="switch" type="button" aria-pressed="false" aria-label="Monitorizar prompts" title="Escanea y guarda los prompts nuevos mientras el agente trabaja">
       <span class="switch-track"><span class="switch-thumb"></span></span>
       <span class="switch-label">MONITORIZAR</span>
     </button>
     <span id="chip-monitor" class="chip" aria-live="polite">EN PAUSA</span>
-    <button id="btn-refresh" class="ghost-btn" type="button" title="Volver a escanear las bases de datos de opencode">ACTUALIZAR</button>
+    <button id="btn-refresh" class="ghost-btn" type="button" title="Volver a escanear las sesiones del agente">ACTUALIZAR</button>
     <button id="btn-clear" class="ghost-btn" type="button" title="Borra todo el registro guardado de prompts">BORRAR</button>
   </div>
 
-  <p class="sub" id="subtitle">Leyendo prompts de opencode…</p>
+  <p class="sub" id="subtitle">Leyendo prompts…</p>
 
   <div id="banner" class="banner" hidden></div>
   <div id="notice" class="notice" hidden></div>

@@ -2679,6 +2679,30 @@ export function activate(context: vscode.ExtensionContext): void {
     return PROMPT_FALLBACK_COLORS.primary;
   }
 
+  /**
+   * Color de fila con Claude o Codex: la sesión principal como primary, el `color:` de
+   * `.claude/agents/<nombre>.md` (proyecto sobre global) y, si no, relleno de subagente. Lo
+   * guardado de opencode en el mismo proyecto conserva sus colores.
+   */
+  function cliPromptColorOf(): (name: string) => string | undefined {
+    const hexOf = new Map<string, string | undefined>();
+    if (sessionAgent === "claude") {
+      const { project, global } = claudeSubagents(projectRoot());
+      for (const agent of [...global, ...project]) {
+        hexOf.set(agent.name, frontmatterHex(typeof agent.color === "string" ? agent.color : ""));
+      }
+    }
+    return (name) => {
+      if (name === "CLAUDE" || name === "CODEX") {
+        return PROMPT_FALLBACK_COLORS.primary;
+      }
+      if (hexOf.has(name)) {
+        return hexOf.get(name) ?? PROMPT_FALLBACK_COLORS.subagent;
+      }
+      return promptColorOf(name);
+    };
+  }
+
   /** Snapshot de fallo: conserva lo ya visto y lleva el mensaje al banner del panel. */
   function promptFailure(detail: string): PromptStatsSnapshot {
     return {
@@ -2704,7 +2728,8 @@ export function activate(context: vscode.ExtensionContext): void {
     try {
       const snapshot = await promptStats.collect({
         project: projectRoot(),
-        colorOf: promptColorOf,
+        agent: sessionAgent,
+        colorOf: sessionAgent === "opencode" ? promptColorOf : cliPromptColorOf(),
       });
       lastPromptSnapshot = snapshot;
       PromptStatsPanel.current?.update(snapshot);
