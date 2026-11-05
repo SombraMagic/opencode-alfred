@@ -57,16 +57,19 @@
     el.agentPrev.disabled = !cycle;
     el.agentNext.disabled = !cycle;
 
-    // Los conectores son de opencode: con otro agente el botón queda apagado.
+    // Los conectores son de opencode: con otro agente el botón ni se ve (y sigue apagado).
     const opencode = data.sessionAgent === "opencode";
     el.connectors.disabled = !opencode;
+    el.connectors.hidden = !opencode;
     el.connectors.title = opencode
       ? "Gestionar los conectores de opencode"
       : "Solo con opencode";
 
-    // ASIGNAR AGENTES solo vale con opencode: el tablero escribe el modelo en los .md de opencode.
-    el.assign.disabled = !opencode;
-    el.assign.title = opencode ? "Asignar agentes a modelos" : "Solo con opencode";
+    // ASIGNAR AGENTES vale con opencode y con Claude: el tablero escribe el `model:` de sus
+    // agentes. Codex no tiene dónde.
+    const asignable = opencode || data.sessionAgent === "claude";
+    el.assign.disabled = !asignable;
+    el.assign.title = asignable ? "Asignar agentes a modelos" : "Solo con opencode y Claude";
     el.assign.setAttribute("aria-label", el.assign.title);
 
     // COMPARAR MODELOS también es de opencode: las fichas salen de su catálogo vivo.

@@ -50,8 +50,10 @@ export interface AssignProfile {
 }
 
 export interface AssignData {
+  /** Agente de sesión del tablero: con "claude" no hay favoritos, configuraciones ni vista guardada. */
+  kind: "opencode" | "claude";
   agents: AssignAgent[];
-  /** Catálogo vivo de opencode. */
+  /** Catálogo vivo de opencode; con Claude, alias, catálogo de Anthropic y modelos en uso. */
   models: ModelEntry[];
   /** Grupos de favoritos (pestañas): siempre queda al menos uno. */
   favoriteGroups: FavoriteGroup[];
@@ -259,6 +261,13 @@ export class AssignPanel {
   update(data: AssignData): void {
     this.last = data;
     this.post({ type: "assign", payload: data });
+  }
+
+  /** Como `update`, pero sin repintar si nada cambió: el sondeo no debe cortar un arrastre. */
+  updateIfChanged(data: AssignData): void {
+    if (JSON.stringify(data) !== JSON.stringify(this.last)) {
+      this.update(data);
+    }
   }
 
   /** Índice de grupo válido según los datos ya enviados; -1 si no casa. */

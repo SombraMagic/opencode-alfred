@@ -16,8 +16,10 @@ import { applyEdits, FormattingOptions, modify, parse as parseJsonc, ParseError 
 import { parseAgentFile, serializeAgentFile } from "../agents/parser";
 import { isSamePath } from "../agents/paths";
 import { writeAtomic } from "../agents/store";
+import type { RegistryModel } from "../agents/config";
 import type { AgentFrontmatter } from "../agents/types";
 import type { ValidationIssue } from "../agents/validate";
+import type { ModelEntry } from "../panels/assignPanel";
 import type { ExplorerAgent, ExplorerCatalogItem } from "../panels/explorerPanel";
 import type { ContextWindowInfo } from "../stats/contextWindow";
 
@@ -487,16 +489,37 @@ function sessionTitle(content: unknown): string | undefined {
 }
 
 /**
- * Ventana por convenio del sufijo. `message.model` llega sin él (`deepseek-flash`), así que
- * si coincide con el configurado se usa el configurado (`deepseek-flash[1m]`).
+ * Familia y versión (`mayor * 100 + menor`) de un id de Claude, también dentro de uno de
+ * Bedrock (`us.anthropic.claude-opus-5-5-v1:0`). La menor tiene 1-2 dígitos: una fecha
+ * (`claude-opus-4-5-20251101`) no cuenta como menor.
+ */
+function claudeVersion(model: string): { family: string; version: number } | undefined {
+  const match = /claude-(fable|mythos|opus|sonnet|haiku)-(\d+)(?:-(\d{1,2})(?!\d))?/i.exec(model);
+  return match
+    ? { family: match[1].toLowerCase(), version: Number(match[2]) * 100 + Number(match[3] ?? 0) }
+    : undefined;
+}
+
+/**
+ * Ventana del modelo. `message.model` llega sin sufijo (`deepseek-flash`), así que si coincide
+ * con el configurado se usa el configurado (`deepseek-flash[1m]`): el sufijo manda. Sin él,
+ * traen 1M Fable, Mythos, Opus y Sonnet desde 4.6 y Haiku desde 5; lo demás, 200k.
  */
 function contextLimit(model: string): number {
-  // shortcut: ventana por convenio del sufijo; no hay catálogo local de Claude.
+  // shortcut: regla por familia y versión, no catálogo; una familia nueva cae en 200k hasta
+  // que se añada aquí.
   const configured = effectiveModel(readJson(settingsFile()));
   const name = configured.replace(MODEL_SUFFIX, "").toLowerCase() === model.toLowerCase()
     ? configured
     : model;
-  return MODEL_SUFFIX.test(name) ? 1_000_000 : 200_000;
+  const v = claudeVersion(name);
+  const million =
+    MODEL_SUFFIX.test(name) ||
+    v?.family === "fable" ||
+    v?.family === "mythos" ||
+    ((v?.family === "opus" || v?.family === "sonnet") && v.version >= 406) ||
+    (v?.family === "haiku" && v.version >= 500);
+  return million ? 1_000_000 : 200_000;
 }
 
 /** Último assistant con uso real y primer mensaje del usuario; `undefined` si no hay medición. */
@@ -1417,4 +1440,104 @@ export async function saveClaudeAgent(
     await fs.rm(currentFile, { force: true });
   }
   return { file: target, createdDir };
+}
+
+/* --------------------------- asignación de modelos -------------------------- */
+
+/** Subagentes de proyecto y globales, sin actividad ni tokens: lo que pinta el tablero. */
+export function claudeSubagents(projectRoot: string | undefined): {
+  project: ExplorerAgent[];
+  global: ExplorerAgent[];
+} {
+  return {
+    project: projectRoot ? readAgents(projectAgentsDir(projectRoot), "project") : [],
+    global: readAgents(path.join(claudeHome(), "agents"), "global"),
+  };
+}
+
+/** `model` de settings.json y el `ANTHROPIC_MODEL` que lo tapa al arrancar; "" si no hay. */
+export function claudeMainModel(): { model: string; override: string } {
+  const settings = readJson(settingsFile());
+  return { model: trimmed(settings?.model), override: envModel(settings, "ANTHROPIC_MODEL") };
+}
+
+/** Tarifa en USD por millón: forma v1 (`cost.input`) o la v2 de opencode (`cost.text.input.price`). */
+function catalogCost(raw: unknown): { input: number; output: number } | undefined {
+  const cost = asObject(raw);
+  const text = asObject(cost?.text);
+  const input = cost?.input ?? asObject(text?.input)?.price;
+  const output = cost?.output ?? asObject(text?.output)?.price;
+  return typeof input === "number" && Number.isFinite(input) &&
+    typeof output === "number" && Number.isFinite(output)
+    ? { input, output }
+    : undefined;
+}
+
+/** Familia en el orden de los alias y, dentro, de la versión más nueva a la más vieja. */
+function catalogRank(id: string): number {
+  const v = claudeVersion(id);
+  if (!v) {
+    return Number.MAX_SAFE_INTEGER; // Fuera de las familias conocidas: al final.
+  }
+  const family = (CLAUDE_ALIASES as readonly string[]).indexOf(v.family);
+  return (family < 0 ? CLAUDE_ALIASES.length : family) * 1_000_000 - v.version;
+}
+
+/**
+ * Modelos del tablero: los alias, los de Anthropic del catálogo models.dev (vacío sin
+ * opencode) y los que ya usa alguna fila sin estar en ninguno de los dos.
+ */
+export function claudeAssignModels(
+  catalog: Record<string, RegistryModel> | undefined,
+  inUse: string[]
+): ModelEntry[] {
+  const out: ModelEntry[] = claudeModelAliases().map(({ alias, mapped }) => ({
+    id: alias,
+    provider: "alias",
+    model: alias,
+    name: alias,
+    free: false,
+    ...(mapped ? { hint: `→ ${mapped}` } : {}),
+  }));
+  const ids = Object.keys(catalog ?? {}).sort(
+    (a, b) => catalogRank(a) - catalogRank(b) || a.localeCompare(b)
+  );
+  for (const id of ids) {
+    const entry = asObject(catalog?.[id]);
+    const cost = catalogCost(entry?.cost);
+    out.push({
+      id,
+      provider: "anthropic",
+      model: id,
+      name: trimmed(entry?.name) || id,
+      free: false,
+      ...(cost ? { cost } : {}),
+    });
+  }
+  for (const model of inUse) {
+    if (model && !out.some((m) => m.id === model)) {
+      out.push({ id: model, provider: "otros", model, name: model, free: false, hint: "en uso" });
+    }
+  }
+  return out;
+}
+
+/** Fija o borra ("") el `model` del frontmatter; el resto de claves y el cuerpo quedan igual. */
+export async function setClaudeAgentModel(file: string, model: string): Promise<void> {
+  const { frontmatter, prompt } = readClaudeAgent(file);
+  if (frontmatter.model === (model || undefined)) {
+    return; // Nada que cambiar: no se reescribe el YAML.
+  }
+  const next: AgentFrontmatter = { ...frontmatter };
+  if (model) {
+    next.model = model;
+  } else {
+    delete next.model;
+  }
+  await writeAtomic(file, serializeAgentFile(next, prompt));
+}
+
+/** Fija o borra ("") el `model` de settings.json: el de las sesiones nuevas. */
+export async function setClaudeMainModel(model: string): Promise<void> {
+  await modifyJsonFile(settingsFile(), ["model"], model || undefined);
 }

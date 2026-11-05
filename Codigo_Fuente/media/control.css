@@ -116,6 +116,12 @@ body {
   transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
 }
 
+/* El `display` de arriba tapa el `[hidden]` del navegador: sin esto, CONECTORES seguiría
+   visible con Claude o Codex. */
+.icon-btn[hidden] {
+  display: none;
+}
+
 .icon-btn svg {
   flex: none;
 }

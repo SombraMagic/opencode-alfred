@@ -14,6 +14,9 @@
   const SVG = "http://www.w3.org/2000/svg";
 
   const el = {
+    root: document.querySelector(".assign"),
+    kicker: document.querySelector(".assign-kicker"),
+    hint: document.getElementById("hint"),
     profiles: document.getElementById("profiles"),
     search: document.getElementById("search"),
     providers: document.getElementById("providers"),
@@ -37,12 +40,22 @@
 
   const SCOPE = { project: "PROY", global: "GLOBAL", builtin: "INTEGRADO" };
 
+  // Rótulo y ayuda de opencode, los del HTML: Claude los cambia y opencode los recupera.
+  const KICKER = el.kicker.textContent;
+  const HINT = el.hint.textContent;
+  const HINT_CLAUDE =
+    "Arrastra un agente hasta un modelo para conectarlo. La × quita el modelo: el subagente " +
+    "hereda el de la sesión y CLAUDE vuelve al de por defecto.";
+
   // El buscador es HTML estático: su valor no se reconstruye al repintar.
   let query = "";
   // Conectores apagados del filtro; se restauran de la vista guardada al arrancar.
   const off = new Set();
-  // Solo el primer assign siembra query/off: los siguientes son repintados de la extensión.
-  let inited = false;
+  // Modo del último assign (`opencode` | `claude`). Solo el primero de cada modo siembra
+  // query/off: los siguientes son repintados de la extensión.
+  let mode = "";
+  // Con Claude no hay FAVORITOS ni CONFIGURACIONES: el agente se suelta sobre MODELOS.
+  let claude = false;
   let saveTimer = 0;
   let lastData = null;
   let lastKey = "";
@@ -58,6 +71,8 @@
   let sel = null;
   let agentEls = new Map();
   let favEls = new Map();
+  // Tarjetas de MODELOS por id: solo con Claude, donde son el destino de los cables.
+  let modelEls = new Map();
   let raf = 0;
 
   function node(tag, className, text) {
@@ -76,6 +91,9 @@
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveTimer = 0;
+      // Con Claude el filtro vive solo en memoria. Se mira al disparar: si Claude llegó con la
+      // escritura pendiente, la vista guardada de opencode no se pisa con la suya.
+      if (claude) return;
       post({ type: "persistView", search: el.search.value, disabledProviders: [...off] });
     }, 300);
   }
@@ -264,7 +282,7 @@
     drag = payload;
     event.dataTransfer.setData("text/plain", JSON.stringify(payload));
     event.dataTransfer.effectAllowed = "link";
-    // Un agente a la caza de destino: todos los favoritos se marcan.
+    // Un agente a la caza de destino: todos los favoritos (con Claude, los modelos) se marcan.
     if (payload.kind === "agent") markTargets(true);
   }
 
@@ -274,14 +292,39 @@
   }
 
   function markTargets(on) {
-    for (const card of el.favorites.children) card.classList.toggle("target", on);
+    for (const card of (claude ? el.models : el.favorites).children) {
+      card.classList.toggle("target", on);
+    }
   }
 
   function clearDrop() {
     el.favorites.classList.remove("drop");
     el.models.classList.remove("drop");
     for (const card of el.favorites.children) card.classList.remove("drop", "target");
-    for (const card of el.models.children) card.classList.remove("drop");
+    for (const card of el.models.children) card.classList.remove("drop", "target");
+  }
+
+  /** Un agente soltado sobre la tarjeta queda conectado a su modelo. */
+  function acceptAgent(card, model) {
+    card.addEventListener("dragover", (event) => {
+      if (!drag || drag.kind !== "agent") return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "link";
+      card.classList.add("drop");
+      card.classList.add("target");
+    });
+    card.addEventListener("dragleave", (event) => {
+      if (card.contains(event.relatedTarget)) return;
+      card.classList.remove("drop");
+    });
+    card.addEventListener("drop", (event) => {
+      if (!drag || drag.kind !== "agent") return;
+      event.preventDefault();
+      const { agent, scope } = drag;
+      drag = null;
+      clearDrop();
+      post({ type: "assign", agent, scope, model: model.id });
+    });
   }
 
   // ── Filtro de conectores ────────────────────────────────
@@ -657,25 +700,7 @@
       }
 
       // Un agente soltado sobre este favorito queda conectado a él.
-      card.addEventListener("dragover", (event) => {
-        if (!drag || drag.kind !== "agent") return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "link";
-        card.classList.add("drop");
-        card.classList.add("target");
-      });
-      card.addEventListener("dragleave", (event) => {
-        if (card.contains(event.relatedTarget)) return;
-        card.classList.remove("drop");
-      });
-      card.addEventListener("drop", (event) => {
-        if (!drag || drag.kind !== "agent") return;
-        event.preventDefault();
-        const { agent, scope } = drag;
-        drag = null;
-        clearDrop();
-        post({ type: "assign", agent, scope, model: model.id });
-      });
+      acceptAgent(card, model);
       card.addEventListener("dragstart", (event) =>
         startDrag(event, { kind: "model", id: model.id, group: groupBar.active })
       );
@@ -699,6 +724,7 @@
     el.modelsCount.textContent =
       query || off.size ? matches.length + "/" + models.length : String(models.length);
     el.models.textContent = "";
+    modelEls = new Map();
 
     if (matches.length === 0) {
       el.models.appendChild(
@@ -710,7 +736,7 @@
     for (const model of matches) {
       const isFav = favIds.has(model.id);
       const card = node("div", "card model-card" + (isFav ? " is-fav" : ""));
-      card.draggable = true;
+      card.draggable = !claude;
       card.title = model.id;
 
       const line = node("div", "card-line");
@@ -742,10 +768,19 @@
 
       if (model.hint) card.appendChild(node("div", "card-detail", model.hint));
 
-      card.addEventListener("dragstart", (event) =>
-        startDrag(event, { kind: "model", id: model.id })
-      );
-      card.addEventListener("dragend", endDrag);
+      if (claude) {
+        // Sin favoritos, la tarjeta de MODELOS es el destino: no se arrastra, recibe agentes
+        // y el clic resalta sus cables.
+        if (sel && sel.kind === "modelo" && sel.id === model.id) card.classList.add("sel");
+        acceptAgent(card, model);
+        card.addEventListener("click", () => toggleSel("modelo", model.id));
+        modelEls.set(model.id, card);
+      } else {
+        card.addEventListener("dragstart", (event) =>
+          startDrag(event, { kind: "model", id: model.id })
+        );
+        card.addEventListener("dragend", endDrag);
+      }
       el.models.appendChild(card);
     }
   }
@@ -801,7 +836,8 @@
   window.addEventListener("dragend", endDrag);
 
   // ── Selección ───────────────────────────────────────────
-  // Clic en un agente o en un favorito: resalta el cable que los une. Clic en lo ya seleccionado: deselecciona.
+  // Clic en un agente o en un favorito (con Claude, un modelo): resalta el cable que los une.
+  // Clic en lo ya seleccionado: deselecciona.
   function toggleSel(kind, id) {
     sel = sel && sel.kind === kind && sel.id === id ? null : { kind, id };
     markSel();
@@ -811,7 +847,8 @@
   function markSel() {
     for (const [key, card] of agentEls)
       card.classList.toggle("sel", !!sel && sel.kind === "agente" && sel.id === key);
-    for (const [id, card] of favEls)
+    // Solo uno de los dos mapas tiene tarjetas: favoritos con opencode, modelos con Claude.
+    for (const [id, card] of [...favEls, ...modelEls])
       card.classList.toggle("sel", !!sel && sel.kind === "modelo" && sel.id === id);
   }
 
@@ -830,16 +867,20 @@
     const box = svg.getBoundingClientRect();
     svg.textContent = "";
     if (!lastData || box.width < 1 || box.height < 1) return;
+    // El cable acaba en el favorito; con Claude, en la tarjeta de MODELOS. Un modelo que el
+    // buscador o un chip esconden no tiene tarjeta, así que tampoco cable.
+    const targets = claude ? modelEls : favEls;
+    const column = claude ? el.models : el.favorites;
 
     for (const agent of lastData.agents || []) {
-      if (!agent.model || !favIds.has(agent.model)) continue;
+      if (!agent.model || (!claude && !favIds.has(agent.model))) continue;
       const key = agentKey(agent);
       const from = agentEls.get(key);
-      const to = favEls.get(agent.model);
+      const to = targets.get(agent.model);
       if (!from || !to) continue;
       const a = from.getBoundingClientRect();
       const b = to.getBoundingClientRect();
-      if (!visibleIn(a, el.agents) || !visibleIn(b, el.favorites)) continue;
+      if (!visibleIn(a, el.agents) || !visibleIn(b, column)) continue;
 
       const x1 = round(a.right - box.left);
       const y1 = round(a.top + a.height / 2 - box.top);
@@ -873,11 +914,16 @@
   // ── Repintado ───────────────────────────────────────────
   function renderAssign(data) {
     if (!data) return;
-    if (!inited) {
-      inited = true;
+    // Sin `kind`, opencode: el tablero de siempre.
+    const kind = data.kind === "claude" ? "claude" : "opencode";
+    // Cambiar de modo es como abrir el tablero: el buscador y los chips se siembran otra vez.
+    if (kind !== mode) {
+      mode = kind;
+      claude = kind === "claude";
       // El filtro compara en minúsculas; el buscador conserva lo que escribió el usuario.
       query = (data.search || "").trim().toLowerCase();
       el.search.value = data.search || "";
+      off.clear();
       for (const provider of data.disabledProviders || []) off.add(provider);
     }
     lastData = data;
@@ -885,24 +931,32 @@
     const models = data.models || [];
     // El host ya no filtra los grupos por catálogo: los ids muertos se quedan fuera de las cuentas.
     catalogIds = new Set(models.map((m) => m.id));
-    // El host garantiza al menos un grupo; si llega vacío, se pinta uno vacío igualmente.
-    const groups =
-      Array.isArray(data.favoriteGroups) && data.favoriteGroups.length > 0
-        ? data.favoriteGroups
-        : [{ name: "Favoritos", ids: [] }];
-    const active = Math.min(Math.max(0, Number(data.activeGroup) || 0), groups.length - 1);
-    // Igual con las configuraciones: el host manda siempre al menos una.
-    const profiles =
-      Array.isArray(data.profiles) && data.profiles.length > 0
-        ? data.profiles
-        : [{ name: "Configuración 1", assignments: {} }];
-    const activeProfile = Math.min(
-      Math.max(0, Number(data.activeProfile) || 0),
-      profiles.length - 1
-    );
+    // Con Claude no hay grupos ni configuraciones: ni se siembran ni se pintan pestañas.
+    let groups = [];
+    let active = 0;
+    let profiles = [];
+    let activeProfile = 0;
+    if (!claude) {
+      // El host garantiza al menos un grupo; si llega vacío, se pinta uno vacío igualmente.
+      groups =
+        Array.isArray(data.favoriteGroups) && data.favoriteGroups.length > 0
+          ? data.favoriteGroups
+          : [{ name: "Favoritos", ids: [] }];
+      active = Math.min(Math.max(0, Number(data.activeGroup) || 0), groups.length - 1);
+      // Igual con las configuraciones: el host manda siempre al menos una.
+      profiles =
+        Array.isArray(data.profiles) && data.profiles.length > 0
+          ? data.profiles
+          : [{ name: "Configuración 1", assignments: {} }];
+      activeProfile = Math.min(
+        Math.max(0, Number(data.activeProfile) || 0),
+        profiles.length - 1
+      );
+    }
 
     // El sondeo puede repetir los mismos datos: sin esta clave, el scroll y el foco saltan.
     const key = JSON.stringify([
+      kind,
       agents,
       models,
       groups,
@@ -915,20 +969,33 @@
     if (key === lastKey) return;
     lastKey = key;
 
+    // Cada repintado aplica el modo que llega: el mismo webview puede recibir el otro.
+    el.root.classList.toggle("claude", claude);
+    el.kicker.textContent = claude ? KICKER + " · CLAUDE" : KICKER;
+    el.hint.textContent = claude ? HINT_CLAUDE : HINT;
+
     groupBar.tabs = groups;
     groupBar.active = active;
     profileBar.tabs = profiles;
     profileBar.active = activeProfile;
-    favIds = new Set(groups[active].ids || []);
+    favIds = new Set(claude ? [] : groups[active].ids || []);
 
     // Tras crear, se salta a la pestaña nueva: la que no estaba antes en la barra.
     jumpToNew(groupBar);
 
     renderProviders(models);
     renderAgents(agents, models);
-    renderTabbar(profileBar);
-    renderTabbar(groupBar);
-    renderFavorites(models);
+    if (claude) {
+      // Columnas ocultas y vacías: ni pestañas ni favoritos de un opencode anterior.
+      el.profiles.textContent = "";
+      el.groups.textContent = "";
+      el.favorites.textContent = "";
+      favEls = new Map();
+    } else {
+      renderTabbar(profileBar);
+      renderTabbar(groupBar);
+      renderFavorites(models);
+    }
     renderModelsColumn(models);
     scheduleWires();
   }

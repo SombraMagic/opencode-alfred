@@ -670,6 +670,25 @@ body {
   border-color: var(--magenta);
 }
 
+/* ── Modo Claude ───────────────────────────────────────── */
+/* Sin FAVORITOS ni CONFIGURACIONES: AGENTES | MODELOS, y los agentes se sueltan en MODELOS. */
+.assign.claude .col-fav,
+.assign.claude .profiles {
+  display: none;
+}
+
+/* El hueco crece para que los cables tengan el sitio que les da el marco de FAVORITOS. */
+.assign.claude .board {
+  grid-template-columns: minmax(220px, 1fr) minmax(300px, 1.4fr);
+  column-gap: 24px;
+}
+
+/* La tarjeta de modelo se selecciona y recibe agentes, pero no se arrastra. */
+.assign.claude .model-card,
+.assign.claude .model-card:active {
+  cursor: pointer;
+}
+
 /* ── Pie ───────────────────────────────────────────────── */
 .hint {
   flex: none;

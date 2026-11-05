@@ -9,7 +9,7 @@ import {
   saveAgent,
   writeAtomic,
 } from "./agents/store";
-import type { Registry } from "./agents/config";
+import type { Registry, RegistryModel } from "./agents/config";
 import { setAgentModel } from "./agents/assign";
 import {
   DisabledPlugin,
@@ -127,16 +127,21 @@ import * as fs from "fs/promises";
 import {
   type ClaudeExplorer,
   claudeAgentFile,
+  claudeAssignModels,
   claudeContext,
   claudeExplorer,
   claudeInstructionsFile,
   claudeLiveSessions,
+  claudeMainModel,
   claudeModePresses,
   claudePermissionMode,
   claudeSessionMode,
+  claudeSubagents,
   globalStateFile,
+  setClaudeAgentModel,
   setClaudeAutoAccept,
   setClaudeItem,
+  setClaudeMainModel,
 } from "./providers/claude";
 import {
   codexConfigFile,
@@ -832,6 +837,10 @@ export function activate(context: vscode.ExtensionContext): void {
   // Vista del tablero de asignación: el buscador y los conectores apagados sobreviven al cierre.
   let assignSearch: string = context.globalState.get<string>(ASSIGN_SEARCH, "");
   let assignProvidersOff: string[] = context.globalState.get<string[]>(ASSIGN_PROVIDERS_OFF, []);
+  // Agente con el que se abrió el tablero: decide qué datos pinta y cuándo se cierra.
+  let assignKind: "opencode" | "claude" = "opencode";
+  // Modelos de Anthropic de models.dev: se leen al abrir el tablero de Claude, no en cada repintado.
+  let claudeCatalog: Record<string, RegistryModel> | undefined;
   // Vista del panel de conectores: selección y buscador sobreviven al cierre.
   let connectorsSearch: string = context.globalState.get<string>(CONNECTORS_SEARCH, "");
   let connectorsSelected: string = context.globalState.get<string>(CONNECTORS_SELECTED, "");
@@ -841,8 +850,11 @@ export function activate(context: vscode.ExtensionContext): void {
     | undefined;
 
   const refresh = () => {
-    if (sessionAgent !== "opencode") {
+    // El tablero es del agente con el que se abrió: cambiar de agente de sesión lo cierra.
+    if (sessionAgent !== assignKind) {
       AssignPanel.close();
+    }
+    if (sessionAgent !== "opencode") {
       ConnectorsPanel.close();
     }
     // Otro agente de sesión cambia la lista de Límites (con Claude, solo su plan).
@@ -1410,8 +1422,63 @@ export function activate(context: vscode.ExtensionContext): void {
     return agentList.global.some((a) => a.name === name) ? "global" : undefined;
   }
 
-  /** Agentes con su modelo y el catálogo vivo, en la forma que pinta el panel de asignación. */
+  /** Lo que pinta el tablero abierto, según el agente con el que se abrió. */
   function assignData(): AssignData {
+    return assignKind === "claude" ? claudeAssignData() : opencodeAssignData();
+  }
+
+  /** Subagentes de Claude y su sesión principal (`CLAUDE`), con los modelos que entiende el CLI. */
+  function claudeAssignData(): AssignData {
+    const { project, global } = claudeSubagents(projectRoot());
+    const projectNames = new Set(project.map((a) => a.name));
+    // El frontmatter puede traer cualquier tipo: solo cuentan los textos.
+    const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+    const row = (agent: ExplorerAgent, scope: "project" | "global"): AssignAgent => {
+      const label = scope === "project" ? "proyecto" : "global";
+      const color = frontmatterHex(text(agent.color));
+      return {
+        name: agent.name,
+        scope,
+        model: text(agent.model),
+        mode: "subagent",
+        group: scope,
+        ...(color ? { color } : {}),
+        // Como en opencode: el aviso de sombreado solo sale cuando no hay descripción.
+        detail:
+          text(agent.description) ||
+          (scope === "global" && projectNames.has(agent.name)
+            ? `${label} · sombreado por proyecto`
+            : label),
+      };
+    };
+    const main = claudeMainModel();
+    const agents: AssignAgent[] = [
+      ...project.map((a) => row(a, "project")),
+      ...global.map((a) => row(a, "global")),
+      {
+        name: "CLAUDE",
+        scope: "builtin",
+        model: main.model,
+        mode: "primary",
+        group: "project",
+        detail: main.override ? `ANTHROPIC_MODEL manda: ${main.override}` : "sesión principal",
+      },
+    ];
+    return {
+      kind: "claude",
+      agents,
+      models: claudeAssignModels(claudeCatalog, agents.map((a) => a.model)),
+      favoriteGroups: [],
+      activeGroup: 0,
+      profiles: [],
+      activeProfile: 0,
+      search: "",
+      disabledProviders: [],
+    };
+  }
+
+  /** Agentes con su modelo y el catálogo vivo, en la forma que pinta el panel de asignación. */
+  function opencodeAssignData(): AssignData {
     const row = (agent: Agent, scope: "project" | "global"): AssignAgent => {
       const description = (agent.frontmatter.description ?? "").trim();
       const label = scope === "project" ? "proyecto" : "global";
@@ -1476,6 +1543,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // el modelo sale sin `benchlm` y la tarjeta no pinta nada.
     const scores = benchlmScoresByKey();
     return {
+      kind: "opencode",
       agents,
       models: models.map((model) => {
         const benchlm = scores[model.model];
@@ -1494,10 +1562,24 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   async function openAssignPanel(): Promise<void> {
-    if (sessionAgent !== "opencode") {
+    if (sessionAgent === "codex") {
       void vscode.window.showWarningMessage(
-        "La asignación de agentes a modelos es solo de opencode."
+        "La asignación de agentes a modelos es de opencode y Claude."
       );
+      return;
+    }
+    if (sessionAgent === "claude") {
+      // Sin opencode no hay catálogo: quedan los alias y los modelos en uso.
+      claudeCatalog = (await loadRegistry().catch(() => undefined))?.anthropic?.models;
+      // Cambió el agente de sesión mientras se leía el catálogo: el tablero de Claude ya no toca.
+      if (sessionAgent !== "claude") {
+        return;
+      }
+      assignKind = "claude";
+      AssignPanel.open(context, assignData(), {
+        onAction: handleAssignAction,
+        onReady: () => AssignPanel.current?.update(assignData()),
+      });
       return;
     }
     if (models.length === 0) {
@@ -1507,7 +1589,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // línea al abrir y quitarlos es arrastrarlos, sin buscarlos antes. Solo si ese grupo está vacío.
     const first = favoriteGroups[0];
     if (first && first.ids.length === 0) {
-      const assigned = new Set(assignData().agents.map((a) => a.model));
+      const assigned = new Set(opencodeAssignData().agents.map((a) => a.model));
       const added = [...assigned].filter((id) => id && models.some((m) => m.id === id));
       if (added.length > 0) {
         first.ids = added;
@@ -1520,7 +1602,7 @@ export function activate(context: vscode.ExtensionContext): void {
       // Primero se lee el disco: con `agentList` aún vacío la siembra dejaría un mapa sin modelos para siempre.
       await refreshAgents();
       const assignments: Record<string, string> = {};
-      for (const agent of assignData().agents) {
+      for (const agent of opencodeAssignData().agents) {
         if (agent.model) {
           assignments[`${agent.scope}:${agent.name}`] = agent.model;
         }
@@ -1531,6 +1613,7 @@ export function activate(context: vscode.ExtensionContext): void {
       await context.globalState.update(ASSIGN_PROFILES, assignProfiles);
       await context.globalState.update(ASSIGN_PROFILE, seed.name);
     }
+    assignKind = "opencode";
     AssignPanel.open(context, assignData(), {
       onAction: handleAssignAction,
       onReady: () => AssignPanel.current?.update(assignData()),
@@ -1538,6 +1621,13 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   async function handleAssignAction(action: AssignAction): Promise<void> {
+    if (assignKind === "claude") {
+      // Con Claude solo se conecta y se suelta: ni favoritos, ni configuraciones, ni la vista de opencode.
+      if (action.type === "assign" || action.type === "clear") {
+        await assignClaudeModel(action);
+      }
+      return;
+    }
     if (action.type === "toggleFavorite") {
       const group = favoriteGroups[action.group];
       if (!group) {
@@ -1745,6 +1835,77 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   /**
+   * Tablero de Claude: el modelo va al frontmatter del subagente o, en `CLAUDE`, a settings.json
+   * y a la sesión viva con `/model`. Fila y modelo se buscan en las listas actuales: el webview
+   * no es de fiar y su nombre nunca forma una ruta.
+   */
+  async function assignClaudeModel(
+    action: Extract<AssignAction, { type: "assign" | "clear" }>
+  ): Promise<void> {
+    const model = action.type === "assign" ? action.model : "";
+    if (model && !claudeAssignData().models.some((m) => m.id === model)) {
+      return;
+    }
+    try {
+      let notice: string;
+      if (action.scope === "builtin") {
+        if (action.agent !== "CLAUDE") {
+          return;
+        }
+        await setClaudeMainModel(model);
+        const what = model ? `«${model}»` : "el modelo por defecto";
+        const live = claudeLiveSessions(projectRoot());
+        const terminal = claudeTerminal(live);
+        const session =
+          live.find((s) => s.name && s.name.toLowerCase() === terminal?.name.toLowerCase()) ??
+          live[0];
+        // Con ANTHROPIC_MODEL puesto, settings.json no decide las sesiones nuevas.
+        const { override } = claudeMainModel();
+        const nuevas = override
+          ? `${what} queda en settings.json, pero en las sesiones nuevas manda ANTHROPIC_MODEL (${override})`
+          : `«CLAUDE» usará ${what} en las sesiones nuevas`;
+        const typed = model || "default";
+        if (terminal && session?.status === "waiting") {
+          // Con un diálogo abierto, el texto y el Enter caerían en él: no se inyecta.
+          notice = `Claude tiene un diálogo abierto: la sesión no cambia; ${nuevas}.`;
+        } else if (terminal && session && /^[A-Za-z0-9._:@\/\[\]-]{1,200}$/.test(typed)) {
+          // Solo se teclea un id limpio: el valor puede venir del `.md` de un repo ajeno y
+          // `sendText` lo escribe tal cual (escapes y Enter en la TUI, o un `;` en un shell).
+          terminal.sendText(`/model ${typed}`);
+          notice =
+            `Claude: «CLAUDE» usará ${what}; cambio pedido a la sesión.` +
+            (override
+              ? ` Queda en settings.json, pero en las sesiones nuevas manda ANTHROPIC_MODEL (${override}).`
+              : "");
+        } else {
+          notice = `Claude: ${nuevas}.`;
+        }
+      } else {
+        const agent = claudeSubagents(projectRoot())[action.scope].find(
+          (a) => a.name === action.agent
+        );
+        if (!agent?.filePath) {
+          void vscode.window.showWarningMessage(
+            `No hay ningún agente "${action.agent}" en ese scope.`
+          );
+          return;
+        }
+        await setClaudeAgentModel(agent.filePath, model);
+        notice = model
+          ? `Claude: «${agent.name}» usará «${model}».`
+          : `Claude: «${agent.name}» hereda el modelo de la sesión.`;
+      }
+      AssignPanel.current?.update(assignData());
+      updateExplorer(buildExplorerData());
+      void vscode.window.setStatusBarMessage(notice, 6000);
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        `No se pudo asignar el modelo: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  /**
    * Escribe `model` ("" lo quita) en el `.md` de `agentName`, como lo hace el tablero al
    * conectar. `mass` (apply en masa de un perfil): no pregunta el scope del override del
    * integrado ni avisa: si falta el fichero o el override, ese agente se ignora. Devuelve
@@ -1797,7 +1958,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const measuredAgent = contextView.currentAgent();
     let sessionModel: string | undefined;
     const fallos: string[] = [];
-    for (const row of assignData().agents) {
+    for (const row of opencodeAssignData().agents) {
       const wanted = profile.assignments[`${row.scope}:${row.name}`] ?? "";
       if (wanted === row.model) {
         continue;
@@ -2391,6 +2552,10 @@ export function activate(context: vscode.ExtensionContext): void {
       const claudeData =
         sessionAgent === "claude" ? claudeExplorer(projectRoot()) : undefined;
       updateExplorer(buildExplorerData(claudeData));
+      if (claudeData) {
+        // Este sondeo es lo que ve los cambios en disco de Claude: el tablero, solo si cambió.
+        AssignPanel.current?.updateIfChanged(assignData());
+      }
       voicePanel?.updateAgents(
         claudeData
           ? claudeData.activity.map((a) => ({
