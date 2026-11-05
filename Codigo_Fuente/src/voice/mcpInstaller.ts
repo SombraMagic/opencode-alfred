@@ -141,23 +141,38 @@ async function presentAgents(): Promise<McpAgentId[]> {
   return present;
 }
 
-/** Entrada `mcpServers.<nombre>` de un JSON de agente. */
-function readJsonEntry(path: string): { installed: boolean; disabled: boolean } {
+/** En Windows la ruta puede venir con la unidad en minúscula (`c:\Users`). */
+function samePath(a: string, b: string): boolean {
+  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+/**
+ * Entrada `mcpServers.<nombre>` de un JSON de agente. `stale`: no apunta al bundle de
+ * esta versión (la carpeta de la anterior se borra al actualizar y el servidor no arranca).
+ */
+function readJsonEntry(
+  path: string,
+  script?: string,
+): { installed: boolean; disabled: boolean; stale: boolean } {
+  const none = { installed: false, disabled: false, stale: false };
   try {
-    if (!existsSync(path)) return { installed: false, disabled: false };
+    if (!existsSync(path)) return none;
     const errors: ParseError[] = [];
     const config = parseJsonc(readFileSync(path, "utf8").replace(/^\uFEFF/, ""), errors, {
       allowTrailingComma: true,
       disallowComments: false,
     }) as Record<string, unknown> | undefined;
-    if (errors.length > 0) return { installed: false, disabled: false };
+    if (errors.length > 0) return none;
     const servers = config?.mcpServers as Record<string, unknown> | undefined;
     const entry = servers?.[MCP_NAME] as Record<string, unknown> | undefined;
-    if (!entry) return { installed: false, disabled: false };
-    return { installed: true, disabled: entry.disabled === true };
+    if (!entry) return none;
+    const bits = [entry.command, ...(Array.isArray(entry.args) ? entry.args : [])];
+    const stale =
+      script !== undefined && !bits.some((v) => typeof v === "string" && samePath(v, script));
+    return { installed: true, disabled: entry.disabled === true, stale };
   } catch {
     // Ilegible o con JSON roto: cuenta como no instalado.
-    return { installed: false, disabled: false };
+    return none;
   }
 }
 
@@ -172,16 +187,23 @@ async function opencodeServer(): Promise<McpServer | undefined> {
   }
 }
 
-/** Estado de un agente concreto. */
-async function stateOf(id: McpAgentId): Promise<{ installed: boolean; enabled: boolean }> {
+/**
+ * Estado de un agente concreto. Con `script`, además dice si su entrada apunta a otra
+ * versión. opencode no lo necesita: lo reapunta `ensureMcpCommand` al activar.
+ */
+async function stateOf(
+  id: McpAgentId,
+  script?: string,
+): Promise<{ installed: boolean; enabled: boolean; stale: boolean }> {
   if (id === "opencode") {
     const server = await opencodeServer();
-    return { installed: Boolean(server), enabled: Boolean(server?.enabled) };
+    return { installed: Boolean(server), enabled: Boolean(server?.enabled), stale: false };
   }
   const entry = readJsonEntry(
     id === "claude-code" ? claudeCodePath() : id === "claude-desktop" ? claudeDesktopPath() : cursorPath(),
+    script,
   );
-  return { installed: entry.installed, enabled: entry.installed && !entry.disabled };
+  return { installed: entry.installed, enabled: entry.installed && !entry.disabled, stale: entry.stale };
 }
 
 /** Estado actual, sin instalar nada. */
@@ -319,12 +341,13 @@ function jsonPathOf(id: McpAgentId): string {
 /** Alta (y encendido) en todos los agentes presentes. */
 async function enableAll(context: vscode.ExtensionContext): Promise<Outcome> {
   const { command, args } = serverCommand(context.extensionPath);
+  const script = serverScriptPath(context.extensionPath);
   const outcome: Outcome = { changed: [], already: [], failed: [] };
   for (const id of await presentAgents()) {
     const label = LABELS[id];
     try {
-      const state = await stateOf(id);
-      if (state.installed && state.enabled) {
+      const state = await stateOf(id, script);
+      if (state.installed && state.enabled && !state.stale) {
         outcome.already.push(label);
         continue;
       }
