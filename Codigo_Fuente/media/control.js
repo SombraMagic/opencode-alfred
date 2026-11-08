@@ -19,6 +19,7 @@
     promptStats: document.getElementById("btn-prompt-stats"),
     project: document.getElementById("btn-project"),
     db: document.getElementById("btn-db"),
+    radar: document.getElementById("btn-radar"),
     // El HTML lo añade el panel: sin botón todavía, el cableado se salta.
     compare: document.getElementById("btn-compare"),
     // Dibujo del proveedor dentro del botón de sesión (path vacío hasta el primer render).
@@ -118,6 +119,9 @@
   }
   if (el.db) {
     el.db.addEventListener("click", () => act({ type: "openDatabases" }));
+  }
+  if (el.radar) {
+    el.radar.addEventListener("click", () => act({ type: "openRadar" }));
   }
 
   window.addEventListener("message", (event) => {

@@ -76,7 +76,8 @@ export type ExplorerAction =
   | { type: "openPromptStats" }
   | { type: "openProjectExplorer" }
   | { type: "openDatabases" }
-  | { type: "openModelCompare" };
+  | { type: "openModelCompare" }
+  | { type: "openRadar" };
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([

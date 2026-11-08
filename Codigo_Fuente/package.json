@@ -187,6 +187,16 @@
         "category": "opencode"
       },
       {
+        "command": "opencodeAgents.radar",
+        "title": "Radar de noticias",
+        "category": "opencode"
+      },
+      {
+        "command": "opencodeAgents.radarSync",
+        "title": "Radar — actualizar ahora",
+        "category": "opencode"
+      },
+      {
         "command": "opencodeAgents.openInAlfred3D",
         "title": "Abrir en Alfred 3D",
         "category": "Alfred"
@@ -388,6 +398,18 @@
           ],
           "default": "go",
           "description": "Plan de OpenCode Go usado para estimar sus topes de gasto: Go (12/30/60 USD) o Go Plus (48/120/240 USD)."
+        },
+        "opencodeAgents.radar.activo": {
+          "type": "boolean",
+          "default": false,
+          "description": "Radar de noticias: hacer pasadas automáticas respetando opencodeAgents.radar.intervalMinutes (también al abrir la ventana si ya tocaba). El comando «Radar — actualizar ahora» funciona siempre."
+        },
+        "opencodeAgents.radar.intervalMinutes": {
+          "type": "number",
+          "default": 60,
+          "minimum": 15,
+          "maximum": 1440,
+          "description": "Radar de noticias: minutos entre pasadas automáticas."
         },
         "voz.engine": {
           "type": "string",

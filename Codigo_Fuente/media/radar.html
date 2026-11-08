@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data:; style-src %%CSP%% 'unsafe-inline'; script-src 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  %%THEME_LINKS%%
+  <link href="%%STYLE%%" rel="stylesheet" />
+  <title>Radar de noticias</title>
+</head>
+<body>
+  <div class="rd-root">
+    <header class="hud-header rd-header">
+      <span class="hud-dot" aria-hidden="true"></span>
+      <h1 class="hud-title">RADAR DE NOTICIAS</h1>
+      <span id="rd-status" class="hud-status" role="status" aria-live="polite">—</span>
+      <div class="rd-tabs" role="tablist" aria-label="Secciones del radar">
+        <button id="tab-noticias" class="rd-tab on" type="button" role="tab" aria-selected="true" aria-controls="panel-noticias">NOTICIAS</button>
+        <button id="tab-config" class="rd-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-config">CONFIGURACIÓN</button>
+      </div>
+    </header>
+
+    <section id="panel-noticias" class="rd-panel" role="tabpanel" aria-labelledby="tab-noticias">
+      <div class="rd-barra">
+        <input id="rd-busqueda" class="rd-input" type="search" placeholder="Buscar en titulares y resúmenes…" aria-label="Buscar noticias" spellcheck="false" autocomplete="off" />
+        <button id="btn-buscar" class="ghost-btn" type="button" title="Buscar con el texto escrito">BUSCAR</button>
+        <button id="btn-actualizar" class="ghost-btn rd-primario" type="button" title="Descargar los feeds y puntuar ahora">ACTUALIZAR</button>
+      </div>
+
+      <div id="rd-chips" class="rd-chips" role="group" aria-label="Filtrar por tema"></div>
+
+      <p id="rd-aviso" class="rd-aviso" role="status" aria-live="polite" hidden></p>
+
+      <div class="rd-cuerpo">
+        <ul id="rd-lista" class="rd-lista" aria-label="Noticias"></ul>
+        <article id="rd-detalle" class="rd-detalle" aria-live="polite">
+          <p class="rd-vacio">Elige una noticia de la lista.</p>
+        </article>
+      </div>
+
+      <footer class="rd-pie">
+        <span id="rd-pie-fuentes" class="rd-pie-dato"></span>
+        <span id="rd-pie-total" class="rd-pie-dato"></span>
+        <div class="rd-pag">
+          <button id="btn-prev" class="ghost-btn" type="button" disabled>‹ ANTERIOR</button>
+          <span id="rd-pag-info" class="rd-pag-info"></span>
+          <button id="btn-next" class="ghost-btn" type="button" disabled>SIGUIENTE ›</button>
+        </div>
+      </footer>
+    </section>
+
+    <section id="panel-config" class="rd-panel" role="tabpanel" aria-labelledby="tab-config" hidden>
+      <div class="rd-config">
+        <section class="rd-bloque">
+          <h2 class="rd-bloque-title">FUENTES</h2>
+          <p class="rd-hint">Enciende o apaga los feeds que lee el radar. La descarga respeta ETag y Last-Modified.</p>
+          <ul id="rd-fuentes" class="rd-fuentes"></ul>
+        </section>
+
+        <section class="rd-bloque">
+          <h2 class="rd-bloque-title">TEMAS</h2>
+          <p class="rd-hint">Solo consulta: en esta versión no se editan sus palabras.</p>
+          <ul id="rd-temas" class="rd-temas"></ul>
+        </section>
+
+        <section class="rd-bloque">
+          <h2 class="rd-bloque-title">FILTRO LLM</h2>
+          <div class="rd-fila">
+            <label class="rd-label" for="rd-proveedor">PROVEEDOR</label>
+            <select id="rd-proveedor" class="rd-select">
+              <option value="ollama">Ollama local</option>
+              <option value="openai">OpenAI</option>
+              <option value="deepseek">DeepSeek</option>
+            </select>
+          </div>
+          <p class="rd-hint">Con OpenAI o DeepSeek, los titulares y sus enlaces salen del equipo. Ollama los procesa en local.</p>
+          <div class="rd-fila">
+            <label class="rd-label" for="rd-modelo">MODELO</label>
+            <input id="rd-modelo" class="rd-input" type="text" placeholder="Vacío = el defecto del proveedor" spellcheck="false" autocomplete="off" />
+          </div>
+          <div class="rd-fila">
+            <label class="rd-label" for="rd-clave">CLAVE</label>
+            <input id="rd-clave" class="rd-input" type="password" placeholder="Se guarda en el llavero de VS Code" autocomplete="off" />
+            <button id="btn-clave" class="ghost-btn" type="button" title="Guardar la clave en el llavero">GUARDAR</button>
+            <button id="btn-clave-borrar" class="ghost-btn" type="button" title="Borrar la clave guardada">BORRAR</button>
+          </div>
+          <p id="rd-clave-estado" class="rd-hint">Sin clave guardada.</p>
+        </section>
+
+        <section class="rd-bloque">
+          <h2 class="rd-bloque-title">BASE DE DATOS</h2>
+          <div class="rd-fila">
+            <label class="rd-label" for="rd-perfil">PERFIL</label>
+            <select id="rd-perfil" class="rd-select">
+              <option value="">El primero guardado</option>
+            </select>
+          </div>
+          <p id="rd-base-estado" class="rd-hint"></p>
+        </section>
+
+        <section class="rd-bloque">
+          <h2 class="rd-bloque-title">AUTOMÁTICO</h2>
+          <label class="rd-fila rd-check">
+            <input id="rd-activo" type="checkbox" />
+            <span>Pasadas automáticas</span>
+          </label>
+          <p class="rd-hint">Se lanza una pasada si toca al abrir la ventana y cada N minutos, según <code>opencodeAgents.radar.intervalMinutes</code> (15-1440).</p>
+        </section>
+
+        <section class="rd-bloque">
+          <h2 class="rd-bloque-title">UMBRAL</h2>
+          <div class="rd-fila rd-umbral">
+            <input id="rd-umbral" class="rd-range" type="range" min="0" max="100" step="1" value="45" aria-label="Puntuación mínima" />
+            <output id="rd-umbral-valor" class="rd-umbral-valor" for="rd-umbral">45</output>
+          </div>
+          <p class="rd-hint">Solo pasa a «ultimas.md» lo que llegue a esta puntuación.</p>
+        </section>
+
+        <section class="rd-bloque rd-acciones">
+          <button id="btn-guardar-config" class="ghost-btn rd-primario" type="button">GUARDAR CONFIGURACIÓN</button>
+          <button id="btn-repuntuar" class="ghost-btn" type="button" title="Volver a puntuar con el LLM las noticias de los últimos 3 días">REPUNTUAR 3 DÍAS</button>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  %%THEME_SCRIPT%%
+  <script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
+</body>
+</html>

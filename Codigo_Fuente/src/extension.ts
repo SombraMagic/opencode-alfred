@@ -82,6 +82,8 @@ import { ContextViewProvider } from "./panels/contextPanel";
 import { ControlPanel } from "./panels/controlPanel";
 import type { ControlData } from "./panels/controlPanel";
 import { DatabasesPanel } from "./panels/databasesPanel";
+import { RadarPanel } from "./panels/radarPanel";
+import { RadarService } from "./radar/service";
 import { ProjectExplorerPanel } from "./panels/projectExplorerPanel";
 import { LimitsViewProvider } from "./panels/limitsPanel";
 import {
@@ -155,6 +157,8 @@ import { findTable, setValue } from "./providers/toml";
 
 let voicePanel: VozPanel | undefined;
 let dictado: VozDictado | undefined;
+/** Radar vivo: `deactivate` cierra su conexión cacheada. */
+let radarService: RadarService | undefined;
 
 /** CLIs que puede lanzar el botón de sesión, en el orden del selector. */
 const SESSION_AGENTS = ["opencode", "claude", "codex"] as const;
@@ -645,6 +649,79 @@ export function activate(context: vscode.ExtensionContext): void {
   }
   const menteLocalTimer = setInterval(probeMenteLocal, 5000);
   context.subscriptions.push({ dispose: () => clearInterval(menteLocalTimer) });
+
+  // ── Radar de noticias ─────────────────────────────────────────────────────
+  // Una pasada al activar si ha pasado el intervalo, y otra cada
+  // `radar.intervalMinutes` con la ventana viva. Sin base de datos el servicio lo dice y
+  // espera: no hay bucle de reintentos.
+  const radar = new RadarService(context);
+  radarService = radar;
+
+  /** Intervalo vigente en ms; el ajuste garantiza el mínimo de 15 minutos. */
+  function radarIntervaloMs(): number {
+    const minutos = vscode.workspace.getConfiguration("opencodeAgents").get<number>("radar.intervalMinutes", 60);
+    return Math.max(15, Number.isFinite(minutos) ? minutos : 60) * 60_000;
+  }
+
+  function radarActivo(): boolean {
+    return vscode.workspace.getConfiguration("opencodeAgents").get<boolean>("radar.activo", false);
+  }
+
+  function radarToca(): boolean {
+    return radarActivo() && Date.now() - (radar.ultimaPasada() ?? 0) >= radarIntervaloMs();
+  }
+
+  let radarTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Pasada de arranque retrasada: se cancela al re-armar o al apagar el radar. */
+  let radarArranque: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   * Re-arma la espera con el intervalo configurado: cambiar `radar.*` surte efecto sin
+   * recargar la ventana. `setTimeout` encadenado, no `setInterval`: el intervalo se
+   * relee en cada vuelta. Apagado no deja temporizador. Con `comprobarAhora`, una
+   * pasada vencida sale sin esperar.
+   */
+  function rearmarRadar(comprobarAhora = false): void {
+    if (radarTimer) {
+      clearTimeout(radarTimer);
+      radarTimer = undefined;
+    }
+    if (radarArranque) {
+      clearTimeout(radarArranque);
+      radarArranque = undefined;
+    }
+    if (!radarActivo()) {
+      return;
+    }
+    radarTimer = setTimeout(() => {
+      radarTimer = undefined;
+      if (radarToca()) {
+        void radar.sync(false);
+      }
+      rearmarRadar();
+    }, radarIntervaloMs());
+    if (comprobarAhora && radarToca()) {
+      void radar.sync(false);
+    }
+  }
+  rearmarRadar();
+  if (radarToca()) {
+    // Retraso corto: no competir con el arranque de la ventana.
+    radarArranque = setTimeout(() => {
+      radarArranque = undefined;
+      void radar.sync(false);
+    }, 15_000);
+  }
+  context.subscriptions.push({
+    dispose: () => {
+      if (radarTimer) {
+        clearTimeout(radarTimer);
+      }
+      if (radarArranque) {
+        clearTimeout(radarArranque);
+      }
+    },
+  });
 
   async function refreshLimits(force = false): Promise<void> {
     const agent = sessionAgent;
@@ -2878,6 +2955,22 @@ export function activate(context: vscode.ExtensionContext): void {
       DatabasesPanel.open(context)
     ),
 
+    vscode.commands.registerCommand("opencodeAgents.radar", () => {
+      RadarPanel.open(context, radar);
+    }),
+
+    vscode.commands.registerCommand("opencodeAgents.radarSync", async () => {
+      await radar.sync(true);
+      const estado = radar.estadoActual();
+      if (estado.fase === "sinBase") {
+        void vscode.window.showWarningMessage(`Radar sin base de datos: ${estado.mensaje ?? "MariaDB no responde."}`);
+      } else if (estado.fase === "error") {
+        void vscode.window.showErrorMessage(`Radar: ${estado.mensaje ?? "error desconocido."}`);
+      } else if (estado.mensaje) {
+        void vscode.window.showInformationMessage(estado.mensaje);
+      }
+    }),
+
     // El tema se aplica solo: lo reparte el oyente de configuración. Aquí no se avisa.
     vscode.commands.registerCommand("opencodeAgents.theme", async () => {
       const actual = currentTheme();
@@ -3622,6 +3715,10 @@ export function activate(context: vscode.ExtensionContext): void {
       case "openModelCompare":
         await openModelComparePanel();
         return;
+
+      case "openRadar":
+        RadarPanel.open(context, radar);
+        return;
     }
   }
 
@@ -3643,6 +3740,7 @@ export function activate(context: vscode.ExtensionContext): void {
       PizarraPanel.current,
       ProjectExplorerPanel.current,
       PromptStatsPanel.current,
+      RadarPanel.current,
       StatsPanel.current,
       VoiceSettingsPanel.current,
     ]) {
@@ -3686,6 +3784,12 @@ export function activate(context: vscode.ExtensionContext): void {
           if (limitsViewOpen) {
             void refreshLimits();
           }
+        }
+        if (e.affectsConfiguration("opencodeAgents.radar")) {
+          // Activar o cambiar el intervalo no exige recargar la ventana: se re-arma y,
+          // si ya tocaba, sale la pasada sin esperar al siguiente hueco.
+          rearmarRadar(true);
+          RadarPanel.current?.notifyChanged();
         }
       }
     }),
@@ -3854,9 +3958,11 @@ export function activate(context: vscode.ExtensionContext): void {
   void probeMenteLocal();
 }
 
-export function deactivate(): void {
+export async function deactivate(): Promise<void> {
   voicePanel?.dispose();
   dictado?.dispose();
+  await radarService?.dispose();
+  radarService = undefined;
 }
 
 /**

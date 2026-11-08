@@ -1,0 +1,472 @@
+/* Radar de noticias — lista, filtros y configuración.
+   Solo consume las variables de los temas (`media/themes/*.css`) y la base compartida. */
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.rd-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Cabecera y pestañas ─────────────────────────────────── */
+.rd-header {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 14px;
+  gap: 10px;
+}
+
+.rd-header .hud-title {
+  flex: 0 1 auto;
+}
+
+.rd-header .hud-status {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rd-tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.rd-tab {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.rd-tab:hover {
+  color: var(--neon);
+}
+
+.rd-tab.on {
+  color: var(--neon);
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+}
+
+.rd-tab:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 1px;
+}
+
+/* ── Estructura de cada pestaña ───────────────────────────── */
+.rd-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 10px 14px 0;
+}
+
+.rd-barra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.rd-input,
+.rd-select {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 6px;
+  min-width: 0;
+}
+
+.rd-barra .rd-input {
+  flex: 1 1 180px;
+}
+
+.rd-input:focus,
+.rd-select:focus {
+  outline: none;
+  border-color: var(--neon);
+}
+
+.rd-select option {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.rd-primario {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+.rd-primario:disabled {
+  color: var(--text-dim);
+  border-color: var(--line-soft);
+  cursor: default;
+}
+
+/* ── Chips de tema ───────────────────────────────────────── */
+.rd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 0 0 auto;
+  margin: 8px 0 0;
+}
+
+.rd-chip {
+  background: none;
+  border: 1px solid var(--line-soft);
+  color: var(--text-soft);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.rd-chip:hover {
+  color: var(--text);
+}
+
+.rd-chip.on {
+  color: var(--neon);
+  border-color: var(--neon);
+}
+
+/* ── Aviso de la pasada o de la base ─────────────────────── */
+.rd-aviso {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  color: var(--amber);
+  font-size: 10.5px;
+  line-height: 1.45;
+  flex: 0 0 auto;
+  max-height: 96px;
+  overflow: auto;
+}
+
+.rd-aviso.error {
+  color: var(--danger);
+  border-color: var(--danger-dim);
+}
+
+/* ── Lista y detalle ─────────────────────────────────────── */
+.rd-cuerpo {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.4fr);
+  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 8px;
+}
+
+.rd-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+
+.rd-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.rd-item:hover {
+  background: var(--bg-raised);
+}
+
+.rd-item.on {
+  border-left-color: var(--neon);
+  background: var(--bg-raised);
+}
+
+.rd-score {
+  text-align: right;
+  color: var(--amber);
+  font-size: 12px;
+}
+
+.rd-item.leida .rd-titular {
+  color: var(--text-soft);
+}
+
+.rd-titular {
+  display: block;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.rd-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  color: var(--text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-detalle {
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  padding: 12px;
+  overflow: auto;
+}
+
+.rd-detalle h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.rd-d-meta {
+  margin-bottom: 10px;
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  color: var(--text-soft);
+}
+
+.rd-detalle p {
+  margin: 0 0 10px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.rd-d-enlace {
+  display: block;
+  font-size: 9.5px;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+  margin-bottom: 4px;
+}
+
+.rd-d-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.rd-banderas {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.rd-vacio {
+  color: var(--text-soft);
+  font-size: 11px;
+}
+
+/* ── Pie de la lista ─────────────────────────────────────── */
+.rd-pie {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 8px 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.rd-pie-dato {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-soft);
+}
+
+.rd-pag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.rd-pag-info {
+  min-width: 76px;
+  text-align: center;
+  font-size: 9px;
+  color: var(--text-soft);
+}
+
+/* ── Configuración ───────────────────────────────────────── */
+.rd-config {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  align-content: start;
+  overflow: auto;
+  padding-bottom: 14px;
+}
+
+.rd-bloque {
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  padding: 10px 12px;
+}
+
+.rd-bloque-title {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: normal;
+  letter-spacing: 2px;
+  color: var(--neon);
+}
+
+.rd-hint {
+  margin: 4px 0 0;
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+
+.rd-hint.error {
+  color: var(--danger);
+}
+
+.rd-fila {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.rd-fila .rd-input,
+.rd-fila .rd-select {
+  flex: 1 1 140px;
+}
+
+.rd-label {
+  width: 84px;
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  color: var(--text-soft);
+}
+
+.rd-fuentes,
+.rd-temas {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rd-fuente {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  min-width: 0;
+}
+
+.rd-fuente input {
+  accent-color: var(--neon);
+  flex: 0 0 auto;
+}
+
+.rd-check input {
+  accent-color: var(--neon);
+}
+
+.rd-check span {
+  font-size: 11px;
+}
+
+.rd-fuente-error {
+  flex: 1 0 100%;
+  font-size: 9px;
+  line-height: 1.35;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.rd-fuente .rd-url {
+  margin-left: auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  color: var(--text-soft);
+}
+
+.rd-tema {
+  font-size: 10px;
+  color: var(--text-soft);
+}
+
+.rd-umbral .rd-range {
+  flex: 1 1 160px;
+  accent-color: var(--neon);
+}
+
+.rd-umbral-valor {
+  width: 36px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--amber);
+}
+
+.rd-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  grid-column: 1 / -1;
+}
+
+/* Paneles estrechos: la lista encima y el detalle debajo. */
+@media (max-width: 700px) {
+  .rd-cuerpo {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 45% minmax(0, 1fr);
+  }
+}
