@@ -138,9 +138,9 @@
             <button class="pe-filter-chip active" data-filter="all" type="button">TODO</button>
             <button class="pe-filter-chip" data-filter="changed" type="button">CAMBIOS <span class="pe-chip-count" id="a-count-changed">0</span></button>
             <button class="pe-filter-chip" data-filter="staged" type="button">STAGED <span class="pe-chip-count" id="a-count-staged">0</span></button>
-            <button class="pe-filter-chip" data-filter="untracked" type="button">NUEVOS <span class="pe-chip-count" id="a-count-untracked">0</span></button>
             <button class="pe-filter-chip" data-filter="unpushed" type="button">SIN PUSH <span class="pe-chip-count" id="a-count-unpushed">0</span></button>
-            <button class="pe-filter-chip" data-filter="clean" type="button">LIMPIOS <span class="pe-chip-count" id="a-count-clean">0</span></button>
+            <button class="pe-filter-chip" data-filter="conflict" type="button">CONFLICTO <span class="pe-chip-count" id="a-count-conflict">0</span></button>
+            <button class="pe-filter-chip" data-filter="stashed" type="button">APARTE <span class="pe-chip-count" id="a-count-stashed">0</span></button>
           </div>
         </div>
 
@@ -287,9 +287,9 @@
             <button class="pe-filter-chip active" data-filter="all" type="button">TODO</button>
             <button class="pe-filter-chip" data-filter="changed" type="button">CAMBIOS <span class="pe-chip-count" id="b-count-changed">0</span></button>
             <button class="pe-filter-chip" data-filter="staged" type="button">STAGED <span class="pe-chip-count" id="b-count-staged">0</span></button>
-            <button class="pe-filter-chip" data-filter="untracked" type="button">NUEVOS <span class="pe-chip-count" id="b-count-untracked">0</span></button>
             <button class="pe-filter-chip" data-filter="unpushed" type="button">SIN PUSH <span class="pe-chip-count" id="b-count-unpushed">0</span></button>
-            <button class="pe-filter-chip" data-filter="clean" type="button">LIMPIOS <span class="pe-chip-count" id="b-count-clean">0</span></button>
+            <button class="pe-filter-chip" data-filter="conflict" type="button">CONFLICTO <span class="pe-chip-count" id="b-count-conflict">0</span></button>
+            <button class="pe-filter-chip" data-filter="stashed" type="button">APARTE <span class="pe-chip-count" id="b-count-stashed">0</span></button>
           </div>
         </div>
 
@@ -389,6 +389,72 @@
           <path d="M6 4L3.5 6.5 6 9" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
         <span>Descartar cambios</span>
+      </button>
+      <div id="ctx-divider-conflict" class="pe-ctx-divider"></div>
+      <button class="pe-ctx-item" data-action="resolveOurs" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <rect x="2.5" y="3.5" width="6" height="9" rx="1" />
+          <path d="M13.5 8H8.5M10.5 5.5L8 8l2.5 2.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Quedarme con mi versión</span>
+      </button>
+      <button class="pe-ctx-item" data-action="resolveTheirs" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <rect x="7.5" y="3.5" width="6" height="9" rx="1" />
+          <path d="M2.5 8h5M5.5 5.5L8 8l-2.5 2.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Quedarme con la remota</span>
+      </button>
+      <button class="pe-ctx-item pe-ctx-danger" data-action="discardConflict" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M3.5 6.5h6a3.5 3.5 0 1 1 0 7H4.5" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M6 4L3.5 6.5 6 9" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Descartar mis cambios locales (los pierdes)</span>
+      </button>
+      <button class="pe-ctx-item" data-action="stashConflict" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M2.5 6h11v7.5h-11zM4 3.5h8M5.5 1.5h5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Apartar mis cambios (stash)</span>
+      </button>
+      <button class="pe-ctx-item" data-action="stashDiff" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M2.5 3.5h4v9h-4zM9.5 3.5h4v9h-4z" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Ver cambios apartados</span>
+      </button>
+      <button class="pe-ctx-item" data-action="stashPop" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M8 13.5v-9M4.5 8L8 4.5 11.5 8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Recuperar</span>
+      </button>
+      <button class="pe-ctx-item pe-ctx-danger" data-action="stashPopForce" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M8 13.5v-9M4.5 8L8 4.5 11.5 8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Recuperar sobrescribiendo</span>
+      </button>
+      <button class="pe-ctx-item pe-ctx-danger" data-action="stashDrop" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M3.5 4.5h9M6 4.5v-2h4v2M4.5 4.5l.5 9h6l.5-9" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Borrar apartado</span>
+      </button>
+      <button class="pe-ctx-item pe-ctx-danger" data-action="resolveAllOurs" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M12.5 5.5h-6a3 3 0 0 0 0 6h3" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M8 3L5.5 5.5 8 8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Resolver todo con la mía</span>
+      </button>
+      <button class="pe-ctx-item pe-ctx-danger" data-action="resolveAllTheirs" type="button">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M3.5 5.5h6a3 3 0 0 1 0 6h-3" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M8 3l2.5 2.5L8 8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Resolver todo con la remota</span>
       </button>
       <div id="ctx-divider-fs" class="pe-ctx-divider"></div>
       <button class="pe-ctx-item" data-action="rename" type="button">

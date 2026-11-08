@@ -544,20 +544,15 @@ html, body {
   border-color: var(--green);
   color: var(--green);
 }
-.pe-filter-chip.active[data-filter="untracked"] {
-  background: color-mix(in srgb, var(--magenta) 15%, transparent);
-  border-color: var(--magenta);
-  color: var(--magenta);
-}
 .pe-filter-chip.active[data-filter="unpushed"] {
   background: color-mix(in srgb, var(--neon) 15%, transparent);
   border-color: var(--neon);
   color: var(--neon);
 }
-.pe-filter-chip.active[data-filter="clean"] {
-  background: color-mix(in srgb, var(--green) 15%, transparent);
-  border-color: var(--green);
-  color: var(--green);
+.pe-filter-chip.active[data-filter="conflict"] {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 /* ── Árbol virtualizado ────────────────────────────────────── */
@@ -636,6 +631,14 @@ html, body {
 .pe-row.is-md .pe-row-name {
   color: var(--neon);
   font-weight: 700;
+}
+
+/* Sin seguimiento (untracked) y en conflicto: solo color del nombre */
+.pe-row-new .pe-row-name {
+  color: var(--magenta);
+}
+.pe-row-conflict .pe-row-name {
+  color: var(--danger);
 }
 
 /* Archivos desaparecidos (missing) */
@@ -737,6 +740,8 @@ html, body {
 .pe-git-badge.d { color: var(--danger); background: var(--danger-dim); }
 .pe-git-badge.r { color: var(--violet); background: color-mix(in srgb, var(--violet) 15%, transparent); }
 .pe-git-badge.p { color: var(--neon); background: color-mix(in srgb, var(--neon) 15%, transparent); }
+.pe-git-badge.a { color: var(--violet); background: color-mix(in srgb, var(--violet) 15%, transparent); }
+.pe-git-badge.c { color: var(--danger); background: var(--danger-dim); }
 
 .pe-git-diff-added { color: var(--green); font-size: 10px; }
 .pe-git-diff-removed { color: var(--magenta); font-size: 10px; }
@@ -747,13 +752,6 @@ html, body {
   border-radius: 50%;
   background: var(--amber);
   box-shadow: 0 0 4px var(--amber);
-}
-
-.pe-clean-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--green);
 }
 
 /* Barra de porcentaje y tamaño */

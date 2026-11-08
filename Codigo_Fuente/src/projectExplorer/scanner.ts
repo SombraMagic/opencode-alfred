@@ -533,6 +533,10 @@ export interface ComputeParams {
   sortDir: SortDir;
   /** Estado git por `rel` (vacío si no hay repo). Clave con separador "/". */
   gitMap: ReadonlyMap<string, GitFileState>;
+  /** `rel` del árbol con conflicto previsto al hacer pull (aún sin merge). */
+  conflictRels?: ReadonlySet<string>;
+  /** `rel` de los ficheros que Alfred tiene apartados en un stash. */
+  stashRels?: ReadonlySet<string>;
   filter: FilterId;
   /** Coincidencias (ids) del modo resultado; sin conjunto = modo árbol. */
   resultIds?: ReadonlySet<number>;
@@ -596,25 +600,38 @@ export function computeRows(p: ComputeParams): ComputeOut {
   }
   const sizeOf = (id: number): number => visSize.get(id) ?? 0;
 
-  // 2) folderGit: dirs con algún descendiente en estado != clean/ignored.
+  // 2) folderGit: dirs con algún descendiente en estado != clean/ignored o con
+  //    conflicto previsto (la carpeta enseña su punto).
   const dirty = new Set<number>();
+  const conflictRels = p.conflictRels;
+  const stashRels = p.stashRels;
+  const markAncestors = (rel: string): void => {
+    let cur = parentOf(rel);
+    while (cur !== "") {
+      const pid = tree.idByRel.get(cur);
+      if (pid === undefined || dirty.has(pid)) {
+        break;
+      }
+      dirty.add(pid);
+      cur = parentOf(cur);
+    }
+  };
   if (hasGit) {
     for (const [rel, fs] of p.gitMap) {
       if (fs.state === "clean" || fs.state === "ignored") {
         continue;
       }
-      const id = tree.idByRel.get(rel);
-      if (id === undefined) {
+      if (tree.idByRel.get(rel) === undefined) {
         continue;
       }
-      let cur = parentOf(rel);
-      while (cur !== "") {
-        const pid = tree.idByRel.get(cur);
-        if (pid === undefined || dirty.has(pid)) {
-          break;
-        }
-        dirty.add(pid);
-        cur = parentOf(cur);
+      markAncestors(rel);
+    }
+  }
+  if (conflictRels) {
+    for (const rel of conflictRels) {
+      // Solo lo que existe en el árbol: sin filas ni puntos inventados.
+      if (tree.idByRel.has(rel)) {
+        markAncestors(rel);
       }
     }
   }
@@ -635,9 +652,36 @@ export function computeRows(p: ComputeParams): ComputeOut {
         continue;
       }
       const fs = hasGit ? p.gitMap.get(e.rel) : undefined;
-      if (fs && gitPasses(fs, p.filter)) {
+      const previsto = conflictRels?.has(e.rel) === true;
+      if (
+        (fs !== undefined && gitPasses(fs, p.filter)) ||
+        (p.filter === "conflict" && previsto) ||
+        (p.filter === "stashed" && stashRels?.has(e.rel) === true)
+      ) {
         memberIds.add(id);
       }
+    }
+  }
+  // Apartados que ya no están en disco (un fichero nuevo desaparece al apartarlo): fila virtual
+  // bajo su carpeta existente más cercana, con la ruta que falta como nombre.
+  const missingByParent = new Map<string, MissingRow[]>();
+  if (p.filter === "stashed" && stashRels) {
+    for (const rel of stashRels) {
+      if (tree.idByRel.has(rel) || (!p.showHidden && rel.split("/").some((s) => s.startsWith(".")))) {
+        continue;
+      }
+      let anchor = parentOf(rel);
+      while (anchor !== "" && !tree.idByRel.has(anchor)) {
+        anchor = parentOf(anchor);
+      }
+      const anchorId = tree.idByRel.get(anchor);
+      if (anchorId === undefined) {
+        continue;
+      }
+      memberIds.add(anchorId);
+      const list = missingByParent.get(anchor) ?? [];
+      list.push({ rel, name: anchor === "" ? rel : rel.slice(anchor.length + 1), git: { state: "clean", stashed: true } });
+      missingByParent.set(anchor, list);
     }
   }
   const keepDirs = new Set<number>();
@@ -662,7 +706,6 @@ export function computeRows(p: ComputeParams): ComputeOut {
 
   // 4) Ficheros borrados que ya no están en disco: solo con filtro git activo, y como
   //    filas `missing` bajo su carpeta madre (en modo árbol no se inventan filas).
-  const missingByParent = new Map<string, MissingRow[]>();
   if (res && wantsFilter && hasGit) {
     for (const [rel, fs] of p.gitMap) {
       if (fs.state !== "deleted" || !gitPasses(fs, p.filter)) {
@@ -707,6 +750,18 @@ export function computeRows(p: ComputeParams): ComputeOut {
     const parentSize = sizeOf(tree.idByRel.get(parentOf(e.rel)) ?? tree.rootId);
     const own = sizeOf(id);
     const fs = hasGit ? p.gitMap.get(e.rel) : undefined;
+    const previsto = conflictRels?.has(e.rel) === true;
+    const apartado = stashRels?.has(e.rel) === true;
+    const fallback: GitFileState = { state: "clean" };
+    // Conflicto previsto: la fila lo marca aunque su estado git normal sea `clean`.
+    const git: RowGit | null =
+      fs !== undefined || previsto || apartado
+        ? {
+            ...(fs ?? fallback),
+            ...(previsto ? { conflict: true } : {}),
+            ...(apartado ? { stashed: true } : {}),
+          }
+        : null;
     const hasKids = hasVisibleChildren(tree, id, p.showHidden);
     return {
       rel: e.rel,
@@ -721,7 +776,7 @@ export function computeRows(p: ComputeParams): ComputeOut {
       pct: parentSize > 0 ? Math.round((own / parentSize) * 100) : 0,
       mtime: e.mtime,
       ext: e.ext,
-      git: fs ? { ...fs } : null,
+      git,
       folderGit: e.kind === "dir" && dirty.has(id),
       error: e.error,
     };
@@ -789,22 +844,21 @@ function gitPasses(fs: GitFileState, filter: FilterId): boolean {
   switch (filter) {
     case "all":
       return true;
-    case "clean":
-      return fs.state === "clean";
     case "changed":
       return (
         fs.state === "modified" ||
         fs.state === "staged" ||
         fs.state === "untracked" ||
         fs.state === "deleted" ||
-        fs.state === "renamed"
+        fs.state === "renamed" ||
+        fs.state === "conflict"
       );
     case "staged":
       return fs.state === "staged" || fs.staged === true;
-    case "untracked":
-      return fs.state === "untracked";
     case "unpushed":
       return fs.unpushed === true;
+    case "conflict":
+      return fs.state === "conflict" || fs.conflict === true;
   }
   return false;
 }

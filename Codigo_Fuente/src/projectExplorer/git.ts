@@ -5,7 +5,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { lstat } from "node:fs/promises";
+import { chmod, lstat, mkdir, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import type { GitInfo, GitState, RowGit } from "./model";
 
@@ -20,6 +20,15 @@ export type GitActionKind =
   | "discard"
   | "checkout"
   | "createBranch"
+  | "resolveOurs"
+  | "resolveTheirs"
+  | "discardConflict"
+  | "stashConflict"
+  | "stashPop"
+  | "stashPopForce"
+  | "stashDrop"
+  | "resolveAllOurs"
+  | "resolveAllTheirs"
   | "refresh";
 
 /** Nombre de rama aceptado para `createBranch`. */
@@ -53,6 +62,12 @@ export function lastUsefulLine(text: string): string {
     .map((l) => l.trim())
     .filter(Boolean);
   return lines.length > 0 ? lines[lines.length - 1] : "";
+}
+
+/** La línea de un error que da la causa (`CONFLICT`/`error`/`fatal`) o, si no, la primera. */
+function firstLine(text: string): string {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  return lines.find((l) => /^(CONFLICT|error|fatal)/i.test(l)) ?? lines[0] ?? "";
 }
 
 /** `git -C <cwd>` sin shell, con tope, buffer y entorno estable. */
@@ -140,6 +155,40 @@ export async function findToplevel(root: string): Promise<string | null> {
 }
 
 /**
+ * Constructor del mapeo ruta del repo -> `rel` del árbol. Devuelve `null` si la
+ * raíz queda fuera del repo. Compara sin distinguir caja en Windows y deja fuera
+ * lo que no cuelga del árbol y la basura de `.git`.
+ */
+function makeToRel(
+  toplevelAbs: string,
+  root: string
+): ((relToplevel: string) => string | null) | null {
+  const toplevel = normSlashes(toplevelAbs);
+  const rootNorm = normSlashes(root);
+  if (!(pathEq(toplevel, rootNorm) || startsWithDir(toplevel, rootNorm))) {
+    return null;
+  }
+  return (relToplevel: string): string | null => {
+    const p = normSlashes(relToplevel);
+    if (!p || isVcsNoise(p)) {
+      return null;
+    }
+    if (pathEq(toplevel, rootNorm)) {
+      return p;
+    }
+    const prefix = `${toplevel}/`;
+    if (!startsWithDir(toplevel, rootNorm)) {
+      return null;
+    }
+    const sub = `${rootNorm.slice(prefix.length)}/`;
+    if (pathEq(sub.slice(0, -1), p)) {
+      return "";
+    }
+    return startsWithDir(sub, p) ? p.slice(sub.length) : null;
+  };
+}
+
+/**
  * Estado completo del repo relativo a `root`: rama, upstream, ahead/behind,
  * ficheros y ramas locales. `null` si la raíz no está dentro de un repo.
  * `hasRel` dice si una ruta existe en el árbol escaneado (recortes de recuentos).
@@ -152,31 +201,10 @@ export async function readRepoState(
   if (!toplevelAbs) {
     return null;
   }
-  const toplevel = normSlashes(toplevelAbs);
-  const rootNorm = normSlashes(root);
-  if (!(pathEq(toplevel, rootNorm) || startsWithDir(toplevel, rootNorm))) {
+  const toRel = makeToRel(toplevelAbs, root);
+  if (!toRel) {
     return null;
   }
-
-    // `rel` dentro del árbol o null (fuera, o basura .git). Compara sin distinguir caja en Windows.
-    const toRel = (relToplevel: string): string | null => {
-      const p = normSlashes(relToplevel);
-      if (!p || isVcsNoise(p)) {
-        return null;
-      }
-      if (pathEq(toplevel, rootNorm)) {
-        return p;
-      }
-      const prefix = `${toplevel}/`;
-      if (!startsWithDir(toplevel, rootNorm)) {
-        return null;
-      }
-      const sub = `${rootNorm.slice(prefix.length)}/`;
-      if (pathEq(sub.slice(0, -1), p)) {
-        return "";
-      }
-      return startsWithDir(sub, p) ? p.slice(sub.length) : null;
-    };
 
   const status = await mustOk(toplevelAbs, [
     "status",
@@ -225,8 +253,27 @@ export async function readRepoState(
       }
       continue;
     }
+    if (line.startsWith("u ")) {
+      // Conflicto de merge: `u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <camino>`.
+      const fields = line.split(" ");
+      if (fields.length < 11) {
+        continue;
+      }
+      const rest = line.slice(fields.slice(0, 10).join(" ").length + 1);
+      // Con `-z` no hay renombrados aquí: el camino va entero, sin campos extra.
+      const rel = toRel(rest.split("\t")[0]);
+      if (rel === null || rel === "") {
+        continue;
+      }
+      if (!files.has(rel)) {
+        files.set(rel, { state: "conflict" });
+      }
+      workDirty.add(rel);
+      indexDirty.add(rel);
+      continue;
+    }
     if (line[1] !== " ") {
-      // Conflicto de merge (`u`) u otra entrada que porcelain v2 no separa con espacio: fuera.
+      // Entrada con un formato que porcelain v2 no separa con espacio: fuera.
       continue;
     }
     const kind = line[0];
@@ -380,7 +427,7 @@ export async function readRepoState(
     }
   }
 
-  // Ficheros seguidos sin cambios: estado `clean` (el filtro LIMPIOS los necesita).
+  // Ficheros seguidos sin cambios: estado `clean` (lo usan SIN PUSH y el orden de prioridad).
   const lsFiles = await gitExec(toplevelAbs, ["ls-files", "-z"]);
   if (lsFiles.code === 0) {
     for (const field of lsFiles.out.split("\0")) {
@@ -397,13 +444,15 @@ export async function readRepoState(
     }
   }
 
-  // Estado final por prioridad: deleted > renamed > untracked > staged > modified > clean.
+  // Estado final por prioridad: conflict > deleted > renamed > untracked > staged > modified > clean.
   const dropKeys: string[] = [];
   for (const [rel, fs] of files) {
     const isWork = workDirty.has(rel) || fs.state === "deleted";
     const isIndex = indexDirty.has(rel) || fs.state === "staged" || fs.state === "renamed";
     let fin: GitState;
-    if (fs.state === "deleted") {
+    if (fs.state === "conflict") {
+      fin = "conflict";
+    } else if (fs.state === "deleted") {
       fin = "deleted";
     } else if (fs.state === "renamed") {
       fin = "renamed";
@@ -461,14 +510,15 @@ export async function readRepoState(
     }
   }
 
-  const counts = { changed: 0, staged: 0, untracked: 0, unpushed: 0, clean: 0 };
+  const counts = { changed: 0, staged: 0, untracked: 0, unpushed: 0, clean: 0, conflict: 0, stashed: 0 };
   for (const [rel, fs] of files) {
     if (
       fs.state === "modified" ||
       fs.state === "staged" ||
       fs.state === "untracked" ||
       fs.state === "deleted" ||
-      fs.state === "renamed"
+      fs.state === "renamed" ||
+      fs.state === "conflict"
     ) {
       counts.changed += 1;
     }
@@ -484,6 +534,9 @@ export async function readRepoState(
     if (fs.state === "clean") {
       counts.clean += 1;
     }
+    if (fs.state === "conflict") {
+      counts.conflict += 1;
+    }
   }
 
   const info: GitInfo = {
@@ -495,6 +548,200 @@ export async function readRepoState(
     counts,
   };
   return { info, files };
+}
+
+/**
+ * Ficheros que chocarían al fusionar HEAD con la remota (`merge-tree`, sin tocar
+ * el árbol de trabajo) más los ficheros con cambios locales sin commitear
+ * (índice, árbol de trabajo o sin seguimiento) que la remota también cambia:
+ * esos son los que hacen fallar `git pull`. No hace `fetch`: lo lanza el
+ * llamador antes. Rutas relativas a la raíz del árbol; los conflictos ya
+ * presentes los suma el panel desde el estado de git.
+ */
+export async function detectPullConflicts(
+  root: string
+): Promise<{ upstream: string; files: string[] }> {
+  const toplevelAbs = await findToplevel(root);
+  if (!toplevelAbs) {
+    throw new GitError("La carpeta no está dentro de un repositorio git.");
+  }
+  const up = await gitExec(toplevelAbs, [
+    "rev-parse",
+    "--abbrev-ref",
+    "--symbolic-full-name",
+    "@{u}",
+  ]);
+  const upstream = up.code === 0 ? up.out.split(/\r?\n/)[0]?.trim() ?? "" : "";
+  if (!upstream) {
+    throw new GitError("La rama no tiene upstream.");
+  }
+  const mt = await gitExec(toplevelAbs, [
+    "merge-tree",
+    "--write-tree",
+    "--name-only",
+    "HEAD",
+    "@{u}",
+  ]);
+  // 0 = sin conflictos; 1 = con conflictos. Cualquier otro código es un fallo real.
+  if (mt.code !== 0 && mt.code !== 1) {
+    throw new GitError(lastUsefulLine(mt.err || mt.out) || "git merge-tree falló.");
+  }
+  const toRel = makeToRel(toplevelAbs, root);
+  if (!toRel) {
+    throw new GitError("La carpeta no está dentro de un repositorio git.");
+  }
+  // Salida: OID del árbol, un camino en conflicto por línea, línea vacía y mensajes.
+  const lines = mt.out.split(/\r?\n/);
+  const files: string[] = [];
+  const seen = new Set<string>();
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === "") {
+      break;
+    }
+    if (line.startsWith("Auto-merging ") || line.startsWith("CONFLICT ")) {
+      continue;
+    }
+    const rel = toRel(line);
+    if (rel === null || rel === "" || seen.has(rel)) {
+      continue;
+    }
+    seen.add(rel);
+    files.push(rel);
+  }
+  const split = (out: string) => out.split("\0").filter((p) => p !== "");
+  const remote = new Set(
+    split(await mustOk(toplevelAbs, ["diff", "--name-only", "--no-renames", "-z", "HEAD...@{u}"], TIMEOUT_LONG))
+  );
+  const dirty = [
+    ...split(await mustOk(toplevelAbs, ["diff", "--name-only", "--no-renames", "-z", "HEAD"], TIMEOUT_LONG)),
+    ...split(
+      await mustOk(toplevelAbs, ["ls-files", "--others", "--exclude-standard", "-z"], TIMEOUT_LONG)
+    ),
+  ];
+  for (const p of dirty) {
+    const rel = remote.has(p) ? toRel(p) : null;
+    if (rel === null || rel === "" || seen.has(rel)) {
+      continue;
+    }
+    seen.add(rel);
+    files.push(rel);
+  }
+  return { upstream, files };
+}
+
+/** Un fichero apartado por Alfred (`stash push -m "alfred: <rel>"`). */
+export interface StashEntry {
+  /** Hash del commit del stash: estable aunque cambien los `stash@{n}`. */
+  hash: string;
+  /** Posición actual en `stash list`; solo vale justo después de leerla. */
+  index: number;
+  /** Ruta relativa a la raíz del árbol. */
+  rel: string;
+  /** Ruta relativa al toplevel del repo (la que entiende `git show`). */
+  repoRel: string;
+}
+
+/**
+ * Stashes de Alfred (mensaje `alfred: ...`, tras el `On <rama>: ` que añade git) con
+ * su fichero. Los stashes del usuario no se leen. Solo local, sin red.
+ */
+export async function listAlfredStashes(root: string): Promise<StashEntry[]> {
+  const toplevelAbs = await findToplevel(root);
+  const toRel = toplevelAbs ? makeToRel(toplevelAbs, root) : null;
+  if (!toplevelAbs || !toRel) {
+    return [];
+  }
+  const list = await gitExec(toplevelAbs, ["stash", "list", "--format=%H%x00%gs"]);
+  if (list.code !== 0) {
+    return [];
+  }
+  const out: StashEntry[] = [];
+  const lines = list.out.split(/\r?\n/).filter(Boolean);
+  for (let index = 0; index < lines.length; index++) {
+    const [hash, subject = ""] = lines[index].split("\0");
+    if (!/^[0-9a-f]{40,64}$/.test(hash) || !/^On [^:]*: alfred: /.test(subject)) {
+      continue;
+    }
+    const show = await gitExec(toplevelAbs, ["stash", "show", "--name-only", "-z", "--include-untracked", hash]);
+    if (show.code !== 0) {
+      continue;
+    }
+    // Solo cuenta el stash de UN fichero cuyo mensaje es exactamente `alfred: <rel>`:
+    // uno hecho a mano (varios ficheros u otro texto) nunca se trata como de Alfred.
+    const files = show.out.split("\0").filter((p) => p !== "");
+    if (files.length !== 1) {
+      continue;
+    }
+    const rel = toRel(files[0]);
+    if (rel !== null && rel !== "" && subject.replace(/^On [^:]*: /, "") === `alfred: ${rel}`) {
+      out.push({ hash, index, rel, repoRel: files[0] });
+    }
+  }
+  return out;
+}
+
+/** El stash de Alfred más reciente de `rel`, con el índice resuelto ahora mismo. */
+async function findStash(root: string, rel: string): Promise<StashEntry> {
+  const found = (await listAlfredStashes(root)).find((e) => e.rel === rel);
+  if (!found) {
+    throw new GitError(`No hay nada apartado de «${baseName(rel)}».`);
+  }
+  return found;
+}
+
+/** Aborta si `stash@{n}` ya no es el stash leído (otro stash lo desplazó). */
+async function assertStashSame(toplevelAbs: string, e: StashEntry): Promise<void> {
+  const r = await gitExec(toplevelAbs, ["rev-parse", `stash@{${e.index}}`]);
+  if (r.code !== 0 || r.out.trim() !== e.hash) {
+    throw new GitError("El apartado cambió mientras tanto; refresca y vuelve a intentarlo.");
+  }
+}
+
+/** Escribe `bytes` en `dest` por tmp+rename, conservando el modo y sin salir de `root`. */
+async function writeInside(root: string, dest: string, bytes: Buffer): Promise<void> {
+  await mkdir(path.dirname(dest), { recursive: true });
+  const realRoot = normSlashes(await realpath(root));
+  const realDir = normSlashes(await realpath(path.dirname(dest)));
+  if (!(pathEq(realDir, realRoot) || startsWithDir(realRoot, realDir))) {
+    throw new GitError("La ruta del fichero cae fuera de la carpeta del árbol.");
+  }
+  const tmp = `${dest}.tmp-${process.pid}`;
+  try {
+    await writeFile(tmp, bytes);
+    const mode = await stat(dest).then((s) => s.mode & 0o777, () => null);
+    if (mode !== null) {
+      await chmod(tmp, mode);
+    }
+    await rename(tmp, dest);
+  } catch (err) {
+    await rm(tmp, { force: true });
+    throw err;
+  }
+}
+
+/** Bytes del fichero dentro del stash: árbol del stash (seguido) o `^3` (sin seguimiento). */
+async function stashBlob(toplevelAbs: string, e: StashEntry): Promise<Buffer | null> {
+  for (const spec of [`${e.hash}:${e.repoRel}`, `${e.hash}^3:${e.repoRel}`]) {
+    const r = await gitExecRaw(toplevelAbs, ["show", spec]);
+    if (r.code === 0) {
+      return r.bytes;
+    }
+  }
+  return null;
+}
+
+/** Versión apartada de `rel` para `vscode.diff`. */
+export async function readStashedVersion(root: string, rel: string): Promise<Buffer> {
+  const toplevelAbs = await findToplevel(root);
+  if (!toplevelAbs) {
+    throw new GitError("La carpeta no está dentro de un repositorio git.");
+  }
+  const bytes = await stashBlob(toplevelAbs, await findStash(root, requireRel(rel)));
+  if (!bytes) {
+    throw new GitError("El apartado no guarda una versión de ese fichero (¿lo borraba?).");
+  }
+  return bytes;
 }
 
 /** Ruta del repo (con "/") a partir de la raíz del árbol y su `rel`. */
@@ -521,6 +768,14 @@ function requireRel(rel: string | undefined): string {
     throw new GitError("Ruta no válida para la operación git.");
   }
   return value;
+}
+
+/** Exige un merge en curso (`MERGE_HEAD`): sin él no hay conflicto que resolver. */
+async function requireMergeInProgress(cwd: string): Promise<void> {
+  const r = await gitExec(cwd, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]);
+  if (r.code !== 0) {
+    throw new GitError("No hay un merge en curso para resolver.");
+  }
 }
 
 /**
@@ -573,7 +828,8 @@ function gitExecRaw(
 
 /**
  * Ejecuta una acción git. `push` sin upstream exige rama real; `checkout` valida
- * contra la lista de ramas; `createBranch` valida el nombre. `refresh` es no-op.
+ * contra la lista de ramas; `createBranch` valida el nombre. Las `resolve*` exigen
+ * un merge en curso. `refresh` es no-op.
  */
 export async function gitAction(
   root: string,
@@ -629,6 +885,96 @@ export async function gitAction(
         throw new GitError("Solo se pueden descartar cambios de ficheros.");
       }
       await mustOk(root, ["restore", "--worktree", "--", `:(literal)${rel}`], TIMEOUT_LONG);
+      return;
+    }
+    case "resolveOurs":
+    case "resolveTheirs": {
+      const rel = requireRel(opts.rel);
+      await requireMergeInProgress(root);
+      const side = action === "resolveOurs" ? "--ours" : "--theirs";
+      // `:(literal)` evita que `[`, `*` o `?` del nombre se lean como globs.
+      await mustOk(root, ["checkout", side, "--", `:(literal)${rel}`], TIMEOUT_LONG);
+      await mustOk(root, ["add", "--", `:(literal)${rel}`], TIMEOUT_LONG);
+      return;
+    }
+    case "resolveAllOurs":
+    case "resolveAllTheirs": {
+      await requireMergeInProgress(toplevelAbs);
+      const side = action === "resolveAllOurs" ? "--ours" : "--theirs";
+      // Solo los conflictos reales: `-- .` revertía ficheros no conflictivos y
+      // `add -A` metía en el índice los sin seguimiento ajenos. Con `-z` cada
+      // camino llega entero, sin comillas, terminado en NUL.
+      const list = await mustOk(toplevelAbs, [
+        "diff",
+        "--name-only",
+        "-z",
+        "--diff-filter=U",
+      ]);
+      const paths = list.split("\0").filter((p) => p !== "");
+      if (paths.length === 0) {
+        throw new GitError("No hay ficheros en conflicto.");
+      }
+      for (const p of paths) {
+        await mustOk(toplevelAbs, ["checkout", side, "--", `:(literal)${p}`], TIMEOUT_LONG);
+        await mustOk(toplevelAbs, ["add", "--", `:(literal)${p}`], TIMEOUT_LONG);
+      }
+      return;
+    }
+    case "discardConflict": {
+      const rel = requireRel(opts.rel);
+      await mustOk(
+        root,
+        ["restore", "--source=HEAD", "--staged", "--worktree", "--", `:(literal)${rel}`],
+        TIMEOUT_LONG
+      );
+      return;
+    }
+    case "stashConflict": {
+      const rel = requireRel(opts.rel);
+      // Sin nada sucio git sale con 0 sin crear stash: se nota porque `refs/stash` no se mueve.
+      const antes = (await gitExec(toplevelAbs, ["rev-parse", "-q", "--verify", "refs/stash"])).out.trim();
+      await mustOk(
+        root,
+        ["stash", "push", "--include-untracked", "-m", `alfred: ${rel}`, "--", `:(literal)${rel}`],
+        TIMEOUT_LONG
+      );
+      const despues = (await gitExec(toplevelAbs, ["rev-parse", "-q", "--verify", "refs/stash"])).out.trim();
+      if (despues === antes) {
+        throw new GitError(`No hay cambios locales que apartar en ${rel}.`);
+      }
+      return;
+    }
+    case "stashPop": {
+      const rel = requireRel(opts.rel);
+      const e = await findStash(root, rel);
+      await assertStashSame(toplevelAbs, e);
+      const r = await gitExec(toplevelAbs, ["stash", "pop", `stash@{${e.index}}`], TIMEOUT_LONG);
+      if (r.code !== 0) {
+        // Con choque git deja el stash y los marcadores en el fichero.
+        throw new GitError(
+          `No se pudo recuperar «${baseName(rel)}» limpio: ${firstLine(r.err || r.out) || "git falló"}. ` +
+            "El apartado se conserva; si git dejó marcadores de conflicto en el fichero, resuélvelos."
+        );
+      }
+      return;
+    }
+    case "stashPopForce": {
+      const rel = requireRel(opts.rel);
+      const e = await findStash(root, rel);
+      const bytes = await stashBlob(toplevelAbs, e);
+      if (!bytes) {
+        throw new GitError("El apartado no guarda una versión de ese fichero (¿lo borraba?).");
+      }
+      const dest = path.join(root, ...rel.split("/"));
+      await writeInside(root, dest, bytes);
+      await assertStashSame(toplevelAbs, e);
+      await mustOk(toplevelAbs, ["stash", "drop", `stash@{${e.index}}`]);
+      return;
+    }
+    case "stashDrop": {
+      const e = await findStash(root, requireRel(opts.rel));
+      await assertStashSame(toplevelAbs, e);
+      await mustOk(toplevelAbs, ["stash", "drop", `stash@{${e.index}}`]);
       return;
     }
     case "push": {

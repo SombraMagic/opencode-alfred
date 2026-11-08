@@ -108,7 +108,7 @@
   };
 
   function getRowIconSvg(row) {
-    if (row.kind === "missing" || row.error) return SVG_ICONS.error;
+    if ((row.kind === "missing" || row.error) && !(row.git && row.git.stashed)) return SVG_ICONS.error;
     if (row.kind === "link") return SVG_ICONS.link;
     if (row.kind === "dir") {
       return row.expanded ? SVG_ICONS.folderOpen : SVG_ICONS.folder;
@@ -190,9 +190,9 @@
       filterChips: document.querySelectorAll("#panel-" + id + " .pe-filter-chip"),
       countChanged: document.getElementById(id + "-count-changed"),
       countStaged: document.getElementById(id + "-count-staged"),
-      countUntracked: document.getElementById(id + "-count-untracked"),
       countUnpushed: document.getElementById(id + "-count-unpushed"),
-      countClean: document.getElementById(id + "-count-clean"),
+      countConflict: document.getElementById(id + "-count-conflict"),
+      countStashed: document.getElementById(id + "-count-stashed"),
       // Árbol
       treeScroll: document.getElementById(id + "-tree-scroll"),
       treePhantom: document.getElementById(id + "-tree-phantom"),
@@ -546,8 +546,10 @@
     el.dataset.kind = row.kind;
 
     if (index === t.selectedIndex) el.classList.add("selected");
-    if (row.kind === "missing") el.classList.add("missing");
+    if (row.kind === "missing" && !(row.git && row.git.stashed)) el.classList.add("missing");
     if (row.ext && row.ext.toLowerCase() === "md") el.classList.add("is-md");
+    if (row.git && row.git.state === "untracked") el.classList.add("pe-row-new");
+    if (row.git && (row.git.state === "conflict" || row.git.conflict === true)) el.classList.add("pe-row-conflict");
 
     // Arrastrable si no es missing ni raíz
     if (row.kind !== "missing" && row.rel !== "") {
@@ -605,7 +607,9 @@
       if (row.git) {
         const g = row.git;
         // Estado
-        if (g.state === "modified") {
+        if (g.state === "conflict" || g.conflict === true) {
+          appendGitBadge(elGit, "!", "c", "Conflicto al hacer pull");
+        } else if (g.state === "modified") {
           appendGitBadge(elGit, "M", "m", "Modificado");
         } else if (g.state === "staged") {
           appendGitBadge(elGit, "S", "s", "Preparado (staged)");
@@ -615,15 +619,13 @@
           appendGitBadge(elGit, "D", "d", "Eliminado");
         } else if (g.state === "renamed") {
           appendGitBadge(elGit, "R", "r", "Renombrado");
-        } else if (g.state === "clean" && t.filter === "clean") {
-          const dot = document.createElement("span");
-          dot.className = "pe-clean-dot";
-          dot.title = "Limpio";
-          elGit.appendChild(dot);
         }
 
         if (g.unpushed) {
           appendGitBadge(elGit, "↑", "p", "Sin push");
+        }
+        if (g.stashed) {
+          appendGitBadge(elGit, "A", "a", "Apartado por Alfred (stash)");
         }
 
         if (typeof g.added === "number" && g.added > 0) {
@@ -807,31 +809,44 @@
         const isFile = kind !== "dir" && kind !== "missing";
         const isDir = kind === "dir";
         const isMissing = kind === "missing";
-        const isCleanFilter = filter === "clean";
 
         const g = row && row.git ? row.git : null;
         const gitState = g ? g.state : null;
+        const isConflict = !!(g && (gitState === "conflict" || g.conflict === true));
         const isStagedFlag = g ? (gitState === "staged" || g.staged === true) : false;
 
         // diff: solo fichero ("file") con row.git y estado modified, staged o renamed
-        const canDiff = kind === "file" && !!g && !isCleanFilter && (
+        const canDiff = kind === "file" && !!g && (
           gitState === "modified" ||
           gitState === "staged" ||
           gitState === "renamed"
         );
 
-        // stage: solo fichero ("file") con estado modified o untracked, y filtro distinto de staged/clean
-        const canStage = kind === "file" && !!g && filter !== "staged" && !isCleanFilter && (
+        // stage: solo fichero ("file") con estado modified o untracked, y filtro distinto de staged
+        const canStage = kind === "file" && !!g && filter !== "staged" && (
           gitState === "modified" || gitState === "untracked"
         );
 
         // unstage: solo fichero ("file") con state==="staged" o row.git.staged===true
-        const canUnstage = kind === "file" && !isCleanFilter && isStagedFlag;
+        const canUnstage = kind === "file" && isStagedFlag;
 
-        // discard: solo fichero ("file") con state==="modified", y filtro distinto de staged/clean
-        const canDiscard = kind === "file" && !!g && filter !== "staged" && !isCleanFilter && (
+        // discard: solo fichero ("file") con state==="modified", y filtro distinto de staged
+        const canDiscard = kind === "file" && !!g && filter !== "staged" && (
           gitState === "modified"
         );
+
+        // conflicto: resolver exige merge real; descartar vale también para el previsto
+        const canConflictFile = kind === "file" && isConflict && rel !== "";
+        const canResolveFile = canConflictFile && gitState === "conflict";
+        const canResolveOurs = canResolveFile;
+        const canResolveTheirs = canResolveFile;
+        const canDiscardConflict = canConflictFile;
+        const canStashConflict = canConflictFile && gitState !== "conflict";
+        // apartado: la fila (también la virtual de un fichero que ya no está en disco) lleva stashed
+        const canStashed = !!g && g.stashed === true && rel !== "";
+
+        // resolver todo: solo con el botón derecho sobre el fondo del árbol y el filtro CONFLICTO
+        const canResolveAll = rel === "" && filter === "conflict";
 
         // rename: cualquier fila con rel !== "" y kind !== "missing"
         const canRename = rel !== "" && !isMissing;
@@ -865,6 +880,14 @@
         const btnUnstage = menu.querySelector('[data-action="unstage"]');
         const btnDiscard = menu.querySelector('[data-action="discard"]');
         const dividerGit = document.getElementById("ctx-divider-git");
+        const btnResolveOurs = menu.querySelector('[data-action="resolveOurs"]');
+        const btnResolveTheirs = menu.querySelector('[data-action="resolveTheirs"]');
+        const btnDiscardConflict = menu.querySelector('[data-action="discardConflict"]');
+        const btnStashConflict = menu.querySelector('[data-action="stashConflict"]');
+        const stashedBtns = menu.querySelectorAll('[data-action="stashDiff"],[data-action="stashPop"],[data-action="stashPopForce"],[data-action="stashDrop"]');
+        const btnResolveAllOurs = menu.querySelector('[data-action="resolveAllOurs"]');
+        const btnResolveAllTheirs = menu.querySelector('[data-action="resolveAllTheirs"]');
+        const dividerConflict = document.getElementById("ctx-divider-conflict");
 
         const btnRename = menu.querySelector('[data-action="rename"]');
         const btnNewFile = menu.querySelector('[data-action="newfile"]');
@@ -886,9 +909,19 @@
         if (btnStage) btnStage.hidden = !canStage;
         if (btnUnstage) btnUnstage.hidden = !canUnstage;
         if (btnDiscard) btnDiscard.hidden = !canDiscard;
+        if (btnResolveOurs) btnResolveOurs.hidden = !canResolveOurs;
+        if (btnResolveTheirs) btnResolveTheirs.hidden = !canResolveTheirs;
+        if (btnDiscardConflict) btnDiscardConflict.hidden = !canDiscardConflict;
+        if (btnStashConflict) btnStashConflict.hidden = !canStashConflict;
+        stashedBtns.forEach((b) => { b.hidden = !canStashed; });
+        if (btnResolveAllOurs) btnResolveAllOurs.hidden = !canResolveAll;
+        if (btnResolveAllTheirs) btnResolveAllTheirs.hidden = !canResolveAll;
 
         const hasGitActions = canDiff || canStage || canUnstage || canDiscard;
         if (dividerGit) dividerGit.hidden = !hasGitActions;
+
+        const hasConflictActions = canResolveOurs || canResolveTheirs || canDiscardConflict || canStashConflict || canStashed || canResolveAll;
+        if (dividerConflict) dividerConflict.hidden = !hasConflictActions;
 
         if (btnRename) btnRename.hidden = !canRename;
         if (btnNewFile) btnNewFile.hidden = !canNewFile;
@@ -951,6 +984,20 @@
         break;
       case "discard":
         vscode.postMessage({ type: "git", treeId, action: "discard", rel });
+        break;
+      case "resolveOurs":
+      case "resolveTheirs":
+      case "discardConflict":
+      case "stashConflict":
+      case "stashDiff":
+      case "stashPop":
+      case "stashPopForce":
+      case "stashDrop":
+        vscode.postMessage({ type: "git", treeId, action, rel });
+        break;
+      case "resolveAllOurs":
+      case "resolveAllTheirs":
+        vscode.postMessage({ type: "git", treeId, action });
         break;
       case "rename":
         vscode.postMessage({ type: "rename", treeId, rel });
@@ -1187,9 +1234,9 @@
       d.selectBranch.innerHTML = '<option value="">(sin ramas)</option>';
       if (d.countChanged) d.countChanged.textContent = "0";
       if (d.countStaged) d.countStaged.textContent = "0";
-      if (d.countUntracked) d.countUntracked.textContent = "0";
       if (d.countUnpushed) d.countUnpushed.textContent = "0";
-      if (d.countClean) d.countClean.textContent = "0";
+      if (d.countConflict) d.countConflict.textContent = "0";
+      if (d.countStashed) d.countStashed.textContent = "0";
       return;
     }
 
@@ -1221,9 +1268,9 @@
       const c = info.counts;
       if (d.countChanged) d.countChanged.textContent = String(c.changed || 0);
       if (d.countStaged) d.countStaged.textContent = String(c.staged || 0);
-      if (d.countUntracked) d.countUntracked.textContent = String(c.untracked || 0);
       if (d.countUnpushed) d.countUnpushed.textContent = String(c.unpushed || 0);
-      if (d.countClean) d.countClean.textContent = String(c.clean || 0);
+      if (d.countConflict) d.countConflict.textContent = String(c.conflict || 0);
+      if (d.countStashed) d.countStashed.textContent = String(c.stashed || 0);
     }
   }
 
@@ -1307,7 +1354,7 @@
             ahead: 1,
             behind: 0,
             branches: ["main", "feature/explorer", "develop"],
-            counts: { changed: 3, staged: 1, untracked: 2, unpushed: 1, clean: 114 }
+            counts: { changed: 3, staged: 1, unpushed: 1, conflict: 0 }
           }
         },
         {

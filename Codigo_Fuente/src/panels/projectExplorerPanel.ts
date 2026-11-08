@@ -22,6 +22,9 @@ import {
 import { searchContents, searchNames } from "../projectExplorer/search";
 import {
   BRANCH_RE,
+  detectPullConflicts,
+  listAlfredStashes,
+  readStashedVersion,
   GitError,
   gitAction,
   readGitVersion,
@@ -76,6 +79,14 @@ interface TreeRuntime {
   scan: ScanState;
   git: GitInfo | null;
   gitFiles: Map<string, GitFileState>;
+  /** Ficheros apartados por Alfred: `rel` -> hash del stash (el más reciente). */
+  stashes: Map<string, string>;
+  /** `rel` del árbol con conflicto previsto al hacer pull (aún sin merge en curso). */
+  conflicts: Set<string>;
+  /** Ya se comprobó contra la remota desde el último cambio: no se repite sola. */
+  conflictsChecked: boolean;
+  /** Hay una comprobación en vuelo: no se lanza otra en paralelo. */
+  conflictsBusy: boolean;
   /** Ids de coincidencias de la última búsqueda; null = modo árbol. */
   resultIds: Set<number> | null;
   scanGen: number;
@@ -118,11 +129,33 @@ const GIT_ACTIONS = new Set<string>([
   "discard",
   "checkout",
   "createBranch",
+  "resolveOurs",
+  "resolveTheirs",
+  "discardConflict",
+  "stashConflict",
+  "stashPop",
+  "stashPopForce",
+  "stashDrop",
+  "stashDiff",
+  "resolveAllOurs",
+  "resolveAllTheirs",
+  "checkConflicts",
   "refresh",
 ]);
-/** Acciones git que actúan sobre una ruta concreta del árbol. */
+/** Acciones git que actúan sobre una ruta concreta del árbol (fichero que ya debe existir). */
 const GIT_PATH_ACTIONS = new Set<string>(["stage", "unstage", "discard"]);
-const FILTER_IDS = new Set<string>(["all", "changed", "staged", "untracked", "unpushed", "clean"]);
+/** Acciones de conflicto por fichero: la ruta puede no estar en el árbol (borrado de un lado). */
+const GIT_CONFLICT_FILE_ACTIONS = new Set<string>([
+  "resolveOurs",
+  "resolveTheirs",
+  "discardConflict",
+  "stashConflict",
+  "stashPop",
+  "stashPopForce",
+  "stashDrop",
+  "stashDiff",
+]);
+const FILTER_IDS = new Set<string>(["all", "changed", "staged", "unpushed", "conflict", "stashed"]);
 const GIT_LABELS: Record<string, string> = {
   fetch: "fetch",
   pull: "pull",
@@ -134,8 +167,48 @@ const GIT_LABELS: Record<string, string> = {
   discard: "descartar cambios",
   checkout: "checkout",
   createBranch: "rama nueva",
+  resolveOurs: "resolver con lo mío",
+  resolveTheirs: "resolver con lo remoto",
+  discardConflict: "descartar conflicto",
+  stashConflict: "apartar cambios (stash)",
+  stashPop: "recuperar apartado",
+  stashPopForce: "recuperar sobrescribiendo",
+  stashDrop: "borrar apartado",
+  stashDiff: "ver cambios apartados",
+  resolveAllOurs: "resolver todo con lo mío",
+  resolveAllTheirs: "resolver todo con lo remoto",
+  checkConflicts: "comprobar conflictos",
   refresh: "git",
 };
+
+/** `checkConflicts` no llega a `gitAction`: la petición la resuelve el panel. */
+type GitRequestAction = GitActionKind | "checkConflicts" | "stashDiff";
+/** Acciones tras las que caduca lo comprobado contra la remota. */
+const CONFLICT_INVALIDATING_ACTIONS = new Set<GitActionKind>([
+  "fetch",
+  "pull",
+  "checkout",
+  "commit",
+  "discard",
+  "resolveOurs",
+  "resolveTheirs",
+  "discardConflict",
+  "stashConflict",
+  "stashPop",
+  "stashPopForce",
+  "resolveAllOurs",
+  "resolveAllTheirs",
+]);
+
+/** Estados que `readRepoState` cuenta en `counts.changed`. */
+const CHANGED_STATES: ReadonlySet<string> = new Set<string>([
+  "modified",
+  "staged",
+  "untracked",
+  "deleted",
+  "renamed",
+  "conflict",
+]);
 
 /**
  * Pestaña central «Explorador del proyecto»: uno o dos árboles de ficheros con
@@ -249,6 +322,10 @@ export class ProjectExplorerPanel {
       scan: { state: "idle", files: 0, dirs: 0, bytes: 0, truncated: false },
       git: null,
       gitFiles: new Map(),
+      stashes: new Map(),
+      conflicts: new Set(),
+      conflictsChecked: false,
+      conflictsBusy: false,
       resultIds: null,
       scanGen: 0,
       searchGen: 0,
@@ -457,6 +534,7 @@ export class ProjectExplorerPanel {
     st.scanAbort = controller;
     st.tree = null;
     st.gitFiles = new Map();
+    st.stashes = new Map();
     st.scan = { state: "scanning", files: 0, dirs: 0, bytes: 0, truncated: false };
     this.postScan(st, "start");
     const tree = new Tree(st.root);
@@ -698,30 +776,53 @@ export class ProjectExplorerPanel {
     if (!st.root || this.disposed) {
       st.git = null;
       st.gitFiles = new Map();
+      st.stashes = new Map();
+      this.invalidateConflicts(st);
       this.postGit(st);
       return;
     }
+    const prevBranch = st.git?.branch ?? null;
+    const prevUpstream = st.git?.upstream ?? null;
     try {
       const tree = st.tree;
       const state = await readRepoState(st.root, (rel) => tree?.idByRel.has(rel) ?? false);
       if (gen !== st.gitGen || this.disposed) {
         return;
       }
+      const stashes = state ? await listAlfredStashes(st.root) : [];
+      if (gen !== st.gitGen || this.disposed) {
+        return;
+      }
       st.git = state ? state.info : null;
       st.gitFiles = state ? state.files : new Map();
+      st.stashes = new Map();
+      for (const e of stashes) {
+        if (!st.stashes.has(e.rel)) {
+          st.stashes.set(e.rel, e.hash);
+        }
+      }
     } catch (err) {
       if (gen !== st.gitGen || this.disposed) {
         return;
       }
       st.git = null;
       st.gitFiles = new Map();
+      st.stashes = new Map();
       const message = err instanceof Error ? err.message : String(err);
       if (!/no está instalado/i.test(message)) {
         this.status(st, `Git: ${message}`, "error");
       }
     }
+    if ((st.git?.branch ?? null) !== prevBranch || (st.git?.upstream ?? null) !== prevUpstream) {
+      // Otra rama u otro upstream: lo comprobado contra la remota ya no vale.
+      this.invalidateConflicts(st);
+    }
     this.postGit(st);
     this.recomputeView(st);
+    if (st.filter === "conflict" && !st.conflictsChecked) {
+      // Refresco git con el chip CONFLICTO activo: se rehace la comprobación.
+      void this.checkConflicts(st);
+    }
   }
 
   /** Refresco git con mini-debounce (guarda de guardado y de foco). */
@@ -735,6 +836,101 @@ export class ProjectExplorerPanel {
         void this.loadGit(st);
       }
     }, 400);
+  }
+
+  /** Tira lo comprobado contra la remota: el siguiente CONFLICTO (o refresco) lo rehace. */
+  private invalidateConflicts(st: TreeRuntime): void {
+    st.conflicts.clear();
+    st.conflictsChecked = false;
+  }
+
+  /** Conflictos reales (`state:"conflict"`) y previstos, sin repetir ruta. */
+  private conflictUnion(st: TreeRuntime): Set<string> {
+    const all = new Set<string>();
+    for (const [rel, fs] of st.gitFiles) {
+      if (fs.state === "conflict") {
+        all.add(rel);
+      }
+    }
+    for (const rel of st.conflicts) {
+      if (rel) {
+        all.add(rel);
+      }
+    }
+    return all;
+  }
+
+  /**
+   * Comprueba si un pull chocaría con la remota (`fetch` + `merge-tree`). Es la
+   * única llamada de red del explorador: solo sale al pulsar CONFLICTO, al
+   * refrescar git con ese filtro activo o con `checkConflicts` explícito.
+   * Un fallo deja el conjunto vacío y el aviso, sin romper el panel.
+   */
+  private async checkConflicts(st: TreeRuntime): Promise<void> {
+    if (!st.root || this.disposed || st.conflictsBusy) {
+      return;
+    }
+    const root = st.root;
+    st.conflictsBusy = true;
+    this.status(st, "Comprobando conflictos…", "info");
+    try {
+      if (!st.git) {
+        await this.loadGit(st);
+        if (this.disposed || st.root !== root || st.conflictsChecked) {
+          return;
+        }
+      }
+      if (!st.git) {
+        st.conflicts.clear();
+        st.conflictsChecked = true;
+        this.op(st, false, "La carpeta no está dentro de un repositorio git.");
+        this.postGit(st);
+        this.recomputeView(st);
+        return;
+      }
+      if (!st.git.upstream) {
+        st.conflicts.clear();
+        st.conflictsChecked = true;
+        this.op(st, false, "La rama no tiene upstream: no hay remota con la que comparar.");
+        this.postGit(st);
+        this.recomputeView(st);
+        return;
+      }
+      await gitAction(root, "fetch", {
+        upstream: st.git.upstream,
+        branchName: st.git.branch,
+      });
+      const found = await detectPullConflicts(root);
+      // La raíz pudo cambiar mientras se consultaba la red.
+      if (this.disposed || st.root !== root) {
+        return;
+      }
+      st.conflicts = new Set(found.files);
+      st.conflictsChecked = true;
+      this.postGit(st);
+      this.recomputeView(st);
+      const total = this.conflictUnion(st).size;
+      this.op(
+        st,
+        true,
+        total === 0
+          ? `Sin conflictos con ${found.upstream}.`
+          : `${total} fichero${total === 1 ? "" : "s"} en conflicto con ${found.upstream}.`
+      );
+    } catch (err) {
+      if (this.disposed || st.root !== root) {
+        return;
+      }
+      st.conflicts.clear();
+      // Un solo aviso por fallo: los refrescos no repiten el fetch hasta que algo
+      // cambie. Reintentar es pulsar el chip (otro `setFilter`) o `checkConflicts`.
+      st.conflictsChecked = true;
+      this.op(st, false, err instanceof GitError ? err.message : String(err));
+      this.postGit(st);
+      this.recomputeView(st);
+    } finally {
+      st.conflictsBusy = false;
+    }
   }
 
   /** Encola una acción git por árbol: FIFO, con estado `busy` y refresco al terminar. */
@@ -833,6 +1029,21 @@ export class ProjectExplorerPanel {
           return;
         }
       }
+      if (job.action === "stashPopForce" || job.action === "stashDrop") {
+        const name = path.basename(job.rel ?? "");
+        const force = job.action === "stashPopForce";
+        const answer = await vscode.window.showWarningMessage(
+          force
+            ? `¿Recuperar «${name}» sobrescribiendo lo que hay en disco? Se pierde la versión actual del fichero.`
+            : `¿Borrar lo apartado de «${name}»? No se puede deshacer.`,
+          { modal: true },
+          force ? "SOBRESCRIBIR" : "BORRAR"
+        );
+        if (answer === undefined) {
+          this.op(st, false, force ? "Recuperar cancelado." : "Borrar cancelado.");
+          return;
+        }
+      }
       await gitAction(st.root, job.action, {
         branch: job.branch,
         message: job.message,
@@ -849,11 +1060,30 @@ export class ProjectExplorerPanel {
       return;
     }
     this.suppress(st);
-    if (job.action === "checkout" || job.action === "pull") {
-      // Son las dos acciones que cambian el árbol de trabajo.
+    if (ok && CONFLICT_INVALIDATING_ACTIONS.has(job.action)) {
+      // Lo comprobado contra la remota caduca: lo rehace el siguiente CONFLICTO o refresco.
+      this.invalidateConflicts(st);
+    }
+    if (
+      job.action === "checkout" ||
+      job.action === "pull" ||
+      job.action === "resolveAllOurs" ||
+      job.action === "resolveAllTheirs"
+    ) {
+      // Cambian el árbol de trabajo entero (o casi).
       void this.scanTree(st);
-    } else if (job.action === "discard" && job.rel) {
-      // `git restore` cambia el contenido: hay que recontar el tamaño del padre.
+    } else if (
+      job.rel &&
+      (job.action === "discard" ||
+        job.action === "resolveOurs" ||
+        job.action === "resolveTheirs" ||
+        job.action === "discardConflict" ||
+        job.action === "stashConflict" ||
+        job.action === "stashPop" ||
+        job.action === "stashPopForce" ||
+        job.action === "stashDrop")
+    ) {
+      // Tocan el contenido del fichero: hay que recontar el tamaño del padre y releer git.
       await this.afterMutation(st, parentOfRel(job.rel));
     } else {
       await this.loadGit(st);
@@ -887,6 +1117,8 @@ export class ProjectExplorerPanel {
       sort: st.sort,
       sortDir: st.sortDir,
       gitMap: st.gitFiles,
+      conflictRels: st.conflicts,
+      stashRels: new Set(st.stashes.keys()),
       filter: st.filter,
       resultIds: wantsResults ? st.resultIds ?? new Set<number>() : undefined,
       limit: ROW_LIMIT,
@@ -1021,6 +1253,11 @@ export class ProjectExplorerPanel {
         if (st.filter !== "all" && !st.git && st.scan.state === "done") {
           void this.loadGit(st);
         }
+        if (st.filter === "conflict") {
+          // El chip no manda la comprobación: la lanza el host. Repetir el clic
+          // sobre el chip activo es el reintento manual tras un fallo.
+          void this.checkConflicts(st);
+        }
         this.recomputeView(st);
         return;
       }
@@ -1071,13 +1308,21 @@ export class ProjectExplorerPanel {
 
   private handleGit(
     st: TreeRuntime,
-    action: GitActionKind,
+    action: GitRequestAction,
     branch?: string,
     message?: string,
     relArg?: string
   ): void {
     if (!st.root) {
       this.op(st, false, "Este árbol no tiene carpeta raíz.");
+      return;
+    }
+    if (action === "checkConflicts") {
+      void this.checkConflicts(st);
+      return;
+    }
+    if (action === "stashDiff") {
+      void this.stashDiff(st, (relArg ?? "").trim());
       return;
     }
     if (action === "checkout") {
@@ -1131,6 +1376,16 @@ export class ProjectExplorerPanel {
         this.op(st, false, "Solo se preparan o descartan ficheros.");
         return;
       }
+      this.enqueueGit(st, action, undefined, undefined, rel);
+      return;
+    }
+    if (GIT_CONFLICT_FILE_ACTIONS.has(action)) {
+      const rel = (relArg ?? "").trim();
+      if (!rel) {
+        this.op(st, false, "Falta la ruta del fichero.");
+        return;
+      }
+      // La ruta puede no estar en el árbol (un lado del merge la borró): no se exige.
       this.enqueueGit(st, action, undefined, undefined, rel);
       return;
     }
@@ -1589,6 +1844,39 @@ export class ProjectExplorerPanel {
     }
   }
 
+  /** `vscode.diff` entre lo apartado (un temporal por raíz+ruta, que se sobrescribe) y el fichero en disco. */
+  private async stashDiff(st: TreeRuntime, rel: string): Promise<void> {
+    const hash = st.stashes.get(rel);
+    if (!st.root || !hash) {
+      this.op(st, false, "Ese fichero no tiene nada apartado.");
+      return;
+    }
+    try {
+      const bytes = await readStashedVersion(st.root, rel);
+      const dir = path.join(this.storageDir, "projectExplorer-diff");
+      await mkdir(dir, { recursive: true });
+      const name = createHash("sha1").update(`${st.root}\n${rel}\nstash`).digest("hex").slice(0, 20);
+      const ext = path.extname(rel);
+      const left = path.join(dir, `stash-${name}${ext}`);
+      await writeFile(left, bytes);
+      let right = this.relAbs(st, rel) ?? "";
+      if (!right || !(await lstat(right).then(() => true, () => false))) {
+        // Sin fichero en disco (era nuevo): se compara contra uno vacío.
+        right = path.join(dir, `vacio${ext}`);
+        await writeFile(right, "");
+      }
+      await vscode.commands.executeCommand(
+        "vscode.diff",
+        vscode.Uri.file(left),
+        vscode.Uri.file(right),
+        `${rel} (apartado ↔ disco)`
+      );
+      this.op(st, true, "Comparando lo apartado con el disco.");
+    } catch (err) {
+      this.op(st, false, err instanceof GitError || err instanceof OpError ? err.message : String(err));
+    }
+  }
+
   // ---------------------------------------------------------------- búsqueda
 
   private scheduleSearch(st: TreeRuntime, query: string): void {
@@ -1880,13 +2168,42 @@ export class ProjectExplorerPanel {
     this.cancelRescans(st);
     st.tree = null;
     st.gitFiles = new Map();
+    st.stashes = new Map();
     st.git = null;
+    this.invalidateConflicts(st);
     st.resultIds = null;
     st.expanded = new Set<string>([""]);
     st.scan = { state: "idle", files: 0, dirs: 0, bytes: 0, truncated: false };
   }
 
   // ---------------------------------------------------------------- salida
+
+  /**
+   * `GitInfo` para la webview: `counts.conflict` une reales y previstos, y
+   * `counts.changed` suma los previstos que aún no contaban como cambio.
+   */
+  private gitInfoOf(st: TreeRuntime): GitInfo | null {
+    if (!st.git) {
+      return null;
+    }
+    const union = this.conflictUnion(st);
+    let extraChanged = 0;
+    for (const rel of union) {
+      const fs = st.gitFiles.get(rel);
+      if (!fs || !CHANGED_STATES.has(fs.state)) {
+        extraChanged += 1;
+      }
+    }
+    return {
+      ...st.git,
+      counts: {
+        ...st.git.counts,
+        changed: st.git.counts.changed + extraChanged,
+        conflict: union.size,
+        stashed: st.stashes.size,
+      },
+    };
+  }
 
   private metaOf(st: TreeRuntime): TreeMeta {
     return {
@@ -1900,7 +2217,7 @@ export class ProjectExplorerPanel {
       query: st.query,
       expanded: [...st.expanded].filter((r) => r !== "").slice(0, MAX_EXPANDED),
       scan: { ...st.scan },
-      git: st.git,
+      git: this.gitInfoOf(st),
     };
   }
 
@@ -1938,7 +2255,7 @@ export class ProjectExplorerPanel {
   }
 
   private postGit(st: TreeRuntime): void {
-    this.post({ type: "git", payload: { treeId: st.id, info: st.git } });
+    this.post({ type: "git", payload: { treeId: st.id, info: this.gitInfoOf(st) } });
   }
 
   /** Estado ocupado = cola git en vuelo; el texto lo pone el último `status`. */
@@ -2020,6 +2337,7 @@ export class ProjectExplorerPanel {
       this.cancelRescans(st);
       st.tree = null;
       st.gitFiles = new Map();
+      st.stashes = new Map();
     }
     while (this.disposables.length) {
       this.disposables.pop()?.dispose();
@@ -2062,7 +2380,7 @@ type IncomingMessage =
   | {
       type: "git";
       treeId: TreeId;
-      action: GitActionKind;
+      action: GitRequestAction;
       branch?: string;
       message?: string;
       rel?: string;
@@ -2143,13 +2461,16 @@ function parseIncoming(raw: unknown): IncomingMessage | undefined {
       if (!id || typeof m.action !== "string" || !GIT_ACTIONS.has(m.action)) {
         return undefined;
       }
-      const action = m.action as GitActionKind;
+      const action = m.action as GitRequestAction;
       const branch = typeof m.branch === "string" ? m.branch.slice(0, 120) : undefined;
       const message = typeof m.message === "string" ? m.message.slice(0, 2000) : undefined;
-      // stage/unstage/discard llegan con la ruta del fichero: sin ella, el mensaje no vale.
+      // Las acciones por fichero llegan con la ruta; sin ella, el mensaje no vale.
+      // Las de fichero son stage/unstage/discard y las tres de conflicto; `resolveAll*`
+      // y `checkConflicts` no llevan ruta y se ignora si viene.
+      const needsRel = GIT_PATH_ACTIONS.has(action) || GIT_CONFLICT_FILE_ACTIONS.has(action);
       const rawRel = normalizeRel(m.rel);
       const rel = rawRel === undefined || rawRel === "" ? undefined : rawRel;
-      if (GIT_PATH_ACTIONS.has(action) && rel === undefined) {
+      if (needsRel && rel === undefined) {
         return undefined;
       }
       return {
@@ -2158,7 +2479,7 @@ function parseIncoming(raw: unknown): IncomingMessage | undefined {
         action,
         ...(branch !== undefined ? { branch } : {}),
         ...(message !== undefined ? { message } : {}),
-        ...(rel !== undefined ? { rel } : {}),
+        ...(needsRel && rel !== undefined ? { rel } : {}),
       };
     }
     case "rename":

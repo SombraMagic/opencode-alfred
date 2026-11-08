@@ -6,7 +6,7 @@
 export type TreeId = "a" | "b";
 
 /** Filtros de la tira de chips. `all` = árbol normal; el resto, modo resultado con git. */
-export type FilterId = "all" | "changed" | "staged" | "untracked" | "unpushed" | "clean";
+export type FilterId = "all" | "changed" | "staged" | "unpushed" | "conflict" | "stashed";
 
 export type RowKind = "dir" | "file" | "link" | "missing";
 
@@ -23,15 +23,23 @@ export type GitState =
   | "untracked"
   | "deleted"
   | "renamed"
-  | "ignored";
+  | "ignored"
+  | "conflict";
 
-/** Estado git de una fila. `state` sigue la prioridad deleted > renamed > untracked > staged > modified > clean. */
+/** Estado git de una fila. `state` sigue la prioridad conflict > deleted > renamed > untracked > staged > modified > clean. */
 export interface RowGit {
   state: GitState;
   /** Aparece en los commits por delante del upstream. */
   unpushed?: boolean;
   /** Hay cambio en el índice (X distinto de `.`). */
   staged?: boolean;
+  /**
+   * Conflicto previsto al hacer pull contra la remota y todavía sin merge en
+   * curso (`merge-tree`); el conflicto real es `state:"conflict"`.
+   */
+  conflict?: boolean;
+  /** Alfred tiene este fichero apartado en un stash. */
+  stashed?: boolean;
   added?: number;
   removed?: number;
 }
@@ -97,5 +105,9 @@ export interface GitInfo {
     untracked: number;
     unpushed: number;
     clean: number;
+    /** Conflictos reales y previstos (unión, sin repetir ruta). */
+    conflict: number;
+    /** Ficheros apartados por Alfred (stash). */
+    stashed: number;
   };
 }
