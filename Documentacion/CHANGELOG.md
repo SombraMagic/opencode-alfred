@@ -6,6 +6,53 @@ Una entrada por versión publicada. El `.vsix` de cada versión está en
 Las versiones 0.8.3 a 0.8.7 y 0.8.9 a 0.8.11 solo subieron el número para reinstalar el `.vsix`
 con VS Code abierto: no son releases y lo que trajeron está reunido en la 0.8.8 y la 0.8.12.
 
+## [0.8.16] - 2026-11-08
+
+- **`mcp_alfred` se reinstala solo**: al actualizar la extensión, la entrada del MCP en Claude
+  Code, Claude Desktop o Cursor seguía apuntando al bundle de la versión anterior, cuya carpeta
+  borra VS Code, y el servidor no arrancaba. `INSTALAR MCP` y el encendido ya no la dan por buena:
+  comparan con el `dist/alfred-mcp.js` de esta versión y reescriben la ruta.
+- opencode no lo necesitaba: su ruta ya se reapuntaba al activar.
+- **Filtros y conflictos en el Explorador del proyecto**: chips `CAMBIOS` (incluye lo que aún no
+  está en git), `CONFLICTO` (los reales y los que aparecerán al hacer `pull`, comprobados con
+  `git merge-tree` tras `fetch`) y `APARTE`, que lista lo que apartaste para poder actualizar,
+  con ver, recuperar, recuperar sobrescribiendo y borrar. El `.vsix` de esta versión se
+  reempaquetó el 8 de noviembre con estos cambios, sin subir el número.
+
+## [0.8.15] - 2026-11-05
+
+- **Estadísticas de prompts con Claude Code y Codex**: la pestaña lee los registros del agente de
+  sesión. Claude: sesiones `.jsonl` con sus subagentes como carriles, cierre de turno por
+  `turn_duration` y sin duplicar el historial que `--continue` copia al fichero nuevo. Codex:
+  rollouts `.jsonl` y `.jsonl.zst`, turnos `task_started` → `task_complete` (o `turn_aborted`).
+- **Coste siempre estimado** en estos dos CLIs, con el catálogo de models.dev. Los textos del
+  panel dejan de decir «opencode».
+
+## [0.8.14] - 2026-11-05
+
+- **Tablero de asignación con Claude**: con Claude de agente de sesión las filas son los
+  subagentes de `.claude/agents` (proyecto y global) y la sesión principal `CLAUDE`; los modelos,
+  los alias (`fable`, `opus`, `sonnet`, `haiku`, `opusplan`), el catálogo `anthropic` de models.dev
+  y los que ya están en uso. Sin favoritos ni configuraciones. Un subagente recibe su `model:` en
+  el frontmatter; `CLAUDE` se escribe en `settings.json` y se pide `/model` a la terminal viva.
+- **Contexto de 1M en Claude**: la vista de Contexto deja de dar 200k a todos los modelos: el
+  límite sale del sufijo `[1m]` o de la familia y la versión —Fable y Mythos, Opus y Sonnet desde
+  4.6 y Haiku desde 5 traen 1M; los 4.5, `claude-3-*` y los de proxy, 200k—.
+- **`CONECTORES` oculto** en `Control` con cualquier agente que no sea opencode (también Codex), y
+  `ASIGNAR AGENTES` sí se enciende con Claude.
+
+## [0.8.13] - 2026-11-05
+
+- **Límites de consumo del plan de Claude**: con Claude de agente de sesión la vista enseña solo
+  la tarjeta de Claude con los límites de la cuenta (ventanas de 5 h y semana), leídos del mismo
+  sitio del `/usage` de Claude Code.
+- **Token estrictamente de solo lectura**: solo viaja en la cabecera de esa petición a
+  `api.anthropic.com`; no se refresca, no se escribe `~/.claude/.credentials.json` y no llega al
+  webview. Token caducado es un error sin llamada a la red; en macOS, donde vive en el llavero, la
+  tarjeta dice «Sin sesión».
+- Al cambiar de agente de sesión la vista se rearma y refresca; se descarta lo que llegue después
+  del cambio.
+
 ## [0.8.12] - 2026-11-04
 
 - **Conectores en equipos nuevos**: arreglado que todos los conectores aparecieran con
