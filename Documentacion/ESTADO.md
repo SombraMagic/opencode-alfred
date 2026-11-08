@@ -127,9 +127,24 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   historial, exportar y lectura en voz; y herramienta `generar_imagen` que usa la configuración
   ya establecida del generador.
 
+- **Radar de noticias**: lee cinco feeds públicos (Hugging Face, arXiv cs.AI, Hacker News,
+  GitHub blog y Simon Willison), los guarda en MariaDB (`alfred_radar`, con el perfil del panel
+  de Bases de datos y la contraseña en el almacén), filtra con reglas por tema y un LLM
+  configurable (Ollama local, OpenAI o DeepSeek), purga a los 3 días y escribe
+  `.alfred/radar/ultimas.md` con las 30 mejores para que cualquier agente lo lea. Pestaña
+  central con **NOTICIAS** y **CONFIGURACIÓN**, botón en Control y los comandos
+  *Radar de noticias* y *Radar — actualizar ahora*. Fuera de esta versión: la herramienta MCP
+  `radar_buscar` y el boletín hablado.
+
 ## Siguiente
 
-0. **Bases de datos en VS Code real** (0.8.0): abrir la pestaña desde `Control` y recorrer alta de
+0. **Radar en VS Code real** con MariaDB encendido: abrir la pestaña, encender una fuente,
+   actualizar y comprobar `alfred_radar.items`, el `ultimas.md` y que dos pasadas no duplican;
+   después apagar MariaDB y ver el estado «sin conexión». Falta también probar la CSP del panel,
+   los tres temas y el interruptor de pasada automática. La cuenta `root` del XAMPP de este
+   equipo usa GSSAPI y **no vale** para el radar: hace falta una con `mysql_native_password` o
+   `ed25519`.
+1. **Bases de datos en VS Code real** (0.8.0): abrir la pestaña desde `Control` y recorrer alta de
    conexión con contraseña en el almacén, túnel SSH (contraseña, clave y agente), huella
    recordada, explorador, rejilla con buscador y edición, consola con confirmación escrita y la
    copia `.sql`. Comprobar el volcado con `mariadb-dump` desde la extensión.
