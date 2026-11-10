@@ -21,8 +21,10 @@ export interface WorkingAgent {
   streaming: boolean;
   /** Color del `.md` del agente (hex o nombre de la paleta de Claude); sin él, el acento. */
   color?: string;
-  /** Actividad que no es un agente (imagen, dictado, Ollama); sin él, es un agente. */
+  /** Actividad que no es un agente (imagen, dictado, Ollama, radar); sin él, es un agente. */
   icon?: ActivityIcon;
+  /** Paso en curso de la actividad, bajo el nombre; solo en las tarjetas extra. */
+  detail?: string;
 }
 
 /**
@@ -194,7 +196,7 @@ export class VozPanel {
   private snapshotAgents(): WorkingAgent[] {
     return [
       ...this.agents,
-      ...listActivities().map((a) => ({ name: a.name, streaming: true, icon: a.icon })),
+      ...listActivities().map((a) => ({ name: a.name, streaming: true, icon: a.icon, detail: a.detail })),
     ];
   }
 

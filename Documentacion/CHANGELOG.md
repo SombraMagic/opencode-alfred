@@ -6,6 +6,35 @@ Una entrada por versión publicada. El `.vsix` de cada versión está en
 Las versiones 0.8.3 a 0.8.7 y 0.8.9 a 0.8.11 solo subieron el número para reinstalar el `.vsix`
 con VS Code abierto: no son releases y lo que trajeron está reunido en la 0.8.8 y la 0.8.12.
 
+## [0.9.8] - 2026-11-10
+
+- **Radar: archivo de feeds**: ya no guarda noticias publicadas hace más de 3 días. Los feeds
+  devuelven años de histórico y antes se guardaban igual; ahora se descartan al leer.
+- **Purga por fecha de publicación**: la limpieza también cuenta la fecha de publicación, no solo
+  la de recogida, así que lo viejo que llegó tarde también sale de la base.
+- **Fechas con año en la lista**: el radar muestra el año junto al día y la hora, para distinguir
+  noticias de fechas distintas.
+
+## [0.9.0] - 2026-11-08
+
+- **Radar de noticias**: pestaña central con **NOTICIAS** y **CONFIGURACIÓN**, botón en Control
+  (segunda fila) y comandos «Radar de noticias» y «Radar - actualizar ahora».
+  Lee cinco feeds públicos, guarda en la base MariaDB **`alfred_radar`** (el perfil y la
+  contraseña salen del panel de Bases de datos) y purga a los 3 días.
+- **Filtro por reglas y LLM**: reglas por tema y después un modelo (Ollama local, OpenAI o
+  DeepSeek) que puntúa y descarta. La clave del proveedor vive en `secrets` y no sale del host.
+- **Traducción opcional de titulares y cuerpos**: la casilla «TRADUCIR TITULARES Y CUERPOS» de
+  CONFIGURACIÓN pide al mismo modelo, en la misma llamada, el titular y el cuerpo en español
+  (sin peticiones extra). Se guardan en las columnas `titulo_es`/`resumen_es`, así que el título
+  original y la deduplicación por `hash` no cambian, y el buscador mira también las traducciones.
+- **`ultimas.md`**: el top 30 se escribe en `.alfred/radar/ultimas.md` del proyecto para que los
+  agentes lo lean. Sin perfil, sin contraseña o con el servidor apagado no se escribe.
+- **Actualización automática** opcional (`radar.activo`, apagada por defecto, con
+  `radar.intervalMinutes`); el temporizador se rearma al cambiar la configuración y el comando
+  «actualizar ahora» funciona siempre.
+- Quedan fuera de esta versión la herramienta MCP `radar_buscar` (la clave del LLM no viaja al
+  proceso MCP) y el boletín hablado.
+
 ## [0.8.16] - 2026-11-08
 
 - **`mcp_alfred` se reinstala solo**: al actualizar la extensión, la entrada del MCP en Claude

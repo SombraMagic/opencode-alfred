@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.8.16.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.9.8.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Qué es
@@ -8,8 +8,8 @@ No hace falta compilar nada ni instalar Node.
 **OpenCode Alfred** es un centro de control de agentes de IA dentro de VS Code: agentes, MCP,
 skills y plugins de opencode —y, de forma experimental, de Claude Code y Codex—, ventana de
 contexto, estadísticas de solo lectura, límites de consumo, voz y dictado, pizarra, generador
-de imágenes, Mente local (Ollama), visor 3D de `.blend` y bases de datos MariaDB. Todo en
-español y en una sola extensión.
+de imágenes, Mente local (Ollama), radar de noticias, visor 3D de `.blend` y bases de datos
+MariaDB. Todo en español y en una sola extensión.
 
 La presentación del producto, con lo que hace cada panel, está en el
 [README principal](../README.md); lo que trajo cada versión, en el
@@ -35,19 +35,19 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.8.16.vsix`.
+3. Elige `opencode-alfred-0.9.8.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.8.16.vsix
+code --install-extension opencode-alfred-0.9.8.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.8.16.vsix --force
+code --install-extension opencode-alfred-0.9.8.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?

@@ -201,14 +201,34 @@
   to { opacity: 1; transform: none; }
 }
 
-.agent-name {
+/* Nombre y detalle en columna: el que cede ancho es este bloque, no el medidor. */
+.agent-text {
+  display: flex;
+  flex-direction: column;
   flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+
+.agent-name {
+  flex: none;
   min-width: 0;
   font-size: 9.5px;
   letter-spacing: 1.3px;
   text-transform: uppercase;
   /* El nombre lleva el color del agente; sin color, el acento del tema. */
   color: var(--agent-color, var(--neon));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Paso en curso de una actividad (p. ej. «Descargando feeds…»): una línea, recortada. */
+.agent-sub {
+  min-width: 0;
+  font-size: 8.5px;
+  letter-spacing: 0.3px;
+  color: var(--text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -5,25 +5,36 @@
  */
 import { readWork } from "../images/share";
 
-export type ActivityIcon = "imagen" | "dictado" | "ollama";
+export type ActivityIcon = "imagen" | "dictado" | "ollama" | "radar";
 
 export interface ActivityAgent {
   key: string;
   name: string;
   icon: ActivityIcon;
+  /** Paso en curso de la actividad, si lo tiene; la tarjeta lo pinta bajo el nombre. */
+  detail?: string;
 }
 
 const activities = new Map<string, ActivityAgent>();
 const listeners = new Set<() => void>();
 
-/** Enciende o apaga una actividad. Solo avisa si el mapa cambió de verdad. */
-export function setActivity(key: string, on: boolean, name: string, icon: ActivityIcon): void {
+/**
+ * Enciende o apaga una actividad. Solo avisa si el mapa cambió de verdad;
+ * `detail` también cuenta como cambio (un paso nuevo dentro de la misma actividad).
+ */
+export function setActivity(
+  key: string,
+  on: boolean,
+  name: string,
+  icon: ActivityIcon,
+  detail?: string
+): void {
   const current = activities.get(key);
   if (on) {
-    if (current && current.name === name && current.icon === icon) {
+    if (current && current.name === name && current.icon === icon && current.detail === detail) {
       return;
     }
-    activities.set(key, { key, name, icon });
+    activities.set(key, { key, name, icon, detail });
   } else {
     if (!current) {
       return;

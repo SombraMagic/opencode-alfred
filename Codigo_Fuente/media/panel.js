@@ -87,7 +87,7 @@
   };
 
   /**
-   * Iconos de las actividades del sistema (imagen, dictado, Ollama). Son
+   * Iconos de las actividades del sistema (imagen, dictado, Ollama, radar). Son
    * constantes de este fichero: del host solo llega el nombre, nunca el SVG.
    */
   const ICONS = {
@@ -109,6 +109,12 @@
       '<rect x="6" y="6" width="12" height="12" rx="2"/>' +
       '<path d="M9.5 9.5h5v5h-5z"/>' +
       '<path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>' +
+      "</svg>",
+    radar:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+      '<circle cx="12" cy="12" r="9"/>' +
+      '<circle cx="12" cy="12" r="4"/>' +
+      '<path d="M12 12l7-4.5"/>' +
       "</svg>",
   };
 
@@ -138,18 +144,28 @@
   function makeCard(agent) {
     const el = document.createElement("div");
     el.className = "agent" + (agent.streaming ? " streaming" : "");
+    // Nombre y detalle van juntos en una columna: el medidor no cede ancho por ellos.
+    const text = document.createElement("span");
+    text.className = "agent-text";
     const label = document.createElement("span");
     label.className = "agent-name";
     label.textContent = agent.name;
+    text.append(label);
+    if (agent.detail) {
+      const sub = document.createElement("span");
+      sub.className = "agent-sub";
+      sub.textContent = agent.detail;
+      text.append(sub);
+    }
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
     canvas.className = "agent-meter";
-    el.append(label, canvas);
-    // Actividad del sistema (imagen, dictado, Ollama): tarjeta aparte, con icono.
+    el.append(text, canvas);
+    // Actividad del sistema (imagen, dictado, Ollama, radar): tarjeta aparte, con icono.
     if (agent.icon) {
       el.classList.add("extra");
-      el.insertBefore(iconSpan(agent.icon), label);
+      el.insertBefore(iconSpan(agent.icon), text);
     }
     // El nombre se tiñe con el mismo color que los píxeles; sin color, manda el tema.
     if (agent.color) el.style.setProperty("--agent-color", agent.color);
@@ -162,6 +178,7 @@
       streaming: agent.streaming,
       color: agent.color,
       icon: agent.icon,
+      detail: agent.detail || "",
     };
   }
 
@@ -246,6 +263,8 @@
               streaming: Boolean(a.streaming),
               color: resolveColor(a.color),
               icon: resolveIcon(a.icon),
+              // Solo texto: el detalle no entra en la clave de deduplicación (el nombre).
+              detail: typeof a.detail === "string" ? a.detail : "",
             },
           ]),
       ).values(),
@@ -292,6 +311,23 @@
           else card.el.insertBefore(iconSpan(agent.icon), card.el.firstChild);
         } else if (span) {
           span.remove();
+        }
+      }
+      // Detalle nuevo o que desaparece (el paso del radar): se actualiza en su sitio,
+      // sin recrear la tarjeta, y no participa en la clave de deduplicación.
+      if (card.detail !== agent.detail) {
+        card.detail = agent.detail;
+        const text = card.el.querySelector(".agent-text");
+        let sub = card.el.querySelector(".agent-sub");
+        if (agent.detail && text) {
+          if (!sub) {
+            sub = document.createElement("span");
+            sub.className = "agent-sub";
+            text.append(sub);
+          }
+          sub.textContent = agent.detail;
+        } else if (sub) {
+          sub.remove();
         }
       }
     }

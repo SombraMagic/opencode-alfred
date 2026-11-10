@@ -50,8 +50,17 @@ function agentNameFromFile(file: string): string {
   return path.basename(file).replace(/\.(md|markdown)$/i, "");
 }
 
-/** First existing directory of the pair (agent / agents), or the first candidate. */
+/**
+ * Directorio preferido del par (agent / agents): el plural `agents` si existe, porque
+ * opencode carga ese; si no, el primero que exista; si no hay ninguno, el primero del par
+ * (así guardar crea `agent/`).
+ */
 export async function preferredAgentDir(dirs: string[]): Promise<string> {
+  for (const d of dirs) {
+    if (path.basename(d) === "agents" && (await pathExists(d))) {
+      return d;
+    }
+  }
   for (const d of dirs) {
     if (await pathExists(d)) {
       return d;

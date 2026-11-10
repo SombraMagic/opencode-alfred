@@ -1,10 +1,11 @@
 # Estado del proyecto
 
-Última revisión: 8 de noviembre de 2026 · versión **0.8.16**
+Última revisión: 10 de noviembre de 2026 · versión **0.9.8**
 
-En el `.vsix` de la **0.8.16** de `Instalable/` se reempaquetó el 8 de noviembre con los chips de
-filtro del Explorador del proyecto (commit `ac57034`) **sin subir el número de versión**; no hay
-release ni tag. Los chips se reflejan en «Qué está hecho» y en «Siguiente».
+La **0.9.8** (2026-11-10) está empaquetada en `Instalable/opencode-alfred-0.9.8.vsix` (el único
+`.vsix` de la carpeta) e instalada en el VS Code de este equipo. Incluye el radar de noticias, los
+chips de filtro del Explorador del proyecto (CAMBIOS, CONFLICTO, APARTE) y el arreglo de fechas
+del Radar. Tag `v0.9.8`.
 
 ## Resumen
 
@@ -131,7 +132,10 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   GitHub blog y Simon Willison), los guarda en MariaDB (`alfred_radar`, con el perfil del panel
   de Bases de datos y la contraseña en el almacén), filtra con reglas por tema y un LLM
   configurable (Ollama local, OpenAI o DeepSeek), purga a los 3 días y escribe
-  `.alfred/radar/ultimas.md` con las 30 mejores para que cualquier agente lo lea. Pestaña
+  `.alfred/radar/ultimas.md` con las 30 mejores para que cualquier agente lo lea. Con la casilla
+  «TRADUCIR TITULARES Y CUERPOS» el mismo modelo devuelve en la misma llamada el titular y el
+  cuerpo en español (`titulo_es`/`resumen_es`), sin tocar el original ni la deduplicación, y el
+  buscador mira también las traducciones. Pestaña
   central con **NOTICIAS** y **CONFIGURACIÓN**, botón en Control y los comandos
   *Radar de noticias* y *Radar — actualizar ahora*. Fuera de esta versión: la herramienta MCP
   `radar_buscar` y el boletín hablado.
