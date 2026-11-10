@@ -529,7 +529,7 @@
     "mpg123-decoder": "^1.0.3",
     "mysql2": "^3.24.6",
     "ssh2": "^1.17.0",
-    "ws": "^8.18.3"
+    "ws": "^8.22.1"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
