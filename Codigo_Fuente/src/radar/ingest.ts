@@ -4,6 +4,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { RETENCION_DIAS } from "./db";
 import { parseFeed, type FeedItem } from "./feed";
 import type { RadarFuente, RadarNoticia, RadarTema } from "./types";
 
@@ -213,12 +214,24 @@ export function compilarReglas(temas: RadarTema[]): ReglasCompiladas {
 /**
  * Filtro barato por reglas: excluido gana siempre; sin exclusión, pasa si casa con
  * alguna inclusión. Sin ninguna regla de inclusión configurada, todo pasa (el LLM decide).
+ *
+ * Con `temaFijo` (fuente temática: xkcd, Rock Paper Shotgun…) se salta la inclusión y
+ * pasa con ese tema: el feed entero es de ese tema y exigirle palabras clave solo servía
+ * para tirar titulares buenos («Review: …» de un juego no dice «juego»). La exclusión
+ * sigue aplicando: ahí viven el spam, los cupones y los casinos.
  */
-export function pasaReglasCompiladas(reglas: ReglasCompiladas, textoNormalizado: string): VeredictoReglas {
+export function pasaReglasCompiladas(
+  reglas: ReglasCompiladas,
+  textoNormalizado: string,
+  temaFijo = ""
+): VeredictoReglas {
   for (const re of reglas.excluir) {
     if (re.test(textoNormalizado)) {
       return { pasa: false, tema: "" };
     }
+  }
+  if (temaFijo) {
+    return { pasa: true, tema: temaFijo };
   }
   for (const { re, tema } of reglas.incluir) {
     if (re.test(textoNormalizado)) {
@@ -238,18 +251,26 @@ export function normalizarItems(
   const reglas = compilarReglas(temas);
   const vistos = new Set<string>();
   const out: RadarNoticia[] = [];
+  const corte = ahora - RETENCION_DIAS * 24 * 60 * 60 * 1000;
   for (const item of items) {
     const titulo = item.titulo.trim();
     const enlace = item.enlace.trim();
     if (!titulo || !enlace) {
       continue; // Sin título ni enlace no hay noticia que guardar.
     }
+    if (item.publicada > 0 && item.publicada < corte) {
+      continue; // Archivo del feed: más vieja que la retención, la purga la borraría igual.
+    }
     const hash = hashNoticia(enlace, titulo);
     if (vistos.has(hash)) {
       continue; // El propio feed se repite (p. ej. con y sin utm): se queda la primera.
     }
     vistos.add(hash);
-    const veredicto = pasaReglasCompiladas(reglas, normalizarTexto(`${titulo} ${item.resumen}`));
+    const veredicto = pasaReglasCompiladas(
+      reglas,
+      normalizarTexto(`${titulo} ${item.resumen}`),
+      fuente.temaFijo ?? ""
+    );
     out.push({
       hash,
       fuenteId: fuente.id,
@@ -258,7 +279,8 @@ export function normalizarItems(
       enlace: enlace.slice(0, 2000),
       resumen: item.resumen,
       autor: item.autor,
-      publicada: item.publicada > 0 ? item.publicada : ahora,
+      // Sin fecha o con fecha futura (feed mal configurado) cuenta como recién llegada.
+      publicada: item.publicada > 0 && item.publicada <= ahora + 60 * 60 * 1000 ? item.publicada : ahora,
       recogida: ahora,
       descartada: !veredicto.pasa,
       temaRegla: veredicto.tema,

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import { RadarSinBase, RadarService, type RadarPerfilView } from "../radar/service";
 import type { CampoFlag, RadarFila } from "../radar/db";
-import type { RadarConfig, RadarEstado, RadarProveedor } from "../radar/types";
+import type { RadarConfig, RadarEstado, RadarProveedor, RadarTema } from "../radar/types";
 import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /** Filas por página de la lista de noticias. */
@@ -13,6 +13,8 @@ const PAGINA = 100;
 const MODELO_RE = /^[A-Za-z0-9._:/-]{0,200}$/;
 /** Ids de perfil de MariaDB (UUID o nombre corto). */
 const ID_RE = /^[A-Za-z0-9._-]{0,64}$/;
+/** Tope de temas editables desde CONFIGURACIÓN. */
+const MAX_TEMAS = 20;
 
 /** Acciones que el webview tiene permitido pedir. */
 const ACTION_TYPES = new Set<string>([
@@ -21,6 +23,7 @@ const ACTION_TYPES = new Set<string>([
   "repuntuar",
   "marcar",
   "guardarConfig",
+  "guardarTemas",
   "setClave",
   "borrarClave",
   "abrir",
@@ -40,7 +43,9 @@ type RadarAction =
       modelo: string;
       umbral: number;
       profileId: string;
+      traducir: boolean;
     }
+  | { type: "guardarTemas"; temas: RadarTema[] }
   | { type: "setClave"; clave: string }
   | { type: "borrarClave" }
   | { type: "abrir"; enlace: string }
@@ -84,6 +89,8 @@ function parseAction(raw: unknown): RadarAction | undefined {
       const modelo = typeof action.modelo === "string" ? action.modelo.trim() : "";
       const profileId = typeof action.profileId === "string" ? action.profileId.trim() : "";
       const umbral = Math.round(Number(action.umbral));
+      // Campo ausente vale `false`, igual que `sanearConfig`: un mensaje viejo no pierde el guardado.
+      const traducir = action.traducir === true;
       const activas = Array.isArray(action.activas)
         ? action.activas
             .filter((v): v is string => typeof v === "string" && v.length > 0 && v.length <= 64)
@@ -105,8 +112,11 @@ function parseAction(raw: unknown): RadarAction | undefined {
         modelo,
         umbral: Math.min(100, Math.max(0, umbral)),
         profileId,
+        traducir,
       };
     }
+    case "guardarTemas":
+      return { type: "guardarTemas", temas: leerTemas(action.temas) };
     case "setClave": {
       const clave = typeof action.clave === "string" ? action.clave.trim() : "";
       return clave.length > 0 && clave.length <= 500 ? { type: "setClave", clave } : undefined;
@@ -125,14 +135,117 @@ function parseAction(raw: unknown): RadarAction | undefined {
   return undefined;
 }
 
+/**
+ * Valida la lista de temas que manda el webview. Los ids vacíos se generan y los repetidos
+ * se corrigen aquí: `sanearConfig` es la red final, no la única. Lanza con texto legible.
+ */
+function leerTemas(raw: unknown): RadarTema[] {
+  if (!Array.isArray(raw)) {
+    throw new Error("Los temas no han llegado como lista.");
+  }
+  if (raw.length > MAX_TEMAS) {
+    throw new Error(`No se pueden guardar más de ${MAX_TEMAS} temas.`);
+  }
+  const nombres = new Set<string>();
+  const ids = new Set<string>();
+  const temas: RadarTema[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const item = raw[i];
+    if (!item || typeof item !== "object") {
+      throw new Error(`El tema ${i + 1} no tiene un formato válido.`);
+    }
+    const t = item as Record<string, unknown>;
+    const nombre = typeof t.nombre === "string" ? t.nombre.trim().slice(0, 64) : "";
+    if (!nombre) {
+      throw new Error(`El tema ${i + 1} no tiene nombre.`);
+    }
+    const clave = nombre.toLowerCase();
+    if (clave === "todos") {
+      throw new Error("«TODOS» está reservado para el filtro de la lista.");
+    }
+    if (nombres.has(clave)) {
+      throw new Error(`Ya existe un tema «${nombre}».`);
+    }
+    nombres.add(clave);
+    temas.push({
+      id: idUnico(typeof t.id === "string" ? t.id : "", ids, i),
+      nombre,
+      incluir: leerLista(t.incluir, nombre),
+      excluir: leerLista(t.excluir, nombre),
+    });
+  }
+  return temas;
+}
+
+/** Id estable y único: vacío pasa a `tema-N` y un repetido lleva sufijo `-2`, `-3`… */
+function idUnico(bruto: string, usados: Set<string>, indice: number): string {
+  let id = bruto.trim().slice(0, 64);
+  if (!id) {
+    id = `tema-${indice + 1}`;
+  }
+  let candidato = id;
+  let n = 2;
+  while (usados.has(candidato)) {
+    const sufijo = `-${n++}`;
+    candidato = `${id.slice(0, 64 - sufijo.length)}${sufijo}`;
+  }
+  usados.add(candidato);
+  return candidato;
+}
+
+/** Lista de palabras del tema; ausente vale vacía. */
+function leerLista(raw: unknown, tema: string): string[] {
+  if (raw === undefined || raw === null) {
+    return [];
+  }
+  if (!Array.isArray(raw) || raw.some((v) => typeof v !== "string")) {
+    throw new Error(`Las palabras del tema «${tema}» no tienen un formato válido.`);
+  }
+  return raw as string[];
+}
+
+/** ¿Cambian las palabras de los temas? Renombrar uno no obliga a repuntuar. */
+function reglasCambian(antes: RadarTema[], despues: RadarTema[]): boolean {
+  if (antes.length !== despues.length) {
+    return true;
+  }
+  const previos = new Map(antes.map((t) => [t.id, t]));
+  for (const tema of despues) {
+    const previo = previos.get(tema.id);
+    if (!previo || !mismaLista(previo.incluir, tema.incluir) || !mismaLista(previo.excluir, tema.excluir)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function mismaLista(a: readonly string[], b: readonly string[]): boolean {
+  const norm = (lista: readonly string[]): string[] =>
+    [...new Set(lista.map((v) => v.trim().toLowerCase()).filter((v) => v.length > 0))].sort();
+  const x = norm(a);
+  const y = norm(b);
+  return x.length === y.length && x.every((v, i) => v === y[i]);
+}
+
 /** Configuración tal como viaja al webview: sin clave y sin secretos. */
 interface RadarVista {
-  fuentes: { id: string; nombre: string; url: string; activa: boolean; ultimoError: string }[];
-  temas: string[];
+  fuentes: {
+    id: string;
+    nombre: string;
+    url: string;
+    activa: boolean;
+    /** Tema fijo de la fuente; vacío = sin tema fijo (la lista no pinta chip). */
+    temaFijo: string;
+    ultimoError: string;
+  }[];
+  /** Temas editables con sus reglas: el formulario de CONFIGURACIÓN las necesita. */
+  temas: { id: string; nombre: string; incluir: string[]; excluir: string[] }[];
   proveedor: RadarProveedor;
   modelo: string;
   umbral: number;
   profileId: string;
+  /** Casilla TRADUCIR TITULARES Y CUERPOS de CONFIGURACIÓN. */
+  traducir: boolean;
   perfiles: RadarPerfilView[];
   hasClave: boolean;
   filas: RadarFila[];
@@ -224,9 +337,23 @@ export class RadarPanel {
           return;
         }
         if (message?.type === "action") {
-          const action = parseAction(message.action);
+          let action: RadarAction | undefined;
+          try {
+            action = parseAction(message.action);
+          } catch (err) {
+            // Los temas se validan con mensajes concretos («El tema 2 no tiene nombre.»).
+            this.post({ type: "aviso", text: mensajeDe(err) });
+            return;
+          }
           if (action) {
             this.enqueue(action);
+          } else {
+            // Una acción descartada no puede quedarse en silencio: el formulario parecería
+            // guardado y volvería a su sitio al reabrir.
+            this.post({
+              type: "aviso",
+              text: "No se pudo guardar: hay un campo con un valor que no vale.",
+            });
           }
         }
       },
@@ -296,6 +423,7 @@ export class RadarPanel {
         return;
 
       case "guardarConfig": {
+        const antesTraducir = this.cfg.traducir;
         const activas = new Set(action.activas);
         const fuentes = this.service
           .config()
@@ -306,10 +434,46 @@ export class RadarPanel {
           modelo: action.modelo,
           umbral: action.umbral,
           profileId: action.profileId,
+          traducir: action.traducir,
         });
         // Un perfil nuevo se conecta desde cero: la sesión vieja se cierra.
         await this.service.cerrarSesion();
         await this.recargarTodo();
+        if (!antesTraducir && action.traducir) {
+          // Encender la traducción no toca lo ya puntuado: hay que volver a puntuar o el
+          // usuario no verá ni un titular traducido y creerá que la casilla no hace nada.
+          this.post({
+            type: "aviso",
+            tono: "info",
+            text: "Traducción activada. Pulsa REPUNTUAR 3 DÍAS para traducir las noticias que ya están guardadas.",
+          });
+        }
+        return;
+      }
+
+      case "guardarTemas": {
+        const antes = this.cfg.temas;
+        await this.service.saveConfig({ temas: action.temas });
+        // Un tema borrado o renombrado no puede dejar la lista filtrada por un nombre que ya
+        // no existe: el filtro vuelve a TODOS y el repintado enseña las noticias.
+        if (this.tema && !this.service.config().temas.some((t) => t.nombre === this.tema)) {
+          this.tema = "";
+        }
+        await this.recargarTodo();
+        if (reglasCambian(antes, this.cfg.temas)) {
+          // Lo ya puntuado no se toca solo: si no se dice, el usuario creerá que las reglas
+          // nuevas ya filtraron el histórico.
+          this.post({
+            type: "aviso",
+            tono: "info",
+            text: "Temas guardados. Las noticias ya puntuadas no cambian hasta que pulses REPUNTUAR 3 DÍAS.",
+          });
+        } else {
+          this.post({ type: "aviso", tono: "info", text: "Temas guardados." });
+        }
+        // El formulario se cierra con este aviso, no antes: si la validación falla, lo escrito
+        // sigue en su sitio.
+        this.post({ type: "temasGuardados" });
         return;
       }
 
@@ -397,13 +561,20 @@ export class RadarPanel {
         nombre: f.nombre,
         url: f.url,
         activa: f.activa,
+        temaFijo: f.temaFijo ?? "",
         ultimoError: this.fuenteErrores.get(f.id) ?? "",
       })),
-      temas: this.cfg.temas.map((t) => t.nombre),
+      temas: this.cfg.temas.map((t) => ({
+        id: t.id,
+        nombre: t.nombre,
+        incluir: [...t.incluir],
+        excluir: [...t.excluir],
+      })),
       proveedor: this.cfg.proveedor,
       modelo: this.cfg.modelo,
       umbral: this.cfg.umbral,
       profileId: this.cfg.profileId,
+      traducir: this.cfg.traducir,
       perfiles: this.perfiles,
       hasClave: this.hasClave,
       filas: this.filas,

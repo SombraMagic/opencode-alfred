@@ -160,8 +160,9 @@ body {
 }
 
 /* ── Aviso de la pasada o de la base ─────────────────────── */
+/* Vive fuera de las pestañas: se ve en NOTICIAS y en CONFIGURACIÓN. */
 .rd-aviso {
-  margin: 8px 0 0;
+  margin: 6px 14px 0;
   padding: 6px 8px;
   border: 1px solid var(--line);
   color: var(--amber);
@@ -175,6 +176,11 @@ body {
 .rd-aviso.error {
   color: var(--danger);
   border-color: var(--danger-dim);
+}
+
+/* Aviso puntual del host (recordatorios, validación): se cierra con un clic. */
+.rd-nota {
+  cursor: pointer;
 }
 
 /* ── Lista y detalle ─────────────────────────────────────── */
@@ -269,6 +275,14 @@ body {
   font-size: 9.5px;
   letter-spacing: 1px;
   color: var(--text-soft);
+}
+
+.rd-d-original {
+  margin: -4px 0 8px;
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
 }
 
 .rd-detalle p {
@@ -428,6 +442,18 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* Tema fijo de la fuente: chip diminuto que no roba ancho al nombre ni a la URL. */
+.rd-tema-fijo {
+  flex: 0 0 auto;
+  font-size: 8.5px;
+  letter-spacing: 1px;
+  padding: 1px 5px;
+  color: var(--neon);
+  border: 1px solid color-mix(in srgb, var(--neon) 45%, transparent);
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+  white-space: nowrap;
+}
+
 .rd-fuente .rd-url {
   margin-left: auto;
   max-width: 45%;
@@ -439,8 +465,120 @@ body {
 }
 
 .rd-tema {
-  font-size: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* El nombre es el único que cede: los botones nunca bajan de línea. */
+.rd-tema-nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-tema-cuenta {
+  flex: 0 0 auto;
+  font-size: 9px;
   color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.rd-tema-btn {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+/* Botón de icono de las filas: misma caja para lápiz, papelera y «+». */
+.rd-icon-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.rd-icon-btn[hidden] {
+  display: none;
+}
+
+.rd-icon-btn:hover,
+.rd-icon-btn:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: 1px solid var(--neon);
+  outline-offset: 1px;
+}
+
+.rd-tema-editar {
+  color: var(--text);
+}
+
+.rd-tema-quitar {
+  color: var(--danger);
+  border-color: var(--danger-dim);
+}
+
+.rd-tema-quitar:hover,
+.rd-tema-quitar:focus-visible {
+  color: var(--danger);
+  border-color: var(--danger);
+  outline-color: var(--danger);
+}
+
+.rd-icon-add {
+  color: var(--text-soft);
+}
+
+.rd-temas-pie {
+  margin-top: 8px;
+}
+
+.rd-tema-form {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.rd-tema-form-title {
+  margin: 0 0 4px;
+  font-size: 9px;
+  font-weight: normal;
+  letter-spacing: 1.6px;
+  color: var(--amber);
+}
+
+.rd-tema-lista {
+  align-items: flex-start;
+}
+
+.rd-tema-lista textarea.rd-input {
+  flex: 1 1 160px;
+  min-height: 64px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.rd-tema-form-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .rd-umbral .rd-range {

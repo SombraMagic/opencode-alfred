@@ -20,6 +20,9 @@
       </div>
     </header>
 
+    <p id="rd-aviso" class="rd-aviso" role="status" aria-live="polite" hidden></p>
+    <p id="rd-nota" class="rd-aviso rd-nota" role="status" aria-live="polite" title="Clic para cerrar" hidden></p>
+
     <section id="panel-noticias" class="rd-panel" role="tabpanel" aria-labelledby="tab-noticias">
       <div class="rd-barra">
         <input id="rd-busqueda" class="rd-input" type="search" placeholder="Buscar en titulares y resúmenes…" aria-label="Buscar noticias" spellcheck="false" autocomplete="off" />
@@ -28,8 +31,6 @@
       </div>
 
       <div id="rd-chips" class="rd-chips" role="group" aria-label="Filtrar por tema"></div>
-
-      <p id="rd-aviso" class="rd-aviso" role="status" aria-live="polite" hidden></p>
 
       <div class="rd-cuerpo">
         <ul id="rd-lista" class="rd-lista" aria-label="Noticias"></ul>
@@ -59,8 +60,30 @@
 
         <section class="rd-bloque">
           <h2 class="rd-bloque-title">TEMAS</h2>
-          <p class="rd-hint">Solo consulta: en esta versión no se editan sus palabras.</p>
+          <p class="rd-hint">Cada tema filtra por sus palabras: INCLUIR deja pasar la noticia y EXCLUIR la descarta antes del LLM.</p>
           <ul id="rd-temas" class="rd-temas"></ul>
+          <div class="rd-temas-pie">
+            <button id="btn-tema-add" class="rd-icon-btn rd-icon-add" type="button" title="Añadir tema" aria-label="Añadir tema"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
+          </div>
+          <div id="rd-tema-form" class="rd-tema-form" hidden>
+            <h3 id="rd-tema-form-title" class="rd-tema-form-title">NUEVO TEMA</h3>
+            <div class="rd-fila">
+              <label class="rd-label" for="rd-tema-nombre">NOMBRE</label>
+              <input id="rd-tema-nombre" class="rd-input" type="text" maxlength="64" spellcheck="false" autocomplete="off" />
+            </div>
+            <div class="rd-fila rd-tema-lista">
+              <label class="rd-label" for="rd-tema-incluir">INCLUIR</label>
+              <textarea id="rd-tema-incluir" class="rd-input" rows="5" spellcheck="false" placeholder="Una palabra o frase por línea"></textarea>
+            </div>
+            <div class="rd-fila rd-tema-lista">
+              <label class="rd-label" for="rd-tema-excluir">EXCLUIR</label>
+              <textarea id="rd-tema-excluir" class="rd-input" rows="5" spellcheck="false" placeholder="Una palabra o frase por línea"></textarea>
+            </div>
+            <div class="rd-tema-form-acciones">
+              <button id="btn-tema-guardar" class="ghost-btn rd-primario" type="button">GUARDAR</button>
+              <button id="btn-tema-cancelar" class="ghost-btn" type="button">CANCELAR</button>
+            </div>
+          </div>
         </section>
 
         <section class="rd-bloque">
@@ -85,6 +108,11 @@
             <button id="btn-clave-borrar" class="ghost-btn" type="button" title="Borrar la clave guardada">BORRAR</button>
           </div>
           <p id="rd-clave-estado" class="rd-hint">Sin clave guardada.</p>
+          <label class="rd-fila rd-check">
+            <input id="rd-traducir" type="checkbox" />
+            <span>TRADUCIR TITULARES Y CUERPOS</span>
+          </label>
+          <p class="rd-hint">Se pide al mismo modelo, en la misma llamada: no gasta peticiones extra. Solo se traduce lo que pasa las reglas.</p>
         </section>
 
         <section class="rd-bloque">

@@ -22,13 +22,23 @@
     btnNext: document.getElementById("btn-next"),
     pagInfo: document.getElementById("rd-pag-info"),
     fuentes: document.getElementById("rd-fuentes"),
+    nota: document.getElementById("rd-nota"),
     temas: document.getElementById("rd-temas"),
+    temaAdd: document.getElementById("btn-tema-add"),
+    temaForm: document.getElementById("rd-tema-form"),
+    temaFormTitle: document.getElementById("rd-tema-form-title"),
+    temaNombre: document.getElementById("rd-tema-nombre"),
+    temaIncluir: document.getElementById("rd-tema-incluir"),
+    temaExcluir: document.getElementById("rd-tema-excluir"),
+    btnTemaGuardar: document.getElementById("btn-tema-guardar"),
+    btnTemaCancelar: document.getElementById("btn-tema-cancelar"),
     proveedor: document.getElementById("rd-proveedor"),
     modelo: document.getElementById("rd-modelo"),
     clave: document.getElementById("rd-clave"),
     btnClave: document.getElementById("btn-clave"),
     btnClaveBorrar: document.getElementById("btn-clave-borrar"),
     claveEstado: document.getElementById("rd-clave-estado"),
+    traducir: document.getElementById("rd-traducir"),
     perfil: document.getElementById("rd-perfil"),
     baseEstado: document.getElementById("rd-base-estado"),
     activo: document.getElementById("rd-activo"),
@@ -43,6 +53,10 @@
   let tab = "noticias";
   /** El usuario tocó el formulario: un `data` en vuelo no puede pisarlo. */
   let configSucio = false;
+  /** Id del tema en edición; `""` = tema nuevo; `null` = formulario cerrado. */
+  let temaEditando = null;
+  /** Id del tema pendiente de confirmar su borrado. */
+  let temaQuitar = null;
 
   const guardado = vscode.getState();
   if (guardado && (guardado.tab === "config" || guardado.tab === "noticias")) {
@@ -63,6 +77,7 @@
       return new Date(ms).toLocaleString("es-ES", {
         day: "2-digit",
         month: "short",
+        year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
       });
@@ -134,7 +149,7 @@
     const temas = (datos && datos.temas) || [];
     agregarChip("TODOS", "", activo === "");
     for (const tema of temas) {
-      agregarChip(tema, tema, activo === tema);
+      agregarChip(tema.nombre, tema.nombre, activo === tema.nombre);
     }
   }
 
@@ -185,7 +200,7 @@
       const cuerpo = document.createElement("span");
       const titular = document.createElement("span");
       titular.className = "rd-titular";
-      texto(titular, f.titulo);
+      texto(titular, f.tituloEs || f.titulo);
       const meta = document.createElement("span");
       meta.className = "rd-meta";
       texto(meta, f.fuente + (f.tema ? " · " + f.tema : "") + " · " + fecha(f.publicada));
@@ -212,8 +227,16 @@
     }
 
     const titulo = document.createElement("h2");
-    texto(titulo, f.titulo);
+    texto(titulo, f.tituloEs || f.titulo);
     el.detalle.appendChild(titulo);
+
+    // Con traducción guardada, el titular original queda a la vista en una línea pequeña.
+    if (f.tituloEs) {
+      const original = document.createElement("div");
+      original.className = "rd-d-original";
+      texto(original, f.titulo);
+      el.detalle.appendChild(original);
+    }
 
     const meta = document.createElement("div");
     meta.className = "rd-d-meta";
@@ -228,7 +251,7 @@
     el.detalle.appendChild(meta);
 
     const resumen = document.createElement("p");
-    texto(resumen, f.resumen || "Sin resumen.");
+    texto(resumen, f.resumenEs || f.resumen || "Sin resumen.");
     el.detalle.appendChild(resumen);
 
     const enlace = document.createElement("span");
@@ -306,12 +329,21 @@
       });
       const nombre = document.createElement("span");
       texto(nombre, fuente.nombre);
+      li.appendChild(chk);
+      li.appendChild(nombre);
+      // Chip del tema fijo: la fuente temática entra siempre con ese tema. Sin tema
+      // fijo no se pinta nada (no es un hueco vacío).
+      if (fuente.temaFijo) {
+        const chip = document.createElement("span");
+        chip.className = "rd-tema-fijo";
+        chip.title = "Tema fijo de la fuente: " + fuente.temaFijo;
+        texto(chip, fuente.temaFijo);
+        li.appendChild(chip);
+      }
       const url = document.createElement("span");
       url.className = "rd-url";
       url.title = fuente.url;
       texto(url, fuente.url);
-      li.appendChild(chk);
-      li.appendChild(nombre);
       li.appendChild(url);
       if (fuente.ultimoError) {
         const fallo = document.createElement("span");
@@ -321,14 +353,6 @@
         li.appendChild(fallo);
       }
       el.fuentes.appendChild(li);
-    }
-
-    el.temas.textContent = "";
-    for (const tema of data.temas || []) {
-      const li = document.createElement("li");
-      li.className = "rd-tema";
-      texto(li, "· " + tema);
-      el.temas.appendChild(li);
     }
 
     el.proveedor.value = data.proveedor;
@@ -359,6 +383,170 @@
     );
   }
 
+  // ── Temas ────────────────────────────────────────────────
+  /**
+   * Iconos de las filas de temas. Son constantes de este fichero: del host solo
+   * llegan nombres y contadores, nunca SVG.
+   */
+  const ICONS = {
+    editar:
+      '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+      '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/>' +
+      '<path d="M14.5 5.5l3 3"/>' +
+      "</svg>",
+    quitar:
+      '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+      '<path d="M4 7h16"/>' +
+      '<path d="M9.5 7V4.5h5V7"/>' +
+      '<path d="M6.5 7l1 13h9l1-13"/>' +
+      '<path d="M10 11v5M14 11v5"/>' +
+      "</svg>",
+  };
+
+  /** Una fila por tema y, si toca, la confirmación de borrado en el propio bloque. */
+  function renderTemas(data) {
+    el.temas.textContent = "";
+    const temas = (data && data.temas) || [];
+    if (temas.length === 0) {
+      const vacio = document.createElement("li");
+      vacio.className = "rd-vacio";
+      texto(vacio, "Sin temas: el radar no filtra por palabras y el LLM puntúa con el tema «General».");
+      el.temas.appendChild(vacio);
+      return;
+    }
+    for (const tema of temas) {
+      if (tema.id === temaQuitar) {
+        el.temas.appendChild(filaConfirmar(tema));
+        continue;
+      }
+      const li = document.createElement("li");
+      li.className = "rd-tema";
+      const nombre = document.createElement("span");
+      nombre.className = "rd-tema-nombre";
+      nombre.title = tema.nombre;
+      texto(nombre, tema.nombre);
+      const cuenta = document.createElement("span");
+      cuenta.className = "rd-tema-cuenta";
+      texto(cuenta, (tema.incluir || []).length + " inc · " + (tema.excluir || []).length + " exc");
+      li.appendChild(nombre);
+      li.appendChild(cuenta);
+      li.appendChild(botonIcono("editar", "Editar el tema", () => abrirTemaForm(tema), "rd-tema-editar"));
+      li.appendChild(
+        botonIcono(
+          "quitar",
+          "Quitar el tema",
+          () => {
+            temaQuitar = tema.id;
+            renderTemas(datos);
+          },
+          "rd-tema-quitar"
+        )
+      );
+      el.temas.appendChild(li);
+    }
+  }
+
+  function filaConfirmar(tema) {
+    const li = document.createElement("li");
+    li.className = "rd-tema";
+    const pregunta = document.createElement("span");
+    pregunta.className = "rd-tema-nombre";
+    texto(pregunta, "¿Quitar «" + tema.nombre + "»?");
+    li.appendChild(pregunta);
+    li.appendChild(botonTema("SÍ, QUITAR", () => quitarTema(tema.id), "rd-tema-quitar"));
+    li.appendChild(
+      botonTema("CANCELAR", () => {
+        temaQuitar = null;
+        renderTemas(datos);
+      })
+    );
+    return li;
+  }
+
+  function botonTema(etiqueta, alPulsar, clase) {
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = "ghost-btn rd-tema-btn" + (clase ? " " + clase : "");
+    boton.textContent = etiqueta;
+    boton.addEventListener("click", alPulsar);
+    return boton;
+  }
+
+  /** Botón de icono: el SVG sale de ICONS y la etiqueta solo va en `title` y `aria-label`. */
+  function botonIcono(icono, etiqueta, alPulsar, clase) {
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = "rd-icon-btn" + (clase ? " " + clase : "");
+    boton.title = etiqueta;
+    boton.setAttribute("aria-label", etiqueta);
+    boton.innerHTML = ICONS[icono];
+    boton.addEventListener("click", alPulsar);
+    return boton;
+  }
+
+  function abrirTemaForm(tema) {
+    temaEditando = tema ? tema.id : "";
+    temaQuitar = null;
+    texto(el.temaFormTitle, tema ? "EDITAR TEMA" : "NUEVO TEMA");
+    el.temaNombre.value = tema ? tema.nombre : "";
+    el.temaIncluir.value = tema ? (tema.incluir || []).join("\n") : "";
+    el.temaExcluir.value = tema ? (tema.excluir || []).join("\n") : "";
+    el.temaForm.hidden = false;
+    el.temaAdd.hidden = true;
+    renderTemas(datos);
+    el.temaNombre.focus();
+  }
+
+  function cerrarTemaForm() {
+    temaEditando = null;
+    temaQuitar = null;
+    el.temaForm.hidden = true;
+    el.temaAdd.hidden = false;
+    el.temaNombre.value = "";
+    el.temaIncluir.value = "";
+    el.temaExcluir.value = "";
+  }
+
+  function lineasDe(valor) {
+    return String(valor || "")
+      .split("\n")
+      .map((linea) => linea.trim())
+      .filter((linea) => linea.length > 0);
+  }
+
+  function guardarTemaForm() {
+    const nombre = el.temaNombre.value.trim();
+    const incluir = lineasDe(el.temaIncluir.value);
+    const excluir = lineasDe(el.temaExcluir.value);
+    const temas = ((datos && datos.temas) || []).map((t) => ({
+      id: t.id,
+      nombre: t.nombre,
+      incluir: (t.incluir || []).slice(),
+      excluir: (t.excluir || []).slice(),
+    }));
+    const indice = temaEditando ? temas.findIndex((t) => t.id === temaEditando) : -1;
+    if (indice >= 0) {
+      temas[indice] = { id: temas[indice].id, nombre, incluir, excluir };
+    } else {
+      // El id vacío lo rellena el host: aquí no se inventa.
+      temas.push({ id: "", nombre, incluir, excluir });
+    }
+    act({ type: "guardarTemas", temas });
+  }
+
+  function quitarTema(id) {
+    temaQuitar = null;
+    const temas = ((datos && datos.temas) || [])
+      .filter((t) => t.id !== id)
+      .map((t) => ({
+        id: t.id,
+        nombre: t.nombre,
+        incluir: (t.incluir || []).slice(),
+        excluir: (t.excluir || []).slice(),
+      }));
+    act({ type: "guardarTemas", temas });
+  }
+
   function renderBase(data) {
     if (!data) return;
     if (data.sinBase) {
@@ -385,6 +573,7 @@
       modelo: el.modelo.value.trim(),
       umbral: Number(el.umbral.value),
       profileId: el.perfil.value,
+      traducir: el.traducir.checked,
     });
     configSucio = false;
   }
@@ -396,12 +585,19 @@
       seleccion = null;
     }
     el.activo.checked = data.activo === true;
+    // La casilla de traducción se pinta siempre, aunque el formulario esté sucio: si se
+    // quedaba dentro de `renderConfig`, un dato viejo la devolvía a apagada y parecía que
+    // no se guardaba.
+    el.traducir.checked = data.traducir === true;
     renderEstado(data.estado || null, data);
     renderChips();
     renderLista();
     renderDetalle();
     renderPie();
     renderBase(data);
+    // Los temas no viven del formulario grande: se repintan siempre, y el formulario de
+    // edición (HTML fijo) no se toca, así que un `data` en vuelo no pierde lo escrito.
+    renderTemas(data);
     if (!configSucio) {
       renderConfig(data);
     }
@@ -420,8 +616,11 @@
     el.tabConfig.setAttribute("aria-selected", tab === "config" ? "true" : "false");
     el.panelNoticias.hidden = tab !== "noticias";
     el.panelConfig.hidden = tab !== "config";
-    if (tab === "config" && datos && !configSucio) {
-      renderConfig(datos);
+    if (tab === "config" && datos) {
+      if (!configSucio) {
+        renderConfig(datos);
+      }
+      renderTemas(datos);
     }
   }
 
@@ -472,6 +671,12 @@
   });
   el.btnClaveBorrar.addEventListener("click", () => act({ type: "borrarClave" }));
   el.btnGuardar.addEventListener("click", guardarConfig);
+  el.temaAdd.addEventListener("click", () => abrirTemaForm(null));
+  el.btnTemaGuardar.addEventListener("click", guardarTemaForm);
+  el.btnTemaCancelar.addEventListener("click", cerrarTemaForm);
+  el.nota.addEventListener("click", () => {
+    el.nota.hidden = true;
+  });
   el.activo.addEventListener("change", () =>
     act({ type: "setActivo", on: el.activo.checked })
   );
@@ -481,6 +686,9 @@
       configSucio = true;
     });
   }
+  el.traducir.addEventListener("change", () => {
+    configSucio = true;
+  });
   el.umbral.addEventListener("input", () => texto(el.umbralValor, el.umbral.value));
 
   window.addEventListener("message", (event) => {
@@ -494,10 +702,19 @@
       renderEstado(message.estado, datos);
       return;
     }
+    if (message.type === "temasGuardados") {
+      // Solo se cierra con el acuse del host: si la validación falló, el aviso llega antes
+      // y lo escrito sigue en el formulario.
+      cerrarTemaForm();
+      renderTemas(datos);
+      return;
+    }
     if (message.type === "aviso") {
-      el.aviso.hidden = false;
-      el.aviso.classList.add("error");
-      texto(el.aviso, message.text || "Error desconocido.");
+      // Los avisos van a su propia línea: el estado de la pasada repinta `#rd-aviso` y
+      // antes se llevaba por delante el recordatorio de repuntuar.
+      el.nota.hidden = false;
+      el.nota.classList.toggle("error", message.tono !== "info");
+      texto(el.nota, message.text || "Error desconocido.");
     }
   });
 

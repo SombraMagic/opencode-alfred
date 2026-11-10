@@ -12,6 +12,7 @@ import { SshTunnel, type HostKeyStore } from "../databases/ssh";
 import type { DbProfile } from "../databases/types";
 import { writeAtomic } from "../pizarra/files";
 import { readSettings } from "../ollama/service";
+import { setActivity } from "../panels/activity";
 import {
   countItems,
   ensureSchema,
@@ -108,6 +109,13 @@ export class RadarService {
   }
 
   private notificar(): void {
+    // La tarjeta del radar en el panel de voz sigue el paso en curso; en cualquier
+    // otra fase se apaga. El nombre no cambia: la tarjeta se conserva, no se recrea.
+    if (this.estado.fase === "working") {
+      setActivity("radar", true, "RADAR", "radar", this.estado.trabajando || "Trabajando…");
+    } else {
+      setActivity("radar", false, "RADAR", "radar");
+    }
     const copia = { ...this.estado, contadores: { ...this.estado.contadores }, fallos: [...this.estado.fallos] };
     for (const fn of this.oyentes) {
       try {
@@ -428,7 +436,14 @@ export class RadarService {
         return;
       }
     }
-    const temas = cfg.temas.map((t) => t.nombre);
+    // Al modelo hay que darle también los temas fijos de las fuentes: si «Juegos» o
+    // «Humor» no están en la lista, no puede devolverlos y la noticia pierde su tema.
+    const temas = [
+      ...new Set([
+        ...cfg.temas.map((t) => t.nombre),
+        ...cfg.fuentes.map((f) => f.temaFijo ?? ""),
+      ]),
+    ].filter((t) => t.length > 0);
     const ollamaBase = readSettings(this.context).baseURL;
     for (let i = 0; i < pendientes.length; i += TAM_LOTE) {
       const lote = pendientes.slice(i, i + TAM_LOTE);
@@ -442,6 +457,7 @@ export class RadarService {
             clave,
             ollamaBase,
             temas,
+            traducir: cfg.traducir,
           },
           lote.map((p, j) => ({ n: j + 1, titulo: p.titulo, resumen: p.resumen }))
         );
@@ -450,7 +466,15 @@ export class RadarService {
           if (!pend) {
             continue;
           }
-          await setScore(session, pend.hash, sc.puntuacion, sc.tema || pend.temaRegla, sc.resumen);
+          await setScore(
+            session,
+            pend.hash,
+            sc.puntuacion,
+            sc.tema || pend.temaRegla,
+            sc.resumen,
+            sc.tituloEs,
+            sc.resumenEs
+          );
           estado.contadores.puntuadas++;
         }
       } catch (err) {
@@ -592,7 +616,8 @@ function mensajeDe(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** Contenido de `ultimas.md`: una línea por noticia, `puntuación · fuente · titular · enlace`. */
+/** Contenido de `ultimas.md`: una línea por noticia, `puntuación · fuente · titular · enlace`.
+ *  Con traducción guardada se escribe el titular en español; el original sigue en la base. */
 export function contenidoUltimas(filas: RadarFila[], umbral: number): string {
   const lineas = [
     "# Radar — últimas noticias",
@@ -604,7 +629,8 @@ export function contenidoUltimas(filas: RadarFila[], umbral: number): string {
     lineas.push("Sin noticias por encima del umbral en los últimos 3 días.");
   }
   for (const f of filas) {
-    lineas.push(`${f.score} · ${f.fuente} · ${f.titulo} · ${f.enlace}`);
+    const titular = f.tituloEs || f.titulo;
+    lineas.push(`${f.score} · ${f.fuente} · ${titular} · ${f.enlace}`);
   }
   lineas.push("");
   return lineas.join("\n");

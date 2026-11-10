@@ -13,6 +13,12 @@ export interface RadarFuente {
   nombre: string;
   url: string;
   activa: boolean;
+  /**
+   * Tema que se asigna a TODAS las noticias de esta fuente. Con él, las reglas de
+   * inclusión no se miran (las de exclusión sí): un feed temático no necesita que sus
+   * titulares casen con la lista de palabras. Vacío o ausente = sin tema fijo.
+   */
+  temaFijo?: string;
 }
 
 /** Tema con sus reglas de inclusión y exclusión (palabras sueltas o frases). */
@@ -36,6 +42,8 @@ export interface RadarConfig {
   umbral: number;
   /** Perfil MariaDB del panel de bases de datos. Vacío = el primero guardado. */
   profileId: string;
+  /** Pide al mismo LLM la traducción al español del titular y del cuerpo. */
+  traducir: boolean;
 }
 
 /** Noticia normalizada, lista para guardar en `alfred_radar.items`. */
@@ -106,13 +114,40 @@ export function estadoVacio(): RadarEstado {
   };
 }
 
-/** Cinco feeds públicos de IA y programación, sin autenticación. */
+/** Feeds públicos de IA, programación, juegos y humor; sin autenticación. */
 export const FUENTES_DEFECTO: readonly RadarFuente[] = [
   { id: "hf-blog", nombre: "Hugging Face blog", url: "https://huggingface.co/blog/feed.xml", activa: true },
   { id: "arxiv-cs-ai", nombre: "arXiv cs.AI", url: "https://export.arxiv.org/rss/cs.AI", activa: true },
   { id: "hacker-news", nombre: "Hacker News", url: "https://hnrss.org/frontpage", activa: true },
   { id: "github-blog", nombre: "GitHub blog", url: "https://github.blog/feed/", activa: true },
   { id: "simonw", nombre: "Simon Willison", url: "https://simonwillison.net/atom/everything/", activa: true },
+  {
+    id: "ars-technica",
+    nombre: "Ars Technica",
+    url: "https://feeds.arstechnica.com/arstechnica/technology-lab",
+    activa: true,
+  },
+  {
+    id: "mit-tr",
+    nombre: "MIT Technology Review",
+    url: "https://www.technologyreview.com/feed/",
+    activa: true,
+  },
+  {
+    id: "github-trending",
+    nombre: "GitHub Trending",
+    url: "https://mshibanami.github.io/GitHubTrendingRSS/daily/all.xml",
+    activa: true,
+    temaFijo: "Programación",
+  },
+  {
+    id: "rps",
+    nombre: "Rock Paper Shotgun",
+    url: "https://www.rockpapershotgun.com/feed",
+    activa: true,
+    temaFijo: "Juegos",
+  },
+  { id: "xkcd", nombre: "xkcd", url: "https://xkcd.com/rss.xml", activa: true, temaFijo: "Humor" },
 ];
 
 /** Reglas por tema: baratas y locales. El LLM puntúa después solo lo que pasa. */
@@ -154,9 +189,24 @@ export const TEMAS_DEFECTO: readonly RadarTema[] = [
     ],
     excluir: ["casino", "apuesta", "sorteo", "descuento", "cupon"],
   },
+  {
+    id: "juegos",
+    nombre: "Juegos",
+    incluir: [
+      "juego", "videojuego", "videojuegos", "steam", "consola", "nintendo", "playstation",
+      "xbox", "pc", "dlc", "remaster", "early access",
+    ],
+    excluir: ["casino", "apuesta", "sorteo", "descuento", "cupon"],
+  },
+  {
+    id: "humor",
+    nombre: "Humor",
+    incluir: ["xkcd", "comic", "cómic", "humor", "chiste", "parodia", "sátira"],
+    excluir: ["casino", "apuesta", "sorteo", "descuento", "cupon"],
+  },
 ];
 
-/** Configuración por defecto: cinco fuentes, tres temas, Ollama local, umbral 45. */
+/** Configuración por defecto: diez fuentes, cinco temas, Ollama local, umbral 45. */
 export function configDefecto(): RadarConfig {
   return {
     fuentes: FUENTES_DEFECTO.map((f) => ({ ...f })),
@@ -165,6 +215,7 @@ export function configDefecto(): RadarConfig {
     modelo: "",
     umbral: 45,
     profileId: "",
+    traducir: false,
   };
 }
 
@@ -176,17 +227,34 @@ export function sanearConfig(raw: unknown): RadarConfig {
   }
   const r = raw as Record<string, unknown>;
 
-  const fuentes = Array.isArray(r.fuentes)
+  const fuentes: RadarFuente[] = Array.isArray(r.fuentes)
     ? r.fuentes
         .filter((f): f is Record<string, unknown> => !!f && typeof f === "object")
-        .map((f, i) => ({
-          id: typeof f.id === "string" && f.id.trim() ? f.id.trim().slice(0, 64) : `fuente-${i + 1}`,
-          nombre: typeof f.nombre === "string" && f.nombre.trim() ? f.nombre.trim().slice(0, 200) : "Sin nombre",
-          url: typeof f.url === "string" ? f.url.trim().slice(0, 1000) : "",
-          activa: f.activa !== false,
-        }))
+        .map((f, i) => {
+          const temaFijo = typeof f.temaFijo === "string" ? f.temaFijo.trim().slice(0, 64) : "";
+          const fuente: RadarFuente = {
+            id: typeof f.id === "string" && f.id.trim() ? f.id.trim().slice(0, 64) : `fuente-${i + 1}`,
+            nombre: typeof f.nombre === "string" && f.nombre.trim() ? f.nombre.trim().slice(0, 200) : "Sin nombre",
+            url: typeof f.url === "string" ? f.url.trim().slice(0, 1000) : "",
+            activa: f.activa !== false,
+          };
+          // Vacío = sin tema fijo: la clave no se guarda y no viaja como cadena vacía.
+          if (temaFijo) {
+            fuente.temaFijo = temaFijo;
+          }
+          return fuente;
+        })
         .filter((f) => /^https?:\/\/.+/i.test(f.url))
     : base.fuentes;
+
+  // Migración: las fuentes del catálogo que no estén guardadas (altas nuevas de una
+  // versión) entran solas, activas. Es idempotente y no pisa nada: solo añade ids que
+  // faltan, así que lo que el usuario tenga (nombre, url, activa) sigue intacto.
+  for (const fuente of base.fuentes) {
+    if (!fuentes.some((f) => f.id === fuente.id)) {
+      fuentes.push({ ...fuente });
+    }
+  }
 
   const temas = Array.isArray(r.temas)
     ? r.temas
@@ -198,6 +266,18 @@ export function sanearConfig(raw: unknown): RadarConfig {
           excluir: listaTextos(t.excluir),
         }))
     : base.temas;
+
+  // Misma migración que las fuentes, para los temas: sin esto, una configuración vieja
+  // no conoce «Juegos» ni «Humor», el filtro por chips no los enseña y las noticias de
+  // las fuentes temáticas entran con un tema que no está en la lista. Solo añade ids
+  // que faltan: nunca duplica ni pisa un tema del usuario. Idempotente; se materializa
+  // en el siguiente `saveConfig`, no aquí. Coste aceptado: un tema de defecto que el
+  // usuario hubiera borrado vuelve.
+  for (const tema of base.temas) {
+    if (!temas.some((t) => t.id === tema.id)) {
+      temas.push({ ...tema, incluir: [...tema.incluir], excluir: [...tema.excluir] });
+    }
+  }
 
   const proveedor: RadarProveedor =
     r.proveedor === "openai" || r.proveedor === "deepseek" || r.proveedor === "ollama"
@@ -213,6 +293,7 @@ export function sanearConfig(raw: unknown): RadarConfig {
     modelo: typeof r.modelo === "string" ? r.modelo.trim().slice(0, 200) : "",
     umbral,
     profileId: typeof r.profileId === "string" ? r.profileId.trim().slice(0, 64) : "",
+    traducir: r.traducir === true,
   };
 }
 

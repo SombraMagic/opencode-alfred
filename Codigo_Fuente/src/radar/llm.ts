@@ -11,8 +11,8 @@ import type { RadarProveedor } from "./types";
 /** Tamaño del lote: se puntúan 20 titulares por llamada, nunca uno por noticia. */
 export const TAM_LOTE = 20;
 
-/** Tope de noticias que se puntúan en una sola pasada. */
-export const MAX_PUNTUAR_PASADA = 200;
+/** Tope de noticias que se puntúan en una sola pasada: diez fuentes no caben en 200. */
+export const MAX_PUNTUAR_PASADA = 400;
 
 /** Titular que entra al lote. `n` es el número dentro del lote. */
 export interface LlmTitular {
@@ -31,6 +31,10 @@ export interface LlmScore {
   tema: string;
   /** Resumen de una línea, en español. */
   resumen: string;
+  /** Titular traducido al español; vacío si la opción `traducir` está apagada. */
+  tituloEs: string;
+  /** Cuerpo traducido al español; vacío si la opción `traducir` está apagada. */
+  resumenEs: string;
 }
 
 /** Opciones de la llamada. */
@@ -44,6 +48,8 @@ export interface LlmOpts {
   ollamaBase?: string;
   /** Nombres de tema entre los que el modelo debe elegir. */
   temas: string[];
+  /** Pide en la misma llamada el titular y el cuerpo traducidos al español. */
+  traducir?: boolean;
   /** Señal de cancelación del llamador. */
   signal?: AbortSignal;
 }
@@ -79,25 +85,45 @@ function timeoutDe(proveedor: RadarProveedor): number {
   return proveedor === "ollama" ? 180_000 : 60_000;
 }
 
+/** Tope del titular y del cuerpo traducidos: los mismos que guarda la tabla. */
+const MAX_TITULO_TRADUCIDO = 1000;
+const MAX_CUERPO_TRADUCIDO = 600;
+
+/** Contexto del titular: sin traducir basta una pista; traduciendo hay que ver el cuerpo. */
+const CONTEXTO_MAX = 200;
+const CONTEXTO_MAX_TRADUCIR = 600;
+
 /** Prompt del sistema: el mismo para los tres proveedores. */
-function systemPrompt(temas: string[]): string {
+function systemPrompt(temas: string[], traducir: boolean): string {
   const lista = temas.length > 0 ? temas.map((t) => `«${t}»`).join(", ") : "«General»";
-  return [
+  const lineas = [
     "Eres el filtro de un radar de noticias de inteligencia artificial, programación y artículos técnicos.",
     "Para cada titular numerado que recibe el usuario:",
     "1. Puntúa de 0 a 100 su interés para una desarrolladora: 0 = ruido (política, deportes, marketing, criptomonedas especulativas), 100 = novedad técnica relevante.",
     `2. Asigna UN tema de esta lista: ${lista}. Si no encaja en ninguno, deja el tema vacío.`,
     "3. Escribe un resumen de UNA frase en español, informativo y sin adornos.",
-    'Responde SOLO con JSON válido, sin markdown ni texto fuera del JSON, con esta forma exacta: {"resultados":[{"n":1,"puntuacion":87,"tema":"IA","resumen":"..."}]}',
-    "Incluye una entrada por cada titular recibido, con su mismo número n.",
-  ].join("\n");
+  ];
+  if (traducir) {
+    lineas.push(
+      "4. Traduce al español el titular y el cuerpo de cada noticia, en «titulo_es» y «resumen_es». Si el texto ya está en español, repite el original tal cual."
+    );
+  }
+  const forma = traducir
+    ? '{"resultados":[{"n":1,"puntuacion":87,"tema":"IA","resumen":"...","titulo_es":"...","resumen_es":"..."}]}'
+    : '{"resultados":[{"n":1,"puntuacion":87,"tema":"IA","resumen":"..."}]}';
+  lineas.push(
+    `Responde SOLO con JSON válido, sin markdown ni texto fuera del JSON, con esta forma exacta: ${forma}`,
+    "Incluye una entrada por cada titular recibido, con su mismo número n."
+  );
+  return lineas.join("\n");
 }
 
 /** Contenido del usuario: la lista numerada de titulares. */
-function userPrompt(titulares: LlmTitular[]): string {
+function userPrompt(titulares: LlmTitular[], traducir: boolean): string {
+  const tope = traducir ? CONTEXTO_MAX_TRADUCIR : CONTEXTO_MAX;
   return titulares
     .map((t) => {
-      const contexto = t.resumen.trim().slice(0, 200);
+      const contexto = t.resumen.trim().slice(0, tope);
       return `${t.n}. ${t.titulo.trim()}${contexto ? ` — ${contexto}` : ""}`;
     })
     .join("\n");
@@ -124,8 +150,18 @@ function extraerJson(texto: string): string {
   return limpio.slice(abre, cierra + 1);
 }
 
+/** Texto del modelo saneado: espacios colapsados y recorte de longitud. */
+function textoLimpio(value: unknown, max: number): string {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
+}
+
 /** Valida y acota lo que devolvió el modelo; lo ilegible se descarta por titular. */
-function parsearResultados(texto: string, temas: string[], esperados: number[]): LlmScore[] {
+function parsearResultados(
+  texto: string,
+  temas: string[],
+  esperados: number[],
+  traducir: boolean
+): LlmScore[] {
   const datos = JSON.parse(extraerJson(texto)) as unknown;
   const contenedor = datos as Record<string, unknown>;
   const lista = Array.isArray(contenedor?.resultados)
@@ -155,11 +191,10 @@ function parsearResultados(texto: string, temas: string[], esperados: number[]):
     puntuacion = Math.min(100, Math.max(0, puntuacion));
     const temaCrudo = typeof item.tema === "string" ? item.tema.trim() : "";
     const tema = temasNorm.get(temaCrudo.toLowerCase()) ?? (temas.includes(temaCrudo) ? temaCrudo : "");
-    const resumen =
-      typeof item.resumen === "string"
-        ? item.resumen.replace(/\s+/g, " ").trim().slice(0, 300)
-        : "";
-    out.push({ n, puntuacion, tema, resumen });
+    const resumen = textoLimpio(item.resumen, 300);
+    const tituloEs = traducir ? textoLimpio(item.titulo_es, MAX_TITULO_TRADUCIDO) : "";
+    const resumenEs = traducir ? textoLimpio(item.resumen_es, MAX_CUERPO_TRADUCIDO) : "";
+    out.push({ n, puntuacion, tema, resumen, tituloEs, resumenEs });
   }
   return out;
 }
@@ -228,6 +263,7 @@ export async function puntuarLote(opts: LlmOpts, titulares: LlmTitular[]): Promi
     return [];
   }
   const lote = titulares.slice(0, TAM_LOTE);
+  const traducir = opts.traducir === true;
   const modelo =
     opts.modelo.trim() ||
     (opts.proveedor === "ollama"
@@ -240,8 +276,8 @@ export async function puntuarLote(opts: LlmOpts, titulares: LlmTitular[]): Promi
     temperature: 0.2,
     stream: false,
     messages: [
-      { role: "system", content: systemPrompt(opts.temas) },
-      { role: "user", content: userPrompt(lote) },
+      { role: "system", content: systemPrompt(opts.temas, traducir) },
+      { role: "user", content: userPrompt(lote, traducir) },
     ],
   };
   const url = endpointDe(opts.proveedor, opts.ollamaBase);
@@ -257,5 +293,5 @@ export async function puntuarLote(opts: LlmOpts, titulares: LlmTitular[]): Promi
       throw err;
     }
   }
-  return parsearResultados(contenido, opts.temas, lote.map((t) => t.n));
+  return parsearResultados(contenido, opts.temas, lote.map((t) => t.n), traducir);
 }

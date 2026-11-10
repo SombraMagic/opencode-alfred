@@ -33,6 +33,10 @@ export interface RadarFila {
   /** -1 = sin puntuar todavía. */
   score: number;
   tema: string;
+  /** Titular traducido al español; vacío si no se pidió traducción. */
+  tituloEs: string;
+  /** Cuerpo traducido al español; vacío si no se pidió traducción. */
+  resumenEs: string;
   leida: boolean;
   guardada: boolean;
 }
@@ -55,7 +59,7 @@ export interface FuenteState {
 
 /** Columnas de `items` en el orden fijo de todos los SELECT de este módulo. */
 const COLS_ITEMS =
-  "id, hash, fuente_id, fuente_nombre, titulo, enlace, resumen, autor, publicada, recogida, score, tema, leida, guardada";
+  "id, hash, fuente_id, fuente_nombre, titulo, enlace, resumen, autor, publicada, recogida, score, tema, leida, guardada, titulo_es, resumen_es";
 
 function num(cell: DbCell | undefined): number {
   if (cell === null || cell === undefined) {
@@ -95,6 +99,8 @@ function filaDe(row: DbCell[]): RadarFila {
     tema: str(row[11]),
     leida: bool(row[12]),
     guardada: bool(row[13]),
+    tituloEs: str(row[14]),
+    resumenEs: str(row[15]),
   };
 }
 
@@ -137,12 +143,32 @@ export async function ensureSchema(s: DbSession): Promise<void> {
       descartada TINYINT NOT NULL DEFAULT 0,
       leida TINYINT NOT NULL DEFAULT 0,
       guardada TINYINT NOT NULL DEFAULT 0,
+      titulo_es VARCHAR(1000) NULL,
+      resumen_es TEXT NULL,
       UNIQUE KEY uq_items_hash (hash),
       FULLTEXT KEY ft_items_texto (titulo, resumen)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
     [],
     { timeoutMs: 15000 }
   );
+  // Bases creadas antes de la traducción: se añaden las columnas una sola vez, sin recrear
+  // la tabla. Con ellas ya en su sitio, el `ALTER` no se repite en cada pasada (bloqueo de
+  // metadatos). `titulo_es` y `resumen_es` se añaden juntas, así que basta mirar una.
+  const existe = await s.query(
+    `SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'items' AND COLUMN_NAME = 'titulo_es'`,
+    [RADAR_DB],
+    { timeoutMs: 10000 }
+  );
+  if (num(existe.rows[0]?.[0]) === 0) {
+    await s.query(
+      `ALTER TABLE ${ITEMS}
+         ADD COLUMN IF NOT EXISTS titulo_es VARCHAR(1000) NULL,
+         ADD COLUMN IF NOT EXISTS resumen_es TEXT NULL`,
+      [],
+      { timeoutMs: 15000 }
+    );
+  }
 }
 
 /** Refleja la configuración de fuentes en la tabla, sin pisar etag ni errores. */
@@ -257,27 +283,37 @@ export async function listPending(
   }));
 }
 
-/** Guarda la puntuación del LLM: nota 0-100, tema y resumen de una línea. */
+/** Guarda la puntuación del LLM: nota 0-100, tema, resumen de una línea y traducciones.
+ *  Las traducciones solo se pisan cuando llegan con texto: apagar la casilla y repuntuar
+ *  conserva lo ya traducido. */
 export async function setScore(
   s: DbSession,
   hash: string,
   score: number,
   tema: string,
-  resumen: string
+  resumen: string,
+  tituloEs: string,
+  resumenEs: string
 ): Promise<void> {
   await s.query(
-    `UPDATE ${ITEMS} SET score = ?, tema = ?, resumen = CASE WHEN ? = '' THEN resumen ELSE ? END WHERE hash = ?`,
-    [score, tema, resumen, resumen, hash],
+    `UPDATE ${ITEMS} SET
+       score = ?,
+       tema = ?,
+       resumen = CASE WHEN ? = '' THEN resumen ELSE ? END,
+       titulo_es = COALESCE(NULLIF(?, ''), titulo_es),
+       resumen_es = COALESCE(NULLIF(?, ''), resumen_es)
+     WHERE hash = ?`,
+    [score, tema, resumen, resumen, tituloEs, resumenEs, hash],
     { timeoutMs: 10000 }
   );
 }
 
-/** Borra lo viejo que no está guardado. Devuelve cuántas filas cayeron. */
+/** Borra lo viejo (recogido o publicado antes del corte) que no está guardado. Devuelve cuántas filas cayeron. */
 export async function purgar(s: DbSession, dias: number = RETENCION_DIAS): Promise<number> {
   const corte = Date.now() - dias * 24 * 60 * 60 * 1000;
   const res = await s.query(
-    `DELETE FROM ${ITEMS} WHERE recogida < ? AND guardada = 0`,
-    [corte],
+    `DELETE FROM ${ITEMS} WHERE (recogida < ? OR (publicada > 0 AND publicada < ?)) AND guardada = 0`,
+    [corte, corte],
     { timeoutMs: 20000 }
   );
   return res.affected;
@@ -306,7 +342,8 @@ export async function topItems(s: DbSession, umbral: number, limit: number): Pro
 
 /** Filtros de la lista del panel. */
 export interface ListItemsOpts {
-  /** Búsqueda por título y resumen (LIKE, sin FULLTEXT: el volumen de 3 días es pequeño). */
+  /** Búsqueda por título, resumen y sus traducciones (LIKE, sin FULLTEXT: el volumen de
+   *  3 días es pequeño). */
   busqueda?: string;
   /** Id o nombre de tema; vacío = todos. */
   tema?: string;
@@ -327,8 +364,12 @@ export async function listItems(
   }
   if (opts.busqueda && opts.busqueda.trim()) {
     const termino = `%${escapeLike(opts.busqueda.trim())}%`;
-    where.push("(titulo LIKE ? ESCAPE '\\\\' OR resumen LIKE ? ESCAPE '\\\\')");
-    params.push(termino, termino);
+    // También las traducciones: buscar en español debe encontrar lo que solo vive en `titulo_es`.
+    where.push(
+      "(titulo LIKE ? ESCAPE '\\\\' OR resumen LIKE ? ESCAPE '\\\\'" +
+        " OR titulo_es LIKE ? ESCAPE '\\\\' OR resumen_es LIKE ? ESCAPE '\\\\')"
+    );
+    params.push(termino, termino, termino, termino);
   }
   const whereSql = ` WHERE ${where.join(" AND ")}`;
   const limit = Math.min(500, Math.max(1, Math.round(opts.limit ?? 100)));
