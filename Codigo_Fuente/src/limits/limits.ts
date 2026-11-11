@@ -549,8 +549,12 @@ export function parseClaudeUsage(
     const kind = typeof entry.kind === "string" ? entry.kind : "";
     // Un kind que no conocemos se nombra por su grupo, con su ámbito si lo trae.
     const group = entry.group === "session" ? "Sesión" : entry.group === "weekly" ? "Semana" : "";
-    const scope =
-      typeof entry.scope === "string" && entry.scope.trim() ? ` · ${entry.scope.trim()}` : "";
+    // `scope` es texto o, en `weekly_scoped`, `{ model: { display_name }, surface }`.
+    const sc = (entry.scope ?? {}) as { model?: { display_name?: unknown }; surface?: unknown };
+    const scopeName = [typeof entry.scope === "string" ? entry.scope : sc.model?.display_name, sc.surface]
+      .find((v): v is string => typeof v === "string" && v.trim() !== "")
+      ?.trim();
+    const scope = scopeName ? ` · ${scopeName}` : "";
     const label = Object.hasOwn(CLAUDE_LABELS, kind)
       ? CLAUDE_LABELS[kind]
       : group
