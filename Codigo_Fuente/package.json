@@ -379,12 +379,14 @@
           "enum": [
             "alfred",
             "manoli",
-            "steampunk"
+            "steampunk",
+            "centinela"
           ],
           "enumDescriptions": [
             "Tema Alfred: HUD oscuro, el aspecto de siempre.",
             "Tema Manoli: grises claros y tonos pastel.",
-            "Tema Steampunk: latón, cobre y vapor sobre fondo oscuro."
+            "Tema Steampunk: latón, cobre y vapor sobre fondo oscuro.",
+            "Tema Centinela: cobalto y señal roja, HUD táctico de centro de mando."
           ],
           "default": "alfred",
           "scope": "window",

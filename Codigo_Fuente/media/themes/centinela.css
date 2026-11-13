@@ -1,0 +1,159 @@
+/* Tema Centinela — oscuro, cobalto y señal roja: HUD táctico de centro de mando.
+   El atributo lo pone media/theme.js en el <body>. Define TODAS las variables
+   que usa la app, no solo las que cambian, para no heredar la paleta de alfred.css.
+
+   Dualidad: el cian-acero es la información (--neon) y el rojo es el énfasis o la
+   alerta (--magenta, --danger). Contrastes WCAG calculados sobre --bg (#040a14) y,
+   entre paréntesis, sobre --bg-raised (#0c1829).
+
+   OJO: aquí NO se toca body::before. La textura la gobierna media/theme/base.css
+   con --texture-opacity/--texture-tint, y media/pizarra.css, media/imageGen.css y
+   media/chatbot.css lo apagan con `body::before { content: none; }` para que las
+   capturas salgan limpias. La capa propia del tema va en `::after`, y esos tres
+   paneles también la apagan con `body[data-theme]::after { content: none; }`. */
+
+body[data-theme="centinela"] {
+  --bg: #040a14;
+  --bg-soft: #08111f;
+  --bg-raised: #0c1829;
+  --line: rgba(92, 200, 245, 0.24);
+  --line-soft: rgba(92, 200, 245, 0.12);
+  --text: #d3e6f2;              /* 15,5:1 (13,9) */
+  --text-dim: #6a8aa0;          /* 5,4:1 (4,9); solo estado apagado (:disabled, .off, placeholder, —) */
+  --text-soft: color-mix(in srgb, var(--text) 78%, transparent); /* 9,5:1 (8,8) */
+  --neon: #5cc8f5;              /* 10,4:1 (9,4), cian acero */
+  --neon-dim: rgba(92, 200, 245, 0.45);
+  --magenta: #ff5a44;           /* 6,4:1 (5,8), rojo señal */
+  --amber: #ff8f4d;             /* 8,8:1 (7,9), naranja brasa */
+  --green: #3fd9a0;             /* 11,0:1 (9,9) */
+  --violet: #a98cff;            /* 7,4:1 (6,7) */
+  --danger: #f0584a;            /* 5,9:1 (5,3) */
+  --danger-dim: rgba(240, 88, 74, 0.25);
+  --on-accent: #040a14;
+  --texture-opacity: 1;
+  --texture-tint: rgba(92, 200, 245, 0.08);
+  --mono: "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+
+  color-scheme: dark;
+}
+
+/* ── Visor: decoración propia del tema ─────────────────────
+   Solo adornos (background, box-shadow, text-shadow, border-color, outline):
+   ni tipografías, ni tamaños, ni márgenes, ni estructura. Sin filtros ni
+   backdrop-filter. */
+
+/* Capa fija: rejilla técnica muy tenue y un brillo frío arriba, con una
+   sombra de borde. z-index 9, por debajo de las scanlines (10). */
+body[data-theme="centinela"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% -8%, rgba(92, 200, 245, 0.10), transparent 58%),
+    radial-gradient(ellipse at 50% 120%, rgba(255, 90, 68, 0.05), transparent 55%),
+    linear-gradient(rgba(92, 200, 245, 0.035) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, rgba(92, 200, 245, 0.035) 1px, transparent 1px) 0 0 / 24px 24px,
+    radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(0, 2, 6, 0.45) 100%);
+  pointer-events: none;
+  z-index: 9;
+}
+
+/* Cabecera: esquinas de visor (dos escuadras cian de 8 px, arriba
+   a izquierda y derecha) y filete inferior bicolor cian a rojo. El border-image solo pinta el
+   borde inferior, el único que existe. */
+body[data-theme="centinela"] .hud-header {
+  border-image: linear-gradient(90deg, rgba(92, 200, 245, 0.65), rgba(92, 200, 245, 0.22) 55%, rgba(255, 90, 68, 0.75)) 1;
+  background:
+    linear-gradient(var(--neon), var(--neon)) 0 0 / 8px 1px no-repeat,
+    linear-gradient(var(--neon), var(--neon)) 0 0 / 1px 8px no-repeat,
+    linear-gradient(var(--neon), var(--neon)) 100% 0 / 8px 1px no-repeat,
+    linear-gradient(var(--neon), var(--neon)) 100% 0 / 1px 8px no-repeat,
+    linear-gradient(rgba(92, 200, 245, 0.07), transparent 70%);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
+}
+
+/* Piloto: halo cian y un destello rojo de señal alrededor. */
+body[data-theme="centinela"] .hud-dot {
+  box-shadow:
+    0 0 6px rgba(92, 200, 245, 0.9),
+    0 0 14px rgba(92, 200, 245, 0.35),
+    0 0 0 2px rgba(255, 90, 68, 0.22);
+}
+
+body[data-theme="centinela"] .hud-title {
+  text-shadow:
+    0 0 8px var(--neon-dim),
+    0 0 18px rgba(92, 200, 245, 0.22);
+}
+
+/* Botones y chips: borde con bisel fino y luz fría arriba. En hover, brillo cian
+   (los colores los sigue mandando theme/ui.css). */
+body[data-theme="centinela"] .ghost-btn,
+body[data-theme="centinela"] .chip {
+  box-shadow:
+    inset 0 1px 0 rgba(160, 225, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+}
+
+body[data-theme="centinela"] .ghost-btn:hover {
+  background: rgba(92, 200, 245, 0.07);
+  box-shadow:
+    inset 0 1px 0 rgba(160, 225, 255, 0.2),
+    0 0 8px rgba(92, 200, 245, 0.35);
+}
+
+body[data-theme="centinela"] .ghost-btn:active {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+/* Estados: verde activo, ámbar ocupado, rojo error. Con un halo leve. */
+body[data-theme="centinela"] .chip.on {
+  box-shadow: inset 0 0 6px rgba(63, 217, 160, 0.18), 0 0 4px rgba(63, 217, 160, 0.2);
+}
+
+body[data-theme="centinela"] .hud-status {
+  background: rgba(92, 200, 245, 0.05);
+}
+
+body[data-theme="centinela"] .hud-status.busy {
+  box-shadow: 0 0 6px rgba(255, 143, 77, 0.3);
+}
+
+body[data-theme="centinela"] .hud-status.ok {
+  box-shadow: 0 0 6px rgba(63, 217, 160, 0.3);
+}
+
+body[data-theme="centinela"] .hud-status.error {
+  background: var(--danger-dim);
+  box-shadow: 0 0 8px rgba(255, 90, 68, 0.4);
+}
+
+/* Interruptor: pista hundida y pulgar luminoso. La forma la decide theme/ui.css. */
+body[data-theme="centinela"] .switch-track {
+  background: var(--bg);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.8),
+    inset 0 -1px 0 rgba(92, 200, 245, 0.14);
+}
+
+body[data-theme="centinela"] .switch.on .switch-track {
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.8),
+    0 0 6px rgba(63, 217, 160, 0.3);
+}
+
+/* Barra de desplazamiento: pulgar de acero a cian. La variante horizontal gira
+   el degradado (en 6 px, uno vertical se lee como suciedad). */
+body[data-theme="centinela"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #5cc8f5 0%, #2a7ea8 55%, #1b4a66 100%);
+}
+
+body[data-theme="centinela"] ::-webkit-scrollbar-thumb:horizontal {
+  background: linear-gradient(90deg, #5cc8f5 0%, #2a7ea8 55%, #1b4a66 100%);
+}
+
+body[data-theme="centinela"] ::selection {
+  background: rgba(92, 200, 245, 0.30);
+  color: #ffffff;
+}
+
