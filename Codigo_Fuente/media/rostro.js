@@ -9,6 +9,27 @@
  * API (`window.VOZRostro`): envelope(msg), idle(), activity(act), command(cmd).
  * Las tablas EXPRESIONES y GESTOS de aquí cubren exactamente las claves de
  * src/rostro/contract.ts.
+ *
+ * VIDA AUTÓNOMA (microgestos de fondo; una expresión, gesto o mirada pedidos por el MCP mandan:
+ * con ellos solo valen los gestos `soft` y al 30 % de fuerza, y un gesto del MCP aborta los de vida).
+ * El motor (`runLife`) elige con pesos, enfriamientos (entre paréntesis) y sin repetir el anterior:
+ *
+ *  Estado                         Microgestos [peso]
+ *  REPOSO (sin agentes ni voz)    vistazo [4] (ojos primero, cabeza después), parpadeo lento, doble y medio,
+ *                                 mirar alrededor, suspiro (45 s), ladeo de curiosidad, sonrisita, fruncir
+ *                                 la nariz (30 s), humedecerse los labios, guiño suelto (90 s), ceja alzada,
+ *                                 sacudida de cabeza, estirar el cuello. Tras >90 s quieto: bostezo (150 s).
+ *                                 Tras >240 s: cabezada (cansado → dormido muy lento y sobresalto, 300 s).
+ *  TRABAJANDO, streaming          leer (mirada de lado a lado), cejas que suben y bajan, asentimiento
+ *                                 pequeño, murmullo de boca casi cerrada; parpadeo más lento.
+ *  TRABAJANDO, herramienta        mirada fija con ceño (ambiente), ceño tenso, cabeza apenas inclinada.
+ *  VARIOS AGENTES (>= 3)          mirada saltando entre «pantallas», cejas agitadas, microsacádicos grandes.
+ *  FIN DEL TRABAJO                una vez, un gesto de alivio (suspiro y sonrisa).
+ *  HABLANDO                       cabeceo y cejas con los picos de energía, parpadeo al final de cada
+ *                                 frase y, de vez en cuando, desvío de la mirada «pensando».
+ *
+ * Siempre: parpadeo, microsacádicos, respiración y balanceo leve. El RNG es inyectable
+ * (`VOZRostro.setRng`) y `VOZRostro.vida(nombre)` fuerza un microgesto (pruebas).
  */
 import * as THREE from "three";
 
@@ -22,7 +43,11 @@ const sstep = (a, b, x) => {
   return t * t * (3 - 2 * t);
 };
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-const rand = (a, b) => a + Math.random() * (b - a);
+// Aleatoriedad: Math.random en producción; el arnés inyecta una semilla con VOZRostro.setRng.
+let rng = Math.random;
+const rand = (a, b) => a + rng() * (b - a);
+const chance = (p) => rng() < p;
+const pick = (arr) => arr[Math.floor(rng() * arr.length) % arr.length];
 
 // ── Parámetros (contrato) y los internos de este fichero ─
 const RANGE = {
@@ -207,8 +232,10 @@ let tlToken = 0;
 const gestures = []; // { name, def, t0, dur, side, veces, fx }
 let actCount = 0;
 let actStreaming = false;
-const life = { blink: 0, nextBlink: 0, blinkT0: -1, double: false, sacX: 0, sacY: 0, sacTX: 0, sacTY: 0, nextSac: 0, think: 0 };
-const speech = { on: false, t0: 0, dur: 0, energy: [], cb: 0.5, seed: 0, jaw: 0, wide: 0, round: 0, lift: 0 };
+const life = { nextBlink: 0, blinkT0: -1, blinkDur: 170, double: false, sacX: 0, sacY: 0, sacTX: 0, sacTY: 0, nextSac: 0, wS: 0, wT: 0, wM: 0 };
+const tmp = zero();
+const speech = { on: false, t0: 0, dur: 0, energy: [], cb: 0.5, seed: 0, jaw: 0, wide: 0, round: 0, lift: 0, g: 0, prevG: 0, peak: 0 };
+const vida = { next: 0, lastUsed: {}, prev: "", lastActive: 0, wasWorking: false, lastEmph: 0, lastPhrase: 0 };
 const seen = new Set();
 
 const RT = { now: 0 }; // reloj del bucle, para los temporizadores internos
@@ -217,7 +244,7 @@ function startTween(newTo, ms) {
   from = { ...base };
   to = newTo;
   tw.t0 = performance.now();
-  tw.dur = Math.max(1, ms);
+  tw.dur = Math.max(1, Number(ms) || 1);
 }
 
 /** Pone en valor `ajustes` (o las claves de una expresión); lo demás sigue como está. */
@@ -304,6 +331,7 @@ function runCmd(cmd) {
       let at = performance.now();
       for (let r = 0; r < reps; r++) {
         for (const p of pasos) {
+          if (!p || typeof p !== "object") continue;
           const ms = clamp(Number(p.ms) || 500, 50, 60000);
           schedule(at, () => {
             if (tok !== tlToken) return;
@@ -348,6 +376,7 @@ function speechStep(now, dt) {
     if (now - speech.t0 > fin + 300) speech.on = false;
     else {
       const gain = clamp(gainAt(now) * 1.15);
+      speech.g = gain;
       const ph = (now - speech.t0) / 1000;
       // Las bandas son la forma media de la locución (fija): el visema cambia con el tiempo
       // y se inclina hacia «iii» (agudos) o «ooo» (graves) según ese centroide.
@@ -363,6 +392,21 @@ function speechStep(now, dt) {
   speech.wide = k(speech.wide, wideT);
   speech.round = k(speech.round, roundT);
   speech.lift = k(speech.lift, jawT);
+  if (speech.on) {
+    // Énfasis (cabeceo y cejas con los picos) y parpadeo al final de cada frase.
+    const g = speech.g;
+    speech.peak = Math.max(g, speech.peak - dt * 0.8);
+    if (g > 0.78 && speech.prevG <= 0.78 && now - vida.lastEmph > 700) {
+      vida.lastEmph = now;
+      startLife("enfasis", now);
+    }
+    if (g < 0.1 && speech.peak > 0.5 && now - vida.lastPhrase > 1500) {
+      vida.lastPhrase = now;
+      speech.peak = 0;
+      if (life.blinkT0 < 0) life.nextBlink = now;
+    }
+    speech.prevG = g;
+  }
 }
 
 // ── Cabeza: forma y superficie ──────────────────────────
@@ -377,6 +421,12 @@ function headP(dx, dy, dz, o) {
   o.x = AX * dx * n;
   o.y = dy * (1.12 - 0.1 * sstep(-0.6, 0.6, dy));
   o.z = dz * (0.99 - 0.07 * sstep(-0.4, 0.6, dz)) * n;
+  // Relieve: pómulos, cuencas, glabela, arcada y barbilla.
+  if (o.z > 0) {
+    const ax = Math.abs(o.x);
+    const g = (cx, cy, sx, sy) => Math.exp(-(((ax - cx) / sx) ** 2 + ((o.y - cy) / sy) ** 2));
+    o.z += 0.04 * g(0.6, -0.24, 0.2, 0.17) - 0.032 * g(0.37, -0.02, 0.2, 0.19) + 0.018 * g(0, 0.2, 0.12, 0.3) + 0.03 * g(0.37, 0.2, 0.22, 0.07) + 0.055 * g(0, -0.98, 0.2, 0.14);
+  }
   return o;
 }
 
@@ -460,6 +510,15 @@ class Grid {
     if (opts.lit) {
       this.nor = new Float32Array(n * 3);
       g.setAttribute("normal", new THREE.BufferAttribute(this.nor, 3));
+    }
+    if (opts.color) {
+      this.col = new Float32Array(n * 3).fill(1);
+      g.setAttribute("color", new THREE.BufferAttribute(this.col, 3));
+    }
+    if (opts.uv) {
+      const uv = new Float32Array(n * 2);
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { uv[(r * cols + c) * 2] = c / (cols - 1); uv[(r * cols + c) * 2 + 1] = r / (rows - 1); }
+      g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
     }
     if (opts.attr) {
       this.extra = new Float32Array(n * opts.attr);
@@ -567,9 +626,11 @@ function applyTheme() {
   const magenta = colorOf(token("--magenta", "#ff2d95"), "#ff2d95");
   const skin = new THREE.Color(SKIN).lerp(accent, 0.06);
   mats.skin.color.copy(skin);
-  mats.neck.color.copy(skin).multiplyScalar(0.82);
+  mats.skinPlain.color.copy(skin);
+  mats.neck.color.copy(skin).multiplyScalar(0.9);
   mats.ear.color.copy(skin).multiplyScalar(0.96);
   mats.hair.color.set("#3b4352").lerp(accent, 0.015);
+  mats.strand.color.copy(mats.hair.color);
   mats.brow.color.set("#2b313c");
   mats.accent.color.copy(accent);
   mats.bow.color.copy(accent).multiplyScalar(0.8);
@@ -581,6 +642,7 @@ function applyTheme() {
   const iris = accent.clone();
   mats.eye.uniforms.uIrisO.value.copy(iris).multiplyScalar(0.55);
   mats.eye.uniforms.uIrisI.value.copy(iris).lerp(new THREE.Color("#ffffff"), 0.3);
+  parts.key.color.set("#fff1e4").lerp(accent, 0.05);
   parts.rimL.color.copy(accent);
   parts.rimR.color.copy(accent).lerp(magenta, 0.35);
   buildEnv(accent);
@@ -631,33 +693,52 @@ attribute vec4 aEye;
 varying vec4 vEye;
 void main(){ vEye = aEye; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 
-// Ojo procedural: esclerótica, iris con fibras, pupila, reflejos fijos y sombra del párpado.
+// Ojo procedural: esclerótica con vasos y carúncula, iris con fibras, collarete y anillo límbico,
+// pupila, córnea con reflejo de ventana y sombra del párpado sobre el globo.
 const EYE_FRAG = `
 uniform vec2 uGaze; uniform float uPupil; uniform float uShine; uniform float uWet; uniform float uSide;
 uniform vec3 uSclera; uniform vec3 uIrisO; uniform vec3 uIrisI; uniform vec3 uPupilC;
 varying vec4 vEye;
 float disc(vec2 p, vec2 c, float r, float soft){ return 1.0 - smoothstep(r - soft, r + soft, length(p - c)); }
+float hs(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vno(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hs(i), hs(i + vec2(1.0, 0.0)), f.x), mix(hs(i + vec2(0.0, 1.0)), hs(i + vec2(1.0, 1.0)), f.x), f.y); }
 void main(){
   vec2 ps = vec2(vEye.x * uSide, vEye.y);
   vec2 q = ps - uGaze;
   float r = length(q);
   float R = 0.74;
-  vec3 col = uSclera * (1.0 - 0.26 * smoothstep(0.5, 1.05, abs(vEye.x)));
   float a = atan(q.y, q.x);
-  float fib = 0.5 + 0.5 * sin(a * 26.0 + r * 5.0) * sin(a * 9.0 - r * 3.0);
-  vec3 iris = mix(uIrisI, uIrisO, smoothstep(0.1, R, r));
-  iris *= 0.86 + 0.26 * fib * smoothstep(0.12, 0.5, r);
-  iris = mix(iris, uIrisO * 0.3, smoothstep(R - 0.13, R, r) * 0.85);
-  iris += uIrisI * 0.28 * smoothstep(-0.1, 0.65, -q.y / R) * (1.0 - smoothstep(0.2, R, r));
-  float irisM = 1.0 - smoothstep(R - 0.02, R + 0.012, r);
+  vec3 col = uSclera * (1.0 - 0.3 * smoothstep(0.45, 1.05, abs(vEye.x)));
+  float inner = smoothstep(-0.6, -1.0, vEye.x);
+  col = mix(col, vec3(0.92, 0.6, 0.58), inner * 0.8);
+  float vein = vno(vec2(a * 5.0, r * 12.0));
+  col = mix(col, vec3(0.9, 0.5, 0.5), 0.12 * smoothstep(0.6, 0.9, vein) * smoothstep(R, 1.0, r));
+  float fa = vno(vec2(a * 34.0, r * 5.0));
+  float fb = vno(vec2(a * 70.0 + 3.0, r * 9.0));
+  vec3 iris = mix(uIrisI, uIrisO, smoothstep(0.12, R, r));
+  iris *= 0.7 + 0.5 * fa + 0.18 * fb;
+  float coll = smoothstep(0.17, 0.24, r) * (1.0 - smoothstep(0.24, 0.36, r));
+  iris = mix(iris, uIrisI * 1.2, coll * 0.5);
+  iris = mix(iris, uIrisO * 0.22, smoothstep(R - 0.14, R - 0.01, r) * 0.9);
+  iris += uIrisI * 0.3 * smoothstep(-0.05, 0.7, -q.y / R) * (1.0 - smoothstep(0.15, R, r));
+  float irisM = 1.0 - smoothstep(R - 0.015, R + 0.01, r);
   col = mix(col, iris, irisM);
-  float pr = 0.30 * (1.0 + 0.55 * uPupil);
-  col = mix(col, uPupilC, 1.0 - smoothstep(pr - 0.02, pr + 0.012, r));
-  col *= 1.0 - 0.5 * (1.0 - smoothstep(0.0, 0.2, vEye.z)) * (0.55 + 0.45 * irisM);
+  float pr = 0.3 * (1.0 + 0.55 * uPupil);
+  col = mix(col, uPupilC, 1.0 - smoothstep(pr - 0.025, pr + 0.01, r));
+  float sh = 1.0 - smoothstep(0.0, 0.3, vEye.z);
+  col *= 1.0 - 0.62 * sh * (0.55 + 0.45 * irisM);
+  float lw = 1.0 - smoothstep(0.0, 0.08, vEye.w);
+  col = mix(col, vec3(0.95, 0.62, 0.62), lw * 0.35);
   float wetBand = (1.0 - smoothstep(0.0, 0.11, vEye.w)) * uWet;
   col = mix(col, vec3(0.78, 0.9, 1.0), wetBand * 0.6);
+  col += 0.05 * smoothstep(R + 0.05, 0.0, r);
   float s = uShine;
-  col = mix(col, vec3(1.0), disc(ps, vec2(-0.27, 0.3), 0.15 * (0.85 + 0.35 * s), 0.025) * 0.97);
+  vec2 w = ps - vec2(-0.27, 0.3);
+  float wd = length(max(abs(w) - vec2(0.035), 0.0)) - 0.08 * (0.85 + 0.3 * s);
+  float win = 1.0 - smoothstep(-0.006, 0.02, wd);
+  float cross = max(1.0 - smoothstep(0.006, 0.014, abs(w.x)), 1.0 - smoothstep(0.006, 0.014, abs(w.y)));
+  col = mix(col, vec3(1.0), win * (1.0 - 0.3 * cross) * 0.96);
   col = mix(col, vec3(1.0), disc(ps, vec2(0.25, -0.27), 0.065 * (0.8 + 0.5 * s), 0.02) * 0.85);
   col = mix(col, vec3(1.0), disc(ps, vec2(0.02, 0.43), 0.045, 0.02) * s * 0.9);
   col = mix(col, vec3(1.0), disc(ps, vec2(-0.45, -0.08), 0.04, 0.02) * s * 0.8);
@@ -665,6 +746,143 @@ void main(){
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
+
+/** Piel: variación de tono, poros (relieve procedural) y borde cálido (subsuperficie falsa). */
+function skinMaterial(vertexColors) {
+  const m = new THREE.MeshPhysicalMaterial({ color: SKIN, roughness: 0.46, clearcoat: 0.22, clearcoatRoughness: 0.38, envMapIntensity: 0.9, vertexColors });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vObj;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvObj = position;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", `#include <common>
+varying vec3 vObj;
+float h3(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float vn(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+vec3 bumpN(vec3 sp, vec3 sn, vec2 dh, float fd){
+  vec3 sx = normalize(dFdx(sp)); vec3 sy = normalize(dFdy(sp)); vec3 r1 = cross(sy, sn); vec3 r2 = cross(sn, sx);
+  float det = dot(sx, r1) * fd; vec3 gr = sign(det) * (dh.x * r1 + dh.y * r2); return normalize(abs(det) * sn - gr); }`)
+      .replace("#include <color_fragment>", `#include <color_fragment>
+  float tone = vn(vObj * 6.0) * 0.6 + vn(vObj * 17.0) * 0.4;
+  diffuseColor.rgb *= 0.95 + 0.1 * tone;`)
+      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+  { float hh = vn(vObj * 30.0) * 0.6 + vn(vObj * 70.0) * 0.4; vec2 dh = vec2(dFdx(hh), dFdy(hh)) * 0.07; normal = bumpN(-vViewPosition, normal, dh, faceDirection); }`)
+      .replace("#include <opaque_fragment>", `{ float rim = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 2.4); outgoingLight += vec3(1.0, 0.42, 0.32) * rim * 0.16 * diffuseColor.rgb; }
+  #include <opaque_fragment>`);
+  };
+  return m;
+}
+
+/** Textura de tela (sarga o trama) para el color y el relieve de la ropa. */
+function fabricTexture(kind) {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d");
+  g.fillStyle = "#e8e8e8";
+  g.fillRect(0, 0, 128, 128);
+  let seed = 7;
+  const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  if (kind === "suit") {
+    g.strokeStyle = "rgba(0,0,0,0.08)";
+    g.lineWidth = 2;
+    for (let i = -128; i < 256; i += 8) {
+      g.beginPath();
+      g.moveTo(i, 0);
+      g.lineTo(i + 128, 128);
+      g.stroke();
+    }
+    g.strokeStyle = "rgba(255,255,255,0.06)";
+    for (let i = -128; i < 256; i += 16) {
+      g.beginPath();
+      g.moveTo(i + 4, 0);
+      g.lineTo(i + 130, 128);
+      g.stroke();
+    }
+  } else {
+    g.fillStyle = "rgba(0,0,0,0.035)";
+    for (let i = 0; i < 128; i += 8) {
+      g.fillRect(i, 0, 2, 128);
+    }
+    g.fillStyle = "rgba(60,80,140,0.05)";
+    for (let i = 0; i < 128; i += 32) g.fillRect(i, 0, 2, 128);
+  }
+  for (let i = 0; i < 500; i++) {
+    g.fillStyle = `rgba(0,0,0,${0.03 + r() * 0.05})`;
+    g.fillRect(r() * 128, r() * 128, 1, 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Cejas: trazos finos en un lienzo (pelos individuales) con borde que se desvanece. */
+function browTexture() {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 48;
+  const g = c.getContext("2d");
+  let seed = 11;
+  const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const grad = g.createLinearGradient(0, 0, 0, 48);
+  grad.addColorStop(0, "rgba(255,255,255,0)");
+  grad.addColorStop(0.5, "rgba(255,255,255,0.8)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 256, 48);
+  g.lineCap = "round";
+  for (let i = 0; i < 260; i++) {
+    const x = r() * 250;
+    const y = 6 + r() * 36;
+    const len = 10 + r() * 22;
+    const slope = (1 - x / 256) * 0.5 * (y < 24 ? -1 : 1) * 0.6 + (r() - 0.5) * 0.15;
+    g.strokeStyle = `rgba(255,255,255,${0.6 + r() * 0.4})`;
+    g.lineWidth = 0.8 + r() * 1.4;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + len, y + len * slope);
+    g.stroke();
+  }
+  g.globalCompositeOperation = "destination-in";
+  const h = g.createLinearGradient(0, 0, 256, 0);
+  h.addColorStop(0, "rgba(0,0,0,0.5)");
+  h.addColorStop(0.08, "rgba(0,0,0,1)");
+  h.addColorStop(0.7, "rgba(0,0,0,1)");
+  h.addColorStop(1, "rgba(0,0,0,0.05)");
+  g.fillStyle = h;
+  g.fillRect(0, 0, 256, 48);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Malla (u, v) acotada a una región, pegada a la superficie del torso por z. */
+function torsoQuad(c00, c10, c01, c11, N, lift) {
+  const pos = [];
+  const idx = [];
+  for (let j = 0; j <= N; j++) {
+    for (let i = 0; i <= N; i++) {
+      const u = i / N;
+      const v = j / N;
+      const x = lerp(lerp(c00[0], c10[0], u), lerp(c01[0], c11[0], u), v);
+      const y = lerp(lerp(c00[1], c10[1], u), lerp(c01[1], c11[1], u), v);
+      const dy = (y + 2.25) / 0.85;
+      const z = -0.1 + 0.95 * Math.sqrt(Math.max(0, 1 - dy * dy - (x / 1.75) ** 2)) + lift;
+      pos.push(x, y, z);
+    }
+  }
+  for (let j = 0; j < N; j++) {
+    for (let i = 0; i < N; i++) {
+      const a = j * (N + 1) + i;
+      idx.push(a, a + 1, a + N + 1, a + 1, a + N + 2, a + N + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
 
 function buildScene() {
   scene = new THREE.Scene();
@@ -676,19 +894,30 @@ function buildScene() {
 
   const std = (o) => new THREE.MeshStandardMaterial(o);
   const flat = (o) => new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, ...o });
-  mats.skin = new THREE.MeshPhysicalMaterial({ color: SKIN, roughness: 0.5, clearcoat: 0.18, clearcoatRoughness: 0.45, envMapIntensity: 0.9 });
-  mats.neck = std({ color: SKIN, roughness: 0.7 });
+  mats.skin = skinMaterial(true);
+  mats.skinPlain = skinMaterial(false);
+  mats.neck = std({ color: SKIN, roughness: 0.7, vertexColors: true });
   mats.ear = std({ color: SKIN, roughness: 0.55 });
-  mats.hair = new THREE.MeshPhysicalMaterial({ vertexColors: true, color: "#3b4352", roughness: 0.5, metalness: 0.15, clearcoat: 0.12, clearcoatRoughness: 0.5 });
-  mats.brow = flat({ color: "#2b313c" });
+  mats.concha = std({ color: "#d9a79c", roughness: 0.7 });
+  mats.hair = new THREE.MeshPhysicalMaterial({ vertexColors: true, color: "#3b4352", roughness: 0.42, metalness: 0.2, clearcoat: 0.3, clearcoatRoughness: 0.3 });
+  mats.strand = new THREE.MeshPhysicalMaterial({ color: "#3b4352", roughness: 0.4, metalness: 0.2, clearcoat: 0.3, clearcoatRoughness: 0.3 });
+  mats.brow = flat({ color: "#2b313c", map: browTexture(), transparent: true, depthWrite: false });
+  mats.lidShade = flat({ color: "#8a5a64", transparent: true, opacity: 0.07, depthWrite: false });
+  mats.lidRim = flat({ color: "#f7dcd4", transparent: true, opacity: 0.5, depthWrite: false });
+  mats.fold = flat({ color: "#8c5f62", transparent: true, opacity: 0, depthWrite: false });
+  mats.lapel = new THREE.MeshPhysicalMaterial({ color: "#2b3340", roughness: 0.32, metalness: 0.15, clearcoat: 0.3, clearcoatRoughness: 0.4, side: THREE.DoubleSide });
   mats.lash = flat({ color: "#1d222b" });
   mats.lowLash = flat({ color: "#6b4b50", transparent: true, opacity: 0.55 });
   mats.crease = flat({ color: "#a8746f", transparent: true, opacity: 0.3 });
   mats.accent = new THREE.MeshBasicMaterial({ color: "#00e5ff", toneMapped: false });
-  mats.bow = std({ color: "#00b5cc", roughness: 0.4, emissive: "#003844" });
-  mats.suit = std({ color: "#232a36", roughness: 0.6, metalness: 0.1 });
-  mats.shirt = std({ color: "#eef1f5", roughness: 0.7 });
-  mats.lip = new THREE.MeshPhysicalMaterial({ color: "#d98486", roughness: 0.34, clearcoat: 0.5, clearcoatRoughness: 0.3 });
+  mats.bow = new THREE.MeshPhysicalMaterial({ color: "#00b5cc", roughness: 0.32, emissive: "#003844", clearcoat: 0.6, clearcoatRoughness: 0.25, sheen: 0.4, sheenColor: new THREE.Color("#ffffff") });
+  const suitTex = fabricTexture("suit");
+  suitTex.repeat.set(5, 3);
+  const shirtTex = fabricTexture("shirt");
+  shirtTex.repeat.set(3, 1);
+  mats.suit = std({ color: "#2a3140", roughness: 0.62, metalness: 0.08, map: suitTex, bumpMap: suitTex, bumpScale: 0.25 });
+  mats.shirt = std({ color: "#f3f4f7", roughness: 0.7, map: shirtTex, bumpMap: shirtTex, bumpScale: 0.3 });
+  mats.lip = new THREE.MeshPhysicalMaterial({ color: "#e08c8c", roughness: 0.26, clearcoat: 0.9, clearcoatRoughness: 0.12, vertexColors: true });
   mats.mouth = new THREE.MeshBasicMaterial({ color: "#3a1420", side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   mats.tongue = flat({ color: "#d8707e" });
   mats.teeth = flat({ color: "#efe9e1" });
@@ -718,9 +947,13 @@ function buildScene() {
   });
 
   // Luces: principal cálida, relleno frío y dos contraluces con el acento del tema.
-  scene.add(new THREE.HemisphereLight("#ffffff", "#8a7f86", 0.3));
+  scene.add(new THREE.HemisphereLight("#ffffff", "#b89a92", 0.4));
   const key = new THREE.DirectionalLight("#fff1e4", 2.6);
   key.position.set(-3, 4, 6);
+  parts.key = key;
+  const bounce = new THREE.DirectionalLight("#ffd3c0", 0.9);
+  bounce.position.set(0, -4, 5);
+  scene.add(bounce);
   const fill = new THREE.DirectionalLight("#dfe9ff", 0.6);
   fill.position.set(4, -1, 5);
   parts.rimL = new THREE.DirectionalLight("#00e5ff", 1.3);
@@ -736,7 +969,7 @@ function buildScene() {
   scene.add(parts.halo);
 
   // Torso con traje, camisa y pajarita (el detalle de mayordomo).
-  const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 24), mats.suit);
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 56, 32), mats.suit);
   torso.scale.set(1.75, 0.85, 0.95);
   torso.position.set(0, -2.25, -0.1);
   const shirt = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 0.55, 32, 1, true), mats.shirt);
@@ -747,20 +980,38 @@ function buildScene() {
   collar.rotation.x = Math.PI / 2;
   collar.position.set(0, -1.3, 0);
   collar.scale.set(1, 1.05, 1);
+  // Cuello: sombra bajo la barbilla (más oscuro arriba).
+  const nc = [];
+  const npos = neck.geometry.attributes.position;
+  for (let i = 0; i < npos.count; i++) {
+    const k = 1 - 0.42 * sstep(-0.1, 0.65, npos.getY(i));
+    nc.push(k, k * 0.98, k * 0.97);
+  }
+  neck.geometry.setAttribute("color", new THREE.Float32BufferAttribute(nc, 3));
+  // Pajarita con volumen: alas de raso extruidas, nudo y banda.
   const bow = new THREE.Group();
-  const knot = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 12), mats.bow);
-  const wingGeo = new THREE.ConeGeometry(0.17, 0.3, 4);
-  const wl = new THREE.Mesh(wingGeo, mats.bow);
-  wl.rotation.z = Math.PI / 2;
-  wl.position.x = -0.17;
+  const wing = new THREE.Shape();
+  wing.moveTo(0, 0);
+  wing.bezierCurveTo(0.07, 0.05, 0.2, 0.19, 0.3, 0.16);
+  wing.lineTo(0.31, -0.16);
+  wing.bezierCurveTo(0.2, -0.19, 0.07, -0.05, 0, 0);
+  const wingGeo = new THREE.ExtrudeGeometry(wing, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.02, bevelSegments: 3, curveSegments: 12 });
   const wr = new THREE.Mesh(wingGeo, mats.bow);
-  wr.rotation.z = -Math.PI / 2;
-  wr.position.x = 0.17;
-  wl.scale.z = wr.scale.z = 0.5;
-  bow.add(knot, wl, wr);
-  bow.position.set(0, -1.5, 0.74);
+  const wl = new THREE.Mesh(wingGeo, mats.bow);
+  wl.scale.x = -1;
+  wr.position.x = 0.04;
+  wl.position.x = -0.04;
+  const knot = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), mats.bow);
+  knot.scale.set(0.07, 0.11, 0.07);
+  knot.position.z = 0.06;
+  bow.add(wr, wl, knot);
+  bow.position.set(0, -1.5, 0.7);
   parts.torso = torso;
-  scene.add(torso, shirt, neck, collar, bow);
+  // Camisa en V y solapas del traje, pegadas al torso.
+  const vShirt = new THREE.Mesh(torsoQuad([-0.36, -1.6], [0.36, -1.6], [-0.03, -2.3], [0.03, -2.3], 10, 0.025), mats.shirt);
+  const lapL = new THREE.Mesh(torsoQuad([-0.36, -1.6], [-0.86, -1.5], [-0.06, -2.3], [-0.98, -2.1], 10, 0.04), mats.lapel);
+  const lapR = new THREE.Mesh(torsoQuad([0.86, -1.5], [0.36, -1.6], [0.98, -2.1], [0.06, -2.3], 10, 0.04), mats.lapel);
+  scene.add(torso, shirt, neck, collar, bow, vShirt, lapL, lapR);
 
   // Pivote del cuello: la cabeza gira y se inclina desde aquí.
   pivot = new THREE.Group();
@@ -777,8 +1028,8 @@ function buildScene() {
 
 function buildHead() {
   // Rejilla latitud/longitud con polos únicos: sin costura, así computeVertexNormals queda liso.
-  const L = 56;
-  const M = 72;
+  const L = 72;
+  const M = 96;
   const n = (L - 1) * M + 2;
   const rest = new Float32Array(n * 3);
   const pos = new Float32Array(n * 3);
@@ -811,6 +1062,24 @@ function buildHead() {
   const g = new THREE.BufferGeometry();
   pos.set(rest);
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  // Oclusión ambiental falsa y tinte cálido en los vértices: cuencas, alas de la nariz,
+  // comisuras, bajo la barbilla, pómulos rosados y luz en frente, nariz y pómulos.
+  const vc = new Float32Array(n * 3);
+  const gs = (x, y, cx, cy, sx, sy) => Math.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2));
+  for (let i = 0; i < n; i++) {
+    const x = Math.abs(rest[i * 3]);
+    const y = rest[i * 3 + 1];
+    const z = rest[i * 3 + 2];
+    const fr = sstep(-0.1, 0.4, z);
+    const ao = (0.15 * gs(x, y, 0.37, -0.02, 0.32, 0.28) + 0.13 * gs(x, y, 0.16, -0.3, 0.1, 0.16) + 0.17 * gs(x, y, 0.3, -0.58, 0.1, 0.1) + 0.06 * gs(x, y, 0.05, -0.76, 0.2, 0.07)) * fr + 0.11 * sstep(-0.85, -1.12, y) + 0.1 * sstep(0.45, 0.9, x) * (1 - fr);
+    const hl = (0.05 * gs(x, y, 0, 0.2, 0.12, 0.4) + 0.05 * gs(x, y, 0.58, -0.2, 0.2, 0.15) + 0.04 * gs(x, y, 0, -0.25, 0.08, 0.12)) * fr;
+    const cheek = gs(x, y, 0.52, -0.3, 0.25, 0.2) * fr;
+    const b = 0.95 + hl - ao;
+    vc[i * 3] = b;
+    vc[i * 3 + 1] = b - 0.035 * cheek;
+    vc[i * 3 + 2] = b - 0.055 * cheek;
+  }
+  g.setAttribute("color", new THREE.BufferAttribute(vc, 3));
   g.setIndex(idx);
   g.computeVertexNormals();
   const skull = new THREE.Mesh(g, mats.skin);
@@ -827,8 +1096,8 @@ function buildHead() {
   parts.skull = { g, rest, pos, dyn, key: "" };
 
   // Pelo peinado hacia atrás, con tupé: casquete sobre la cabeza.
-  const HL = 30;
-  const HM = 72;
+  const HL = 44;
+  const HM = 112;
   const hp = new Float32Array((HL + 1) * HM * 3);
   const hc = new Float32Array((HL + 1) * HM * 3);
   const hidx = [];
@@ -836,7 +1105,7 @@ function buildHead() {
     for (let j = 0; j < HM; j++) {
       const ph = (2 * Math.PI * j) / HM;
       const c = Math.cos(ph);
-      const thMax = 1.4 + c * (c > 0 ? -0.4 : -0.5);
+      const thMax = 1.4 + c * (c > 0 ? -0.46 : -0.5);
       const th = (thMax * i) / HL;
       const dx = Math.sin(th) * Math.sin(ph);
       const dy = Math.cos(th);
@@ -851,7 +1120,10 @@ function buildHead() {
       hp[o + 1] = _p.y * s + 0.02 * edge;
       hp[o + 2] = _p.z * s;
       // Mechones: bandas suaves que parten del tupé y se peinan hacia atrás.
-      const k = 0.82 + 0.18 * Math.sin(ph * 34 + th * 4) * (0.6 + 0.4 * Math.sin(ph * 11)) + 0.05 * edge;
+      const s1 = Math.sin(ph * 46 + th * 3 + 2 * Math.sin(ph * 7));
+      const s2 = Math.sin(ph * 113 + th * 6);
+      const band = Math.exp(-(((th - 0.78) / 0.2) ** 2)) * (0.5 + 0.5 * Math.cos(ph + 0.9));
+      const k = 0.8 + 0.13 * s1 + 0.06 * s2 + 0.05 * edge + 0.2 * band;
       hc[o] = hc[o + 1] = hc[o + 2] = k;
     }
   }
@@ -870,8 +1142,7 @@ function buildHead() {
   hg.setIndex(hidx);
   hg.computeVertexNormals();
   const hair = new THREE.Mesh(hg, mats.hair);
-    head.add(hair);
-
+  head.add(hair);
   // Orejas con un anillo luminoso: sensores de androide elegante.
   parts.rings = [];
   for (const sg of [-1, 1]) {
@@ -881,7 +1152,14 @@ function buildHead() {
     const ringM = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.022, 10, 36), mats.accent.clone());
     ringM.rotation.y = Math.PI / 2;
     ringM.position.set(sg * 0.985, -0.12, -0.06);
-    head.add(ear, ringM);
+    const helix = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.017, 8, 28, Math.PI * 1.45), mats.ear);
+    helix.rotation.set(0, Math.PI / 2, sg > 0 ? Math.PI * 0.78 : Math.PI * 1.22 - Math.PI * 0.0);
+    helix.position.set(sg * 0.915, -0.12, -0.06);
+    helix.scale.set(1, 1.7, 1.4);
+    const concha = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), mats.concha);
+    concha.scale.set(0.03, 0.1, 0.07);
+    concha.position.set(sg * 0.875, -0.12, -0.03);
+    head.add(ear, helix, concha, ringM);
     parts.rings.push(ringM);
   }
 }
@@ -897,17 +1175,19 @@ function buildFeatures() {
     const lowLash = new Grid(2, NU + 1, mats.lowLash, { order: 3 });
     const crease = new Grid(2, NU + 1, mats.crease.clone(), { order: 2 });
     const tear = new Grid(2, 8, mats.tear.clone(), { order: 4 });
-    head.add(lash.mesh, lowLash.mesh, crease.mesh, tear.mesh);
-    return { sg, cx: sg * 0.37, cy: -0.02, A, grid, lash, lowLash, crease, tear, NU, NV, bead: { x: 0, y: 0 } };
+    const shade = new Grid(2, NU + 1, mats.lidShade.clone(), { order: 2 });
+    const rim = new Grid(2, NU + 1, mats.lidRim.clone(), { order: 2 });
+    head.add(lash.mesh, lowLash.mesh, crease.mesh, tear.mesh, shade.mesh, rim.mesh);
+    return { sg, cx: sg * 0.37, cy: -0.02, A, grid, lash, lowLash, crease, tear, shade, rim, NU, NV, bead: { x: 0, y: 0 } };
   });
   parts.brows = [-1, 1].map((sg) => {
-    const g = new Grid(2, 14, mats.brow, { order: 3 });
+    const g = new Grid(2, 14, mats.brow, { order: 3, uv: true });
     head.add(g.mesh);
     return { sg, g };
   });
 
   // Nariz sencilla: bola, puente y fosas.
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), mats.skin);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), mats.skinPlain);
   nose.scale.set(0.085, 0.078, 0.08);
   head.add(nose);
   parts.nose = nose;
@@ -950,9 +1230,23 @@ function buildFeatures() {
   parts.tongue = new Grid(2, 11, mats.tongue, { order: 2 });
   parts.teethU = new Grid(2, 11, mats.teeth, { order: 3 });
   parts.teethL = new Grid(2, 11, mats.teeth, { order: 3 });
-  parts.lips = new Grid(3, 2 * K, mats.lip, { loop: true, lit: true, order: 4 });
+  parts.lips = new Grid(3, 2 * K, mats.lip, { loop: true, lit: true, order: 4, color: true });
+  for (let r = 0; r < 3; r++) for (let i = 0; i < 2 * K; i++) parts.lips.col.fill([0.62, 1, 0.9][r], (r * 2 * K + i) * 3, (r * 2 * K + i) * 3 + 3);
   parts.lips.mesh.material.side = THREE.FrontSide;
   head.add(parts.mouthInt.mesh, parts.tongue.mesh, parts.teethU.mesh, parts.teethL.mesh, parts.lips.mesh);
+
+  // Arrugas dinámicas (se dibujan como surcos suaves que escalan con los parámetros).
+  const wk = () => {
+    const g = new Grid(2, 8, mats.fold.clone(), { order: 2 });
+    head.add(g.mesh);
+    return g;
+  };
+  parts.wk = {
+    frente: [0, 1, 2].map(wk),
+    patas: [-1, 1].map(() => [0, 1, 2].map(wk)),
+    naso: [-1, 1].map(wk),
+    glab: [-1, 1].map(wk),
+  };
 
   // Corazones (beso y amor).
   const sh = new THREE.Shape();
@@ -980,6 +1274,154 @@ function spawnHeart(now, x = 0.1, y = -0.4) {
   h.m.visible = true;
 }
 
+// ── Vida autónoma ──────────────────────────────────────
+/*
+ * Tabla de comportamientos (ver la cabecera del fichero). Cada microgesto es una animación
+ * aditiva como los GESTOS; el motor elige uno con pesos y enfriamientos según el estado
+ * (reposo, trabajo o voz). Una expresión o mirada pedida por el MCP manda: con ellas solo
+ * valen los gestos `soft` y a un 30 % de su fuerza; un gesto del MCP aborta los de vida.
+ */
+const bl = (x) => (x < 0.4 ? ease(x / 0.4) : ease((1 - x) / 0.6));
+const sin1 = (u) => Math.sin(Math.PI * u);
+const SCREENS = [[-0.7, 0.1], [0.7, 0.1], [0, 0.5], [0, -0.45], [-0.5, -0.3], [0.5, -0.3]];
+const VIDA = {
+  // Parpadeos de varios tipos.
+  parpadeoLento: { ms: 900, soft: true, fn: (u, s, a) => { a.blink = Math.max(a.blink, pulso(u, 0.35, 0.5)); } },
+  parpadeoDoble: { ms: 640, soft: true, fn: (u, s, a) => { a.blink = Math.max(a.blink, bl((u * 2) % 1)); } },
+  medioParpadeo: { ms: 650, soft: true, fn: (u, s, a) => { const e = pulso(u, 0.3, 0.5); a.parpadoI -= 0.55 * e; a.parpadoD -= 0.55 * e; } },
+  // Mirada: los ojos van primero y la cabeza los sigue con retraso.
+  vistazo: { ms: 2000, gaze: true, fn: (u, s, a, g) => { const e = pulso(u, 0.12, 0.7); const h = pulso(u, 0.3, 0.65); a.mirarX += g.rx * e; a.mirarY += g.ry * e; a.cabezaGiro += g.rx * 0.38 * h; a.cabezaInclinacion += g.ry * 0.2 * h; } },
+  mirarAlrededor: { ms: 2900, gaze: true, big: true, amp: 0.6, fn: GESTOS.mirar_alrededor.fn },
+  suspiro: { ms: 2700, big: true, amp: 0.6, fn: GESTOS.suspirar.fn },
+  bostezo: { ms: 3000, big: true, amp: 0.85, fn: GESTOS.bostezar.fn },
+  ladeo: { ms: 1700, amp: 0.55, fn: GESTOS.ladear.fn },
+  sonrisita: { ms: 2400, fn: (u, s, a) => { const e = pulso(u, 0.2, 0.65); a.sonrisaI += 0.42 * e; a.sonrisaD += 0.42 * e; a.entorna += 0.2 * e; a.rubor += 0.12 * e; a.cejaI += 0.1 * e; a.cejaD += 0.1 * e; } },
+  nariz: { ms: 900, fn: (u, s, a) => { const e = pulso(u, 0.2, 0.5); a.nariz += 0.7 * e; a.cejaI -= 0.25 * e; a.cejaD -= 0.25 * e; a.sonrisaI -= 0.1 * e; a.sonrisaD -= 0.1 * e; } },
+  labios: { ms: 1200, fn: (u, s, a) => { const e = Math.max(0, Math.sin(u * Math.PI * 2)); a.labiosApretados += 0.7 * e; a.bocaAncha += 0.2 * e; a.sonrisaI += 0.1 * sin1(u); a.sonrisaD += 0.1 * sin1(u); } },
+  guino: { ms: 950, amp: 0.9, fn: GESTOS.guinar.fn },
+  ceja: { ms: 1100, fn: (u, s, a) => { const e = pulso(u, 0.25, 0.65); a[s < 0 ? "cejaI" : "cejaD"] += 0.7 * e; a.cabezaLadeo += s * 0.12 * e; a.mirarY += 0.1 * e; } },
+  sacudida: { ms: 900, fn: (u, s, a) => { a.cabezaGiro += 0.25 * Math.sin(u * Math.PI * 6) * sin1(u); a.nariz += 0.3 * sin1(u); a.parpadoI -= 0.2 * sin1(u); a.parpadoD -= 0.2 * sin1(u); } },
+  estirar: { ms: 3200, big: true, fn: (u, s, a) => { a.cabezaLadeo += s * 0.7 * Math.sin(u * Math.PI * 2) * sin1(u); a.cabezaInclinacion += 0.15 * sin1(u); a.parpadoI -= 0.25 * sin1(u); a.parpadoD -= 0.25 * sin1(u); } },
+  // Cabezada: se va durmiendo muy despacio y se despierta con un sobresalto.
+  dormitar: {
+    ms: 13000,
+    big: true,
+    fn: (u, s, a) => {
+      const z = u < 0.55 ? ease(u / 0.55) : u < 0.66 ? 1 : 1 - ease(clamp((u - 0.66) / 0.06));
+      const bob = u < 0.66 ? Math.sin(u * Math.PI * 7) * 0.04 * z : 0;
+      a.parpadoI -= 1.2 * z;
+      a.parpadoD -= 1.2 * z;
+      a.cabezaInclinacion -= 0.42 * z + bob;
+      a.cabezaLadeo += s * 0.2 * z;
+      a.mirarY -= 0.3 * z;
+      a.bocaAbierta += 0.06 * z;
+      const st = u >= 0.66 && u < 0.84 ? sin1((u - 0.66) / 0.18) : 0;
+      a.cejaI += 0.9 * st;
+      a.cejaD += 0.9 * st;
+      a.parpadoI += 0.8 * st;
+      a.parpadoD += 0.8 * st;
+      a.cabezaInclinacion += 0.22 * st;
+      a.bocaRedonda += 0.3 * st;
+    },
+  },
+  // Trabajando: un agente escribiendo («lee» de lado a lado).
+  leer: { ms: 2600, gaze: true, fn: (u, s, a) => { const f = (u * 3) % 1; const x = f < 0.85 ? -0.6 + 1.2 * (f / 0.85) : lerp(0.6, -0.6, ease((f - 0.85) / 0.15)); const e = Math.sqrt(sin1(u)); a.mirarX += 0.8 * x * e; a.mirarY += -0.1 * e + 0.04 * Math.sin(u * 20); a.cabezaGiro += x * 0.12 * e; } },
+  cejasOla: { ms: 1400, fn: (u, s, a) => { const e = sin1(u); a.cejaI += 0.3 * Math.sin(u * Math.PI * 2) * e; a.cejaD += 0.3 * Math.sin(u * Math.PI * 2 + 1.2) * e; } },
+  asentirPeq: { ms: 1100, amp: 0.35, fn: GESTOS.asentir.fn },
+  murmullo: { ms: 2200, fn: (u, s, a) => { const e = sin1(u) * (0.5 + 0.5 * Math.sin(u * Math.PI * 12)); a.bocaAbierta += 0.1 * e; a.bocaAncha += 0.05 * e; } },
+  // Trabajando: una herramienta en ejecución (mirada fija y ceño).
+  fijar: { ms: 2200, gaze: true, fn: (u, s, a) => { const e = sin1(u); a.mirarX += 0.05 * Math.sin(u * Math.PI * 4) * e; a.mirarY -= 0.05 * e; a.entorna += 0.1 * e; } },
+  cenoTenso: { ms: 1800, fn: (u, s, a) => { const e = pulso(u, 0.25, 0.7); a.cejasInclina -= 0.35 * e; a.cejaI -= 0.2 * e; a.cejaD -= 0.2 * e; a.labiosApretados += 0.3 * e; a.entorna += 0.15 * e; } },
+  // Trabajando: varios agentes (la mirada salta entre «pantallas»).
+  saltos: {
+    ms: 2600,
+    gaze: true,
+    fn: (u, s, a, g) => {
+      const i = Math.min(3, Math.floor(u * 4));
+      const f = u * 4 - i;
+      const p = g.pts[i];
+      const q = i > 0 ? g.pts[i - 1] : [0, 0];
+      const w = ease(Math.min(1, f * 5));
+      const e = pulso(u, 0.08, 0.9);
+      const x = lerp(q[0], p[0], w);
+      const y = lerp(q[1], p[1], w);
+      a.mirarX += x * e;
+      a.mirarY += y * e;
+      a.cabezaGiro += x * 0.22 * e;
+    },
+  },
+  cejaAgit: { ms: 1000, fn: (u, s, a) => { const e = sin1(u); a.cejaI += 0.35 * Math.sin(u * Math.PI * 6) * e; a.cejaD += 0.35 * Math.cos(u * Math.PI * 6) * e; } },
+  alivio: { ms: 2800, big: true, fn: (u, s, a) => { GESTOS.suspirar.fn(u, s, a); const e = pulso(u, 0.4, 0.8); a.sonrisaI += 0.5 * e; a.sonrisaD += 0.5 * e; a.rubor += 0.15 * e; } },
+  // Hablando.
+  enfasis: { ms: 520, soft: true, fn: (u, s, a) => { const e = sin1(u); a.cabezaInclinacion -= 0.1 * e; a.cejaI += 0.3 * e; a.cejaD += 0.3 * e; } },
+  desvio: { ms: 1400, gaze: true, fn: (u, s, a, g) => { const e = pulso(u, 0.18, 0.7); a.mirarX += g.rx * e; a.mirarY += 0.4 * e; a.cabezaLadeo += g.rx * 0.1 * e; a.cejaI += 0.15 * e; } },
+};
+
+/** [microgesto, peso, enfriamiento en ms] por estado. */
+const MODES = {
+  idle: [["parpadeoLento", 2, 6000], ["parpadeoDoble", 2, 8000], ["medioParpadeo", 1.5, 8000], ["vistazo", 4, 4000], ["mirarAlrededor", 1.5, 20000], ["suspiro", 1, 45000], ["ladeo", 1.5, 12000], ["sonrisita", 1.5, 15000], ["nariz", 0.8, 30000], ["labios", 1, 25000], ["guino", 0.3, 90000], ["ceja", 1, 15000], ["sacudida", 0.6, 40000], ["estirar", 0.6, 60000]],
+  stream: [["leer", 3, 5000], ["cejasOla", 2, 4000], ["asentirPeq", 2, 4000], ["murmullo", 2.5, 5000], ["parpadeoLento", 1, 6000], ["vistazo", 1, 4000]],
+  tool: [["fijar", 2, 4000], ["cenoTenso", 2, 6000], ["parpadeoLento", 1.5, 8000], ["medioParpadeo", 1, 8000], ["asentirPeq", 0.5, 10000]],
+  multi: [["saltos", 3, 3000], ["cejaAgit", 2, 2500], ["vistazo", 2, 3000], ["leer", 1, 6000]],
+  speech: [["desvio", 2, 5000], ["ladeo", 0.6, 8000], ["ceja", 1, 6000]],
+};
+const GAPS = { idle: [3500, 9000], stream: [900, 2200], tool: [2500, 6000], multi: [700, 1600], speech: [1500, 3500] };
+
+const lifeMode = () => (speech.on ? "speech" : actCount >= 3 ? "multi" : actCount > 0 ? (actStreaming ? "stream" : "tool") : "idle");
+
+function startLife(name, now, side) {
+  const def = Object.hasOwn(VIDA, name) ? VIDA[name] : null;
+  if (!def) return false;
+  const amp = (def.amp ?? 1) * (userExpr || gazeFixed ? 0.3 : 1);
+  const pts = [0, 1, 2, 3].map(() => pick(SCREENS));
+  gestures.push({ def, life: true, amp, t0: now, dur: def.ms, n: 1, side: side === -1 || side === 1 ? side : chance(0.5) ? -1 : 1, rx: (chance(0.5) ? -1 : 1) * rand(0.35, 0.85), ry: rand(-0.3, 0.4), pts, fx: true });
+  vida.lastUsed[name] = now;
+  vida.prev = name;
+  return true;
+}
+
+/** Elige el siguiente microgesto: pesos, enfriamientos y sin solapar los grandes. */
+function runLife(now) {
+  const mode = lifeMode();
+  const mcp = gestures.some((g) => !g.life);
+  const held = userExpr || gazeFixed;
+  if (mcp || held) for (const g of gestures) if (g.life && !g.abort && !g.def.soft) g.abort = now;
+  if (mode !== "idle" || mcp || userExpr) vida.lastActive = now;
+  const working = actCount > 0;
+  // Al terminar el trabajo, un gesto de alivio, una sola vez.
+  if (vida.wasWorking && !working && !speech.on && !userExpr && !gazeFixed && !mcp) startLife("alivio", now);
+  vida.wasWorking = working;
+  if (!vida.next) vida.next = now + rand(2000, 5000);
+  if (now < vida.next) return;
+  vida.next = now + rand(...GAPS[mode]) * (held ? 2.5 : 1);
+  if (mcp || gestures.some((g) => g.life && g.def.big && !g.abort)) return;
+  const idleS = (now - vida.lastActive) / 1000;
+  const cand = MODES[mode].slice();
+  if (mode === "idle") {
+    // Tras mucho reposo: bostezo y, mucho después, cabezada.
+    cand.push(["bostezo", idleS > 90 ? 1.4 : 0, 150000], ["dormitar", idleS > 240 ? 3 : 0, 300000]);
+  }
+  const ok = [];
+  let tot = 0;
+  for (const [name, w, cd] of cand) {
+    const def = VIDA[name];
+    if (!w || !def || name === vida.prev) continue;
+    if (now - (vida.lastUsed[name] ?? -1e9) < cd) continue;
+    if (held && !def.soft) continue;
+    if (gazeFixed && def.gaze) continue;
+    ok.push([name, w]);
+    tot += w;
+  }
+  let r = rng() * tot;
+  for (const [name, w] of ok) {
+    r -= w;
+    if (r <= 0) {
+      startLife(name, now);
+      break;
+    }
+  }
+}
+
 // ── Cálculo por fotograma ───────────────────────────────
 const F = zero(); // valores finales
 
@@ -989,13 +1431,29 @@ function compose(now, dt) {
   const e = ease(clamp((now - tw.t0) / tw.dur));
   for (const k of KEYS) base[k] = from[k] + (to[k] - from[k]) * e;
 
-  // Gestos activos.
+  // Gestos activos (los del MCP y los de vida, que cuentan con su fuerza).
   const add = zero();
   add.blink = 0;
   add.breath = 0;
   for (let i = gestures.length - 1; i >= 0; i--) {
     const g = gestures[i];
     const u = (now - g.t0) / g.dur;
+    if (g.life) {
+      let amp = g.amp;
+      if (g.abort) amp *= 1 - clamp((now - g.abort) / 250);
+      if (u >= 1 || amp <= 0) {
+        gestures.splice(i, 1);
+        continue;
+      }
+      for (const k of KEYS) tmp[k] = 0;
+      tmp.blink = 0;
+      tmp.breath = 0;
+      g.def.fn(u, g.side, tmp, g);
+      for (const k of KEYS) add[k] += tmp[k] * amp;
+      add.blink = Math.max(add.blink, tmp.blink * amp);
+      add.breath += tmp.breath * amp;
+      continue;
+    }
     if (u >= 1) {
       gestures.splice(i, 1);
       continue;
@@ -1007,27 +1465,37 @@ function compose(now, dt) {
     }
   }
 
-  // Vida: parpadeo, microsacádicos y respiración.
+  // Vida autónoma: microgestos, parpadeo según el ritmo, microsacádicos y respiración.
+  runLife(now);
+  const mode = lifeMode();
+  const kw = 1 - Math.exp(-dt / 0.6);
+  life.wS += ((mode === "stream" && !userExpr ? 1 : 0) - life.wS) * kw;
+  life.wT += ((mode === "tool" && !userExpr ? 1 : 0) - life.wT) * kw;
+  life.wM += ((mode === "multi" && !userExpr ? 1 : 0) - life.wM) * kw;
+  const th = Math.max(life.wS, life.wT, life.wM);
+  const slow = life.wS + life.wT > 0.5;
   if (!life.nextBlink) life.nextBlink = now + rand(1200, 3000);
   if (life.blinkT0 < 0 && now >= life.nextBlink) {
     life.blinkT0 = now;
-    life.double = Math.random() < 0.18;
+    life.blinkDur = slow ? 250 : 170;
+    life.double = !slow && chance(0.18);
   }
   let blink = 0;
   if (life.blinkT0 >= 0) {
-    const u = (now - life.blinkT0) / 170;
+    const u = (now - life.blinkT0) / life.blinkDur;
     if (u >= 1) {
       life.blinkT0 = -1;
-      life.nextBlink = life.double ? now + 120 : now + rand(2400, 5800);
+      const gap = slow ? [3500, 7500] : mode === "multi" ? [2000, 4500] : [2400, 5800];
+      life.nextBlink = life.double ? now + 120 : now + rand(...gap);
       life.double = false;
     } else blink = u < 0.4 ? ease(u / 0.4) : ease((1 - u) / 0.6);
   }
   blink = Math.max(blink, add.blink);
   if (now >= life.nextSac) {
-    const calm = speech.on ? 0.6 : 1;
-    life.sacTX = rand(-0.14, 0.14) * calm;
-    life.sacTY = rand(-0.1, 0.1) * calm;
-    life.nextSac = now + rand(500, actCount > 0 ? 1100 : 2600);
+    const amp = (speech.on ? 0.6 : 1) * (0.14 * (1 - life.wT * 0.7) + 0.22 * life.wM);
+    life.sacTX = rand(-amp, amp);
+    life.sacTY = rand(-amp * 0.7, amp * 0.7);
+    life.nextSac = now + (life.wM > 0.5 ? rand(350, 800) : rand(500, actCount > 0 ? 1100 : 2600));
   }
   const ks = 1 - Math.exp(-dt / 0.07);
   life.sacX += (life.sacTX - life.sacX) * ks;
@@ -1035,22 +1503,24 @@ function compose(now, dt) {
   const t = now / 1000;
   const breath = Math.sin((t * Math.PI * 2) / 4.4);
 
-  // Aire pensativo con agentes trabajando, solo sin expresión pedida.
-  const thinkT = actCount > 0 && !userExpr && !speech.on ? 1 : 0;
-  life.think += (thinkT - life.think) * (1 - Math.exp(-dt / 0.55));
-  const th = life.think;
-
   for (const k of KEYS) F[k] = base[k] + add[k];
   if (!gazeFixed) {
-    F.mirarX += life.sacX + th * (-0.32 + 0.12 * Math.sin(t * 0.7));
-    F.mirarY += life.sacY + th * (0.3 + 0.06 * Math.sin(t * 0.9));
+    F.mirarX += life.sacX + th * (-0.12 * (1 - life.wT) + 0.06 * Math.sin(t * 0.7));
+    F.mirarY += life.sacY + th * 0.1 * (1 - life.wT) - 0.12 * life.wT;
   } else {
     F.mirarX += life.sacX * 0.2;
     F.mirarY += life.sacY * 0.2;
   }
-  F.cejaD += th * 0.22;
-  F.cabezaLadeo += th * 0.12 + 0.03 * Math.sin(t * 0.29 + 2);
-  F.cabezaGiro += 0.04 * Math.sin(t * 0.37) + 0.02 * Math.sin(t * 0.71 + 1) + th * -0.06;
+  // Ambiente de trabajo: ceño y mirada fija con herramienta, cejas vivas con streaming, agitación con varios.
+  F.cejaD += th * 0.12 + 0.08 * life.wS;
+  F.cejaI += 0.08 * life.wS + 0.1 * life.wM;
+  F.cejasInclina -= 0.3 * life.wT;
+  F.cejaI -= 0.12 * life.wT;
+  F.cejaD -= 0.12 * life.wT;
+  F.entorna += 0.22 * life.wT;
+  F.cabezaInclinacion -= 0.06 * life.wT;
+  F.cabezaGiro += 0.05 * life.wM * Math.sin(t * 2.7) + 0.04 * Math.sin(t * 0.37) + 0.02 * Math.sin(t * 0.71 + 1);
+  F.cabezaLadeo += th * 0.06 + 0.03 * Math.sin(t * 0.29 + 2);
   F.cabezaInclinacion += 0.018 * breath + 0.012 * Math.sin(t * 0.5 + 1);
 
   // Voz: la boca se suma a la de la expresión (la sonrisa no se pierde).
@@ -1175,6 +1645,23 @@ function updateEye(e, P, now) {
   }
   e.crease.ribbon(cp, cw, 0.007);
   e.crease.mesh.material.opacity = 0.35 * clamp(op * 1.6);
+  // Grosor del párpado: borde claro sobre la pestaña y sombra suave sobre el pliegue.
+  const sp = [];
+  const sw = [];
+  const rp = [];
+  const rw = [];
+  for (let i = 0; i <= NU; i++) {
+    const u = -1 + (2 * i) / NU;
+    const s = Math.pow(Math.max(0, 1 - u * u), 0.7);
+    sp.push(cx + e.sg * A * u, yu[i] + A * (0.42 + 0.15 * clamp(op, 0, 1.4) * s));
+    sw.push(A * 0.3 * s);
+    rp.push(cx + e.sg * A * u, yu[i] + A * (0.1 + 0.1 * Math.max(0, u)) + 0.006);
+    rw.push(A * 0.05 * s);
+  }
+  e.shade.ribbon(sp, sw, 0.005);
+  e.shade.mesh.material.opacity = 0.07 * clamp(op * 1.4);
+  e.rim.ribbon(rp, rw, 0.009);
+  e.rim.mesh.material.opacity = 0.5 * clamp(op * 1.6);
 
   // Lágrimas: un hilo por la mejilla con una gota que baja.
   const tl = P.lagrimas;
@@ -1240,6 +1727,50 @@ function updateNose(P) {
     g.ribbon(path, w, 0.014);
     g.mesh.material.opacity = 0.5 * P.nariz;
     g.mesh.visible = P.nariz > 0.05;
+  });
+}
+
+/** Surco: camino a partir de puntos de control, con grosor, opacidad y visibilidad. */
+function fold(g, pts, w, op) {
+  g.mesh.visible = op > 0.03;
+  if (!g.mesh.visible) return;
+  const n = 8;
+  const path = [];
+  const ws = [];
+  for (let i = 0; i < n; i++) {
+    const f = (i / (n - 1)) * (pts.length / 2 - 1);
+    const k = Math.min(pts.length / 2 - 2, Math.floor(f));
+    const t = f - k;
+    path.push(lerp(pts[k * 2], pts[k * 2 + 2], t), lerp(pts[k * 2 + 1], pts[k * 2 + 3], t));
+    ws.push(w * Math.sin(Math.PI * (0.1 + 0.8 * (i / (n - 1)))));
+  }
+  g.ribbon(path, ws, 0.006);
+  g.mesh.material.opacity = Math.min(0.5, op);
+}
+
+/** Frente al alzar cejas, patas de gallo al sonreír, surcos nasolabiales y entrecejo. */
+function updateWrinkles(P) {
+  const W = parts.wk;
+  const brow = clamp((P.cejaI + P.cejaD) / 2 * 1.3);
+  const smile = Math.max(0, (P.sonrisaI + P.sonrisaD) / 2);
+  const lift = clamp(0.55 * P.entorna + 0.3 * smile + 0.3 * P.mejillas + 0.4 * P.nariz);
+  W.frente.forEach((g, i) => {
+    const y = 0.51 + i * 0.045 + 0.03 * brow;
+    const hw = 0.3 - i * 0.04;
+    fold(g, [-hw, y - 0.012, -hw * 0.5, y + 0.012, 0, y + 0.018, hw * 0.5, y + 0.012, hw, y - 0.012], 0.014, 0.9 * Math.max(0, brow - 0.3) - 0.05 * i);
+  });
+  [-1, 1].forEach((sg, si) => {
+    const cx = sg * 0.37 + sg * 0.215 * 1.2;
+    const ang = [-0.5, 0, 0.5];
+    W.patas[si].forEach((g, i) => {
+      const a = ang[i];
+      fold(g, [cx, -0.02 + a * 0.03, cx + sg * 0.05, -0.02 + a * 0.09, cx + sg * 0.1, -0.02 + a * 0.18], 0.012, 0.35 * Math.max(0, lift - 0.25));
+    });
+    const sm = sg < 0 ? P.sonrisaI : P.sonrisaD;
+    const wc = 0.27 * (1 + 0.3 * P.bocaAncha - 0.4 * P.bocaRedonda) * (1 + 0.1 * sm);
+    const cy = YM + 0.085 * Math.max(0, sm) - 0.03;
+    fold(W.naso[si], [sg * 0.17, -0.3, sg * 0.21, -0.4, sg * (wc + 0.06), cy + 0.03, sg * (wc + 0.07), cy - 0.02], 0.015, 0.02 + 0.2 * Math.max(0, sm) + 0.1 * P.bocaAncha + 0.3 * P.nariz);
+    fold(W.glab[si], [sg * 0.045, 0.3, sg * 0.05, 0.36, sg * 0.05, 0.42], 0.012, clamp(-P.cejasInclina * 1.2) * 0.5 + 0.4 * P.nariz);
   });
 }
 
@@ -1385,6 +1916,7 @@ function paint(P, now) {
   updateBrows(P);
   updateNose(P);
   updateBlush(P);
+  updateWrinkles(P);
   updateMouth(P);
 
   // Pose: la cabeza gira desde el cuello.
@@ -1393,7 +1925,7 @@ function paint(P, now) {
   parts.torso.scale.y = 0.85 * (1 + 0.012 * P.breath);
 
   // Corazones.
-  if (P.corazones > 0.5 && Math.random() < 0.025) spawnHeart(now, rand(-0.3, 0.35), -0.3);
+  if (P.corazones > 0.5 && chance(0.025)) spawnHeart(now, rand(-0.3, 0.35), -0.3);
   for (const h of parts.hearts) {
     if (h.t0 < 0) continue;
     const u = (now - h.t0) / 1800;
@@ -1423,7 +1955,7 @@ let lost = false;
 const running = () => renderer && !lost && !document.hidden && visible;
 
 function busy(now) {
-  return speech.on || speech.jaw > 0.01 || gestures.length > 0 || life.blinkT0 >= 0 || now - tw.t0 < tw.dur + 40 || actCount > 0 || timeline.length > 0 || life.think > 0.02;
+  return speech.on || speech.jaw > 0.01 || gestures.length > 0 || life.blinkT0 >= 0 || now - tw.t0 < tw.dur + 40 || actCount > 0 || timeline.length > 0 || (life.wS + life.wT + life.wM) > 0.02;
 }
 
 function loop() {
@@ -1487,7 +2019,7 @@ const API = {
     }
     speech.cb = sv > 0 ? clamp(sw / sv / Math.max(1, values.length - 1)) : 0.5;
     speech.seed = (speech.cb * 97 + sv) % 6.28;
-    speech.energy = Array.isArray(msg?.energy) ? msg.energy : [];
+    speech.energy = Array.isArray(msg?.energy) ? msg.energy.map((x) => Number(x) || 0) : [];
     speech.dur = Number(msg?.durationMs) || 0;
     // ageMs permite arrancar a mitad cuando la voz ya lleva sonando.
     speech.t0 = performance.now() - (Number(msg?.ageMs) || 0);
@@ -1518,8 +2050,18 @@ const API = {
     runCmd(cmd);
     loop();
   },
+  /** Fija el generador aleatorio (el arnés de pruebas lo usa para repetir la vida de fondo). */
+  setRng(fn) {
+    rng = typeof fn === "function" ? fn : Math.random;
+  },
+  /** Fuerza un microgesto de vida por nombre (pruebas). */
+  vida(name, side) {
+    const ok = startLife(name, performance.now(), side);
+    loop();
+    return ok;
+  },
   stats() {
-    return { frames: framesDrawn, raf: raf !== 0, webgl: Boolean(renderer), speaking: speech.on, visible };
+    return { frames: framesDrawn, raf: raf !== 0, webgl: Boolean(renderer), speaking: speech.on, visible, vida: { ...vida.lastUsed } };
   },
 };
 
