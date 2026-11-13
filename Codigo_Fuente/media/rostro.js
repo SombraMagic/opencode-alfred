@@ -411,7 +411,9 @@ function speechStep(now, dt) {
 }
 
 // ── Cabeza: forma y superficie ──────────────────────────
-const AX = 0.86;
+const AX = 0.82;
+/** Estirado vertical de la cabeza (proporción alto/ancho ~1,3): se aplica a todo el grupo `head`. */
+const SY = 1.15;
 const YM = -0.56; // línea de la boca
 const _p = { x: 0, y: 0, z: 0 };
 
@@ -757,7 +759,7 @@ vec3 bumpN(vec3 sp, vec3 sn, vec2 dh, float fd){
   float det = dot(sx, r1) * fd; vec3 gr = sign(det) * (dh.x * r1 + dh.y * r2); return normalize(abs(det) * sn - gr); }
 float sg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)); }
 float seams(vec3 o){
-  vec2 p = vec2(abs(o.x), o.y);
+  vec2 p = vec2(abs(o.x) * 1.05, o.y);
   float d = 9.0;
   d = min(d, sg(p, vec2(0.34, 0.86), vec2(0.56, 0.64)));
   d = min(d, sg(p, vec2(0.56, 0.64), vec2(0.66, 0.34)));
@@ -837,8 +839,8 @@ function fabricTexture(kind) {
 function buildScene() {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(27, 0.8, 0.1, 50);
-  camera.position.set(0, -0.25, 7.4);
-  camera.lookAt(0, -0.3, 0);
+  camera.position.set(0, -0.4, 7.8);
+  camera.lookAt(0, -0.45, 0);
 
   pmrem = new THREE.PMREMGenerator(renderer);
 
@@ -914,51 +916,51 @@ function buildScene() {
   // Torso: traje negro con cuello alto y cierre dorado, hombros blindados.
   const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 56, 32), mats.suit);
   torso.scale.set(1.75, 0.85, 0.95);
-  torso.position.set(0, -2.25, -0.1);
+  torso.position.set(0, -2.55, -0.1);
   parts.torso = torso;
   scene.add(torso);
   for (const sg of [-1, 1]) {
     const sh = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), mats.metal);
     sh.scale.set(0.5, 0.26, 0.55);
-    sh.position.set(sg * 1.15, -1.95, 0);
+    sh.position.set(sg * 1.15, -2.25, 0);
     sh.rotation.z = sg * -0.35;
     const rim = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.015, 8, 32), mats.gold);
-    rim.position.set(sg * 1.15, -1.95, 0);
+    rim.position.set(sg * 1.15, -2.25, 0);
     rim.rotation.set(Math.PI / 2, 0, sg * -0.35);
     rim.scale.set(1, 1.1, 1);
     scene.add(sh, rim);
   }
   const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.62, 0.5, 40, 1, true), mats.suit);
   collar.material.side = THREE.DoubleSide;
-  collar.position.set(0, -1.72, 0);
+  collar.position.set(0, -2.02, 0);
   const collarRim = new THREE.Mesh(new THREE.TorusGeometry(0.47, 0.014, 8, 40), mats.gold);
   collarRim.rotation.x = Math.PI / 2;
-  collarRim.position.set(0, -1.47, 0);
+  collarRim.position.set(0, -1.77, 0);
   const clasp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 0.03), mats.gold);
-  clasp.position.set(0, -1.62, 0.575);
+  clasp.position.set(0, -1.92, 0.575);
   scene.add(collar, collarRim, clasp);
 
   // Cuello mecánico: núcleo, anillos, cables y pistones.
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.33, 1.3, 28), mats.metal);
-  neck.position.set(0, -0.98, -0.08);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.33, 0.9, 28), mats.metal);
+  neck.position.set(0, -1.5, -0.08);
   scene.add(neck);
   for (let i = 0; i < 5; i++) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3 + 0.012 * i, 0.03, 10, 36), mats.metal2);
     ring.rotation.x = Math.PI / 2;
-    ring.position.set(0, -1.18 - 0.1 * i, -0.08);
+    ring.position.set(0, -1.4 - 0.1 * i, -0.08);
     scene.add(ring);
   }
   for (const sg of [-1, 1]) {
     for (let k = 0; k < 2; k++) {
       const c = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(sg * (0.16 + 0.05 * k), -0.98, 0.14),
-        new THREE.Vector3(sg * (0.34 + 0.05 * k), -1.25, 0.18),
-        new THREE.Vector3(sg * (0.3 + 0.05 * k), -1.62, 0.12),
+        new THREE.Vector3(sg * (0.16 + 0.05 * k), -1.05, 0.14),
+        new THREE.Vector3(sg * (0.34 + 0.05 * k), -1.4, 0.18),
+        new THREE.Vector3(sg * (0.3 + 0.05 * k), -1.8, 0.12),
       ]);
       scene.add(new THREE.Mesh(new THREE.TubeGeometry(c, 14, 0.016, 6, false), mats.cable));
     }
     const pis = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.52, 10), mats.metal2);
-    pis.position.set(sg * 0.26, -1.35, 0.26);
+    pis.position.set(sg * 0.26, -1.7, 0.26);
     pis.rotation.z = sg * -0.08;
     scene.add(pis);
   }
@@ -968,6 +970,7 @@ function buildScene() {
   pivot.position.set(0, -1.1, 0);
   head = new THREE.Group();
   head.position.set(0, 1.1, 0);
+  head.scale.set(1, SY, 1);
   pivot.add(head);
   scene.add(pivot);
 
@@ -1089,7 +1092,7 @@ function buildHead() {
     m.material.emissive = new THREE.Color("#ffb000");
     m.material.emissiveIntensity = 0.2;
     m.scale.set(0.1, 0.3, 0.21);
-    m.position.set(sg * 0.9, -0.08, -0.02);
+    m.position.set(sg * 0.86, -0.08, -0.02);
     head.add(m);
     parts.rings.push(m);
   }
@@ -1110,6 +1113,7 @@ function buildFeatures() {
     const rim = new Grid(2, NU + 1, mats.lidRim.clone(), { order: 2 });
     const bloom = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), mats.bloom.clone());
     bloom.renderOrder = 6;
+    bloom.scale.y = 1 / SY;
     head.add(lash.mesh, lowLash.mesh, crease.mesh, tear.mesh, shade.mesh, rim.mesh, bloom);
     return { sg, cx: sg * 0.37, cy: -0.02, A, grid, lash, lowLash, crease, tear, shade, rim, bloom, NU, NV, bead: { x: 0, y: 0 } };
   });
@@ -1172,7 +1176,7 @@ function buildFeatures() {
 
   // Triángulo dorado grabado en la frente.
   parts.tri = new Grid(2, 4, mats.goldLine, { order: 3 });
-  parts.tri.ribbon([-0.085, 0.68, 0.085, 0.68, 0, 0.56, -0.085, 0.68], [0.012, 0.012, 0.012, 0.012], 0.012);
+  parts.tri.ribbon([-0.085, 0.66, 0.085, 0.66, 0, 0.56, -0.085, 0.66], [0.012, 0.012, 0.012, 0.012], 0.012);
   head.add(parts.tri.mesh);
 
   // Juntas que se tensan (en lugar de arrugas): líneas finas.
@@ -1536,8 +1540,8 @@ function updateEye(e, P, now) {
     const el = -(0.32 - 0.95 * lift) * s + tilt + gy * 0.04 * s;
     const EU = 0.4 * (1 - 0.22 * P.entorna) * s + tilt + gy * 0.1 * s;
     const eu = Math.min(1.9 * s + tilt, Math.max(el, el + (EU - el) * op));
-    yu[i] = cy + A * eu;
-    yl[i] = cy + A * el;
+    yu[i] = cy + (A * eu) / SY;
+    yl[i] = cy + (A * el) / SY;
     for (let j = 0; j <= NV; j++) {
       // Fila 0 abajo, fila NV arriba (el orden no importa: el material es de doble cara).
       const v = j / NV;
@@ -1546,9 +1550,9 @@ function updateEye(e, P, now) {
       g.xy[n * 2] = cx + e.sg * A * u;
       g.xy[n * 2 + 1] = y;
       g.extra[n * 4] = u;
-      g.extra[n * 4 + 1] = (y - cy) / A;
-      g.extra[n * 4 + 2] = ((yu[i] - y) / A);
-      g.extra[n * 4 + 3] = ((y - yl[i]) / A);
+      g.extra[n * 4 + 1] = ((y - cy) * SY) / A;
+      g.extra[n * 4 + 2] = ((yu[i] - y) * SY) / A;
+      g.extra[n * 4 + 3] = ((y - yl[i]) * SY) / A;
     }
   }
   g.commit(0.008);
@@ -1561,7 +1565,7 @@ function updateEye(e, P, now) {
   const em = (0.7 + 0.55 * P.brillo + 0.35 * Math.max(0, -P.pupila) + 0.15 * Math.max(0, P.pupila)) * clamp(op * 1.3 + 0.15);
   U.uEm.value = em;
   // Halo de luz del iris (bloom falso), pegado a la mirada y oculto con el ojo cerrado.
-  e.bloom.position.set(cx + U.uGaze.value.x * A, cy + U.uGaze.value.y * A, surf(cx, cy) + 0.06);
+  e.bloom.position.set(cx + U.uGaze.value.x * A, cy + (U.uGaze.value.y * A) / SY, surf(cx, cy) + 0.06);
   e.bloom.material.opacity = 0.2 * em * clamp((op - 0.55) * 1.6);
   e.bloom.material.color.copy(mats.bloom.color);
   U.uWet.value = Math.max(P.lagrimas, P.brillo * 0.25);
@@ -1846,7 +1850,7 @@ function updateMouth(P) {
 }
 
 function paint(P, now) {
-  DEF.jaw = P.bocaAbierta * 0.18;
+  DEF.jaw = P.bocaAbierta * 0.15;
   DEF.puff = P.mejillas;
   DEF.smL = P.sonrisaI;
   DEF.smR = P.sonrisaD;
@@ -1875,7 +1879,7 @@ function paint(P, now) {
     }
     h.m.position.set(h.x + h.dx * u + 0.05 * Math.sin(u * 9), h.y + u * 1.4, 1.15);
     const sc = 0.2 * Math.sin(Math.min(1, u * 4) * Math.PI * 0.5) * (1 + 0.2 * Math.sin(u * 20));
-    h.m.scale.setScalar(sc);
+    h.m.scale.set(sc, sc / SY, sc);
     h.m.material.opacity = 0.9 * (1 - ease(Math.max(0, (u - 0.6) / 0.4)));
   }
 
