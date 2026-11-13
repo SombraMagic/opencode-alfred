@@ -17,7 +17,7 @@
 .fold,
 .dock { flex: none; }
 
-/* ── Zona central: ecualizador + agentes ──────────────── */
+/* ── Zona central: rostro + agentes ──────────────── */
 /* Es lo que crece y lo que se comprime cuando la vista es corta: el pie
    (.dock) no se mueve. */
 .stage {
@@ -31,7 +31,7 @@
 }
 
 /* ── Monitor del equipo (CPU, RAM, GPU, VRAM) ─────────── */
-/* Encima del ecualizador: dos filas de dos celdas que no crecen ni empujan
+/* Encima del rostro: dos filas de dos celdas que no crecen ni empujan
    el pie. Cada celda: RÓTULO · valor · USO · barra de bloques · %. */
 .sysmon {
   flex: none;
@@ -90,7 +90,7 @@
   color: var(--text-soft);
 }
 
-/* Barra de segmentos: relleno a bloques duros, como los píxeles del ecualizador. */
+/* Barra de segmentos: relleno a bloques duros, como los píxeles de los medidores de las tarjetas. */
 .sm-bar {
   flex: 1 1 6px;
   min-width: 6px;
@@ -148,21 +148,19 @@
   outline-offset: 1px;
 }
 
-/* ── Ecualizador de barras ────────────────────────────── */
-/* El canvas se dibuja a 128×72 y el CSS lo escala: de ahí los píxeles duros.
-   El ancho manda; el alto sale de la proporción de la rejilla (32 × 18). */
-#equalizer {
+/* ── Rostro 3D ────────────────────────────────────────── */
+/* Lienzo WebGL transparente (media/rostro.js): 4:5, escala con la vista y deja ver el HUD. */
+#rostro {
   display: block;
   flex: none;
   width: 100%;
   max-width: min(340px, 44vh);
-  margin: 4px auto 10px;
-  aspect-ratio: 128 / 72;
-  image-rendering: pixelated;
+  margin: 4px auto 8px;
+  aspect-ratio: 4 / 5;
 }
 
 /* ── Agentes en vuelo ─────────────────────────────────── */
-/* Lista vertical entre el ecualizador y la lectura; ocupa el alto libre del stage
+/* Lista vertical entre el rostro y la lectura; ocupa el alto libre del stage
    y hace scroll propia cuando hay más agentes de los que caben. */
 #agents {
   display: flex;

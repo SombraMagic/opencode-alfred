@@ -10,6 +10,7 @@
  *   ambos hablen igual.
  * - now.json: evento de reproducción. Lo escribe quien habla y lo vigila la
  *   extensión para mover el ecualizador aunque la voz venga del MCP.
+ * - rostro.json: órdenes del rostro 3D (`src/rostro/contract.ts`); las escribe el MCP.
  * - entorno.json: rutas del proyecto abierto que necesita el MCP (la pizarra en
  *   `.alfred/adjuntos`). La extensión lo escribe al activar y el MCP lo lee en cada
  *   llamada: la ruta depende del proyecto abierto.
@@ -17,7 +18,11 @@
 import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { RostroCmd, RostroFile } from "../../rostro/contract.js";
 import type { TtsMotor } from "./types.js";
+
+/** Orden sin `seq` ni `t`. */
+type RostroCmdInput = RostroCmd extends infer C ? (C extends unknown ? Omit<C, "seq" | "t"> : never) : never;
 
 export interface VozConfig {
   engine?: string;
@@ -68,6 +73,38 @@ export function writeConfig(patch: VozConfig): void {
 export function publishPlayback(event: PlaybackEvent): void {
   mkdirSync(stateDir(), { recursive: true });
   writeFileSync(join(stateDir(), "now.json"), JSON.stringify(event), "utf8");
+}
+
+/** Órdenes del rostro (`rostro.json`); [] si no existe o está a medias. */
+export function readRostro(): RostroFile {
+  try {
+    const f = JSON.parse(readFileSync(join(stateDir(), "rostro.json"), "utf8"));
+    if (typeof f?.seq === "number" && Array.isArray(f.cmds)) return f;
+  } catch {
+    // Sin fichero o corrupto: se empieza de cero.
+  }
+  return { seq: 0, cmds: [] };
+}
+
+/** Añade una orden (`seq` y `t` los pone esto), conserva las últimas 20 y escribe tmp + rename. */
+export function writeRostroCmd(cmd: RostroCmdInput): RostroCmd {
+  const file = readRostro();
+  const full = { ...cmd, seq: file.seq + 1, t: Date.now() } as RostroCmd;
+  const dest = join(stateDir(), "rostro.json");
+  const tmp = `${dest}.${process.pid}.tmp`;
+  mkdirSync(stateDir(), { recursive: true });
+  try {
+    writeFileSync(tmp, JSON.stringify({ seq: full.seq, cmds: [...file.cmds, full].slice(-20) }), "utf8");
+    renameSync(tmp, dest);
+  } catch (err) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+      // Tampoco existía.
+    }
+    throw err;
+  }
+  return full;
 }
 
 /** Entorno compartido: dónde vive lo que no es voz (la pizarra del proyecto). */

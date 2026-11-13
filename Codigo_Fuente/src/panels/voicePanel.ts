@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import { readFileSync, unwatchFile, watchFile } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import type { RostroFile } from "../rostro/contract";
 import { readSettings, speak } from "../voice/service.js";
 import { mcpState, setMcpEnabled } from "../voice/mcpInstaller.js";
 import { SysMonitor, type SysSample } from "../sysmon/monitor.js";
@@ -14,6 +15,9 @@ const nowFile = join(
     join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), "voz"),
   "now.json",
 );
+
+/** Órdenes del MCP al rostro 3D, junto a `now.json`. */
+const rostroFile = join(dirname(nowFile), "rostro.json");
 
 /** Agente que está trabajando ahora mismo, tal como lo pinta el panel. */
 export interface WorkingAgent {
@@ -91,6 +95,7 @@ export class VozPanel {
     view.webview.html = this.html(view.webview);
     await this.pushInitial();
     this.watchPlayback();
+    this.watchRostro();
     if (view.visible) this.startSysPolling();
   }
 
@@ -113,8 +118,33 @@ export class VozPanel {
   }
 
   /**
+   * Vigila `rostro.json` (las órdenes del MCP al rostro 3D) y manda al webview las
+   * nuevas y recientes, en orden. Al abrir no reproduce lo viejo.
+   */
+  private watchRostro() {
+    let lastSeq = 0;
+    const read = (): RostroFile | undefined => {
+      try {
+        const f = JSON.parse(readFileSync(rostroFile, "utf8"));
+        return typeof f?.seq === "number" && Array.isArray(f.cmds) ? f : undefined;
+      } catch {
+        return undefined; // Sin fichero o a medio escribir.
+      }
+    };
+    lastSeq = read()?.seq ?? 0;
+    watchFile(rostroFile, { interval: 100 }, () => {
+      const f = read();
+      if (!f) return;
+      if (f.seq < lastSeq) lastSeq = 0; // rostro.json reiniciado: el MCP cuenta desde 1.
+      const cmds = f.cmds.filter((c) => c.seq > lastSeq && Date.now() - c.t < 10_000);
+      lastSeq = Math.max(lastSeq, f.seq);
+      if (cmds.length) this.post({ type: "rostro", cmds });
+    });
+  }
+
+  /**
    * Vigila las reproducciones que no salen de este panel (las del MCP, que
-   * corre en otro proceso) y las refleja en el ecualizador.
+   * corre en otro proceso) y las refleja en el rostro.
    */
   private watchPlayback() {
     watchFile(nowFile, { interval: 250 }, () => {
@@ -256,7 +286,7 @@ export class VozPanel {
       // ajustes: el panel lateral ya no tiene esos controles.
       const result = await speak(msg.text, readSettings().engine, undefined, (info) => {
         // La envolvente y la duración se envían ANTES de reproducir: si se
-        // enviaran después, el ecualizador reaccionaría con la voz ya terminada.
+        // enviaran después, el rostro reaccionaría con la voz ya terminada.
         this.post({
           type: "envelope",
           values: info.envelope,
@@ -277,13 +307,14 @@ export class VozPanel {
     const media = vscode.Uri.joinPath(this.context.extensionUri, "media");
     const nonce = getNonce();
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.js"));
-    const equalizerUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "equalizer.js"));
+    const rostroUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "rostro.js"));
+    const threeUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "three", "three.module.min.js"));
 
     return `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource}; img-src ${webview.cspSource} data:;" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'nonce-${nonce}'; img-src ${webview.cspSource} data:;" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 ${themeLinks(this.context.extensionUri, webview, ["panel.css"])}
 </head>
@@ -318,7 +349,7 @@ ${themeLinks(this.context.extensionUri, webview, ["panel.css"])}
         </div>
       </div>
 
-      <canvas id="equalizer" width="128" height="72"></canvas>
+      <canvas id="rostro" aria-label="Rostro de Alfred"></canvas>
 
       <!-- Agentes en vuelo: panel.js lo rellena y lo vacía (vacío = sin hueco). -->
       <div id="agents"></div>
@@ -343,8 +374,9 @@ ${themeLinks(this.context.extensionUri, webview, ["panel.css"])}
     </div>
   </div>
   ${themeScript(this.context.extensionUri, webview, nonce)}
-  <script src="${equalizerUri}"></script>
   <script src="${scriptUri}"></script>
+  <script type="importmap" nonce="${nonce}">{ "imports": { "three": "${threeUri}" } }</script>
+  <script type="module" nonce="${nonce}" src="${rostroUri}"></script>
 </body>
 </html>`;
   }
@@ -354,6 +386,7 @@ ${themeLinks(this.context.extensionUri, webview, ["panel.css"])}
     // No mata el proceso: se va solo al morir su -ParentPid.
     this.monitor?.dispose();
     unwatchFile(nowFile);
+    unwatchFile(rostroFile);
     for (const d of this.disposables) d.dispose();
   }
 }

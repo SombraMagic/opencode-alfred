@@ -1,6 +1,7 @@
 /**
  * Servidor MCP `mcp_alfred` por stdio (JSON-RPC 2.0, un objeto por línea): cubre la voz
- * (`speak`, `list_voices`), las herramientas de la pizarra y el generador de imágenes.
+ * (`speak`, `list_voices`), las herramientas de la pizarra, el generador de imágenes y
+ * el rostro 3D del panel de voz (`rostro_*`).
  *
  * Corre como proceso propio, lanzado por el agente: aquí NO hay `vscode`.
  * stdout es solo protocolo; cualquier diagnóstico va a stderr. Reutiliza los
@@ -23,20 +24,24 @@ import {
 import type { TtsMotor } from "../voice/core/index.js";
 import { callPizarraTool, PIZARRA_TOOLS } from "./alfredPizarra";
 import { callImageTool, IMAGE_TOOLS } from "./alfredImages";
+import { callRostroTool, expresarRostro, ROSTRO_TOOLS, validarExpresion } from "./alfredRostro";
+import { EXPRESIONES } from "../rostro/contract";
 
 const PROTOCOL_VERSION = "2025-06-18";
-const SERVER_INFO = { name: "mcp_alfred", version: "1.2.0" };
+const SERVER_INFO = { name: "mcp_alfred", version: "1.3.0" };
 
 const ENGINES = ["sapi", "edge", "openai", "elevenlabs"];
 
 const VOICE_TOOLS = [
   {
     name: "speak",
-    description: "Lee un texto en voz alta con el motor de voz configurado.",
+    description:
+      "Lee un texto en voz alta con el motor de voz configurado. Con `expresion` pone antes esa expresión en el rostro del panel (la boca se sincroniza sola con el audio).",
     inputSchema: {
       type: "object",
       properties: {
         text: { type: "string" },
+        expresion: { type: "string", enum: Object.keys(EXPRESIONES) },
         engine: { type: "string", enum: ENGINES },
         rate: { type: "number", minimum: -50, maximum: 100 },
         pitch: { type: "number", minimum: -50, maximum: 50 },
@@ -58,8 +63,8 @@ const VOICE_TOOLS = [
   },
 ];
 
-/** Todo lo que publica el servidor: voz, pizarra e imágenes. */
-const TOOLS = [...VOICE_TOOLS, ...PIZARRA_TOOLS, ...IMAGE_TOOLS];
+/** Todo lo que publica el servidor: voz, pizarra, imágenes y rostro. */
+const TOOLS = [...VOICE_TOOLS, ...PIZARRA_TOOLS, ...IMAGE_TOOLS, ...ROSTRO_TOOLS];
 
 /** Escribe un mensaje JSON-RPC en stdout. */
 function send(payload: unknown): void {
@@ -100,6 +105,10 @@ async function speak(args: Record<string, unknown>): Promise<string> {
   const text = typeof args.text === "string" ? args.text : "";
   if (!text.trim()) throw new Error("El texto está vacío: no hay nada que decir.");
 
+  // Solo valida (no escribe): un nombre malo falla antes de gastar el motor.
+  const expresion =
+    args.expresion !== undefined && args.expresion !== "" ? validarExpresion(args.expresion) : undefined;
+
   const config = readConfig();
   const motor = await selectMotor(
     typeof args.engine === "string" ? args.engine : config.engine ?? "sapi",
@@ -118,6 +127,9 @@ async function speak(args: Record<string, unknown>): Promise<string> {
   // Serie temporal de energía: hace que las barras latan con la voz.
   const energy = envelope(pcm, 64);
   const device = num(args.device, config.device ?? -1);
+
+  // La cara cambia en la misma tanda que la envolvente (si la síntesis falla, no cambia).
+  if (expresion) expresarRostro({ expresion });
 
   // Antes de bloquear la reproducción: el panel ya puede mover el ecualizador.
   publishPlayback({
@@ -163,6 +175,10 @@ async function callTool(params: unknown): Promise<unknown> {
     const imagen = typeof name === "string" ? await callImageTool(name, input) : undefined;
     if (imagen !== undefined) {
       return { content: [{ type: "text", text: imagen }] };
+    }
+    const rostro = typeof name === "string" ? callRostroTool(name, input) : undefined;
+    if (rostro !== undefined) {
+      return { content: [{ type: "text", text: rostro }] };
     }
     throw new Error(`Herramienta desconocida: ${String(name)}`);
   } catch (err) {

@@ -26,6 +26,19 @@
     paintStatus();
   }
 
+  /**
+   * Llamada al rostro (media/rostro.js). El módulo carga después de este script: lo que
+   * llegue antes queda en cola y rostro.js la vacía al arrancar.
+   */
+  function rostro(fn, arg) {
+    if (window.VOZRostro) {
+      window.VOZRostro[fn](arg);
+      return;
+    }
+    const q = (window.VOZRostroQ ||= []);
+    if (q.length < 200) q.push([fn, arg, performance.now()]);
+  }
+
   // ── Peticiones a la extensión ───────────────────────────
   function post(msg) {
     vscode.postMessage(msg);
@@ -347,12 +360,12 @@
     }
 
     paintStatus();
-    // Gancho que lee equalizer.js: la onda recorre las barras aunque no haya voz.
+    // El rostro pasa a un aire pensativo mientras haya agentes trabajando.
     window.alfredActivity = {
       count: agents.length,
       streaming: agents.some((a) => a.streaming),
     };
-    window.VOZEqualizer?.activity(window.alfredActivity);
+    rostro("activity", window.alfredActivity);
     ensureLoop();
   }
 
@@ -561,14 +574,14 @@
         break;
 
       case "envelope":
-        // Llamada directa al ecualizador (equalizer.js).
-        window.VOZEqualizer?.envelope(msg);
+        // La boca del rostro sigue la envolvente (rostro.js).
+        rostro("envelope", msg);
         break;
 
       case "playback":
         // Reproducción pedida por el agente (MCP): misma animación, pero sin
         // tocar el botón, que no ha sido quien la lanzó.
-        window.VOZEqualizer?.envelope({
+        rostro("envelope", {
           values: msg.values,
           energy: msg.energy,
           durationMs: msg.durationMs,
@@ -580,12 +593,17 @@
         markMcpPlayback((msg.durationMs || 0) - (msg.ageMs || 0));
         break;
 
+      case "rostro":
+        // Órdenes del MCP (rostro.json), en el orden en que se escribieron.
+        for (const cmd of Array.isArray(msg.cmds) ? msg.cmds : []) rostro("command", cmd);
+        break;
+
       case "done":
         speaking = false;
         speakBtn.disabled = false;
         $("speak-label").textContent = "TRANSCRIBIR";
         setStatus("EN LÍNEA");
-        window.VOZEqualizer?.idle();
+        rostro("idle");
         break;
 
       case "error":
@@ -593,7 +611,7 @@
         speakBtn.disabled = false;
         $("speak-label").textContent = "TRANSCRIBIR";
         setStatus("ERROR", "error");
-        window.VOZEqualizer?.idle();
+        rostro("idle");
         break;
 
       case "mcp": {
