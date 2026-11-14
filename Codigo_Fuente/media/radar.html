@@ -2,9 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data:; style-src %%CSP%% 'unsafe-inline'; script-src 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data: https://server.arcgisonline.com https://*.rainviewer.com; style-src %%CSP%% 'unsafe-inline'; script-src 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   %%THEME_LINKS%%
+  <link href="%%LEAFLET_CSS%%" rel="stylesheet" />
   <link href="%%STYLE%%" rel="stylesheet" />
   <title>Radar de noticias</title>
 </head>
@@ -16,6 +17,7 @@
       <span id="rd-status" class="hud-status" role="status" aria-live="polite">—</span>
       <div class="rd-tabs" role="tablist" aria-label="Secciones del radar">
         <button id="tab-noticias" class="rd-tab on" type="button" role="tab" aria-selected="true" aria-controls="panel-noticias">NOTICIAS</button>
+        <button id="tab-tiempo" class="rd-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-tiempo">TIEMPO</button>
         <button id="tab-config" class="rd-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-config">CONFIGURACIÓN</button>
       </div>
     </header>
@@ -48,6 +50,56 @@
           <button id="btn-next" class="ghost-btn" type="button" disabled>SIGUIENTE ›</button>
         </div>
       </footer>
+    </section>
+
+    <section id="panel-tiempo" class="rd-panel" role="tabpanel" aria-labelledby="tab-tiempo" hidden>
+      <div class="rd-barra">
+        <input id="rd-lugar-q" class="rd-input" type="search" placeholder="Buscar un lugar…" aria-label="Buscar lugar" spellcheck="false" autocomplete="off" />
+        <button id="btn-lugar-buscar" class="ghost-btn" type="button" title="Buscar el lugar escrito">BUSCAR</button>
+        <button id="btn-tiempo-actualizar" class="ghost-btn rd-primario" type="button" title="Volver a pedir el tiempo">ACTUALIZAR</button>
+      </div>
+      <ul id="rd-lugares" class="rd-lugares" aria-label="Resultados de lugares" hidden></ul>
+      <p id="rd-tiempo-msg" class="rd-hint" role="status" aria-live="polite">Pulsa la pestaña para cargar el tiempo.</p>
+      <div class="rd-t-cuerpo">
+        <div class="rd-t-mapa-col">
+          <div class="rd-t-capas" role="group" aria-label="Capas del mapa">
+            <button id="ly-lluvia" class="rd-chip" type="button" aria-pressed="false">LLUVIA</button>
+            <button id="ly-viento" class="rd-chip" type="button" aria-pressed="false">VIENTO</button>
+            <button id="ly-temp" class="rd-chip" type="button" aria-pressed="false">TEMPERATURA</button>
+            <button id="ly-nubes" class="rd-chip" type="button" aria-pressed="false">NUBOSIDAD</button>
+            <label class="rd-t-op" title="Opacidad de las capas de color">OPACIDAD
+              <input id="rd-opacidad" class="rd-range" type="range" min="15" max="100" step="5" value="65" aria-label="Opacidad de las capas" />
+            </label>
+          </div>
+          <div id="rd-mapa" class="rd-mapa" role="application" aria-label="Mapa del tiempo"></div>
+          <div class="rd-t-ctl" id="rd-ctl-lluvia" hidden>
+            <button id="btn-lluvia-play" class="ghost-btn rd-t-play" type="button" title="Animar el radar de lluvia">▶</button>
+            <input id="rd-lluvia-slider" class="rd-range" type="range" min="0" max="0" step="1" value="0" aria-label="Fotograma del radar de lluvia" />
+            <span id="rd-lluvia-hora" class="rd-t-hora">—</span>
+          </div>
+          <div class="rd-t-ctl" id="rd-ctl-hora" hidden>
+            <span class="rd-t-ctl-label">HORA</span>
+            <input id="rd-hora-slider" class="rd-range" type="range" min="0" max="0" step="1" value="0" aria-label="Hora de la previsión" />
+            <span id="rd-hora-valor" class="rd-t-hora">—</span>
+          </div>
+          <div id="rd-leyenda" class="rd-leyenda" aria-label="Leyenda"></div>
+        </div>
+        <div class="rd-t-prev">
+          <section class="rd-bloque">
+            <h2 id="rd-t-lugar" class="rd-bloque-title">AHORA</h2>
+            <div id="rd-ahora" class="rd-ahora"><p class="rd-vacio">Sin datos todavía.</p></div>
+          </section>
+          <section class="rd-bloque">
+            <h2 class="rd-bloque-title">PRÓXIMAS 48 HORAS</h2>
+            <div id="rd-horas" class="rd-horas"></div>
+          </section>
+          <section class="rd-bloque">
+            <h2 class="rd-bloque-title">7 DÍAS</h2>
+            <div id="rd-dias" class="rd-dias"></div>
+          </section>
+          <p class="rd-hint">Datos: Open-Meteo y RainViewer. Mapa © Esri, © OpenStreetMap contributors.</p>
+        </div>
+      </div>
     </section>
 
     <section id="panel-config" class="rd-panel" role="tabpanel" aria-labelledby="tab-config" hidden>
@@ -153,6 +205,8 @@
   </div>
 
   %%THEME_SCRIPT%%
+  <script nonce="%%NONCE%%" src="%%LEAFLET%%"></script>
+  <script nonce="%%NONCE%%" src="%%TIEMPO%%"></script>
   <script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
 </body>
 </html>

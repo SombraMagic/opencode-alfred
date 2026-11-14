@@ -6,8 +6,10 @@
   const el = {
     status: document.getElementById("rd-status"),
     tabNoticias: document.getElementById("tab-noticias"),
+    tabTiempo: document.getElementById("tab-tiempo"),
     tabConfig: document.getElementById("tab-config"),
     panelNoticias: document.getElementById("panel-noticias"),
+    panelTiempo: document.getElementById("panel-tiempo"),
     panelConfig: document.getElementById("panel-config"),
     busqueda: document.getElementById("rd-busqueda"),
     btnBuscar: document.getElementById("btn-buscar"),
@@ -48,6 +50,10 @@
     btnRepuntuar: document.getElementById("btn-repuntuar"),
   };
 
+  // Si radarTiempo.js no cargó, NOTICIAS y CONFIGURACIÓN siguen vivas.
+  const tiempo = window.RadarTiempo
+    ? window.RadarTiempo.crear(vscode)
+    : { abrir() {}, cerrar() {}, mensaje() {} };
   let datos = null;
   let seleccion = null;
   let tab = "noticias";
@@ -59,7 +65,7 @@
   let temaQuitar = null;
 
   const guardado = vscode.getState();
-  if (guardado && (guardado.tab === "config" || guardado.tab === "noticias")) {
+  if (guardado && (guardado.tab === "config" || guardado.tab === "noticias" || guardado.tab === "tiempo")) {
     tab = guardado.tab;
   }
 
@@ -612,6 +618,11 @@
     configSucio = false;
     el.tabNoticias.classList.toggle("on", tab === "noticias");
     el.tabConfig.classList.toggle("on", tab === "config");
+    el.tabTiempo.classList.toggle("on", tab === "tiempo");
+    el.tabTiempo.setAttribute("aria-selected", tab === "tiempo" ? "true" : "false");
+    el.panelTiempo.hidden = tab !== "tiempo";
+    if (tab === "tiempo") tiempo.abrir();
+    else tiempo.cerrar();
     el.tabNoticias.setAttribute("aria-selected", tab === "noticias" ? "true" : "false");
     el.tabConfig.setAttribute("aria-selected", tab === "config" ? "true" : "false");
     el.panelNoticias.hidden = tab !== "noticias";
@@ -626,6 +637,7 @@
 
   // ── Cableado ─────────────────────────────────────────────
   el.tabNoticias.addEventListener("click", () => setTab("noticias"));
+  el.tabTiempo.addEventListener("click", () => setTab("tiempo"));
   el.tabConfig.addEventListener("click", () => setTab("config"));
 
   el.btnBuscar.addEventListener("click", () => {
@@ -694,6 +706,10 @@
   window.addEventListener("message", (event) => {
     const message = event.data;
     if (!message) return;
+    if (typeof message.type === "string" && message.type.indexOf("tiempo") === 0) {
+      tiempo.mensaje(message);
+      return;
+    }
     if (message.type === "data") {
       renderDatos(message.payload);
       return;
@@ -718,6 +734,6 @@
     }
   });
 
-  setTab(tab);
   vscode.postMessage({ type: "ready" });
+  setTab(tab);
 })();

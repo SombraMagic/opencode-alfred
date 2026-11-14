@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { RadarSinBase, RadarService, type RadarPerfilView } from "../radar/service";
 import type { CampoFlag, RadarFila } from "../radar/db";
 import type { RadarConfig, RadarEstado, RadarProveedor, RadarTema } from "../radar/types";
+import * as tiempo from "../radar/weather";
 import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /** Filas por página de la lista de noticias. */
@@ -274,6 +275,7 @@ export class RadarPanel {
   private readonly disposables: vscode.Disposable[] = [];
 
   private cola = Promise.resolve();
+  private tiempoSeq = 0;
   private disposed = false;
   private enMarcha = false;
 
@@ -330,7 +332,11 @@ export class RadarPanel {
     );
 
     this.panel.webview.onDidReceiveMessage(
-      (message: { type?: string; action?: unknown }) => {
+      (message: { type?: string; action?: unknown; op?: unknown; q?: unknown; lugar?: unknown; bounds?: unknown }) => {
+        if (message?.type === "tiempo") {
+          void this.tiempoOp(message);
+          return;
+        }
         if (message?.type === "ready") {
           this.postTheme();
           void this.recargarTodo();
@@ -360,6 +366,80 @@ export class RadarPanel {
       null,
       this.disposables
     );
+  }
+
+  /** Pestaña TIEMPO: valida lo que manda el webview y responde siempre, sin lanzar. */
+  private async tiempoOp(m: { op?: unknown; q?: unknown; lugar?: unknown; bounds?: unknown }): Promise<void> {
+    const clave = "opencodeAgents.radar.tiempo";
+    const err = (ambito: string, msg: string) => this.post({ type: "tiempoError", ambito, msg });
+    const mio = m.op === "cargar" || m.op === "lugar" ? ++this.tiempoSeq : 0;
+    const datos = async (lugar: tiempo.Lugar) => {
+      const r = await tiempo.cargarPrevision(lugar.lat, lugar.lon);
+      if (mio !== this.tiempoSeq) {
+        return;
+      }
+      if ("error" in r) {
+        err("datos", r.error);
+        return;
+      }
+      this.post({ type: "tiempoDatos", lugar: { pais: "", ...lugar }, actualizado: Date.now(), ...r.ok });
+    };
+    try {
+      switch (m.op) {
+        case "cargar":
+          await datos(tiempo.parseLugar(this.context.globalState.get(clave)) ?? tiempo.DEFECTO);
+          return;
+        case "lugar": {
+          const lugar = tiempo.parseLugar(m.lugar);
+          if (!lugar) {
+            err("lugares", "Ese lugar no vale.");
+            return;
+          }
+          await this.context.globalState.update(clave, lugar);
+          await datos(lugar);
+          return;
+        }
+        case "buscar": {
+          const q = tiempo.parseBusqueda(m.q);
+          if (!q) {
+            err("lugares", "Escribe entre 2 y 80 caracteres para buscar.");
+            return;
+          }
+          const r = await tiempo.buscarLugares(q);
+          if ("error" in r) {
+            err("lugares", r.error);
+          } else {
+            this.post({ type: "tiempoLugares", q, lugares: r.ok });
+          }
+          return;
+        }
+        case "rejilla": {
+          const b = tiempo.parseBounds(m.bounds);
+          if (!b) {
+            err("rejilla", "La zona del mapa no vale.");
+            return;
+          }
+          const r = await tiempo.cargarRejilla(b);
+          if ("error" in r) {
+            this.post({ type: "tiempoError", ambito: "rejilla", msg: r.error, pedido: b });
+          } else {
+            this.post({ type: "tiempoRejilla", ...r.ok, pedido: b });
+          }
+          return;
+        }
+        case "radar": {
+          const r = await tiempo.cargarRadar();
+          if ("error" in r) {
+            err("radar", r.error);
+          } else {
+            this.post({ type: "tiempoRadar", ...r.ok });
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      err("datos", mensajeDe(e));
+    }
   }
 
   /** Avisa al webview del estilo visual vigente. */
@@ -620,6 +700,9 @@ export class RadarPanel {
         .replaceAll("%%THEME_LINKS%%", themeLinks(this.context.extensionUri, webview, []))
         .replaceAll("%%THEME_SCRIPT%%", themeScript(this.context.extensionUri, webview, nonce))
         .replaceAll("%%STYLE%%", uriIn("radar.css"))
+        .replaceAll("%%LEAFLET_CSS%%", uriIn("leaflet/leaflet.css"))
+        .replaceAll("%%LEAFLET%%", uriIn("leaflet/leaflet.js"))
+        .replaceAll("%%TIEMPO%%", uriIn("radarTiempo.js"))
         .replaceAll("%%SCRIPT%%", uriIn("radar.js"));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

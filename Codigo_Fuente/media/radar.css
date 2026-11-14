@@ -608,3 +608,380 @@ body {
     grid-template-rows: 45% minmax(0, 1fr);
   }
 }
+
+/* ── TIEMPO: mapa y previsión ────────────────────────────── */
+.rd-lugares {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  flex: 0 0 auto;
+}
+
+.rd-lugar-op {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.rd-lugar-op:hover,
+.rd-lugar-op:focus-visible {
+  background: var(--bg-raised);
+  color: var(--neon);
+  outline: none;
+}
+
+.rd-lugar-r {
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+#rd-tiempo-msg {
+  flex: 0 0 auto;
+  margin: 6px 0 0;
+}
+
+#rd-tiempo-msg.error {
+  color: var(--danger);
+}
+
+.rd-t-cuerpo {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.3fr) minmax(280px, 1fr);
+  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 8px;
+  padding-bottom: 10px;
+}
+
+.rd-t-mapa-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.rd-t-capas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.rd-t-op {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--text-soft);
+}
+
+.rd-t-op .rd-range,
+.rd-t-ctl .rd-range {
+  accent-color: var(--neon);
+}
+
+.rd-t-op .rd-range {
+  width: 90px;
+}
+
+.rd-mapa {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 220px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  z-index: 11;
+}
+
+.rd-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 450;
+  pointer-events: none;
+}
+
+/* Leaflet con los tokens del tema: controles y atribución del HUD. */
+.rd-mapa .leaflet-container {
+  font-family: inherit;
+  background: var(--bg-soft);
+}
+
+.rd-mapa .leaflet-bar a,
+.rd-mapa .leaflet-bar a:hover {
+  background-color: var(--bg);
+  color: var(--text);
+  border-bottom-color: var(--line);
+}
+
+.rd-mapa .leaflet-bar {
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+.rd-mapa .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  color: var(--text-soft);
+  font-size: 9px;
+}
+
+.rd-pin {
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 2px solid var(--bg);
+  background: var(--amber);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--amber);
+}
+
+.rd-t-ctl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.rd-t-ctl .rd-range {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.rd-t-play {
+  min-width: 34px;
+  padding: 3px 6px;
+}
+
+.rd-t-ctl-label {
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  color: var(--text-soft);
+}
+
+.rd-t-hora {
+  min-width: 96px;
+  text-align: right;
+  font-size: 10px;
+  color: var(--amber);
+  white-space: nowrap;
+}
+
+.rd-leyenda {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.rd-ley {
+  display: grid;
+  grid-template-columns: 84px auto minmax(60px, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  color: var(--text-soft);
+}
+
+.rd-ley-barra {
+  height: 8px;
+  border: 1px solid var(--line);
+}
+
+.rd-t-prev {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.rd-t-prev .rd-bloque {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+/* Iconos WMO: trazo con los tokens, nunca colores sueltos. */
+.rd-ico {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  color: var(--text-soft);
+}
+
+.rd-ico svg {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+}
+
+.rd-ico .rd-i-sol,
+.rd-ico .rd-i-rayo {
+  stroke: var(--amber);
+}
+
+.rd-ico .rd-i-luna {
+  stroke: var(--violet);
+}
+
+.rd-ico .rd-i-agua {
+  stroke: var(--neon);
+}
+
+.rd-ico .rd-i-nieve {
+  stroke: var(--text);
+  stroke-width: 2.4;
+}
+
+.rd-flecha {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  color: var(--neon);
+  vertical-align: -2px;
+}
+
+.rd-ahora-cab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rd-ahora-cab .rd-ico {
+  width: 46px;
+  height: 46px;
+}
+
+.rd-ahora-temp {
+  display: flex;
+  flex-direction: column;
+}
+
+.rd-ahora-num {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--text);
+}
+
+.rd-ahora-desc {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-soft);
+}
+
+.rd-celdas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.rd-celda {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rd-celda-et {
+  font-size: 8.5px;
+  letter-spacing: 1.3px;
+  color: var(--text-soft);
+}
+
+.rd-celda-val {
+  font-size: 11px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.rd-horas {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.rd-hora {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 48px;
+  padding: 4px 0;
+  border-left: 1px solid transparent;
+  font-size: 10px;
+}
+
+.rd-hora-dia {
+  border-left-color: var(--line);
+}
+
+.rd-hora-h,
+.rd-hora-ll {
+  font-size: 9px;
+  color: var(--text-soft);
+}
+
+.rd-hora-t {
+  color: var(--text);
+}
+
+.rd-dias {
+  display: flex;
+  flex-direction: column;
+}
+
+.rd-dia {
+  display: grid;
+  grid-template-columns: 52px 26px 74px minmax(0, 1fr) 70px 38px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 10.5px;
+}
+
+.rd-dia-n {
+  color: var(--neon);
+}
+
+.rd-dia-ll,
+.rd-dia-v,
+.rd-dia-uv {
+  color: var(--text-soft);
+  font-size: 9.5px;
+}
+
+@media (max-width: 900px) {
+  .rd-t-cuerpo {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+  .rd-t-mapa-col {
+    min-height: 420px;
+  }
+  .rd-t-prev {
+    overflow: visible;
+  }
+}
