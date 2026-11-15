@@ -24,7 +24,7 @@
   }
 
   // Leyenda común a opencode, Claude Code y Codex: siempre las mismas cuatro filas.
-  // Claude y Codex solo mandan `conversation`, así que las demás salen con 0.
+  // Codex solo manda `conversation`, así que las demás salen con 0.
   const GROUPS = [
     { id: "sistema", label: "Sistema", match: (key) => key.indexOf("core/") === 0 },
     { id: "conversacion", label: "Conversación", match: (key) => key === "conversation" },
@@ -32,11 +32,18 @@
     { id: "libre", label: "Libre", free: true },
   ];
 
+  // Claude manda `messages` y `tools`: ocupan los huecos de Conversación y Sin atribuir.
+  const CLAUDE_GROUPS = {
+    conversacion: { label: "Mensajes", match: (key) => key === "messages" },
+    "sin-atribuir": { label: "Herramientas", match: (key) => key === "tools" },
+  };
+
   function buildGroups(info) {
     const slices = Array.isArray(info.slices) ? info.slices : [];
     const used = Number(info.used) || 0;
     const limit = Number(info.limit) || 0;
-    return GROUPS.map((group) => {
+    return GROUPS.map((base) => {
+      const group = info.agent === "claude" ? { ...base, ...CLAUDE_GROUPS[base.id] } : base;
       if (group.free) {
         return {
           id: group.id,
@@ -101,7 +108,7 @@
     el.cells.replaceChildren(frag);
   }
 
-  function renderLegend(groups, denom) {
+  function renderLegend(groups, denom, info) {
     const frag = document.createDocumentFragment();
     groups.forEach((g) => {
       const li = document.createElement("li");
@@ -120,7 +127,10 @@
       num.className = "lg-num";
       if (g.estimated) {
         const mark = document.createElement("abbr");
-        mark.title = "Estimado a partir del texto guardado por opencode";
+        mark.title =
+          info && info.agent === "claude"
+            ? "Estimado a partir del texto de la sesión (chars/4)"
+            : "Estimado a partir del texto guardado por opencode";
         mark.textContent = "~";
         num.appendChild(mark);
       }
@@ -190,7 +200,7 @@
 
     const groups = buildGroups(info);
     renderGrid(groups, denom);
-    renderLegend(groups, denom);
+    renderLegend(groups, denom, info);
   }
 
   window.addEventListener("message", (event) => {

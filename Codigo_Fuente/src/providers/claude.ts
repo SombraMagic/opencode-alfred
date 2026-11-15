@@ -124,6 +124,18 @@ function readJson(file: string): JsonObject | undefined {
   }
 }
 
+/** Nombre de color de Claude → hex (paleta Alfred): el webview solo pinta hex. */
+const CLAUDE_COLOR_HEX: Record<string, string> = {
+  red: "#ff5c5c",
+  blue: "#4a9eff",
+  green: "#23d18b",
+  yellow: "#ffd23f",
+  purple: "#a970ff",
+  orange: "#ff9a3c",
+  pink: "#ff2d95",
+  cyan: "#00e5ff",
+};
+
 function readAgents(dir: string, scope: ClaudeScope): ExplorerAgent[] {
   let entries: Dirent[];
   try {
@@ -145,7 +157,10 @@ function readAgents(dir: string, scope: ClaudeScope): ExplorerAgent[] {
         scope,
         description: frontmatter.description,
         model: frontmatter.model,
-        color: frontmatter.color,
+        color:
+          typeof frontmatter.color === "string"
+            ? (CLAUDE_COLOR_HEX[frontmatter.color.trim().toLowerCase()] ?? frontmatter.color)
+            : frontmatter.color,
         filePath: file,
         working: false,
         streaming: false,
@@ -461,11 +476,37 @@ let contextCache: { key: string; info: ContextWindowInfo } | undefined;
 
 type ClaudeLine = {
   type?: string;
+  isCompactSummary?: boolean;
   message?: { model?: unknown; usage?: Record<string, unknown>; content?: unknown };
 };
 
 function num(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+/** Tokens (chars/4) del contenido de un mensaje: texto y thinking a mensajes; tool_use y tool_result a herramientas. */
+function blockChars(content: unknown): { msg: number; tool: number } {
+  if (typeof content === "string") {
+    return { msg: content.length / 4, tool: 0 };
+  }
+  let msg = 0;
+  let tool = 0;
+  if (!Array.isArray(content)) {
+    return { msg, tool };
+  }
+  for (const part of content as Array<Record<string, unknown>>) {
+    if (part?.type === "text" && typeof part.text === "string") {
+      msg += part.text.length;
+    } else if (part?.type === "thinking" && typeof part.thinking === "string") {
+      msg += part.thinking.length;
+    } else if (part?.type === "tool_use") {
+      tool += JSON.stringify(part.input ?? "").length;
+    } else if (part?.type === "tool_result") {
+      const c = part.content;
+      tool += typeof c === "string" ? c.length : c === undefined ? 0 : JSON.stringify(c).length;
+    }
+  }
+  return { msg: msg / 4, tool: tool / 4 };
 }
 
 /** Quita las etiquetas XML con su contenido: los comandos locales no son parte del mensaje. */
@@ -539,6 +580,11 @@ function readContext(
   let used = 0;
   let model = "";
   let title: string | undefined;
+  // Sistema = total de la primera respuesta medida (system prompt, herramientas, CLAUDE.md).
+  // Mensajes y herramientas: caracteres de los bloques desde el último resumen.
+  let system = 0;
+  let msgChars = 0;
+  let toolChars = 0;
   for (const line of text.split("\n")) {
     if (!line.includes('"type":"assistant"') && !line.includes('"type":"user"')) {
       continue;
@@ -549,12 +595,20 @@ function readContext(
     } catch {
       continue; // Línea a medio escribir de una sesión viva.
     }
+    if (item.isCompactSummary) {
+      msgChars = 0;
+      toolChars = 0;
+    }
+    const chars = blockChars(item.message?.content);
+    msgChars += chars.msg;
+    toolChars += chars.tool;
     if (item.type === "assistant") {
       const usage = item.message?.usage;
       if (usage) {
         const total = usageTotal(usage);
         if (total > 0) {
           used = total;
+          system ||= total;
           model = typeof item.message?.model === "string" ? item.message.model.trim() : "";
         }
       }
@@ -567,6 +621,15 @@ function readContext(
   if (used <= 0) {
     return undefined;
   }
+  system = Math.min(system, used);
+  const rest = used - system;
+  const tools = msgChars + toolChars > 0 ? Math.round((rest * toolChars) / (msgChars + toolChars)) : 0;
+  // ponytail: reparto por chars/4 del texto guardado; los esquemas y el thinking cifrado no cuentan.
+  const slices: ContextWindowInfo["slices"] = [
+    { key: "core/system", label: "Sistema", tokens: system, estimated: true },
+    { key: "messages", label: "Mensajes", tokens: rest - tools, estimated: true },
+    { key: "tools", label: "Herramientas", tokens: tools, estimated: true },
+  ];
   return {
     ok: true,
     sessionId,
@@ -575,7 +638,7 @@ function readContext(
     model: model || undefined,
     used,
     limit: contextLimit(model),
-    slices: [{ key: "conversation", label: "Conversación", tokens: used, estimated: false }],
+    slices,
     scannedAt,
   };
 }
