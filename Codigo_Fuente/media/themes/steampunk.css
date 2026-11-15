@@ -26,6 +26,7 @@ body[data-theme="steampunk"] {
   --magenta: #f2795b;           /* 7,1:1, cobre encendido */
   --amber: #ffb454;             /* 11,1:1, ámbar de manómetro */
   --green: #5cc4a2;             /* 9,2:1, cardenillo */
+  --matrix: #e8b562;
   --violet: #ab8be0;            /* 7,0:1 */
   --danger: #e26450;            /* 5,7:1 */
   --danger-dim: rgba(226, 100, 80, 0.25);

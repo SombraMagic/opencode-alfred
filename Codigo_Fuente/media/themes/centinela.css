@@ -26,6 +26,7 @@ body[data-theme="centinela"] {
   --magenta: #ff5a44;           /* 6,4:1 (5,8), rojo señal */
   --amber: #ff8f4d;             /* 8,8:1 (7,9), naranja brasa */
   --green: #3fd9a0;             /* 11,0:1 (9,9) */
+  --matrix: #4f8dff;
   --violet: #a98cff;            /* 7,4:1 (6,7) */
   --danger: #f0584a;            /* 5,9:1 (5,3) */
   --danger-dim: rgba(240, 88, 74, 0.25);

@@ -24,8 +24,6 @@ export {
   readConfig,
   writeConfig,
   publishPlayback,
-  readRostro,
-  writeRostroCmd,
   resolveVoice,
 } from "./shared.js";
 export type { VozConfig, PlaybackEvent } from "./shared.js";

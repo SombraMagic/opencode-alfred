@@ -20,6 +20,7 @@ body[data-theme="manoli"] {
   --magenta: #a03e6b;           /* 4,9:1 */
   --amber: #7d5a1c;             /* 5,0:1 */
   --green: #316a54;             /* 5,0:1 */
+  --matrix: #7c548f;
   --violet: #6a4fae;            /* 5,0:1 */
   --danger: #a1332c;            /* 5,5:1 */
   --danger-dim: rgba(161, 51, 44, 0.22);

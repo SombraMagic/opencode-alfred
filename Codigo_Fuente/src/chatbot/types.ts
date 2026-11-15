@@ -44,7 +44,9 @@ export interface ToolSpec {
   description: string;
   /** JSON Schema del objeto de argumentos. */
   parameters: Record<string, unknown>;
-  /** Recibe los argumentos del modelo ya saneados por el registro. */
+  /** Los argumentos pasan tal cual (solo han de ser un objeto): para tools con objetos/arrays que validan por su cuenta. */
+  rawArgs?: boolean;
+  /** Recibe los argumentos del modelo ya saneados por el registro (o crudos con `rawArgs`). */
   run(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
 }
 

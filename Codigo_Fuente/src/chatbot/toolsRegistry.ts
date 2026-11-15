@@ -52,6 +52,14 @@ function sanitizeArgs(schema: Schema, raw: unknown): Record<string, unknown> {
   return out;
 }
 
+/** Para `rawArgs`: solo exige un objeto. */
+function rawObject(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("Los argumentos deben ser un objeto.");
+  }
+  return raw as Record<string, unknown>;
+}
+
 export class ToolRegistry {
   private readonly tools = new Map<string, ToolSpec>();
 
@@ -82,7 +90,7 @@ export class ToolRegistry {
       return { result: { text: error }, error };
     }
     try {
-      const clean = sanitizeArgs(tool.parameters as Schema, args);
+      const clean = tool.rawArgs ? rawObject(args) : sanitizeArgs(tool.parameters as Schema, args);
       return { result: await tool.run(clean, ctx) };
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);

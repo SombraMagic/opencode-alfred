@@ -1,70 +1,22 @@
 /**
  * Servidor MCP `mcp_alfred` por stdio (JSON-RPC 2.0, un objeto por línea): cubre la voz
- * (`speak`, `list_voices`), las herramientas de la pizarra, el generador de imágenes y
- * el rostro 3D del panel de voz (`rostro_*`).
+ * (`speak`, `list_voices`), las herramientas de la pizarra y el generador de imágenes.
  *
  * Corre como proceso propio, lanzado por el agente: aquí NO hay `vscode`.
  * stdout es solo protocolo; cualquier diagnóstico va a stderr. Reutiliza los
  * motores y el reproductor de `src/voice/core` y deja la reproducción en
  * `%APPDATA%\voz\now.json` para que el panel de la extensión ecualice.
  */
-import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline";
-import {
-  createMotors,
-  envelope,
-  keysFromEnv,
-  pickMotor,
-  playPcm,
-  publishPlayback,
-  readConfig,
-  resolveVoice,
-  toPcm,
-} from "../voice/core/index.js";
-import type { TtsMotor } from "../voice/core/index.js";
 import { callPizarraTool, PIZARRA_TOOLS } from "./alfredPizarra";
 import { callImageTool, IMAGE_TOOLS } from "./alfredImages";
-import { callRostroTool, expresarRostro, ROSTRO_TOOLS, validarExpresion } from "./alfredRostro";
-import { EXPRESIONES } from "../rostro/contract";
+import { callVozTool, VOZ_TOOLS } from "./alfredVoz";
 
 const PROTOCOL_VERSION = "2025-06-18";
-const SERVER_INFO = { name: "mcp_alfred", version: "1.3.0" };
+const SERVER_INFO = { name: "mcp_alfred", version: "1.4.0" };
 
-const ENGINES = ["sapi", "edge", "openai", "elevenlabs"];
-
-const VOICE_TOOLS = [
-  {
-    name: "speak",
-    description:
-      "Lee un texto en voz alta con el motor de voz configurado. Con `expresion` pone antes esa expresión en el rostro del panel (la boca se sincroniza sola con el audio).",
-    inputSchema: {
-      type: "object",
-      properties: {
-        text: { type: "string" },
-        expresion: { type: "string", enum: Object.keys(EXPRESIONES) },
-        engine: { type: "string", enum: ENGINES },
-        rate: { type: "number", minimum: -50, maximum: 100 },
-        pitch: { type: "number", minimum: -50, maximum: 50 },
-        volume: { type: "number", minimum: 0, maximum: 100 },
-        device: { type: "integer" },
-      },
-      required: ["text"],
-    },
-  },
-  {
-    name: "list_voices",
-    description: "Lista las voces instaladas de un motor de texto a voz.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        engine: { type: "string", enum: ENGINES },
-      },
-    },
-  },
-];
-
-/** Todo lo que publica el servidor: voz, pizarra, imágenes y rostro. */
-const TOOLS = [...VOICE_TOOLS, ...PIZARRA_TOOLS, ...IMAGE_TOOLS, ...ROSTRO_TOOLS];
+/** Todo lo que publica el servidor: voz, pizarra e imágenes. */
+const TOOLS = [...VOZ_TOOLS, ...PIZARRA_TOOLS, ...IMAGE_TOOLS];
 
 /** Escribe un mensaje JSON-RPC en stdout. */
 function send(payload: unknown): void {
@@ -79,82 +31,6 @@ function replyError(id: unknown, code: number, message: string): void {
   send({ jsonrpc: "2.0", id, error: { code, message } });
 }
 
-/** Número del argumento, o el valor por defecto de la configuración compartida. */
-function num(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-/** Motor pedido (o el de la configuración compartida), ya comprobado. */
-async function selectMotor(engine: string): Promise<TtsMotor> {
-  // createMotors solo crea los motores de pago si hay clave en el entorno:
-  // si el pedido no está en la lista, pickMotor devolvería otro en silencio.
-  const motor = pickMotor(createMotors(keysFromEnv()), engine);
-  if (motor.id !== engine) {
-    throw new Error(
-      `El motor "${engine}" no está disponible: falta su clave de API en el entorno.`,
-    );
-  }
-  if (!(await motor.isAvailable())) {
-    throw new Error(`El motor "${motor.label}" no está disponible en este equipo.`);
-  }
-  return motor;
-}
-
-/** `speak`: sintetiza, publica el evento de reproducción y espera a que suene. */
-async function speak(args: Record<string, unknown>): Promise<string> {
-  const text = typeof args.text === "string" ? args.text : "";
-  if (!text.trim()) throw new Error("El texto está vacío: no hay nada que decir.");
-
-  // Solo valida (no escribe): un nombre malo falla antes de gastar el motor.
-  const expresion =
-    args.expresion !== undefined && args.expresion !== "" ? validarExpresion(args.expresion) : undefined;
-
-  const config = readConfig();
-  const motor = await selectMotor(
-    typeof args.engine === "string" ? args.engine : config.engine ?? "sapi",
-  );
-
-  // La voz guardada puede no existir en este motor: resolveVoice cae a la primera.
-  const voice = await resolveVoice(motor, config.voice);
-  const result = await motor.synthesize(text, voice, {
-    rate: num(args.rate, config.rate ?? 0),
-    pitch: num(args.pitch, config.pitch ?? 0),
-    volume: num(args.volume, config.volume ?? 100),
-  });
-
-  const pcm = await toPcm(result.data, result.format);
-  const envelope32 = envelope(pcm, 32);
-  // Serie temporal de energía: hace que las barras latan con la voz.
-  const energy = envelope(pcm, 64);
-  const device = num(args.device, config.device ?? -1);
-
-  // La cara cambia en la misma tanda que la envolvente (si la síntesis falla, no cambia).
-  if (expresion) expresarRostro({ expresion });
-
-  // Antes de bloquear la reproducción: el panel ya puede mover el ecualizador.
-  publishPlayback({
-    id: randomUUID(),
-    startedAt: Date.now(),
-    durationMs: pcm.durationMs,
-    envelope: envelope32,
-    energy,
-    text,
-  });
-
-  await playPcm(pcm, device < 0 ? undefined : device);
-
-  return `Dicho con ${motor.label}, voz «${voice}»: ${(pcm.durationMs / 1000).toFixed(1)} s.`;
-}
-
-/** `list_voices`: voces del motor pedido en JSON compacto. */
-async function listVoices(args: Record<string, unknown>): Promise<string> {
-  const config = readConfig();
-  const motor = await selectMotor(
-    typeof args.engine === "string" ? args.engine : config.engine ?? "sapi",
-  );
-  return JSON.stringify(await motor.listVoices());
-}
-
 /** Ejecuta una herramienta; cualquier fallo vuelve como `isError`, no como caída. */
 async function callTool(params: unknown): Promise<unknown> {
   const { name, arguments: args } =
@@ -162,11 +38,9 @@ async function callTool(params: unknown): Promise<unknown> {
   const input = (args ?? {}) as Record<string, unknown>;
 
   try {
-    if (name === "speak") {
-      return { content: [{ type: "text", text: await speak(input) }] };
-    }
-    if (name === "list_voices") {
-      return { content: [{ type: "text", text: await listVoices(input) }] };
+    const voz = typeof name === "string" ? await callVozTool(name, input) : undefined;
+    if (voz !== undefined) {
+      return { content: [{ type: "text", text: voz }] };
     }
     const pizarra = typeof name === "string" ? await callPizarraTool(name, input) : undefined;
     if (pizarra !== undefined) {
@@ -175,10 +49,6 @@ async function callTool(params: unknown): Promise<unknown> {
     const imagen = typeof name === "string" ? await callImageTool(name, input) : undefined;
     if (imagen !== undefined) {
       return { content: [{ type: "text", text: imagen }] };
-    }
-    const rostro = typeof name === "string" ? callRostroTool(name, input) : undefined;
-    if (rostro !== undefined) {
-      return { content: [{ type: "text", text: rostro }] };
     }
     throw new Error(`Herramienta desconocida: ${String(name)}`);
   } catch (err) {

@@ -45,6 +45,9 @@ import { ConversationStore, newConversation } from "../chatbot/store";
 import { modelCapabilities, runChat } from "../chatbot/ollamaChat";
 import { ToolRegistry } from "../chatbot/toolsRegistry";
 import { createImageTool } from "../chatbot/tools/imageTool";
+import { mcpToolSpecs } from "../chatbot/tools/mcpTools";
+import { callPizarraTool, PIZARRA_TOOLS } from "../mcp/alfredPizarra";
+import { callVozTool, VOZ_TOOLS } from "../mcp/alfredVoz";
 import { toMarkdown } from "../chatbot/export";
 import type { ChatEvent, ChatMessage, ChatMetrics, Conversation, ModelCapabilities } from "../chatbot/types";
 import { generateWithSettings } from "../images/generateWith";
@@ -54,6 +57,7 @@ import { writeAtomic } from "../pizarra/files";
 import { speak } from "../voice/service.js";
 import { KEY_OPENAI, imagenesDir, readSettings as readImageSettings } from "./imageGenPanel";
 import { setActivity } from "./activity";
+import { pizarraAdjuntosDir } from "./pizarraPanel";
 import { currentTheme, themeLinks, themeScript } from "./theme";
 
 const KEY_PREFS = "opencodeAgents.chatbot";
@@ -65,8 +69,12 @@ const MAX_SPEAK = 5000;
 const ID_RE = /^[A-Za-z0-9-]{1,64}$/;
 const MODEL_RE = /^[A-Za-z0-9._:/-]{1,120}$/;
 const IMAGE_TOOL = "generar_imagen";
-/** Herramientas conocidas: nombre y rótulo para el toggle. */
-const TOOL_DEFS = [{ name: IMAGE_TOOL, label: "Generar imagen" }];
+/** Grupos de herramientas con interruptor propio: id (lo que guarda `toolsOff`) y rótulo. */
+const TOOL_DEFS = [
+  { name: IMAGE_TOOL, label: "Generar imagen" },
+  { name: "voz", label: "Voz" },
+  { name: "pizarra", label: "Pizarra" },
+];
 
 interface Prefs {
   model: string;
@@ -599,6 +607,19 @@ export class ChatbotPanel {
           }
         })
       );
+    }
+
+    if (caps.tools) {
+      const on = (id: string): boolean => !prefs.toolsOff.includes(id);
+      // speak espera a que suene (como el MCP) pero se corta con la señal del turno.
+      if (on("voz")) {
+        for (const t of mcpToolSpecs(VOZ_TOOLS, (n, a, ctx) => callVozTool(n, a, ctx.signal))) registry.register(t);
+      }
+      if (on("pizarra")) {
+        // Siempre la pizarra 1 del panel: la `carpeta` del modelo se pisa, no se confía en el cwd del host.
+        const carpeta = pizarraAdjuntosDir(this.context);
+        for (const t of mcpToolSpecs(PIZARRA_TOOLS, (n, a) => callPizarraTool(n, { ...a, carpeta }))) registry.register(t);
+      }
     }
 
     const controller = new AbortController();

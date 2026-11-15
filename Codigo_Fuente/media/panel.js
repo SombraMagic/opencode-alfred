@@ -26,19 +26,6 @@
     paintStatus();
   }
 
-  /**
-   * Llamada al rostro (media/rostro.js). El módulo carga después de este script: lo que
-   * llegue antes queda en cola y rostro.js la vacía al arrancar.
-   */
-  function rostro(fn, arg) {
-    if (window.VOZRostro) {
-      window.VOZRostro[fn](arg);
-      return;
-    }
-    const q = (window.VOZRostroQ ||= []);
-    if (q.length < 200) q.push([fn, arg, performance.now()]);
-  }
-
   // ── Peticiones a la extensión ───────────────────────────
   function post(msg) {
     vscode.postMessage(msg);
@@ -360,12 +347,12 @@
     }
 
     paintStatus();
-    // El rostro pasa a un aire pensativo mientras haya agentes trabajando.
+    // La lluvia Matrix pulsa suave mientras haya agentes trabajando.
     window.alfredActivity = {
       count: agents.length,
       streaming: agents.some((a) => a.streaming),
     };
-    rostro("activity", window.alfredActivity);
+    window.VOZMatrix?.activity(window.alfredActivity);
     ensureLoop();
   }
 
@@ -574,14 +561,13 @@
         break;
 
       case "envelope":
-        // La boca del rostro sigue la envolvente (rostro.js).
-        rostro("envelope", msg);
+        window.VOZMatrix?.envelope(msg);
         break;
 
       case "playback":
         // Reproducción pedida por el agente (MCP): misma animación, pero sin
         // tocar el botón, que no ha sido quien la lanzó.
-        rostro("envelope", {
+        window.VOZMatrix?.envelope({
           values: msg.values,
           energy: msg.energy,
           durationMs: msg.durationMs,
@@ -593,17 +579,12 @@
         markMcpPlayback((msg.durationMs || 0) - (msg.ageMs || 0));
         break;
 
-      case "rostro":
-        // Órdenes del MCP (rostro.json), en el orden en que se escribieron.
-        for (const cmd of Array.isArray(msg.cmds) ? msg.cmds : []) rostro("command", cmd);
-        break;
-
       case "done":
         speaking = false;
         speakBtn.disabled = false;
         $("speak-label").textContent = "TRANSCRIBIR";
         setStatus("EN LÍNEA");
-        rostro("idle");
+        window.VOZMatrix?.idle();
         break;
 
       case "error":
@@ -611,7 +592,7 @@
         speakBtn.disabled = false;
         $("speak-label").textContent = "TRANSCRIBIR";
         setStatus("ERROR", "error");
-        rostro("idle");
+        window.VOZMatrix?.idle();
         break;
 
       case "mcp": {
