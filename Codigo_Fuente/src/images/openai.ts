@@ -41,11 +41,15 @@ export interface OpenAiResult {
 }
 
 /**
- * Endpoint de generación: quita las barras finales y respeta el `/vN` que ya traiga la
- * base; sin él se antepone `/v1`.
+ * Endpoint de generación: quita las barras finales, acepta el endpoint completo
+ * (`…/images/generations`) y respeta el `/vN` que ya traiga la base; sin él se antepone `/v1`.
  */
 export function endpointOf(baseUrl?: string): string {
   const base = (baseUrl ?? "").trim().replace(/\/+$/, "") || DEFAULT_BASE;
+  // Si pegan el endpoint completo, se usa tal cual (si no, se duplicaba la ruta y daba 404).
+  if (/\/images\/generations$/.test(base)) {
+    return base;
+  }
   return /\/v\d+$/.test(base) ? `${base}/images/generations` : `${base}/v1/images/generations`;
 }
 
@@ -163,5 +167,76 @@ export async function generateImage(req: OpenAiRequest): Promise<OpenAiResult> {
   if (typeof first?.url === "string" && first.url) {
     return { bytes: await download(first.url), message };
   }
+  // Servicios asíncronos (APIMart): devuelven un id de tarea y la imagen sale al consultarla.
+  const taskId = taskIdOf(data);
+  if (taskId) {
+    return { bytes: await download(await pollTask(endpoint, req.key, taskId)), message };
+  }
   throw new Error("El servicio no devolvió la imagen.");
+}
+
+/** Id de tarea en las formas que usan los servicios asíncronos (`data[0].task_id`, `data.id`…). */
+function taskIdOf(body: unknown): string | undefined {
+  const b = body as Record<string, unknown> | undefined;
+  const d = b?.data;
+  const item = (Array.isArray(d) ? d[0] : d) as Record<string, unknown> | undefined;
+  for (const v of [item?.task_id, item?.id, b?.task_id, b?.id]) {
+    if (typeof v === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(v)) {
+      return v;
+    }
+  }
+  return undefined;
+}
+
+/** URL de la imagen dentro de una tarea terminada: `result.images[0].url` (cadena o lista). */
+function taskImageUrl(task: Record<string, unknown>): string | undefined {
+  const result = task.result as { images?: Array<{ url?: unknown }> } | undefined;
+  const url = result?.images?.[0]?.url;
+  const one = Array.isArray(url) ? url[0] : url;
+  return typeof one === "string" && /^https?:\/\//.test(one) ? one : undefined;
+}
+
+const POLL_EVERY_MS = 5_000;
+const POLL_TOTAL_MS = 5 * 60_000;
+
+/**
+ * Consulta `<base>/tasks/<id>` cada 5 s (tope 5 min) hasta que la tarea acaba y devuelve
+ * la URL de la imagen. `base` es el endpoint de generación sin `/images/generations`.
+ */
+async function pollTask(endpoint: string, key: string, taskId: string): Promise<string> {
+  const url = `${endpoint.replace(/\/images\/generations$/, "")}/tasks/${taskId}`;
+  const deadline = Date.now() + POLL_TOTAL_MS;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, POLL_EVERY_MS));
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      continue; // un fallo de red suelto no tumba la espera
+    }
+    if (!res.ok) {
+      throw new Error(`El servicio respondió ${res.status} al consultar la tarea ${taskId}.`);
+    }
+    const body = (await res.json().catch(() => undefined)) as Record<string, unknown> | undefined;
+    const task = (
+      body?.data && !Array.isArray(body.data) ? body.data : body
+    ) as Record<string, unknown> | undefined;
+    const status = String(task?.status ?? "").toLowerCase();
+    if (status === "failed" || status === "cancelled" || status === "error") {
+      const err = task?.error as { message?: unknown } | string | undefined;
+      const text = typeof err === "string" ? err : typeof err?.message === "string" ? err.message : "";
+      throw new Error(`La tarea ${taskId} terminó con «${status}»${text ? `: ${text}` : "."}`);
+    }
+    if (status === "success" || status === "completed" || status === "succeeded") {
+      const image = task ? taskImageUrl(task) : undefined;
+      if (image) {
+        return image;
+      }
+      throw new Error(`La tarea ${taskId} terminó sin imagen.`);
+    }
+  }
+  throw new Error(`La tarea ${taskId} no terminó en 5 minutos.`);
 }
