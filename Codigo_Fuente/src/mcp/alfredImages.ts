@@ -8,7 +8,7 @@ import { catalog, generate } from "../images/comfy";
 import { generateImage } from "../images/openai";
 import {
   checkImageShare,
-  pngSize,
+  imageSize,
   publishShot,
   publishWork,
   readImageShare,
@@ -129,7 +129,7 @@ async function generarImagen(args: Record<string, unknown>): Promise<string> {
 
     const file = await savePng(share.imagenesDir, bytes);
     await publishShot({ id: randomUUID(), prompt, negative, file, at: Date.now() });
-    const size = await pngSize(file);
+    const size = await imageSize(file);
     return `Imagen generada a ${size.width}×${size.height}: ${file}${note ? ` ${note}` : ""}`;
   } finally {
     await publishWork(false);

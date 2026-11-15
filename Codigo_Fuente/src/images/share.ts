@@ -172,33 +172,56 @@ export async function checkImageShare(share: ImageShare): Promise<{ ok: boolean;
 }
 
 /** Nombre de la imagen: marca de tiempo local y cuatro hex para no pisar otra del mismo segundo. */
-export function imageName(): string {
+export function imageName(ext = "png"): string {
   const now = new Date();
   const pad = (value: number): string => String(value).padStart(2, "0");
   const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(
     now.getHours()
   )}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  return `img-${stamp}-${randomBytes(2).toString("hex")}.png`;
+  return `img-${stamp}-${randomBytes(2).toString("hex")}.${ext}`;
 }
 
-/** Escribe el PNG con nombre único en la carpeta indicada (tmp + rename). */
+/** Extensión real de la imagen por su firma: PNG o JPEG; lo demás cae a `png` como siempre. */
+function imageExt(bytes: Buffer): "png" | "jpg" {
+  return bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff ? "jpg" : "png";
+}
+
+/** Escribe la imagen con nombre único y su extensión real en la carpeta indicada (tmp + rename). */
 export async function savePng(dir: string, bytes: Buffer): Promise<string> {
   await mkdir(dir, { recursive: true });
-  const file = join(dir, imageName());
+  const file = join(dir, imageName(imageExt(bytes)));
   await writeAtomic(file, bytes);
   return file;
 }
 
-/** Ancho y alto de un PNG desde su cabecera IHDR, sin leer la imagen entera. */
-export async function pngSize(file: string): Promise<{ width: number; height: number }> {
+/** Tope de lectura para hallar el marcador SOF de un JPEG (tras EXIF y miniaturas). */
+const JPEG_SCAN_BYTES = 512 * 1024;
+
+/** Ancho y alto de un PNG (IHDR) o un JPEG (marcador SOF), sin leer la imagen entera. */
+export async function imageSize(file: string): Promise<{ width: number; height: number }> {
   const handle = await open(file, "r");
   try {
-    const header = Buffer.alloc(24);
-    const { bytesRead } = await handle.read(header, 0, 24, 0);
-    if (bytesRead < 24) {
-      return { width: 0, height: 0 };
+    const buf = Buffer.alloc(JPEG_SCAN_BYTES);
+    const { bytesRead } = await handle.read(buf, 0, JPEG_SCAN_BYTES, 0);
+    if (bytesRead >= 24 && buf.readUInt32BE(0) === 0x89504e47) {
+      return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
     }
-    return { width: header.readUInt32BE(16), height: header.readUInt32BE(20) };
+    if (bytesRead > 3 && buf[0] === 0xff && buf[1] === 0xd8) {
+      let i = 2;
+      while (i + 9 < bytesRead) {
+        if (buf[i] !== 0xff) {
+          i++;
+          continue;
+        }
+        const marker = buf[i + 1];
+        // SOF0..SOF15 salvo DHT (C4), JPG (C8) y DAC (CC): llevan alto y ancho.
+        if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+          return { width: buf.readUInt16BE(i + 7), height: buf.readUInt16BE(i + 5) };
+        }
+        i += marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7) ? 2 : 2 + buf.readUInt16BE(i + 2);
+      }
+    }
+    return { width: 0, height: 0 };
   } finally {
     await handle.close();
   }

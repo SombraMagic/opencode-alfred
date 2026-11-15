@@ -18,7 +18,7 @@ import { generateImage, OPENAI_MODELS } from "../images/openai";
 import {
   checkImageShare,
   clearImageShare,
-  pngSize,
+  imageSize,
   readImageShare,
   readShot,
   savePng,
@@ -919,7 +919,7 @@ export class ImageGenPanel {
     const source = await this.insideImages(file);
     const target = await vscode.window.showSaveDialog({
       defaultUri: vscode.Uri.file(source),
-      filters: { "Imagen PNG": ["png"] },
+      filters: /\.jpe?g$/i.test(source) ? { "Imagen JPEG": ["jpg"] } : { "Imagen PNG": ["png"] },
       saveLabel: "Guardar",
     });
     if (!target) {
@@ -1004,7 +1004,7 @@ export class ImageGenPanel {
   /** Nombres de los PNG de la carpeta de imágenes. */
   private async pngNames(): Promise<string[]> {
     try {
-      return (await readdir(this.dir())).filter((name) => name.toLowerCase().endsWith(".png"));
+      return (await readdir(this.dir())).filter((name) => /\.(png|jpe?g)$/i.test(name));
     } catch {
       return [];
     }
@@ -1029,8 +1029,8 @@ export class ImageGenPanel {
     if (inside === "" || isAbsolute(inside) || inside.split(sep).includes("..")) {
       throw new Error("Esa imagen no está en la carpeta de imágenes.");
     }
-    if (!target.toLowerCase().endsWith(".png")) {
-      throw new Error("Solo se pueden copiar, guardar o borrar imágenes PNG.");
+    if (!/\.(png|jpe?g)$/i.test(target)) {
+      throw new Error("Solo se pueden copiar, guardar o borrar imágenes PNG o JPEG.");
     }
     return target;
   }
@@ -1061,7 +1061,7 @@ export class ImageGenPanel {
     const history: Array<{ file: string; width: number; height: number }> = [];
     for (const entry of recent) {
       try {
-        const size = await pngSize(entry.file);
+        const size = await imageSize(entry.file);
         history.push({ file: entry.file, width: size.width, height: size.height });
       } catch {
         // Igual que arriba: si desaparece entre el `stat` y la cabecera, no entra.
