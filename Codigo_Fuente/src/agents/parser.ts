@@ -23,11 +23,36 @@ export function parseAgentFile(text: string): ParsedAgent {
       throw new Error("El frontmatter debe ser un mapa YAML.");
     }
   } catch (err) {
-    throw new Error(
-      `Frontmatter YAML inválido: ${err instanceof Error ? err.message : String(err)}`
-    );
+    // Claude Code admite `description: Texto con: dos puntos` sin comillas; js-yaml no.
+    // Si cada línea es `clave: valor` plano, se lee así y el fichero no desaparece de las listas.
+    const loose = parseLooseFrontmatter(match[1]);
+    if (!loose) {
+      throw new Error(
+        `Frontmatter YAML inválido: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+    frontmatter = loose;
   }
   return { frontmatter, prompt: body.replace(/^\r?\n/, "") };
+}
+
+/** Solo escalares `clave: valor` por línea; cualquier otra forma devuelve undefined. */
+function parseLooseFrontmatter(text: string): AgentFrontmatter | undefined {
+  const out: Record<string, unknown> = {};
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+    const m = /^([A-Za-z_][\w-]*):(?:\s+(.*))?$/.exec(line);
+    if (!m) {
+      return undefined;
+    }
+    const value = (m[2] ?? "").trim();
+    out[m[1]] =
+      value === "true" ? true : value === "false" ? false : value.replace(/^(["'])(.*)\1$/, "$2");
+  }
+  return out as AgentFrontmatter;
 }
 
 function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
