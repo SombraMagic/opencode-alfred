@@ -1,12 +1,12 @@
 # Estado del proyecto
 
-Última revisión: 16 de noviembre de 2026 · versión **0.9.9**
+Última revisión: 16 de noviembre de 2026 · versión **0.9.10**
 
-La **0.9.9** (2026-11-16) está empaquetada en `Instalable/opencode-alfred-0.9.9.vsix` (el único
-`.vsix` de la carpeta). Incluye el ecualizador Matrix, la pestaña TIEMPO del radar, el tema
-Centinela y el generador de imágenes con APIMart asíncrono. Pendiente: commit y tag `v0.9.9` (los
-hace `git-repo` tras la confirmación de la persona). La 0.9.8 (2026-11-10, tag `v0.9.8`) queda como
-estaba.
+La **0.9.10** (2026-11-16) es la actual y está empaquetada en `Instalable/opencode-alfred-0.9.10.vsix`
+(el único `.vsix` de la carpeta). Corrige el frontmatter laxo de la 0.9.9: solo se acepta `clave: valor`
+plano sin sangrar y los valores se tipan como YAML. Commit y tag `v0.9.10`: los hace la persona. La
+**0.9.9** (2026-11-16, tag `v0.9.9`) queda como release publicada e histórica, con el ecualizador Matrix,
+la pestaña TIEMPO del radar, el tema Centinela y el generador de imágenes con APIMart asíncrono.
 
 ## Resumen
 

@@ -44,15 +44,27 @@ function parseLooseFrontmatter(text: string): AgentFrontmatter | undefined {
     if (!line || line.startsWith("#")) {
       continue;
     }
+    if (/^\s/.test(raw)) {
+      return undefined;
+    }
     const m = /^([A-Za-z_][\w-]*):(?:\s+(.*))?$/.exec(line);
     if (!m) {
       return undefined;
     }
     const value = (m[2] ?? "").trim();
-    out[m[1]] =
-      value === "true" ? true : value === "false" ? false : value.replace(/^(["'])(.*)\1$/, "$2");
+    out[m[1]] = looseScalar(value);
   }
   return out as AgentFrontmatter;
+}
+
+/** Tipa el escalar como YAML (`5`, `true`, vacío = null); si no es YAML válido, queda el texto. */
+function looseScalar(value: string): unknown {
+  try {
+    const v = yaml.load(value);
+    return v !== null && typeof v === "object" ? value : v;
+  } catch {
+    return value;
+  }
 }
 
 function stripUndefined<T extends Record<string, unknown>>(obj: T): T {

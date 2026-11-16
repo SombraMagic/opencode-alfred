@@ -6,6 +6,12 @@ Una entrada por versión publicada. El `.vsix` de cada versión está en
 Las versiones 0.8.3 a 0.8.7 y 0.8.9 a 0.8.11 solo subieron el número para reinstalar el `.vsix`
 con VS Code abierto: no son releases y lo que trajeron está reunido en la 0.8.8 y la 0.8.12.
 
+## [0.9.10] - 2026-11-16
+
+- **Frontmatter laxo corregido**: solo se acepta `clave: valor` plano sin sangrar. Un bloque anidado en un
+  fichero así sigue siendo error y ya no se aplana en una cadena. Los valores se tipan como YAML (`5`,
+  `true`), no como texto.
+
 ## [0.9.9] - 2026-11-16
 
 - **Ecualizador Matrix**: el de la voz pasa de barras a una lluvia verde sobre canvas, con su color
@@ -22,7 +28,7 @@ con VS Code abierto: no son releases y lo que trajeron está reunido en la 0.8.8
   cada 5 s y con tope de 5 min). Probado contra un servidor simulado, no contra APIMart real.
 - **Imágenes JPEG**: se guardan con su extensión real y el tamaño se lee de PNG y de JPEG.
 - **Frontmatter laxo**: un valor con dos puntos sin comillas (`description: Algo: otra cosa`) se lee
-  igual que lo lee Claude Code, en vez de dar el fichero por roto.
+  en ficheros de claves planas de una línea (corregido en la 0.9.10), en vez de dar el fichero por roto.
 - **Límites de Claude**: la etiqueta de la ventana semanal sale por modelo.
 
 ## [0.9.8] - 2026-11-10
