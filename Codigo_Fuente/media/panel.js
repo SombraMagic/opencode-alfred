@@ -347,10 +347,16 @@
     }
 
     paintStatus();
-    // La lluvia Matrix pulsa suave mientras haya agentes trabajando.
+    // La lluvia Matrix pulsa suave mientras haya agentes trabajando y deja caer
+    // gotas del color de cada agente. Un color repetido cuenta como uno.
     window.alfredActivity = {
       count: agents.length,
       streaming: agents.some((a) => a.streaming),
+      // Solo agentes reales: las actividades del sistema (con `icon`) pulsan la lluvia
+      // pero no emiten gotas de color.
+      colors: [
+        ...new Set(agents.filter((a) => !a.icon).map((a) => (a.color || accent).toLowerCase())),
+      ],
     };
     window.VOZMatrix?.activity(window.alfredActivity);
     ensureLoop();

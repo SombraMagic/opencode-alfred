@@ -81,6 +81,8 @@ import { PromptStatsPanel } from "./panels/promptStatsPanel";
 import { ContextViewProvider } from "./panels/contextPanel";
 import { ControlPanel } from "./panels/controlPanel";
 import type { ControlData } from "./panels/controlPanel";
+import { SessionsPanel } from "./panels/sessionsPanel";
+import type { SessionGroup } from "./panels/sessionsPanel";
 import { DatabasesPanel } from "./panels/databasesPanel";
 import { RadarPanel } from "./panels/radarPanel";
 import { RadarService } from "./radar/service";
@@ -144,6 +146,7 @@ import {
   setClaudeAutoAccept,
   setClaudeItem,
   setClaudeMainModel,
+  claudeSessionGroups,
 } from "./providers/claude";
 import {
   codexConfigFile,
@@ -394,10 +397,16 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   /**
-   * Abre (o enfoca) la terminal de un agente. Una por agente, pestaña del grupo activo:
+   * Abre (o enfoca) la terminal de un agente. Una por agente; por defecto en el grupo activo:
    * se cambia con la pestaña de arriba, sin abrir un grupo al lado.
    */
-  function openTerminal(key: string, name: string, cwd: string | undefined, command: string): void {
+  function openTerminal(
+    key: string,
+    name: string,
+    cwd: string | undefined,
+    command: string,
+    viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active
+  ): void {
     let known: vscode.Terminal | undefined = sessionTerminals.get(key);
     try {
       if (known && known.exitStatus === undefined) {
@@ -420,7 +429,7 @@ export function activate(context: vscode.ExtensionContext): void {
       live.show();
       return;
     }
-    const location = { viewColumn: vscode.ViewColumn.Active };
+    const location = { viewColumn };
     const terminal = vscode.window.createTerminal(
       cwd ? { name, cwd, location } : { name, location }
     );
@@ -1055,6 +1064,78 @@ export function activate(context: vscode.ExtensionContext): void {
       "opencode: no hay ninguna sesión abierta en la TUI de esta carpeta; en la pantalla inicial no hay sesión que activar."
     );
     return undefined;
+  }
+
+  /**
+   * Árbol de proyectos y sesiones de opencode para la pestaña SESIONES: sesiones raíz
+   * agrupadas por su carpeta, con las pestañas de la TUI marcadas como activas.
+   */
+  async function sessionGroups(): Promise<{ groups: SessionGroup[]; error?: string }> {
+    const snapshot = lastRaw ?? (await statsService.collect());
+    if (!snapshot.ok) {
+      return { groups: [], error: "No se pudieron leer las sesiones de opencode." };
+    }
+    const porCarpeta = new Map<string, SessionInfo[]>();
+    for (const session of snapshot.sessions) {
+      // Los subagentes cuelgan de su padre y no son un destino; sin carpeta no hay proyecto.
+      if (session.parentId || !session.directory) {
+        continue;
+      }
+      const lista = porCarpeta.get(session.directory);
+      if (lista) {
+        lista.push(session);
+      } else {
+        porCarpeta.set(session.directory, [session]);
+      }
+    }
+    const grupos: Array<{ group: SessionGroup; latest: number }> = [];
+    for (const [dir, sesiones] of porCarpeta) {
+      const activas = new Set(readTuiTabs(dir).ids);
+      const ordenadas = [...sesiones].sort((a, b) => {
+        const activaA = activas.has(a.id) ? 1 : 0;
+        const activaB = activas.has(b.id) ? 1 : 0;
+        return activaA !== activaB ? activaB - activaA : b.updated - a.updated;
+      });
+      grupos.push({
+        // El proyecto se ordena por su sesión más reciente, no por la primera fila (las
+        // activas van delante dentro del grupo).
+        latest: sesiones.reduce((max, s) => Math.max(max, s.updated), 0),
+        group: {
+          dir,
+          name: path.basename(dir) || dir,
+          sessions: ordenadas.slice(0, 15).map((s) => ({
+            id: s.id,
+            title: s.title || s.id,
+            active: activas.has(s.id),
+            updated: s.updated,
+          })),
+        },
+      });
+    }
+    grupos.sort((a, b) => b.latest - a.latest);
+    return { groups: grupos.slice(0, 50).map((g) => g.group) };
+  }
+
+  /**
+   * Retoma una sesión de opencode en su carpeta, en la columna de la izquierda: el árbol vive
+   * a la derecha y la terminal no debe abrirse dentro del grupo del panel.
+   */
+  function openOpencodeSession(id: string, directory: string, title: string): void {
+    const corto = title.trim().slice(0, 40) || id;
+    // El prefijo del nombre impide que `runningTerminal("opencode")` adopte esta terminal.
+    openTerminal(
+      "ses:" + id,
+      "opencode · " + corto,
+      directory,
+      "opencode -s " + id,
+      vscode.ViewColumn.One
+    );
+  }
+
+  /** Retoma una sesión de Claude en su carpeta, a la izquierda del árbol de sesiones. */
+  function openClaudeSession(id: string, directory: string, title: string): void {
+    const corto = title.trim().slice(0, 40) || id;
+    openTerminal("ses:" + id, "claude · " + corto, directory, "claude --resume " + id, vscode.ViewColumn.One);
   }
 
   /**
@@ -3493,40 +3574,33 @@ export function activate(context: vscode.ExtensionContext): void {
       case "openLastSession": {
         await closeStarterTabs();
         await pruneEmptyGroups();
-        const root = projectRoot();
-        // Si la terminal de ese agente ya vive, es en la que el usuario trabaja: se enfoca.
-        // Claude renombra la suya con el título de la sesión, así que se buscan ambos.
-        const live = sessionAgent === "claude" ? claudeLiveSessions(root) : [];
-        const terminal = sessionAgent === "claude" ? claudeTerminal(live) : runningTerminal(sessionAgent);
-        if (terminal) {
-          terminal.show();
+        // Con la terminal del agente ya abierta, el botón solo la trae al frente.
+        const live =
+          sessionAgent === "claude"
+            ? claudeTerminal(claudeLiveSessions(projectRoot()))
+            : runningTerminal(sessionAgent);
+        if (live) {
+          live.show();
           return;
         }
-        if (sessionAgent === "opencode") {
-          const snapshot = lastRaw ?? (await statsService.collect());
-          const last = pickSession(snapshot);
-          // Sin sesión que case, `-c` retoma la última del propio opencode en vez de crear una nueva.
-          if (last) {
-            openTerminal("opencode", "opencode", last.directory, `opencode -s ${last.id}`);
-          } else {
-            openTerminal("opencode", "opencode", root, "opencode -c");
-          }
-          return;
+        // Sesión nueva, no la última: el CLI a secas, en el grupo activo. No pasa por
+        // `openTerminal`: esa adopta una terminal viva y no lanzaría el comando.
+        const terminal = vscode.window.createTerminal({
+          name: sessionAgent,
+          cwd: projectRoot() || undefined,
+          location: { viewColumn: vscode.ViewColumn.Active },
+        });
+        terminal.show();
+        terminal.sendText(sessionAgent);
+        // El árbol de sesiones, a la derecha de la terminal recién abierta.
+        if (sessionAgent === "opencode" || sessionAgent === "claude") {
+          // El panel es singleton: el agente se mira al llamar, no al abrir.
+          SessionsPanel.open(context, {
+            load: (id, dir, title) =>
+              sessionAgent === "claude" ? openClaudeSession(id, dir, title) : openOpencodeSession(id, dir, title),
+            request: () => (sessionAgent === "claude" ? Promise.resolve(claudeSessionGroups()) : sessionGroups()),
+          });
         }
-        if (sessionAgent === "claude") {
-          // `--continue` abre la conversación más reciente del directorio; solo el id de la
-          // sesión viva garantiza abrir exactamente la que el usuario tiene delante.
-          const id = live[0]?.sessionId;
-          openTerminal("claude", "claude", root, id ? `claude --resume ${id}` : "claude --continue");
-          return;
-        }
-        const codexId = codexContext(root).sessionId;
-        openTerminal(
-          "codex",
-          "codex",
-          root,
-          codexId ? `codex resume ${codexId}` : "codex resume --last"
-        );
         return;
       }
 
@@ -3741,6 +3815,7 @@ export function activate(context: vscode.ExtensionContext): void {
       ProjectExplorerPanel.current,
       PromptStatsPanel.current,
       RadarPanel.current,
+      SessionsPanel.current,
       StatsPanel.current,
       VoiceSettingsPanel.current,
     ]) {

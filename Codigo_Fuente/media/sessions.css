@@ -1,0 +1,185 @@
+/* ALFRED // SESIONES — pestaña central con los proyectos de opencode o Claude y sus sesiones.
+   Solo tokens de tema: los colores los decide themes/*.css. La cabecera no se mueve;
+   la lista hace su propio scroll. */
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  /* Sin desbordamiento: el scroll lo lleva la lista, no la página. */
+  overflow: hidden;
+  padding: 0 10px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Columna a todo el alto: cabecera y ayuda con su alto, lista con el resto. */
+.ss {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Cabecera ─────────────────────────────────────────── */
+.hud-header {
+  flex: 0 0 auto;
+  margin-bottom: 4px;
+  padding: 9px 0 7px;
+}
+
+.hud-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Botón de refrescar: cuadrado, para que no compita con el rótulo. */
+.ss-refresh {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  color: var(--text-soft);
+}
+
+.ss-refresh:hover,
+.ss-refresh:focus-visible {
+  color: var(--neon);
+}
+
+/* ── Línea de ayuda ───────────────────────────────────── */
+.ss-help {
+  flex: 0 0 auto;
+  margin: 0 0 6px;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+/* ── Lista: lo único que se desplaza ─────────────────── */
+.ss-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 12px;
+}
+
+/* Proyecto: chevrón, nombre y número de sesiones, en una fila compacta. */
+.ss-group + .ss-group {
+  margin-top: 4px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.ss-group-row,
+.ss-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  font-family: inherit;
+  font-size: 10px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.ss-group-row {
+  min-height: 28px;
+  color: var(--text);
+}
+
+.ss-group-row:hover,
+.ss-group-row:focus-visible {
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+  border-color: var(--line-soft);
+  outline: none;
+}
+
+.ss-arrow {
+  flex: none;
+  width: 10px;
+  font-size: 10px;
+  color: var(--text-soft);
+  text-align: center;
+}
+
+.ss-group-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-count {
+  flex: none;
+  font-size: 9px;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sesión guardada: sangrada bajo su proyecto. La abierta en la TUI va en el acento. */
+.ss-item {
+  min-height: 26px;
+  padding-left: 22px;
+  color: var(--text-soft);
+}
+
+.ss-item:hover,
+.ss-item:focus-visible {
+  color: var(--text);
+  background: color-mix(in srgb, var(--neon) 8%, transparent);
+  border-color: var(--line-soft);
+  outline: none;
+}
+
+.ss-item.active,
+.ss-item.active:hover,
+.ss-item.active:focus-visible {
+  color: var(--neon);
+}
+
+.ss-item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--neon);
+  box-shadow: 0 0 6px var(--neon-dim);
+}
+
+/* Error del host o lista vacía: una línea, sin adornos. */
+.ss-note {
+  margin: 0;
+  padding: 6px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.ss-note.error {
+  color: var(--danger);
+}

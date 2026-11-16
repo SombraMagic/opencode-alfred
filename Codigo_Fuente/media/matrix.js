@@ -3,7 +3,10 @@
  * con un resplandor desde abajo y un haz central. Canvas 2D, sin librerías.
  * La voz (`envelope`) sube densidad, velocidad, brillo y altura del resplandor; en reposo
  * llovizna lenta y tenue; con agentes trabajando (`activity`) hay un pulso suave.
- * Los colores salen de los tokens --matrix y --bg del tema, cacheados por data-theme.
+ * Encima de esa lluvia cae una capa de gotas del color de cada agente: un emisor por
+ * color distinto (dos agentes del mismo color cuentan como uno), con estela corta y
+ * velocidad propia. Sin colores no se emiten gotas y las que van cayendo se apagan solas.
+ * Los colores base salen de los tokens --matrix y --bg del tema, cacheados por data-theme.
  */
 (function () {
   const canvas = document.getElementById("matrix");
@@ -13,6 +16,7 @@
   const CW = 7; // Ancho de columna en px CSS.
   const MAX_COLS = 48;
   const FRAME_MS = 33; // ~30 fps.
+  const DROP_MAX = 120; // Tope duro de gotas vivas: la capa de color no puede encarecerse.
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 
   // ── Color por tema ──────────────────────────────────────
@@ -43,6 +47,13 @@
 
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
+  /** Hex #rrggbb a triplete RGB; cualquier otra cosa devuelve null. */
+  function parseHex(raw) {
+    const h = String(raw || "").trim().replace("#", "");
+    if (!/^[0-9a-f]{6}$/i.test(h)) return null;
+    return rgb(h, h);
+  }
+
   // ── Estado ──────────────────────────────────────────────
   let cols = [];
   let W = 0;
@@ -58,6 +69,11 @@
   let actCount = 0;
   let actStreaming = false;
 
+  // Capa de color por agente: un emisor por color distinto y sus gotas vivas.
+  let emitters = [];
+  let drops = [];
+  let dropSig = "";
+
   let lvl = 0; // Nivel suavizado de voz, 0..1.
   let raf = 0;
   let last = 0;
@@ -69,6 +85,42 @@
     c.gate = Math.random(); // Umbral de densidad: la columna llueve si la densidad lo supera.
     c.wait = 0;
     c.big = Math.random() < 0.3;
+  }
+
+  /** Colores vivos de los agentes: un emisor por hex distinto. Devuelve si cambiaron. */
+  function setColors(list) {
+    const want = [];
+    const seen = new Set();
+    for (const raw of Array.isArray(list) ? list : []) {
+      const hex = String(raw || "").trim().toLowerCase();
+      const c = parseHex(hex);
+      if (!c || seen.has(hex)) continue; // Mismo color dos veces cuenta como uno.
+      seen.add(hex);
+      want.push({ hex, c });
+    }
+    const sig = want.map((w) => w.hex).join(",");
+    if (sig === dropSig) return false;
+    dropSig = sig;
+    // Los colores que siguen conservan su emisor (y su ritmo); los nuevos entran ya.
+    const prev = new Map(emitters.map((e) => [e.hex, e]));
+    emitters = want.map(
+      (w) => prev.get(w.hex) ?? { hex: w.hex, c: w.c, wait: Math.random() * 0.12 },
+    );
+    return true;
+  }
+
+  /** Gota nueva: x libre, tamaño 2-4 px, estela corta y velocidad propia. */
+  function newDrop(c) {
+    const s = 2 + Math.round(Math.random() * 2);
+    return {
+      c,
+      x: 4 + Math.random() * Math.max(0, W - 8),
+      y: -6 - Math.random() * 40,
+      len: 20 + Math.random() * 40,
+      vy: 0.22 + Math.random() * 0.45, // Alturas de lienzo por segundo.
+      s,
+      grad: null, // Se crea en el primer pintado, ya con el transform del lienzo.
+    };
   }
 
   function resize() {
@@ -127,6 +179,21 @@
         if (c.gate > density()) c.wait = 0.3 + Math.random() * 1.5;
       }
     }
+
+    // Capa de color: cada emisor suelta una gota cada 180-260 ms; con N colores el
+    // ritmo total escala con N. Al tope de gotas vivas se deja de emitir.
+    for (const e of emitters) {
+      e.wait -= dt;
+      if (e.wait > 0) continue;
+      e.wait = 0.18 + Math.random() * 0.08;
+      if (drops.length < DROP_MAX) drops.push(newDrop(e.c));
+    }
+    // Sin colores no hay emisores: las gotas que quedan terminan de caer y se descartan.
+    for (let i = drops.length - 1; i >= 0; i--) {
+      const d = drops[i];
+      d.y += d.vy * H * dt;
+      if (d.y - d.len > H) drops.splice(i, 1);
+    }
   }
 
   function draw(now) {
@@ -183,6 +250,25 @@
       const s = c.big ? 4 : 3;
       ctx.fillRect(x - s / 2, c.y - s / 2, s, s);
     });
+
+    // Gotas de color por agente, encima de la lluvia base: estela corta y cabeza cuadrada.
+    if (drops.length) {
+      const alpha = 0.55 + 0.45 * lvl;
+      for (const d of drops) {
+        if (!d.grad) {
+          d.grad = ctx.createLinearGradient(0, -d.len, 0, 0);
+          d.grad.addColorStop(0, rgba(d.c, 0));
+          d.grad.addColorStop(1, rgba(d.c, alpha));
+        }
+        ctx.save();
+        ctx.translate(d.x, d.y);
+        ctx.fillStyle = d.grad;
+        ctx.fillRect(-1, -d.len, 2, d.len);
+        ctx.fillStyle = rgba(d.c, 0.95);
+        ctx.fillRect(-d.s / 2, -d.s / 2, d.s, d.s);
+        ctx.restore();
+      }
+    }
   }
 
   function tick(now) {
@@ -219,11 +305,12 @@
       voiceOn = false;
       start();
     },
-    /** `{count, streaming}`; panel.js lo llama en cada sondeo. */
+    /** `{count, streaming, colors}`; panel.js lo llama en cada sondeo. */
     activity(act) {
       const count = act?.count ?? 0;
       const streaming = Boolean(act?.streaming);
-      if (count === actCount && streaming === actStreaming) return;
+      const colorsChanged = setColors(act?.colors);
+      if (count === actCount && streaming === actStreaming && !colorsChanged) return;
       actCount = count;
       actStreaming = streaming;
       start();

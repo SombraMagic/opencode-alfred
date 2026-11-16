@@ -20,6 +20,7 @@ import type { RegistryModel } from "../agents/config";
 import type { AgentFrontmatter } from "../agents/types";
 import type { ValidationIssue } from "../agents/validate";
 import type { ModelEntry } from "../panels/assignPanel";
+import type { SessionGroup } from "../panels/sessionsPanel";
 import type { ExplorerAgent, ExplorerCatalogItem } from "../panels/explorerPanel";
 import type { ContextWindowInfo } from "../stats/contextWindow";
 
@@ -1603,4 +1604,93 @@ export async function setClaudeAgentModel(file: string, model: string): Promise<
 /** Fija o borra ("") el `model` de settings.json: el de las sesiones nuevas. */
 export async function setClaudeMainModel(model: string): Promise<void> {
   await modifyJsonFile(settingsFile(), ["model"], model || undefined);
+}
+
+/**
+ * Proyectos y sesiones de Claude para el panel SESIONES, desde `history.jsonl`. Se descartan las
+ * sesiones sin transcript en disco: Claude borra las viejas y `--resume` fallaría.
+ */
+export function claudeSessionGroups(): { groups: SessionGroup[]; error?: string } {
+  let texto: string;
+  try {
+    texto = readFileSync(path.join(claudeHome(), "history.jsonl"), "utf8");
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "ENOENT"
+      ? { groups: [] }
+      : { groups: [], error: "No se pudo leer el historial de Claude." };
+  }
+  try {
+    type Ses = { id: string; updated: number; titulo?: string; primero?: string };
+    const proyectos = new Map<string, { dir: string; sesiones: Map<string, Ses> }>();
+    const lineas: Array<{ display: string; timestamp: number; project: string; sessionId: string }> = [];
+    for (const linea of texto.split(/\r?\n/)) {
+      try {
+        const o = asObject(JSON.parse(linea));
+        if (o && typeof o.project === "string" && typeof o.sessionId === "string" && o.project) {
+          lineas.push({
+            display: typeof o.display === "string" ? o.display : "",
+            timestamp: typeof o.timestamp === "number" ? o.timestamp : 0,
+            project: o.project,
+            sessionId: o.sessionId,
+          });
+        }
+      } catch {
+        continue; // Línea a medio escribir o ajena.
+      }
+    }
+    lineas.sort((a, b) => a.timestamp - b.timestamp);
+    for (const l of lineas) {
+      const norm = path.normalize(l.project);
+      const clave = process.platform === "win32" ? norm.toLowerCase() : norm;
+      let proyecto = proyectos.get(clave);
+      if (!proyecto) {
+        proyecto = { dir: l.project, sesiones: new Map() };
+        proyectos.set(clave, proyecto);
+      }
+      let ses = proyecto.sesiones.get(l.sessionId);
+      if (!ses) {
+        ses = { id: l.sessionId, updated: 0 };
+        proyecto.sesiones.set(l.sessionId, ses);
+      }
+      ses.updated = Math.max(ses.updated, l.timestamp);
+      ses.primero ??= l.display;
+      if (ses.titulo === undefined && !l.display.startsWith("/")) {
+        ses.titulo = l.display;
+      }
+    }
+    const grupos: Array<{ group: SessionGroup; latest: number }> = [];
+    for (const { dir, sesiones } of proyectos.values()) {
+      const carpeta = projectSessionsDir(dir);
+      if (!carpeta) {
+        continue;
+      }
+      const vivas = new Set(claudeLiveSessions(dir).map((s) => s.sessionId));
+      const validas = [...sesiones.values()].filter((s) => existsSync(path.join(carpeta, s.id + ".jsonl")));
+      if (!validas.length) {
+        continue;
+      }
+      validas.sort((a, b) => {
+        const activaA = vivas.has(a.id) ? 1 : 0;
+        const activaB = vivas.has(b.id) ? 1 : 0;
+        return activaA !== activaB ? activaB - activaA : b.updated - a.updated;
+      });
+      grupos.push({
+        latest: validas.reduce((max, s) => Math.max(max, s.updated), 0),
+        group: {
+          dir,
+          name: path.basename(dir) || dir,
+          sessions: validas.slice(0, 15).map((s) => ({
+            id: s.id,
+            title: (s.titulo ?? s.primero ?? "").split(/\r?\n/)[0].trim().slice(0, 80) || s.id,
+            active: vivas.has(s.id),
+            updated: s.updated,
+          })),
+        },
+      });
+    }
+    grupos.sort((a, b) => b.latest - a.latest);
+    return { groups: grupos.slice(0, 50).map((g) => g.group) };
+  } catch {
+    return { groups: [], error: "No se pudieron leer las sesiones de Claude." };
+  }
 }
