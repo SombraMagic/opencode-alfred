@@ -115,7 +115,7 @@ tarjeta de cada proveedor recuerda si estaba plegada.
 
 ### Voz (barra lateral derecha) y Dictado (panel inferior)
 
-- Voz: ecualizador de barras pixeladas y cuatro motores (SAPI de Windows, Edge, OpenAI, ElevenLabs).
+- Voz: ecualizador Matrix (lluvia verde que sigue la voz) y cuatro motores (SAPI de Windows, Edge, OpenAI, ElevenLabs).
   `Ctrl+Alt+V` lee la selección. El ecualizador también reacciona a lo que diga el MCP; el
   servidor MCP `mcp_alfred` (voz, pizarra e imágenes) viaja dentro del paquete en
   `dist/alfred-mcp.js` y se da de alta solo en los agentes que haya (opencode, Claude Code,

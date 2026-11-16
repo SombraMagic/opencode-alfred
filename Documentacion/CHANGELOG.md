@@ -6,6 +6,25 @@ Una entrada por versión publicada. El `.vsix` de cada versión está en
 Las versiones 0.8.3 a 0.8.7 y 0.8.9 a 0.8.11 solo subieron el número para reinstalar el `.vsix`
 con VS Code abierto: no son releases y lo que trajeron está reunido en la 0.8.8 y la 0.8.12.
 
+## [0.9.9] - 2026-11-16
+
+- **Ecualizador Matrix**: el de la voz pasa de barras a una lluvia verde sobre canvas, con su color
+  propio en cada tema. Sigue la voz (envolvente de lo que dice Alfred) y se pausa con la ventana oculta
+  y no pulsa con movimiento reducido.
+- **Radar: pestaña TIEMPO**: mapa con previsión (Open-Meteo), radar de lluvia (RainViewer) y capas de
+  lluvia, viento, temperatura y nubosidad. No pide claves; el lugar se recuerda entre sesiones.
+- **Tema Centinela**: cuarto estilo visual, cobalto con rojo de señal, con adornos propios.
+- **Claude: colores de subagentes**: el Explorador pinta el color que cada subagente tiene en su
+  fichero.
+- **Claude: desglose del contexto**: la vista separa Sistema, Mensajes, Herramientas y Libre. Es una
+  estimación (caracteres entre cuatro), no el recuento exacto del modelo.
+- **Generador de imágenes con APIMart**: usa el endpoint completo y las tareas asíncronas (envía, sondea
+  cada 5 s y con tope de 5 min). Probado contra un servidor simulado, no contra APIMart real.
+- **Imágenes JPEG**: se guardan con su extensión real y el tamaño se lee de PNG y de JPEG.
+- **Frontmatter laxo**: un valor con dos puntos sin comillas (`description: Algo: otra cosa`) se lee
+  igual que lo lee Claude Code, en vez de dar el fichero por roto.
+- **Límites de Claude**: la etiqueta de la ventana semanal sale por modelo.
+
 ## [0.9.8] - 2026-11-10
 
 - **Radar: archivo de feeds**: ya no guarda noticias publicadas hace más de 3 días. Los feeds

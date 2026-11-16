@@ -1,11 +1,12 @@
 # Estado del proyecto
 
-Última revisión: 10 de noviembre de 2026 · versión **0.9.8**
+Última revisión: 16 de noviembre de 2026 · versión **0.9.9**
 
-La **0.9.8** (2026-11-10) está empaquetada en `Instalable/opencode-alfred-0.9.8.vsix` (el único
-`.vsix` de la carpeta) e instalada en el VS Code de este equipo. Incluye el radar de noticias, los
-chips de filtro del Explorador del proyecto (CAMBIOS, CONFLICTO, APARTE) y el arreglo de fechas
-del Radar. Tag `v0.9.8`.
+La **0.9.9** (2026-11-16) está empaquetada en `Instalable/opencode-alfred-0.9.9.vsix` (el único
+`.vsix` de la carpeta). Incluye el ecualizador Matrix, la pestaña TIEMPO del radar, el tema
+Centinela y el generador de imágenes con APIMart asíncrono. Pendiente: commit y tag `v0.9.9` (los
+hace `git-repo` tras la confirmación de la persona). La 0.9.8 (2026-11-10, tag `v0.9.8`) queda como
+estaba.
 
 ## Resumen
 
@@ -59,7 +60,7 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
   consola (porcentajes con su reposición) y solo estima con las bases si esa ruta no existe. Con
   Claude de agente de sesión la vista enseña solo su tarjeta del plan (ventanas de 5 h y semana),
   leída con el token OAuth de Claude Code en estricta solo lectura.
-- **Voz** (SAPI, Edge, OpenAI, ElevenLabs) con ecualizador de barras pixeladas, y **dictado**
+- **Voz** (SAPI, Edge, OpenAI, ElevenLabs) con ecualizador Matrix, y **dictado**
   (SAPI, Whisper local, nube) con bloc de notas y adjuntos. Su servidor MCP `mcp_alfred`
   viaja dentro de la extensión (`dist/alfred-mcp.js`), no como paquete externo: cubre la voz
   (`speak`, `list_voices`) y la pizarra (diez herramientas sobre `pizarra.json`, tres de ellas
