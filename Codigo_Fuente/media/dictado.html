@@ -8,7 +8,13 @@
 <body>
   <div class="dict">
     <section class="col note">
-      <div class="col-title">BLOC DE NOTAS</div>
+      <div class="col-title cmd-bar">
+        <span class="cmd-title">BLOC DE NOTAS</span>
+        <div id="cmds" class="cmds"></div>
+        <button class="ghost-btn cmd-ctl" id="cmd-add" type="button" title="Añadir un botón de comando" aria-label="Añadir un botón de comando">+</button>
+        <button class="ghost-btn cmd-ctl" id="cmd-del" type="button" title="Quitar el botón encendido (sin ninguno, el último)" aria-label="Quitar un botón de comando">−</button>
+        <button class="ghost-btn cmd-ctl" id="cmd-ia" type="button" title="Pedir al agente que configure los botones con las herramientas instaladas" aria-label="Configurar los botones con IA">IA</button>
+      </div>
       <div id="nota" contenteditable="true" role="textbox" aria-label="Bloc de notas" aria-multiline="true" spellcheck="false" data-placeholder="Pulsa y mantén el micrófono, o escribe aquí…"></div>
       <div class="note-foot">
         <span id="count">0 palabras · 0 caracteres</span>

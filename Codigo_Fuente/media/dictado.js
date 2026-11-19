@@ -601,12 +601,33 @@
   $("send").addEventListener("click", () => post({ type: "sendPrompt", text: promptText() }));
   $("copiar").addEventListener("click", () => post({ type: "copyPrompt", text: promptText() }));
 
+  // ── Botonera de comandos ────────────────────────────────
+  const cmdsEl = $("cmds");
+  function pintaComandos(botones, activo) {
+    cmdsEl.textContent = "";
+    (botones || []).forEach((texto, i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ghost-btn" + (i === activo ? " on" : "");
+      b.textContent = texto;
+      b.title = texto;
+      b.setAttribute("aria-pressed", String(i === activo));
+      b.addEventListener("click", () => post({ type: "cmdToggle", index: i }));
+      b.addEventListener("dblclick", () => post({ type: "cmdEdit", index: i }));
+      cmdsEl.appendChild(b);
+    });
+  }
+  $("cmd-add").addEventListener("click", () => post({ type: "cmdAdd" }));
+  $("cmd-del").addEventListener("click", () => post({ type: "cmdRemove" }));
+  $("cmd-ia").addEventListener("click", () => post({ type: "cmdIA" }));
+
   // ── Mensajes de la extensión ────────────────────────────
   window.addEventListener("message", (event) => {
     const msg = event.data;
     switch (msg?.type) {
       case "init": {
         engine = msg.engine;
+        pintaComandos(msg.comandos?.botones, msg.comandos?.activo);
         // El bloc se recupera al reabrir el panel o VS Code. `pushInitial` se
         // repite al volver a ser visible: no pisar lo escrito desde el último guardado.
         attachmentsDir = String(msg.attachmentsDir ?? "");
@@ -617,6 +638,9 @@
         setState("idle", "Pulsar / Manos libres");
         break;
       }
+      case "comandos":
+        pintaComandos(msg.botones, msg.activo);
+        break;
       case "state": {
         clearReleaseWatchdog();
         const nextState = msg.state;

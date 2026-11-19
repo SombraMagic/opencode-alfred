@@ -45,6 +45,44 @@ body {
   margin-bottom: 2px;
 }
 
+/* Botonera de comandos junto al título del bloc: una fila, sin crecer de alto. */
+.cmd-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.cmd-title {
+  flex: none;
+}
+
+.cmds {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.cmd-bar .ghost-btn {
+  flex: none;
+  padding: 2px 7px;
+  letter-spacing: 0.6px;
+  text-transform: none;
+}
+
+.cmd-bar .cmd-ctl {
+  letter-spacing: 1px;
+}
+
+.cmd-bar .ghost-btn.on {
+  color: var(--green);
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+}
+
 /* Pistas y botones sueltos del dictado. `.field` y `select` vienen de panel.css. */
 .hint {
   font-size: 9px;

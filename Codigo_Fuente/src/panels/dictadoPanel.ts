@@ -11,7 +11,7 @@
  * se sigue grabando; el texto entra en el bloc sin esperar al final.
  */
 import * as vscode from "vscode";
-import { readFileSync } from "node:fs";
+import { readFileSync, unwatchFile, watchFile } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { setActivity } from "./activity";
@@ -31,6 +31,14 @@ import {
   voiceMs,
   type Recorder,
 } from "../voice/core/index.js";
+import {
+  comandosFile,
+  escribirComandos,
+  leerComandos,
+  limpiarComando,
+  MAX_BOTONES,
+  MAX_COMANDO,
+} from "../dictado/comandos";
 import { PauseDetector } from "../voice/pause.js";
 import { setMeasuredFloor } from "../voice/service.js";
 import { PizarraPanel } from "./pizarraPanel.js";
@@ -68,6 +76,8 @@ export class VozDictado {
   private chain: Promise<void> = Promise.resolve();
   /** Guarda las imágenes pegadas en orden; el envío espera a que terminen. */
   private attachChain: Promise<void> = Promise.resolve();
+  /** Serializa los cambios de la botonera de comandos. */
+  private cmdChain: Promise<void> = Promise.resolve();
 
   constructor(
     view: vscode.WebviewView,
@@ -91,6 +101,11 @@ export class VozDictado {
         if (view.visible) void this.pushInitial();
       }),
     );
+    // El MCP también escribe la botonera: se vigila el fichero compartido.
+    const file = comandosFile();
+    const vigila = () => this.pushComandos();
+    watchFile(file, { interval: 1000 }, vigila);
+    this.disposables.push(new vscode.Disposable(() => unwatchFile(file, vigila)));
     this.context.subscriptions.push(...this.disposables);
 
     view.webview.html = this.html(view.webview);
@@ -121,7 +136,95 @@ export class VozDictado {
       engine: this.settings().engine,
       note: this.context.globalState.get<string>(KEY_NOTE, ""),
       attachmentsDir: this.attachmentsDir(),
+      comandos: leerComandos(),
     });
+  }
+
+  private pushComandos() {
+    this.post({ type: "comandos", ...leerComandos() });
+  }
+
+  /** Aplica un cambio a la botonera, lo guarda y repinta. */
+  private async editarComandos(cambio: (c: { botones: string[]; activo: number | null }) => void) {
+    // En cadena: leer-mutar-escribir en paralelo pierde cambios y pisa el tmp de writeAtomic.
+    const work = async () => {
+      const c = leerComandos();
+      cambio(c);
+      await escribirComandos(c);
+      this.pushComandos();
+    };
+    this.cmdChain = this.cmdChain.then(work).catch((err) => this.fail(err));
+    await this.cmdChain;
+  }
+
+  private async cmdAdd() {
+    if (leerComandos().botones.length >= MAX_BOTONES) {
+      this.state("error", `Máximo ${MAX_BOTONES} botones de comando.`);
+      return;
+    }
+    const texto = await vscode.window.showInputBox({
+      title: "Nuevo botón de comando",
+      prompt: "Texto exacto del comando, tal como se escribe en el prompt (p. ej. /review).",
+      validateInput: (v) => (limpiarComando(v) ? undefined : `Escribe un comando de una línea (máx. ${MAX_COMANDO} caracteres).`),
+    });
+    const nuevo = limpiarComando(texto);
+    if (!nuevo) return;
+    await this.editarComandos((c) => {
+      if (c.botones.length < MAX_BOTONES) c.botones.push(nuevo);
+    });
+  }
+
+  /** Quita el botón encendido; sin ninguno, el último. */
+  private async cmdRemove() {
+    await this.editarComandos((c) => {
+      const i = c.activo ?? c.botones.length - 1;
+      if (i >= 0) c.botones.splice(i, 1);
+      c.activo = null;
+    });
+  }
+
+  /** Edita el texto de un botón; vacío lo borra. */
+  private async cmdEdit(index: number) {
+    const actual = leerComandos().botones[index];
+    if (actual === undefined) return;
+    const texto = await vscode.window.showInputBox({
+      title: "Editar botón de comando",
+      prompt: "Vacío borra el botón.",
+      value: actual,
+      validateInput: (v) => (!v.trim() || limpiarComando(v) ? undefined : `Una línea, máx. ${MAX_COMANDO} caracteres.`),
+    });
+    if (texto === undefined) return;
+    const nuevo = limpiarComando(texto);
+    await this.editarComandos((c) => {
+      if (c.botones[index] === undefined) return;
+      if (nuevo) c.botones[index] = nuevo;
+      else {
+        c.botones.splice(index, 1);
+        if (c.activo === index) c.activo = null;
+        else if (c.activo !== null && c.activo > index) c.activo--;
+      }
+    });
+  }
+
+  /** Pide al agente que configure los botones con el MCP; sin anteponer comando ni tocar el bloc. */
+  private async cmdIA() {
+    await this.deliver(
+      "Revisa las herramientas que tienes instaladas en este entorno (comandos slash, skills, MCP, CLIs). " +
+        "Elige los 5 comandos más interesantes para el trabajo actual en este proyecto y configúralos como botones " +
+        "del dictado con la herramienta `dictado_comandos_escribir` de mcp_alfred: cada botón es el texto exacto " +
+        "del comando tal como se escribe en el prompt (p. ej. `/review`). Puedes ver los actuales con " +
+        "`dictado_comandos_leer`. No hagas nada más.",
+    );
+  }
+
+  /** Texto del bloc con el comando encendido delante, si lo hay. */
+  private conComando(text: string) {
+    const { botones, activo } = leerComandos();
+    return activo === null ? text : `${botones[activo]} ${text}`;
+  }
+
+  private idx(v: unknown): number {
+    return Number.isInteger(v) ? (v as number) : -1;
   }
 
   private whisperDir() {
@@ -226,6 +329,25 @@ export class VozDictado {
         break;
       case "copyPrompt":
         await this.copyPrompt(String(msg.text ?? ""));
+        break;
+      case "cmdToggle": {
+        const i = this.idx(msg.index);
+        await this.editarComandos((c) => {
+          if (i >= 0 && i < c.botones.length) c.activo = c.activo === i ? null : i;
+        });
+        break;
+      }
+      case "cmdAdd":
+        await this.cmdAdd();
+        break;
+      case "cmdRemove":
+        await this.cmdRemove();
+        break;
+      case "cmdEdit":
+        await this.cmdEdit(this.idx(msg.index));
+        break;
+      case "cmdIA":
+        await this.cmdIA();
         break;
     }
   }
@@ -572,12 +694,16 @@ export class VozDictado {
     // pegadas estén escritas antes de mandarlo.
     await this.attachChain;
     // Los saltos de línea viajan reales; solo se normaliza CRLF/CR a \n.
-    const text = raw.replace(/\r\n?/g, "\n").trim();
-    if (!text) {
+    const nota = raw.replace(/\r\n?/g, "\n").trim();
+    if (!nota) {
       this.state("error", "El bloc está vacío.");
       return;
     }
+    await this.deliver(this.conComando(nota));
+  }
 
+  /** Entrega un texto ya preparado: terminal activa, sesión viva de opencode o portapapeles. */
+  private async deliver(text: string) {
     const terminal = vscode.window.activeTerminal;
     if (terminal) {
       terminal.show(true);
@@ -625,7 +751,7 @@ export class VozDictado {
       this.state("error", "El bloc está vacío.");
       return;
     }
-    await vscode.env.clipboard.writeText(text);
+    await vscode.env.clipboard.writeText(this.conComando(text));
     this.state("idle", "Copiado al portapapeles.");
   }
 
