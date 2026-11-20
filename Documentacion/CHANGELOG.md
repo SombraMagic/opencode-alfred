@@ -6,6 +6,36 @@ Una entrada por versión publicada. El `.vsix` de cada versión está en
 Las versiones 0.8.3 a 0.8.7 y 0.8.9 a 0.8.11 solo subieron el número para reinstalar el `.vsix`
 con VS Code abierto: no son releases y lo que trajeron está reunido en la 0.8.8 y la 0.8.12.
 
+## [0.9.11] - 2026-11-21
+
+- **Pestaña SESIONES**: al pulsar el botón de sesión, a la derecha de la terminal se abre un árbol con
+  los proyectos y sus sesiones, de opencode o de Claude Code. Las activas salen marcadas y pulsar una
+  reanuda esa sesión en su carpeta.
+- **Botonera de comandos del dictado**: botones junto al título del bloc, guardados en
+  `%APPDATA%\voz\dictado-comandos.json` y compartidos con el MCP. `mcp_alfred` pasa a la **1.5.0** con
+  `dictado_comandos_leer` y `dictado_comandos_escribir`. Un agente con el MCP ya lanzado no ve las
+  herramientas nuevas hasta relanzarlo.
+- **Agentes declarados en `opencode.json`**: se leen y aparecen en el Explorador con el chip `JSON`.
+  Proyectos con Claude Code los declaran así. Se pueden editar y asignar modelo sin tocar comentarios ni
+  claves vecinas; si la entrada apunta a un fichero con `{file:...}`, el prompt se guarda ahí.
+- **`skills.paths` relativas**: se resuelven contra la carpeta del fichero de configuración, como hace
+  opencode, y no contra la carpeta desde la que se lanzó el proceso.
+- **Barra derecha unificada, ALFRED // PULSO**: el ecualizador Matrix baja a un tercio de su alto. El
+  contexto pinta una cuadrícula con un color por slice y una leyenda plegable; los límites de consumo
+  también se pliegan y recuerdan su estado. Las tarjetas de agentes en vuelo van debajo.
+- **Contexto de Claude con ocho slices**: la leyenda separa sistema, memoria, agentes, skills y los
+  mensajes de usuario, asistente, herramientas y resultados. Sigue siendo una estimación.
+- **Generador de imágenes**: trece arreglos de una revisión, entre ellos errores de promesas sin
+  capturar, el portapapeles, la carpeta vigilada y la validación de números.
+- **Dictado a Claude Code en terminal externa** (solo Windows): ENVIAR y COMPACTAR escriben el texto en
+  la consola del proceso `claude` en vez de caer al portapapeles. Probado con conhost; Windows Terminal
+  no está verificado.
+- **Activar y desactivar MCP de Claude Code**: el interruptor de las filas de usuario y locales lanza
+  `/mcp enable|disable` en la terminal viva, que es quien lo guarda. Sin terminal, avisa en vez de
+  escribir `~/.claude.json` a mano.
+- **Controles del dictado rediseñados**: columna más estrecha, ENVIAR y el micrófono como iconos, vúmetro
+  vertical de LEDs que se adapta al alto y manos libres en píldora.
+
 ## [0.9.10] - 2026-11-16
 
 - **Frontmatter laxo corregido**: solo se acepta `clave: valor` plano sin sangrar. Un bloque anidado en un

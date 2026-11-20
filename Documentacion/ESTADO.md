@@ -1,10 +1,12 @@
 # Estado del proyecto
 
-Última revisión: 16 de noviembre de 2026 · versión **0.9.10**
+Última revisión: 21 de noviembre de 2026 · versión **0.9.11**
 
-La **0.9.10** (2026-11-16) es la actual y está empaquetada en `Instalable/opencode-alfred-0.9.10.vsix`
-(el único `.vsix` de la carpeta). Corrige el frontmatter laxo de la 0.9.9: solo se acepta `clave: valor`
-plano sin sangrar y los valores se tipan como YAML. Commit y tag `v0.9.10`: los hace la persona. La
+La **0.9.11** (2026-11-21) es la actual y está empaquetada en `Instalable/opencode-alfred-0.9.11.vsix`
+(el único `.vsix` de la carpeta). Trae la pestaña SESIONES, la botonera del dictado (MCP 1.5.0), los
+agentes de `opencode.json` y la barra derecha unificada. Commit y tag `v0.9.11`: los hace la persona.
+Sin probar en VS Code real el dictado a Claude por consola. La **0.9.10** (2026-11-16, tag `v0.9.10`)
+queda como release publicada e histórica: corrige el frontmatter laxo de la 0.9.9. La
 **0.9.9** (2026-11-16, tag `v0.9.9`) queda como release publicada e histórica, con el ecualizador Matrix,
 la pestaña TIEMPO del radar, el tema Centinela y el generador de imágenes con APIMart asíncrono.
 

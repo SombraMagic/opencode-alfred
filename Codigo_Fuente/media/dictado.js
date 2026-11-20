@@ -8,6 +8,7 @@
   const stateEl = $("state");
   const hintEl = $("state-hint");
   const levelBar = $("level-bar");
+  const controlsEl = $("controls");
   const nota = $("nota");
   const count = $("count");
 
@@ -29,8 +30,19 @@
 
   function setState(state, message) {
     stateEl.textContent = STATE_TEXT[state] ?? state.toUpperCase();
-    stateEl.className = "state" + (state === "idle" ? "" : " " + state);
     if (message) hintEl.textContent = message;
+    controlsEl.className = "col controls" + (state === "idle" ? "" : " " + state);
+    syncTitle();
+  }
+
+  /** El estado ya no se ve en texto: viaja en el title de la columna y del micro. */
+  let lastTitle = "";
+  function syncTitle() {
+    const t = `${stateEl.textContent} · ${hintEl.textContent}`;
+    if (t === lastTitle) return;
+    lastTitle = t;
+    controlsEl.title = t;
+    micBtn.title = `Mantén pulsado para dictar · ${t}`;
   }
 
   let releaseWatchdog = null;
@@ -700,10 +712,11 @@
         setHandsFree(Boolean(msg.on));
         break;
       case "level": {
-        levelBar.style.width = `${Math.min(100, Math.round((msg.value ?? 0) * 100))}%`;
+        levelBar.style.height = `${Math.min(100, Math.round((msg.value ?? 0) * 100))}%`;
         if (handsFree && typeof msg.voice === "boolean" && !noticeTimer) {
           hintEl.textContent = msg.voice ? "Voz detectada…" : "Escuchando…";
           hintEl.classList.toggle("voice", msg.voice);
+          syncTitle();
         }
         break;
       }

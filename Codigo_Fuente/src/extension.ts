@@ -125,11 +125,13 @@ import {
   saveBaselines,
 } from "./stats/baseline";
 import * as path from "path";
+import { injectPrompt } from "./dictado/consola";
 import { execFile } from "node:child_process";
 import { existsSync } from "fs";
 import * as fs from "fs/promises";
 import {
   type ClaudeExplorer,
+  type ClaudeLiveSession,
   claudeAgentFile,
   claudeAssignModels,
   claudeContext,
@@ -1133,13 +1135,88 @@ export function activate(context: vscode.ExtensionContext): void {
    * Manda un prompt a la sesión viva de la TUI por el servidor, sin teclear en ninguna
    * terminal: es el camino cuando opencode corre fuera de VS Code. Devuelve el título de la
    * sesión o undefined si no hay a qué enviarlo.
+   *
+   * Con Claude no hay servidor: se escribe en la consola de su proceso por PID
+   * (`injectPrompt`, solo Windows) y se envía con un Enter.
    */
   async function sendPromptToLiveSession(text: string): Promise<string | undefined> {
+    if (sessionAgent === "claude") return sendPromptToClaudeConsole(text);
     if (sessionAgent !== "opencode") return undefined;
     const session = await liveSession();
     if (!session) return undefined;
     await opencodeApi("POST", `/api/session/${encodeURIComponent(session.id)}/prompt`, { text });
     return session.title || session.id;
+  }
+
+  /**
+   * Prompt a una sesión viva de Claude por la consola de su proceso (sirve fuera de VS Code).
+   * undefined = no se ha enviado y el llamador cae al portapapeles.
+   * La relectura de `claudeLiveSessions` NO detecta un fichero huérfano con el PID reciclado
+   * (sigue existiendo): la protección real es la comprobación de `StartTime` en el script.
+   * `preferSessionId` (el `sessionId` medido por el panel de Contexto, que es el nombre del
+   * `.jsonl`) evita el QuickPick si coincide con una sesión viva.
+   */
+  async function sendPromptToClaudeConsole(
+    text: string,
+    preferSessionId?: string,
+    /** Solo el dictado copia el texto al portapapeles si no se envía; COMPACTAR no copia nada. */
+    porPortapapeles = true
+  ): Promise<string | undefined> {
+    if (process.platform !== "win32") return undefined;
+    const live = claudeLiveSessions(projectRoot());
+    if (live.length === 0) return undefined;
+    const resto = porPortapapeles ? " El prompt queda en el portapapeles." : " No se ha enviado nada.";
+    const etiqueta = (s: ClaudeLiveSession) => s.name || `sesión ${s.sessionId.slice(0, 8)}`;
+    let session = live[0];
+    const preferida = preferSessionId ? live.find((s) => s.sessionId === preferSessionId) : undefined;
+    if (preferida) {
+      session = preferida;
+    } else if (live.length > 1) {
+      const picked = await vscode.window.showQuickPick(
+        live.map((s) => ({
+          label: etiqueta(s),
+          description: `${s.sessionId.slice(0, 8)} · ${s.status ?? "—"}`,
+          session: s,
+        })),
+        { title: "SESIÓN", placeHolder: "¿En qué sesión de Claude?" }
+      );
+      if (!picked) return undefined;
+      session = picked.session;
+    }
+    // Se relee justo antes: el `sessions/<pid>.json` puede haber cambiado (diálogo abierto) o
+    // ser huérfano con el PID reciclado por otro programa, y el Enter lo ejecutaría.
+    const fresca = claudeLiveSessions(projectRoot()).find(
+      (s) => s.sessionId === session.sessionId && s.pid === session.pid
+    );
+    if (!fresca) {
+      void vscode.window.showWarningMessage(
+        "La sesión de Claude ya no está activa." + resto
+      );
+      return undefined;
+    }
+    // Solo con estados sin diálogo: con uno abierto (`waiting`, o cualquiera desconocido) el
+    // Enter final confirmaría la opción seleccionada.
+    if (fresca.status !== "idle" && fresca.status !== "busy") {
+      void vscode.window.showWarningMessage(
+        fresca.status === "waiting"
+          ? "Claude tiene un diálogo abierto: contéstalo en su terminal." + resto
+          : "No se puede confirmar que Claude esté libre para recibir texto." + resto
+      );
+      return undefined;
+    }
+    const res = await injectPrompt(
+      path.join(context.extensionPath, "resources", "inyectar-consola.ps1"),
+      fresca.pid,
+      fresca.startedAt,
+      text
+    );
+    if (!res.ok) {
+      void vscode.window.showWarningMessage(
+        `No se pudo enviar a Claude: ${res.error}` + resto
+      );
+      return undefined;
+    }
+    return etiqueta(session);
   }
 
   /** Sesiones con ejecución en marcha según `/api/session/active`; vacío si no responde. */
@@ -1163,6 +1240,19 @@ export function activate(context: vscode.ExtensionContext): void {
       // En Claude y Codex `/compact` es un comando del TUI y no hay API local: se escribe en su terminal.
       const label = sessionAgent === "claude" ? "Claude" : "Codex";
       const terminal = sessionAgent === "claude" ? claudeTerminal() : runningTerminal(sessionAgent);
+      if (!terminal && sessionAgent === "claude" && process.platform === "win32") {
+        // Claude fuera de VS Code: sin servidor, se escribe en la consola de su proceso. La
+        // función avisa sola si falla, así que aquí no se duplica el aviso. Verificado con
+        // Claude 2.1.310: el `/compact` de una línea, con su Enter, se ejecuta como comando
+        // (el menú de autocompletado no se come el Enter); no hacen falta variantes.
+        if (claudeLiveSessions(projectRoot()).length > 0) {
+          const enviado = await sendPromptToClaudeConsole("/compact", contextView.currentSessionId(), false);
+          if (enviado) {
+            void vscode.window.setStatusBarMessage("opencode: compactación pedida a Claude.", 4000);
+          }
+          return;
+        }
+      }
       if (!terminal) {
         void vscode.window.showWarningMessage(
           `No hay ninguna terminal de ${label} abierta que compactar.`
@@ -3288,10 +3378,24 @@ export function activate(context: vscode.ExtensionContext): void {
           // se escribe a mano (guarda la cuenta).
           const live = claudeLiveSessions(projectRoot());
           const terminal = claudeTerminal(live);
+          if (!/^[A-Za-z0-9._-]{1,100}$/.test(item.name)) {
+            vscode.window.showWarningMessage("El nombre de ese servidor MCP no se puede enviar a Claude.");
+            return true;
+          }
+          const orden = `/mcp ${item.enabled ? "disable" : "enable"} ${item.name}`;
           if (!terminal) {
-            void vscode.window.showWarningMessage(
-              "Abre una sesión de Claude de este proyecto para activar o desactivar sus MCP."
-            );
+            // Sin terminal de VS Code: consola de la sesión viva de fuera (solo Windows).
+            const enviado = await sendPromptToClaudeConsole(orden, contextView.currentSessionId(), false);
+            if (enviado) {
+              void vscode.window.setStatusBarMessage(
+                `Claude: ${item.enabled ? "desactivación" : "activación"} de "${item.name}" pedida a ${enviado}.`,
+                4000
+              );
+            } else if (process.platform !== "win32" || live.length === 0) {
+              void vscode.window.showWarningMessage(
+                "Abre una sesión de Claude de este proyecto para activar o desactivar sus MCP."
+              );
+            }
             return true;
           }
           const session =
@@ -3305,7 +3409,7 @@ export function activate(context: vscode.ExtensionContext): void {
             );
             return true;
           }
-          terminal.sendText(`/mcp ${item.enabled ? "disable" : "enable"} ${item.name}`);
+          terminal.sendText(orden);
           void vscode.window.setStatusBarMessage(
             `Claude: ${item.enabled ? "desactivación" : "activación"} de "${item.name}" pedida a la sesión.`,
             4000

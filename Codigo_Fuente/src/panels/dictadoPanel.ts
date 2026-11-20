@@ -686,8 +686,8 @@ export class VozDictado {
 
   /**
    * Manda el bloc de notas al terminal activo (donde suele correr el agente). Sin terminal
-   * de VS Code, lo manda a la sesión viva de opencode por el servidor; si tampoco hay,
-   * copia al portapapeles.
+   * de VS Code, lo manda a la sesión viva de opencode por el servidor o de Claude por su
+   * consola; si no se puede, copia al portapapeles.
    */
   private async sendPrompt(raw: string) {
     // Las rutas del prompt viajan dentro del texto: espera a que las imágenes
@@ -702,7 +702,7 @@ export class VozDictado {
     await this.deliver(this.conComando(nota));
   }
 
-  /** Entrega un texto ya preparado: terminal activa, sesión viva de opencode o portapapeles. */
+  /** Entrega un texto ya preparado: terminal activa, sesión viva de opencode o de Claude, o portapapeles. */
   private async deliver(text: string) {
     const terminal = vscode.window.activeTerminal;
     if (terminal) {
@@ -738,9 +738,10 @@ export class VozDictado {
     }
 
     await vscode.env.clipboard.writeText(text);
-    this.state("idle", "Sin terminal abierta: copiado al portapapeles.");
+    this.state("idle", "No se pudo enviar: copiado al portapapeles.");
+    // El toast va siempre: el aviso de #state-hint está oculto en el DOM.
     void vscode.window.showInformationMessage(
-      "VOZ: no hay terminal activa; el prompt se ha copiado al portapapeles.",
+      "VOZ: el prompt no se ha enviado a ninguna terminal ni sesión; queda copiado en el portapapeles.",
     );
   }
 

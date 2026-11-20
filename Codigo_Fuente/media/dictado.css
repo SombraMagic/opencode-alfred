@@ -12,10 +12,10 @@ body {
 
 .dict {
   display: grid;
-  /* La columna de controles no cambia de ancho con lo que diga dentro (la pista de
-     estado es corta y variable): con `auto`, un texto largo la estiraba y al acortarse
-     encogía el panel entero. */
-  grid-template-columns: minmax(0, 1fr) clamp(212px, 26%, 260px);
+  /* La columna de controles tiene ancho fijo: con `auto`, el contenido que cupiera dentro
+     (el estado ya solo viaja en el title y en el texto para lectores) podría estirarla y
+     encoger el panel entero. */
+  grid-template-columns: minmax(0, 1fr) 72px;
   gap: 12px;
   padding: 10px 12px 12px;
   height: 100%;
@@ -216,61 +216,106 @@ body {
   opacity: 0.75;
 }
 
-/* Controles */
+/* Controles: columna de ancho único (--ctl); un solo gap y padding simétrico.
+   La única pieza elástica es el vúmetro vertical. */
 .controls {
-  align-items: stretch;
+  position: relative;
+  --ctl: 48px;
+  --gap: 10px;
+  align-items: center;
+  gap: var(--gap);
+  padding: var(--gap) 8px;
+  overflow: hidden;
   text-align: center;
 }
 
-.mic-row {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: 10px;
-  padding-top: 4px;
-}
-
+.send-btn,
 .mic {
   position: relative;
   flex: none;
-  width: 84px;
-  height: 84px;
-  border-radius: 18px;
-  background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--neon) 16%, transparent), transparent 70%);
+  box-sizing: border-box;
+  width: var(--ctl);
+  height: var(--ctl);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--neon) 24%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--neon) 10%, var(--bg-soft)), var(--bg-soft));
   border: 1px solid var(--neon);
   color: var(--neon);
   cursor: pointer;
-  font-size: 26px;
-  line-height: 1;
   display: grid;
   place-items: center;
+  /* doble marco: bisel claro arriba, sombra interior abajo y aro fino */
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--neon) 40%, transparent),
+    inset 0 -6px 10px color-mix(in srgb, var(--neon) 8%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--neon) 10%, transparent);
   transition: transform 0.12s, box-shadow 0.2s, border-color 0.2s, color 0.2s;
-  touch-action: none;
   user-select: none;
 }
 
+.send-btn:hover,
 .mic:hover {
-  box-shadow: 0 0 16px color-mix(in srgb, var(--neon) 30%, transparent);
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--neon) 55%, transparent),
+    inset 0 -6px 10px color-mix(in srgb, var(--neon) 14%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--neon) 20%, transparent),
+    0 6px 16px color-mix(in srgb, var(--neon) 32%, transparent);
+}
+
+.send-btn:active {
+  transform: scale(0.96);
+}
+
+.send-btn:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 3px;
+}
+
+.send-btn svg,
+.mic svg {
+  color: inherit;
+  filter: drop-shadow(0 0 5px currentColor);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.mic {
+  font-size: 26px;
+  line-height: 1;
+  touch-action: none;
 }
 
 .mic:active,
 .mic.listening {
   color: var(--magenta);
   border-color: var(--magenta);
-  box-shadow: 0 0 26px color-mix(in srgb, var(--magenta) 55%, transparent);
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--magenta) 28%, transparent), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--magenta) 12%, var(--bg-soft)), var(--bg-soft));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--magenta) 45%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--magenta) 20%, transparent),
+    0 0 26px color-mix(in srgb, var(--magenta) 55%, transparent);
   transform: scale(1.04);
-}
-
-.mic svg {
-  color: inherit;
-  filter: drop-shadow(0 0 6px currentColor);
 }
 
 /* Aro que late mientras se escucha */
 .mic-ring {
   position: absolute;
   inset: -6px;
-  border-radius: 24px;
+  border-radius: 16px;
   border: 1px solid transparent;
   pointer-events: none;
 }
@@ -285,101 +330,144 @@ body {
   100% { transform: scale(1.25); opacity: 0; }
 }
 
-/* Vúmetro */
+/* Vúmetro de LEDs: ocupa el alto sobrante y el nivel sube desde abajo.
+   .level es contenedor de tamaño: el degradado neon > amber > magenta del relleno
+   mide siempre el alto TOTAL de la pista (100cqh), así que el color depende de la
+   altura y no del nivel. `i` (alto en %) solo descubre segmentos desde abajo. */
 .level {
-  width: 100%;
-  height: 12px;
-  background: color-mix(in srgb, var(--neon) 10%, transparent);
+  --led: 4px;
+  --hueco: 2px;
+  --segmentos: repeating-linear-gradient(
+    0deg,
+    #000 0 var(--led),
+    transparent var(--led) calc(var(--led) + var(--hueco))
+  );
+  position: relative;
+  flex: 1 1 0;
+  box-sizing: border-box;
+  min-height: 24px;
+  width: var(--ctl);
+  padding: 4px 9px;
+  display: flex;
+  align-items: flex-end;
+  container-type: size;
+  background: color-mix(in srgb, var(--bg-soft) 70%, transparent);
   border: 1px solid var(--line);
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow:
+    inset 0 2px 8px color-mix(in srgb, var(--neon) 10%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--neon) 6%, transparent);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* LEDs apagados */
+.level::before {
+  content: "";
+  position: absolute;
+  inset: 4px 9px;
+  background: color-mix(in srgb, var(--neon) 20%, transparent);
+  -webkit-mask-image: var(--segmentos);
+  mask-image: var(--segmentos);
+  -webkit-mask-position: 0 100%;
+  mask-position: 0 100%;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* marcas de escala a los lados */
+.level::after {
+  content: "";
+  position: absolute;
+  inset: 4px 2px;
+  background:
+    repeating-linear-gradient(0deg, var(--text-dim) 0 1px, transparent 1px 20%) left / 3px 100% no-repeat,
+    repeating-linear-gradient(0deg, var(--text-dim) 0 1px, transparent 1px 20%) right / 3px 100% no-repeat;
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .level i {
+  position: relative;
   display: block;
-  height: 100%;
-  width: 0;
-  background: linear-gradient(90deg, var(--neon), var(--magenta));
-  transition: width 0.1s linear;
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+  -webkit-mask-image: var(--segmentos);
+  mask-image: var(--segmentos);
+  -webkit-mask-position: 0 100%;
+  mask-position: 0 100%;
+  transition: height 0.1s linear;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--neon) 55%, transparent));
 }
 
-.state {
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--text-dim);
-  border: 1px solid var(--line);
-  padding: 4px 6px;
+.level i::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(100cqh - 10px);
+  background: linear-gradient(0deg, var(--neon) 0%, var(--neon) 35%, var(--amber) 70%, var(--magenta) 100%);
 }
 
-.state.listening { color: var(--magenta); border-color: var(--magenta); }
-.state.working { color: var(--amber); border-color: var(--amber); }
-.state.error { color: var(--magenta); border-color: var(--magenta); }
-.state.warn { color: var(--amber); border-color: var(--amber); }
+.controls.listening .level {
+  border-color: var(--magenta);
+  animation: latido 1s ease-in-out infinite;
+}
+.controls.listening .level i {
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--magenta) 70%, transparent));
+}
+.controls.working .level { border-color: var(--amber); }
+.controls.error .level { border-color: var(--magenta); }
+.controls.warn .level { border-color: var(--amber); }
 
-.state-hint {
-  font-size: 9px;
-  color: var(--text-dim);
-  min-height: 12px;
+@keyframes latido {
+  0%, 100% { box-shadow: inset 0 2px 8px color-mix(in srgb, var(--magenta) 14%, transparent), 0 0 4px color-mix(in srgb, var(--magenta) 25%, transparent); }
+  50% { box-shadow: inset 0 2px 12px color-mix(in srgb, var(--magenta) 30%, transparent), 0 0 14px color-mix(in srgb, var(--magenta) 55%, transparent); }
 }
 
-.state-hint.warn {
-  color: var(--amber);
-}
-
-.state-hint.voice {
-  color: var(--neon);
-}
-
-/* Manos libres: tarjeta-botón junto al micro, etiqueta arriba y pista abajo. */
+/* Manos libres: píldora del mismo ancho que el resto, centrada. */
 .hf-switch {
   flex: none;
-  width: 84px;
-  min-width: 0;
-  min-height: 84px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
+  box-sizing: border-box;
+  width: var(--ctl);
+  padding: 0;
+  background: none;
+  border: 0;
   color: var(--text-dim);
-  font-family: inherit;
-  font-size: 9px;
-  letter-spacing: 1.4px;
-  text-align: left;
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s, background 0.2s;
-}
-
-.hf-label {
-  white-space: normal;
-  line-height: 1.3;
 }
 
 .hf-track {
   position: relative;
   display: block;
+  box-sizing: border-box;
   width: 100%;
-  height: 18px;
+  height: 24px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 12px;
   background: var(--bg-soft);
+  box-shadow: inset 0 2px 5px color-mix(in srgb, var(--text-dim) 25%, transparent);
+  transition: border-color 0.14s, background 0.14s, box-shadow 0.14s;
 }
 
 .hf-knob {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 12px;
-  height: 12px;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: var(--text-dim);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--text) 55%, var(--text-dim)), var(--text-dim) 70%);
   transition: left 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
 }
 
 .hf-switch:hover {
   color: var(--neon);
+}
+
+.hf-switch:hover .hf-track {
   border-color: var(--neon);
 }
 
@@ -391,30 +479,25 @@ body {
 
 .hf-switch.on {
   color: var(--magenta);
-  border-color: var(--magenta);
-  background: color-mix(in srgb, var(--magenta) 8%, transparent);
 }
 
 .hf-switch.on .hf-track {
   border-color: var(--magenta);
-  background: color-mix(in srgb, var(--magenta) 14%, transparent);
+  background: color-mix(in srgb, var(--magenta) 18%, var(--bg-soft));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--magenta) 35%, transparent);
 }
 
 .hf-switch.on .hf-knob {
-  left: calc(100% - 14px);
-  background: var(--magenta);
-  box-shadow: 0 0 8px var(--magenta);
+  left: calc(100% - 19px);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--text) 40%, var(--magenta)), var(--magenta) 70%);
+  box-shadow: 0 0 9px var(--magenta);
 }
 
-/* El estado y el envío se quedan abajo aunque sobre alto arriba. */
-.controls .state {
-  margin-top: auto;
-}
-
-.controls .speak-btn {
-  padding: 9px;
-  font-size: 11px;
-  letter-spacing: 2px;
+@media (prefers-reduced-motion: reduce) {
+  .mic.listening .mic-ring,
+  .controls.listening .level { animation: none; }
+  .send-btn:hover,
+  .mic:hover { transform: none; }
 }
 
 /* Panel estrecho: una sola columna (el bloc ya es el primero en el DOM) */
@@ -425,5 +508,6 @@ body {
     height: auto;
   }
   .col { overflow: visible; }
+  .controls { min-height: 260px; }
   #nota { min-height: 120px; }
 }

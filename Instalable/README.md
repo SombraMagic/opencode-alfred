@@ -1,6 +1,6 @@
 # Instalar OpenCode Alfred
 
-Paquete listo para usar: **`opencode-alfred-0.9.10.vsix`** (en esta misma carpeta).
+Paquete listo para usar: **`opencode-alfred-0.9.11.vsix`** (en esta misma carpeta).
 No hace falta compilar nada ni instalar Node.
 
 ## Qué es
@@ -35,28 +35,28 @@ La extensión está pensada y orientada a **opencode**. Claude Code y Codex son
 
 1. Abre el panel **Extensiones** (`Ctrl+Shift+X`).
 2. Menú `...` → **Install from VSIX...**.
-3. Elige `opencode-alfred-0.9.10.vsix`.
+3. Elige `opencode-alfred-0.9.11.vsix`.
 4. Paleta de comandos (`Ctrl+Shift+P`) → **Developer: Reload Window**.
 
 **Desde la terminal**
 
 ```bash
-code --install-extension opencode-alfred-0.9.10.vsix
+code --install-extension opencode-alfred-0.9.11.vsix
 ```
 
 Si ya tenías una versión anterior, añade `--force` para reemplazarla:
 
 ```bash
-code --install-extension opencode-alfred-0.9.10.vsix --force
+code --install-extension opencode-alfred-0.9.11.vsix --force
 ```
 
 ## Ya instalado, ¿por dónde empiezo?
 
 - **ALFRED** en la barra de actividad (izquierda): el centro de control. Explorador de
   agentes, MCP, skills y plugins, con `GLOBAL` · `PROYECTO` · `ASIGNAR AGENTES` y el
-  interruptor de permisos arriba; **Control**, con la sesión, los conectores y Mente local;
-  Contexto y Límites de consumo.
-- **VOZ** en la barra lateral derecha: ecualizador Matrix y ajustes de voz.
+  interruptor de permisos arriba; **Control**, con la sesión, los conectores y Mente local.
+- **VOZ** en la barra lateral derecha (`ALFRED // PULSO`): ecualizador Matrix, contexto,
+  límites de consumo y ajustes de voz.
 - **DICTADO** en el panel inferior: bloc de notas, configuración y micrófono.
 - **Visor Alfred 3D**: haz doble clic en un `.blend` desde el Explorador (o menú contextual →
   **Abrir en Alfred 3D**). Gira la escena, oculta objetos, mueve cámaras y luces y pulsa `FOTO`.
