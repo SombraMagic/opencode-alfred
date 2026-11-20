@@ -28,6 +28,9 @@ body[data-theme="centinela"] {
   --green: #3fd9a0;             /* 11,0:1 (9,9) */
   --matrix: #4f8dff;
   --violet: #a98cff;            /* 7,4:1 (6,7) */
+  --azure: #8fb0ff;
+  --lime: #c6e05a;
+  --teal: #2fc7c0;
   --danger: #f0584a;            /* 5,9:1 (5,3) */
   --danger-dim: rgba(240, 88, 74, 0.25);
   --on-accent: #040a14;

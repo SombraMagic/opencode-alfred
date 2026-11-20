@@ -156,7 +156,9 @@ export async function generateImage(req: OpenAiRequest): Promise<OpenAiResult> {
     throw new Error(`El servicio respondió ${res.status} en ${endpoint}: ${text}`);
   }
 
-  const data = (await res.json()) as {
+  const data = (await res.json().catch(() => {
+    throw new Error("El servicio respondió algo que no es JSON.");
+  })) as {
     data?: Array<{ b64_json?: unknown; url?: unknown }>;
   };
   const first = data?.data?.[0];

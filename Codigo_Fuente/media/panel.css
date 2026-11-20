@@ -17,9 +17,9 @@
 .fold,
 .dock { flex: none; }
 
-/* ── Zona central: lluvia Matrix + agentes ──────────────── */
-/* Es lo que crece y lo que se comprime cuando la vista es corta: el pie
-   (.dock) no se mueve. */
+/* ── Zona central: monitor, lluvia Matrix, agentes, contexto y límites ── */
+/* Es lo que crece y lo que hace scroll (solo vertical) cuando la vista es corta:
+   el pie (.dock) no se mueve. */
 .stage {
   display: flex;
   flex-direction: column;
@@ -156,21 +156,19 @@
   width: 100%;
   max-width: min(340px, 44vh);
   margin: 4px auto 8px;
-  aspect-ratio: 1 / 1;
+  /* Un tercio del alto de antes: matrix.js mide el rect del canvas, no asume cuadrado. */
+  aspect-ratio: 3 / 1;
   border: 1px solid var(--line-soft);
 }
 
 /* ── Agentes en vuelo ─────────────────────────────────── */
-/* Lista vertical entre la lluvia Matrix y la lectura; ocupa el alto libre del stage
-   y hace scroll propia cuando hay más agentes de los que caben. */
+/* Lista vertical al final de .stage, bajo LÍMITES: al entrar o salir una tarjeta no se
+   mueve nada de lo de arriba. El scroll lo hace .stage. */
 #agents {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
   gap: 4px;
-  overflow-y: auto;
-  margin: 0 0 12px;
+  margin: 8px 0 0;
 }
 
 #agents:empty {

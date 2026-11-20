@@ -1,58 +1,42 @@
-import * as vscode from "vscode";
 import { ContextWindowInfo } from "../stats/contextWindow";
-import { currentTheme, themeLinks, themeScript } from "./theme";
 
-export class ContextViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = "opencodeAgents.context";
-
-  private view?: vscode.WebviewView;
+/**
+ * Estado de la ventana de contexto. Ya no tiene vista propia: pinta en la
+ * webview de `VozPanel`, que le presta un `sink` mientras está lista.
+ */
+export class ContextController {
+  private sink?: (msg: unknown) => void;
   private last?: ContextWindowInfo;
 
   constructor(
-    private readonly extensionUri: vscode.Uri,
     private readonly onReady: () => void,
     private readonly onCompact: () => void
   ) {}
 
-  resolveWebviewView(view: vscode.WebviewView): void {
-    this.view = view;
-    view.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "media")],
-    };
-    view.webview.html = this.getHtml(view.webview);
+  /** La webview está lista: se le reenvía lo último y se pide una medida fresca. */
+  attach(sink: (msg: unknown) => void): void {
+    this.sink = sink;
+    this.post();
+    this.onReady();
+  }
 
-    view.webview.onDidReceiveMessage((message: { type?: string }) => {
-      if (message?.type === "compact") {
-        this.onCompact();
-        return;
-      }
-      if (message?.type !== "ready") {
-        return;
-      }
-      if (this.last) {
-        this.post(this.last);
-      }
-      this.postTheme();
-      this.onReady();
-    });
+  /** Solo suelta si el sink sigue siendo el suyo (un dispose tardío no pisa al nuevo). */
+  detach(sink: (msg: unknown) => void): void {
+    if (this.sink === sink) {
+      this.sink = undefined;
+    }
+  }
 
-    view.onDidDispose(() => {
-      if (this.view === view) {
-        this.view = undefined;
-      }
-    });
-
-    if (this.last) {
-      this.post(this.last);
+  /** Atiende los mensajes del webview. */
+  handle(message: { type?: string } | undefined): void {
+    if (message?.type === "compact") {
+      this.onCompact();
     }
   }
 
   update(info: ContextWindowInfo): void {
     this.last = info;
-    if (this.view) {
-      this.post(info);
-    }
+    this.post();
   }
 
   /** Sesión que el panel está midiendo: es la que hay que compactar. */
@@ -65,73 +49,9 @@ export class ContextViewProvider implements vscode.WebviewViewProvider {
     return this.last?.agent;
   }
 
-  private post(info: ContextWindowInfo): void {
-    void this.view?.webview.postMessage({ type: "context", payload: info });
+  private post(): void {
+    if (this.sink && this.last) {
+      this.sink({ type: "context", payload: this.last });
+    }
   }
-
-  /** Avisa al webview del estilo visual vigente. */
-  postTheme(): void {
-    void this.view?.webview.postMessage({ type: "theme", theme: currentTheme() });
-  }
-
-  private getHtml(webview: vscode.Webview): string {
-    const nonce = getNonce();
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "context.js")
-    );
-    const csp = [
-      `default-src 'none'`,
-      `img-src ${webview.cspSource} data:`,
-      `style-src ${webview.cspSource} 'unsafe-inline'`,
-      `script-src 'nonce-${nonce}'`,
-    ].join("; ");
-
-    return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="${csp}" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-${themeLinks(this.extensionUri, webview, ["context.css"])}
-<title>Contexto</title>
-</head>
-<body>
-<div class="hud">
-  <div class="hud-header">
-    <span class="hud-dot"></span>
-    <span class="hud-title" id="title">CONTEXTO</span>
-    <span class="ctx-meta" id="meta"></span>
-  </div>
-
-  <div id="banner" class="banner" hidden></div>
-
-  <section id="usage" hidden>
-    <div class="ctx-body">
-      <div class="ctx-box ctx-matrix">
-        <div id="cells" class="cells" role="img" aria-label="Ocupación de la ventana de contexto"></div>
-      </div>
-      <div class="ctx-box ctx-legend">
-        <div class="legend-head">
-          <span>Leyenda</span>
-          <button id="compact" class="compact-btn" type="button" title="Compactar la conversación (equivale a /compact)">COMPACTAR</button>
-        </div>
-        <ul id="legend" class="legend"></ul>
-      </div>
-    </div>
-  </section>
-</div>
-${themeScript(this.extensionUri, webview, nonce)}
-<script nonce="${nonce}" src="${scriptUri}"></script>
-</body>
-</html>`;
-  }
-}
-
-function getNonce(): string {
-  let text = "";
-  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
 }

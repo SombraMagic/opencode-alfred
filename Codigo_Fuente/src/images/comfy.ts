@@ -87,7 +87,9 @@ async function readJson<T>(res: Response, what: string): Promise<T> {
         : `ComfyUI respondió ${res.status} en ${what}.`
     );
   }
-  return (await res.json()) as T;
+  return (await res.json().catch(() => {
+    throw new Error(`ComfyUI respondió algo que no es JSON en ${what}.`);
+  })) as T;
 }
 
 /** Versión del servidor. Si no responde, lanza: el panel lo pinta como «Sin conexión». */
@@ -295,7 +297,9 @@ export async function generate(req: ComfyGenerateRequest): Promise<Buffer> {
       (typeof body?.error?.message === "string" ? body.error.message : `HTTP ${res.status}`);
     throw new Error(`ComfyUI rechazó el flujo: ${reason}`);
   }
-  const queued = (await res.json()) as { prompt_id?: unknown; node_errors?: unknown };
+  const queued = (await res.json().catch(() => {
+    throw new Error("ComfyUI respondió algo que no es JSON al encolar el flujo.");
+  })) as { prompt_id?: unknown; node_errors?: unknown };
   const broken = firstNodeError(queued.node_errors);
   if (broken) {
     throw new Error(`ComfyUI rechazó el flujo: ${broken}`);

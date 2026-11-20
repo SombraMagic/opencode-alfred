@@ -22,6 +22,9 @@ body[data-theme="manoli"] {
   --green: #316a54;             /* 5,0:1 */
   --matrix: #7c548f;
   --violet: #6a4fae;            /* 5,0:1 */
+  --azure: #2f5fb0;
+  --lime: #5a7414;
+  --teal: #1f7a78;
   --danger: #a1332c;            /* 5,5:1 */
   --danger-dim: rgba(161, 51, 44, 0.22);
   --on-accent: #fbf9fe;

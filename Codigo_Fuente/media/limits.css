@@ -1,55 +1,110 @@
-/* Límites de consumo — tarjetas por proveedor con barras de porcentaje */
+/* Límites de consumo — sección plegable del panel ALFRED // PULSO.
+   Todo va bajo #lim: el panel ya define .hud, .hint y más. */
 
-.hud {
-  padding: 0 10px 14px;
+#lim {
+  flex: none;
+  margin: 0 0 10px;
+  min-width: 0;
+  border: 1px solid var(--line-soft);
 }
 
-.hud-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Cabecera: título, sello del último sondeo y REFRESCAR; pliega toda la sección. */
+#lim > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+  list-style: none;
+}
+
+#lim > summary::-webkit-details-marker {
+  display: none;
+}
+
+#lim .lim-title {
+  flex: none;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--neon);
   white-space: nowrap;
 }
 
-.hud-header .ghost-btn {
-  flex: none;
+#lim .lim-title::before {
+  content: "▸";
+  margin-right: 5px;
 }
 
-/* ── Sello del último sondeo ───────────────────────────── */
-/* Va en la cabecera, a la izquierda de REFRESCAR: no ocupa línea propia. */
-.stamp {
+#lim[open] .lim-title::before {
+  content: "▾";
+}
+
+#lim[open] > summary {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+#lim .ghost-btn {
   flex: none;
+  padding: 2px 5px;
+  font-size: 8px;
+}
+
+/* Sello del último sondeo, a la izquierda de REFRESCAR. */
+#lim .stamp {
+  /* Es lo que cede ancho en barra estrecha: se recorta antes que el título. */
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 9px;
   letter-spacing: 1.1px;
   color: var(--text-soft);
   white-space: nowrap;
 }
 
-/* ── Avisos ────────────────────────────────────────────── */
-.hint {
-  margin: 10px 0 0;
+#lim .stamp[hidden] {
+  display: none;
+}
+
+/* Sin sello, REFRESCAR se va al borde derecho. */
+#lim .stamp[hidden] + .ghost-btn {
+  margin-left: auto;
+}
+
+#lim .lim-body {
+  padding: 6px;
+}
+
+#lim .hint {
+  margin: 0;
   font-size: 10.5px;
   line-height: 1.5;
   color: var(--text-soft);
 }
 
+#lim .hint[hidden] {
+  display: none;
+}
+
 /* ── Tarjetas ──────────────────────────────────────────── */
-.cards {
+#lim .cards {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.card {
+#lim .card {
   border: 1px solid var(--line-soft);
   background: var(--bg-soft);
 }
 
-.card.error {
+#lim .card.error {
   border-color: color-mix(in srgb, var(--magenta) 55%, transparent);
 }
 
-.card-head {
+#lim .card-head {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -57,7 +112,7 @@
   border-bottom: 1px solid var(--line-soft);
 }
 
-.card-toggle {
+#lim .card-toggle {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -74,37 +129,37 @@
   cursor: pointer;
 }
 
-.card-toggle:hover .card-name,
-.card-toggle:focus-visible .card-name {
+#lim .card-toggle:hover .card-name,
+#lim .card-toggle:focus-visible .card-name {
   color: var(--neon);
 }
 
-.card-toggle:focus-visible {
+#lim .card-toggle:focus-visible {
   outline: none;
 }
 
-.chev {
+#lim .chev {
   flex: none;
   width: 8px;
   font-size: 9px;
   color: var(--neon);
 }
 
-.card-name {
+#lim .card-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.chip.plan {
+#lim .chip.plan {
   flex: none;
   color: var(--text-soft);
   text-transform: uppercase;
 }
 
 /* El plan de opencode-go se alterna desde el propio chip. */
-.chip.plan.act {
+#lim .chip.plan.act {
   background: none;
   font-family: inherit;
   color: var(--neon);
@@ -112,29 +167,29 @@
   cursor: pointer;
 }
 
-.chip.plan.act:hover,
-.chip.plan.act:focus-visible {
+#lim .chip.plan.act:hover,
+#lim .chip.plan.act:focus-visible {
   background: var(--neon);
   color: var(--bg);
   outline: none;
 }
 
-.chip.est {
+#lim .chip.est {
   flex: none;
   color: var(--amber);
   border-color: color-mix(in srgb, var(--amber) 55%, transparent);
 }
 
-.card-body {
+#lim .card-body {
   padding: 5px 6px 6px;
 }
 
-.card-body[hidden] {
+#lim .card-body[hidden] {
   display: none;
 }
 
-.card-error,
-.win-empty {
+#lim .card-error,
+#lim .win-empty {
   margin: 0;
   font-size: 10px;
   line-height: 1.4;
@@ -143,30 +198,30 @@
   white-space: nowrap;
 }
 
-.card-error {
+#lim .card-error {
   color: var(--magenta);
 }
 
-.win-empty {
+#lim .win-empty {
   color: var(--text-soft);
 }
 
 /* ── Ventanas ──────────────────────────────────────────── */
 /* Cada ventana es una sola línea: rótulo, barra o reanudación, cifras y %. */
-.win {
+#lim .win {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
 }
 
-.win + .win {
+#lim .win + .win {
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid var(--line-soft);
 }
 
-.win-label {
+#lim .win-label {
   flex: 0 1 auto;
   min-width: 0;
   font-size: 10px;
@@ -177,7 +232,7 @@
   white-space: nowrap;
 }
 
-.win-num {
+#lim .win-num {
   flex: none;
   /* Sin barra (ventana sin tope) la cifra se va al borde derecho. */
   margin-left: auto;
@@ -187,7 +242,7 @@
   white-space: nowrap;
 }
 
-.win-pct {
+#lim .win-pct {
   flex: none;
   font-size: 10.5px;
   letter-spacing: 0.5px;
@@ -195,7 +250,7 @@
   white-space: nowrap;
 }
 
-.bar {
+#lim .bar {
   flex: 1 1 auto;
   min-width: 32px;
   height: 6px;
@@ -204,25 +259,25 @@
   border: 1px solid var(--line-soft);
 }
 
-.bar-fill {
+#lim .bar-fill {
   height: 100%;
   background: var(--neon);
   box-shadow: 0 0 6px var(--neon-dim);
   transition: width 0.18s ease;
 }
 
-.bar-fill.aviso {
+#lim .bar-fill.aviso {
   background: var(--amber);
   box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 60%, transparent);
 }
 
-.bar-fill.peligro {
+#lim .bar-fill.peligro {
   background: var(--magenta);
   box-shadow: 0 0 6px color-mix(in srgb, var(--magenta) 60%, transparent);
 }
 
 /* Al tope: el tiempo de reanudación ocupa el sitio de la barra, en rojo. */
-.win-reset {
+#lim .win-reset {
   flex: 1 1 auto;
   min-width: 0;
   font-size: 10px;

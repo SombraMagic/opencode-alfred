@@ -1,8 +1,5 @@
-import * as vscode from "vscode";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import type * as vscode from "vscode";
 import type { ProviderLimits } from "../limits/limits";
-import { currentTheme, themeLinks, themeScript } from "./theme";
 
 /** Mensajes que el webview tiene permitido pedir. */
 interface LimitsMessage {
@@ -15,10 +12,12 @@ interface LimitsMessage {
 /** Clave del globalState donde viven las tarjetas plegadas. */
 const COLLAPSED_KEY = "opencodeAgents.limitsCollapsed";
 
-export class LimitsViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = "opencodeAgents.limits";
-
-  private view?: vscode.WebviewView;
+/**
+ * Límites de consumo. Ya no tiene vista propia: pinta en la webview de
+ * `VozPanel`, que le presta un `sink` mientras está lista.
+ */
+export class LimitsController {
+  private sink?: (msg: unknown) => void;
   private providers: ProviderLimits[] = [];
   // Ids de proveedor con la tarjeta plegada (persisten en el globalState).
   private collapsed: string[] = [];
@@ -26,69 +25,53 @@ export class LimitsViewProvider implements vscode.WebviewViewProvider {
   private loaded = false;
 
   constructor(
-    private readonly extensionUri: vscode.Uri,
     private readonly onReady: () => void,
     private readonly onRefresh: () => void,
     private readonly onSetGoPlan: (plan: "go" | "go-plus") => void,
-    /** La vista se ha cerrado: el host apaga aquí su temporizador de sondeo. */
+    /** La webview vigente se ha cerrado: el host apaga aquí su temporizador de sondeo. */
     private readonly onDispose: () => void,
     private readonly state: vscode.Memento
   ) {}
 
-  resolveWebviewView(view: vscode.WebviewView): void {
-    this.view = view;
+  /** La webview está lista: se le manda lo último y el host arma su sondeo. */
+  attach(sink: (msg: unknown) => void): void {
+    this.sink = sink;
     // El estado guardado no es de fiar: solo valen las entradas de tipo string.
     const guardado = this.state.get<unknown[]>(COLLAPSED_KEY, []);
     this.collapsed = Array.isArray(guardado)
       ? guardado.filter((id): id is string => typeof id === "string")
       : [];
+    this.post();
+    this.onReady();
+  }
 
-    view.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "media")],
-    };
-    view.webview.html = this.getHtml(view.webview);
+  /** Solo la webview vigente apaga el sondeo: un dispose tardío de una vieja no mata el de la nueva. */
+  detach(sink: (msg: unknown) => void): void {
+    if (this.sink === sink) {
+      this.sink = undefined;
+      this.onDispose();
+    }
+  }
 
-    view.webview.onDidReceiveMessage((message: LimitsMessage) => {
-      if (message?.type === "refresh") {
-        this.onRefresh();
-        return;
+  /** Atiende los mensajes del webview. */
+  handle(message: LimitsMessage | undefined): void {
+    if (message?.type === "refresh") {
+      this.onRefresh();
+    }
+    if (message?.type === "setGoPlan") {
+      if (message.plan === "go" || message.plan === "go-plus") {
+        this.onSetGoPlan(message.plan);
       }
-      if (message?.type === "setGoPlan") {
-        if (message.plan === "go" || message.plan === "go-plus") {
-          this.onSetGoPlan(message.plan);
-        }
-        return;
-      }
-      if (message?.type === "collapse") {
-        const id = message.id;
-        if (typeof id !== "string" || !id) {
-          return;
-        }
+    }
+    if (message?.type === "collapse") {
+      const id = message.id;
+      if (typeof id === "string" && id) {
         // Sin repintar: el webview ya movió su tarjeta y su sondeo no debe deshacerlo.
         const resto = this.collapsed.filter((otro) => otro !== id);
         this.collapsed = message.collapsed ? [...resto, id] : resto;
         void this.state.update(COLLAPSED_KEY, this.collapsed);
-        return;
       }
-      if (message?.type !== "ready") {
-        return;
-      }
-      this.postTheme();
-      this.post();
-      this.onReady();
-    });
-
-    view.onDidDispose(() => {
-      if (this.view === view) {
-        this.view = undefined;
-        // Solo la vista vigente apaga el sondeo del host: un dispose tardío de una
-        // vista vieja no debe matar el temporizador de la nueva.
-        this.onDispose();
-      }
-    });
-
-    this.post();
+    }
   }
 
   update(providers: ProviderLimits[]): void {
@@ -98,50 +81,9 @@ export class LimitsViewProvider implements vscode.WebviewViewProvider {
   }
 
   private post(): void {
-    if (!this.loaded) {
+    if (!this.loaded || !this.sink) {
       return;
     }
-    void this.view?.webview.postMessage({
-      type: "data",
-      providers: this.providers,
-      collapsed: this.collapsed,
-    });
+    this.sink({ type: "limits", providers: this.providers, collapsed: this.collapsed });
   }
-
-  /** Avisa al webview del estilo visual vigente. */
-  postTheme(): void {
-    void this.view?.webview.postMessage({ type: "theme", theme: currentTheme() });
-  }
-
-  private getHtml(webview: vscode.Webview): string {
-    const nonce = getNonce();
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "limits.css")
-    );
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "limits.js")
-    );
-
-    // El marcado vive en media/limits.html: la extensión solo rellena los huecos.
-    const template = readFileSync(
-      join(this.extensionUri.fsPath, "media", "limits.html"),
-      "utf8"
-    );
-    return template
-      .replaceAll("%%CSP%%", webview.cspSource)
-      .replaceAll("%%NONCE%%", nonce)
-      .replaceAll("%%THEME_LINKS%%", themeLinks(this.extensionUri, webview, []))
-      .replaceAll("%%THEME_SCRIPT%%", themeScript(this.extensionUri, webview, nonce))
-      .replaceAll("%%STYLE%%", styleUri.toString())
-      .replaceAll("%%SCRIPT%%", scriptUri.toString());
-  }
-}
-
-function getNonce(): string {
-  let text = "";
-  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
 }

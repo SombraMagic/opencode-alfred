@@ -78,7 +78,7 @@ import { InstructionsPanel } from "./panels/instructionsPanel";
 import { ClaudeAgentPanel } from "./panels/claudeAgentPanel";
 import { StatsPanel } from "./panels/statsPanel";
 import { PromptStatsPanel } from "./panels/promptStatsPanel";
-import { ContextViewProvider } from "./panels/contextPanel";
+import { ContextController } from "./panels/contextPanel";
 import { ControlPanel } from "./panels/controlPanel";
 import type { ControlData } from "./panels/controlPanel";
 import { SessionsPanel } from "./panels/sessionsPanel";
@@ -87,7 +87,7 @@ import { DatabasesPanel } from "./panels/databasesPanel";
 import { RadarPanel } from "./panels/radarPanel";
 import { RadarService } from "./radar/service";
 import { ProjectExplorerPanel } from "./panels/projectExplorerPanel";
-import { LimitsViewProvider } from "./panels/limitsPanel";
+import { LimitsController } from "./panels/limitsPanel";
 import {
   collectLimits,
   LIMITS_ADAPTER_IDS,
@@ -501,25 +501,20 @@ export function activate(context: vscode.ExtensionContext): void {
   let promptBusy = false;
   let promptPending = false;
   const contextService = new ContextWindowService();
-  const contextView = new ContextViewProvider(
-    context.extensionUri,
+  // Contexto y límites no tienen vista propia: pintan en la webview de voz (`VozPanel`).
+  const contextView = new ContextController(
     () => void refreshStats(true),
     () => void compactSession()
   );
   const connectorsService = new ConnectorService(opencodeApi);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(ContextViewProvider.viewType, contextView, {
-      webviewOptions: { retainContextWhenHidden: true },
-    })
-  );
 
   // ── Límites de consumo ───────────────────────────────────────────────────
-  // El temporizador vive lo que la vista: se arma al ready y se apaga al cerrarla.
+  // El temporizador vive lo que la webview de voz: se arma al ready y se apaga al cerrarla.
+  // `limitsViewOpen` = esa webview está viva y lista.
   let limitsViewOpen = false;
   // Agente de sesión con el que se armó la vista: `refresh()` la rearma solo si cambia.
   let limitsAgent: SessionAgent | undefined;
-  const limitsView = new LimitsViewProvider(
-    context.extensionUri,
+  const limitsView = new LimitsController(
     () => {
       limitsViewOpen = true;
       armLimitsTimer();
@@ -532,11 +527,6 @@ export function activate(context: vscode.ExtensionContext): void {
       stopLimitsTimer();
     },
     context.globalState
-  );
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(LimitsViewProvider.viewType, limitsView, {
-      webviewOptions: { retainContextWhenHidden: true },
-    })
   );
 
   /** Ids de proveedor activados en el panel: saneados y solo con adaptador conocido. */
@@ -629,7 +619,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }
   }
-  const imageShareTimer = setInterval(probeImageShare, 5000);
+  const imageShareTimer = setInterval(() => void probeImageShare().catch(() => undefined), 5000);
   context.subscriptions.push(
     { dispose: () => clearInterval(imageShareTimer) },
     // El interruptor del panel surte efecto al instante: el sondeo tardaría 5 s.
@@ -976,6 +966,7 @@ export function activate(context: vscode.ExtensionContext): void {
       shadowed: agent.shadowed,
       overriddenBy: agent.overriddenBy,
       filePath: agent.filePath,
+      ...(agent.source === "file" || agent.source === "inline" ? { source: agent.source } : {}),
       working: act?.working === true,
       streaming: act?.streaming === true,
       tokens: act?.tokens.total ?? 0,
@@ -3025,7 +3016,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("opencodeAgents.openChatbot", () => openChatbot()),
 
     vscode.commands.registerCommand("opencodeAgents.imageGenerator", () =>
-      void ImageGenPanel.open(context)
+      ImageGenPanel.open(context)
     ),
 
     vscode.commands.registerCommand("opencodeAgents.projectExplorer", () =>
@@ -3824,8 +3815,6 @@ export function activate(context: vscode.ExtensionContext): void {
     InstructionsPanel.broadcastTheme();
     explorer.postTheme();
     control.postTheme();
-    contextView.postTheme();
-    limitsView.postTheme();
     blendViewer.postTheme();
     voicePanel?.postTheme();
     dictado?.postTheme();
@@ -3918,7 +3907,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── Voz ──────────────────────────────────────────────────────────────────
   const voiceProvider: vscode.WebviewViewProvider = {
     resolveWebviewView: async (view) => {
-      voicePanel = new VozPanel(view, context);
+      voicePanel = new VozPanel(view, context, contextView, limitsView);
       await voicePanel.init();
     },
   };

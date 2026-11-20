@@ -32,8 +32,6 @@
   "activationEvents": [
     "onView:opencodeAgents.view",
     "onView:opencodeAgents.control",
-    "onView:opencodeAgents.context",
-    "onView:opencodeAgents.limits",
     "onView:voz.panel",
     "onView:voz.dictado",
     "onCustomEditor:opencodeAgents.blendViewer"
@@ -73,16 +71,6 @@
         {
           "id": "opencodeAgents.control",
           "name": "Control",
-          "type": "webview"
-        },
-        {
-          "id": "opencodeAgents.context",
-          "name": "Contexto",
-          "type": "webview"
-        },
-        {
-          "id": "opencodeAgents.limits",
-          "name": "Límites de consumo",
           "type": "webview"
         }
       ],

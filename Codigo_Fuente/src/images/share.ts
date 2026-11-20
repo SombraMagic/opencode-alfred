@@ -13,7 +13,6 @@ import { join } from "node:path";
 import { stateDir } from "../voice/core/shared.js";
 import { writeAtomic } from "../pizarra/files";
 import { catalog, probe } from "./comfy";
-import { endpointOf } from "./openai";
 
 export interface ImageShare {
   enabled: boolean;
@@ -153,7 +152,7 @@ export async function checkImageShare(share: ImageShare): Promise<{ ok: boolean;
     if (!share.openaiKey) {
       return { ok: false, detail: "Falta la clave de OpenAI." };
     }
-    if (!/^https?:\/\//.test(share.openaiUrl) || !endpointOf(share.openaiUrl)) {
+    if (!/^https?:\/\//.test(share.openaiUrl)) {
       return { ok: false, detail: "La dirección del servicio no es válida." };
     }
     return { ok: true, detail: `Servicio compatible: ${share.openaiUrl}` };

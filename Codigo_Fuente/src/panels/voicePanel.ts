@@ -7,6 +7,8 @@ import { mcpState, setMcpEnabled } from "../voice/mcpInstaller.js";
 import { SysMonitor, type SysSample } from "../sysmon/monitor.js";
 import { listActivities, type ActivityIcon } from "./activity";
 import { currentTheme, themeLinks, themeScript } from "./theme";
+import type { ContextController } from "./contextPanel";
+import type { LimitsController } from "./limitsPanel";
 
 /** Fichero donde el MCP publica cada reproducción (misma ruta que voz-core). */
 const nowFile = join(
@@ -52,9 +54,15 @@ export class VozPanel {
   constructor(
     view: vscode.WebviewView,
     private readonly context: vscode.ExtensionContext,
+    /** Contexto y límites pintan en esta misma webview: aquí se les presta el canal. */
+    private readonly contextCtl: ContextController,
+    private readonly limitsCtl: LimitsController,
   ) {
     this.view = view;
   }
+
+  /** Canal que se presta a los controladores; su identidad dice qué vista es la vigente. */
+  private readonly sink = (msg: unknown) => this.post(msg);
 
   async init() {
     const view = this.view!;
@@ -214,6 +222,17 @@ export class VozPanel {
         // El monitor no puede esperar al primer sondeo: la última muestra se
         // reenvía en cuanto el webview está listo.
         this.post({ type: "sysmon", data: this.lastSample });
+        // Contexto y límites: reenvían lo último y el host arma sus sondeos.
+        this.contextCtl.attach(this.sink);
+        this.limitsCtl.attach(this.sink);
+        break;
+      case "compact":
+        this.contextCtl.handle(msg);
+        break;
+      case "refresh":
+      case "setGoPlan":
+      case "collapse":
+        this.limitsCtl.handle(msg);
         break;
       case "speak":
         await this.doSpeak(msg);
@@ -279,6 +298,8 @@ export class VozPanel {
     const nonce = getNonce();
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "panel.js"));
     const matrixUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "matrix.js"));
+    const contextUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "context.js"));
+    const limitsUri = webview.asWebviewUri(vscode.Uri.joinPath(media, "limits.js"));
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -286,18 +307,17 @@ export class VozPanel {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'nonce-${nonce}'; img-src ${webview.cspSource} data:;" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-${themeLinks(this.context.extensionUri, webview, ["panel.css"])}
+${themeLinks(this.context.extensionUri, webview, ["panel.css", "context.css", "limits.css"])}
 </head>
 <body>
   <div class="hud">
     <div class="hud-header">
       <span class="hud-dot"></span>
-      <span class="hud-title">VOZ // TTS</span>
+      <span class="hud-title">ALFRED // PULSO</span>
       <span class="hud-status" id="status">EN LÍNEA</span>
     </div>
 
-    <!-- Zona flexible: crece con los agentes y es lo único que se comprime
-         (con scroll propio) cuando la vista es corta. -->
+    <!-- Zona flexible: monitor, lluvia, contexto y límites; es lo que hace scroll (.stage) cuando la vista es corta. -->
     <div class="stage">
       <!-- Monitor del equipo: se pinta en panel.js con las muestras de sysmon. -->
       <div class="sysmon" id="sysmon">
@@ -321,7 +341,39 @@ ${themeLinks(this.context.extensionUri, webview, ["panel.css"])}
 
       <canvas id="matrix" aria-label="Ecualizador Matrix"></canvas>
 
-      <!-- Agentes en vuelo: panel.js lo rellena y lo vacía (vacío = sin hueco). -->
+      <!-- Ventana de contexto: media/context.js la rellena con el mensaje "context". -->
+      <section id="ctx">
+        <div class="ctx-head">
+          <span class="ctx-title" id="ctx-title">CONTEXTO</span>
+          <span class="ctx-meta" id="ctx-meta"></span>
+        </div>
+        <div id="ctx-banner" class="banner" hidden></div>
+        <div id="ctx-usage" hidden>
+          <div id="ctx-cells" class="cells" role="img" aria-label="Ocupación de la ventana de contexto"></div>
+          <details id="ctx-leg" class="ctx-fold" open>
+            <summary>
+              <span>LEYENDA</span>
+              <button id="ctx-compact" class="compact-btn" type="button" title="Compactar la conversación (equivale a /compact)">COMPACTAR</button>
+            </summary>
+            <ul id="ctx-legend" class="legend"></ul>
+          </details>
+        </div>
+      </section>
+
+      <!-- Límites de consumo: media/limits.js lo rellena con el mensaje "limits". -->
+      <details id="lim" open>
+        <summary>
+          <span class="lim-title" title="Límites de consumo">LÍMITES DE CONSUMO</span>
+          <span id="lim-stamp" class="stamp" hidden></span>
+          <button id="lim-refresh" class="ghost-btn" type="button" title="Volver a sondear los límites de consumo">REFRESCAR</button>
+        </summary>
+        <div class="lim-body">
+          <div id="lim-list" class="cards"></div>
+          <p id="lim-hint" class="hint">Leyendo límites…</p>
+        </div>
+      </details>
+
+      <!-- Agentes en vuelo: lo último de la zona con scroll, bajo LÍMITES. panel.js lo rellena y lo vacía (vacío = sin hueco). -->
       <div id="agents"></div>
     </div>
 
@@ -345,12 +397,16 @@ ${themeLinks(this.context.extensionUri, webview, ["panel.css"])}
   </div>
   ${themeScript(this.context.extensionUri, webview, nonce)}
   <script src="${matrixUri}"></script>
+  <script src="${contextUri}"></script>
+  <script src="${limitsUri}"></script>
   <script src="${scriptUri}"></script>
 </body>
 </html>`;
   }
 
   dispose() {
+    this.contextCtl.detach(this.sink);
+    this.limitsCtl.detach(this.sink);
     this.stopSysPolling();
     // No mata el proceso: se va solo al morir su -ParentPid.
     this.monitor?.dispose();

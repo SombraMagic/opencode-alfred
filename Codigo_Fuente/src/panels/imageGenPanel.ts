@@ -516,6 +516,8 @@ export class ImageGenPanel {
   private pendingShot?: { prompt: string; negative: string };
   /** Las acciones van de una en una: dos generaciones a la vez no caben. */
   private queue: Promise<void> = Promise.resolve();
+  /** Carpeta que vigila `watchFile`: `release` quita esa, aunque el workspace haya cambiado. */
+  private readonly watchedDir: string;
 
   static async open(context: vscode.ExtensionContext): Promise<ImageGenPanel> {
     if (ImageGenPanel.current) {
@@ -538,7 +540,13 @@ export class ImageGenPanel {
     );
     const created = new ImageGenPanel(panel, context);
     ImageGenPanel.current = created;
-    await created.update();
+    try {
+      await created.update();
+    } catch (err) {
+      // Sin esto quedaría registrada una pestaña vacía: se cierra (release suelta el singleton).
+      panel.dispose();
+      throw err;
+    }
     return created;
   }
 
@@ -591,18 +599,21 @@ export class ImageGenPanel {
     );
 
     // El MCP corre en otro proceso: publica cada imagen y aquí se reflejan los prompts.
-    watchFile(shotFile(), { interval: 1000 }, () => void this.applyShot());
-    void this.applyLastShot();
+    watchFile(shotFile(), { interval: 1000 }, () => void this.applyShot().catch(() => undefined));
+    void this.applyLastShot().catch(() => undefined);
 
     // PNG añadidos o borrados desde fuera (el Explorador, el MCP u otra aplicación): se
     // relee el historial sin esperar a que el usuario pulse nada. `watchFile` sobre un
     // directorio sondea su mtime; el renombrado atómico de Windows no siempre avisa con
     // `fs.watch`. Si la carpeta aún no existe no falla: empieza a avisar cuando se cree.
-    watchFile(this.dir(), { interval: 1500 }, () => void this.update());
+    this.watchedDir = this.dir();
+    watchFile(this.watchedDir, { interval: 1500 }, () => void this.update().catch(() => undefined));
 
     // Al abrir la pestaña se prueba ComfyUI sin pulsar CONECTAR; el catálogo llega con el
     // estado. Con OpenAI `syncComfy` sale sin sondear nada.
-    void this.syncComfy().then(() => this.update());
+    void this.syncComfy()
+      .then(() => this.update())
+      .catch(() => undefined);
   }
 
   /** Disparo del MCP: si la imagen está en la carpeta, pasa a ser la actual y se pintan los prompts. */
@@ -646,7 +657,7 @@ export class ImageGenPanel {
 
   /** Repinta el estado: lo llaman el sondeo y el vigilante de la extensión. */
   public notifyChanged(): void {
-    void this.update();
+    void this.update().catch(() => undefined);
   }
 
   /** Carpeta de imágenes: en el proyecto si hay, si no en el almacén global. */
@@ -932,25 +943,34 @@ export class ImageGenPanel {
   private async copy(file: string): Promise<void> {
     const source = await this.insideImages(file);
     // `-STA` lo exige `Clipboard::SetImage`; `-NonInteractive`, que nada pregunte en consola.
+    // La ruta va por variable de entorno, no dentro del script: así no hay comillas que escapar.
     const script = [
       "Add-Type -AssemblyName System.Windows.Forms",
       "Add-Type -AssemblyName System.Drawing",
-      `$img = [System.Drawing.Image]::FromFile('${source.replace(/'/g, "''")}')`,
+      "$img = [System.Drawing.Image]::FromFile($env:ALFRED_IMG)",
       "try { [System.Windows.Forms.Clipboard]::SetImage($img) } finally { $img.Dispose() }",
     ].join("; ");
-    await execFileAsync(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-STA",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        script,
-      ],
-      { windowsHide: true, timeout: CLIPBOARD_TIMEOUT_MS }
-    );
+    try {
+      await execFileAsync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-STA",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          script,
+        ],
+        {
+          windowsHide: true,
+          timeout: CLIPBOARD_TIMEOUT_MS,
+          env: { ...process.env, ALFRED_IMG: source },
+        }
+      );
+    } catch {
+      throw new Error("No se pudo copiar la imagen al portapapeles.");
+    }
     this.message = "Imagen copiada al portapapeles.";
   }
 
@@ -1152,7 +1172,7 @@ export class ImageGenPanel {
   /** Suelta el singleton al cerrarse, sin volver a disponer el panel. */
   private release(): void {
     unwatchFile(shotFile());
-    unwatchFile(this.dir());
+    unwatchFile(this.watchedDir);
     if (ImageGenPanel.current === this) {
       ImageGenPanel.current = undefined;
     }

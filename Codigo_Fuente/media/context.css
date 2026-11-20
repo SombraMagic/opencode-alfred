@@ -1,143 +1,136 @@
-/* Contexto — HUD de la ventana de contexto (matriz de celdas + leyenda fija) */
+/* Contexto — ventana de contexto dentro del panel ALFRED // PULSO.
+   Todo va bajo #ctx: el panel ya define .hud y .hud-header. Los colores de cada
+   slice son tokens del tema (los pone context.js en --k de cada celda). */
 
-:root {
-  /* Un color por grupo de la leyenda; el mismo en la matriz y en la leyenda. */
-  --g-sistema: var(--neon);
-  --g-conversacion: var(--magenta);
-  --g-sin-atribuir: var(--amber);
-  --g-libre: color-mix(in srgb, var(--text) 55%, transparent);
-}
-
-/* El color de cada grupo lo consumen las celdas y el cuadradito de la leyenda. */
-.g-sistema { --k: var(--g-sistema); }
-.g-conversacion { --k: var(--g-conversacion); }
-.g-sin-atribuir { --k: var(--g-sin-atribuir); }
-.g-libre { --k: var(--g-libre); }
-
-.hud {
-  padding: 0 10px 10px;
-}
-
-/* Cabecera más apretada que la de theme/base.css: aquí cada píxel de alto cuenta. */
-.hud-header {
-  padding: 6px 0;
-  margin-bottom: 8px;
+#ctx {
+  flex: none;
+  margin: 0 0 10px;
+  min-width: 0;
 }
 
 /* ── Cabecera: título de la sesión a la izquierda, cifras a la derecha ── */
-.hud-header .hud-title {
+#ctx .ctx-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 5px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+}
+
+#ctx .ctx-title {
   min-width: 0;
-  letter-spacing: 1.2px;
+  font-size: 9.5px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--neon);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ctx-meta {
+#ctx .ctx-meta {
   flex: none;
   display: flex;
   align-items: baseline;
-  gap: 0;
   font-size: 10.5px;
   letter-spacing: 0.8px;
   color: var(--text);
   white-space: nowrap;
 }
 
-.ctx-meta .pct {
-  font-size: 12.5px;
+#ctx .ctx-meta .pct {
+  font-size: 12px;
   font-weight: bold;
 }
 
-.pct.ok {
+#ctx .pct.ok {
   color: var(--neon);
   text-shadow: 0 0 10px var(--neon-dim);
 }
 
-.pct.busy {
+#ctx .pct.busy {
   color: var(--amber);
 }
 
-.pct.error {
+#ctx .pct.error {
   color: var(--magenta);
 }
 
-.ctx-meta .sep {
+#ctx .ctx-meta .sep,
+#ctx .ctx-meta .figs {
   color: var(--text-soft);
 }
 
-.ctx-meta .figs {
-  color: var(--text-soft);
-}
-
-/* ── Matriz y leyenda a la misma altura ── */
-.ctx-body {
+/* ── Cuadrícula: 20 × 5 = 100 celdas (TOTAL en context.js) ── */
+#ctx .cells {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(110px, 1fr);
-  gap: 8px;
-}
-
-.ctx-box {
-  min-width: 0;
-  border: 1px solid var(--line);
-  padding: 6px;
-  background: var(--bg-soft);
-}
-
-/* La leyenda reparte su alto con la matriz en vez de dejar hueco al final. */
-.ctx-legend {
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── Rejilla de celdas (10 × 10 = 100, igual que TOTAL en context.js) ── */
-.cells {
-  display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
+  grid-template-columns: repeat(20, minmax(0, 1fr));
   gap: 2px;
-  align-content: start;
+  padding: 4px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
 }
 
-/* Casillas anchas y bajas: la matriz pesa menos en alto sin perder columnas. */
-.cell {
-  aspect-ratio: 16 / 9;
-  background: var(--bg-soft);
-  border: 1px solid var(--line-soft);
+#ctx .cell {
+  aspect-ratio: 1 / 1;
+  background: transparent;
+  border: 1px dashed var(--line);
   border-radius: 2px;
 }
 
-.cell.on {
-  background: var(--k, var(--neon));
-  border-color: var(--k, var(--neon));
-  box-shadow: 0 0 3px var(--k, var(--neon));
+#ctx .cell.on {
+  background: var(--k, var(--text-soft));
+  border: 1px solid var(--k, var(--text-soft));
+  box-shadow: 0 0 3px var(--k, var(--text-soft));
 }
 
-/* ── Leyenda: cuatro filas fijas que reparten el alto de su caja ── */
-/* La cabecera lleva COMPACTAR dentro, justificado a la derecha. */
-.legend-head {
+/* ── Leyenda plegable ─────────────────────────────────── */
+#ctx .ctx-fold {
+  margin-top: 6px;
+  border: 1px solid var(--line-soft);
+  background: var(--bg-soft);
+}
+
+#ctx .ctx-fold > summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  margin-bottom: 3px;
+  padding: 4px 6px;
   font-size: 9px;
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--neon);
-}
-
-.legend {
-  margin: 0;
-  padding: 0;
+  cursor: pointer;
   list-style: none;
-  /* Se estira con la matriz: las cuatro filas se reparten el alto en vez de dejarlo vacío. */
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: space-between;
 }
 
-.legend li {
+#ctx .ctx-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+#ctx .ctx-fold > summary > span::before {
+  content: "▸";
+  margin-right: 5px;
+}
+
+#ctx .ctx-fold[open] > summary > span::before {
+  content: "▾";
+}
+
+#ctx .ctx-fold[open] > summary {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+#ctx .legend {
+  margin: 0;
+  padding: 3px 6px 4px;
+  list-style: none;
+}
+
+#ctx .legend li {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -146,31 +139,37 @@
   font-size: 10.5px;
 }
 
-.legend li + li {
+#ctx .legend li + li {
   border-top: 1px solid var(--line-soft);
 }
 
-.sw {
+#ctx .sw {
   flex: none;
   width: 9px;
   height: 11px;
-  background: var(--k, var(--neon));
-  box-shadow: 0 0 6px var(--k, var(--neon));
+  background: var(--k, var(--text-soft));
+  box-shadow: 0 0 6px var(--k, var(--text-soft));
   border-radius: 1px;
 }
 
-.lg-name {
+/* «Libre»: el cuadradito va hueco, como las celdas vacías. */
+#ctx .sw.libre {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed var(--line);
+}
+
+#ctx .lg-name {
   flex: 1;
   min-width: 0;
   line-height: 1.3;
   letter-spacing: 0.4px;
   color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Con 9 filas y etiquetas largas («Resultados de herramientas») envuelve en vez de recortar. */
+  overflow-wrap: anywhere;
 }
 
-.lg-num {
+#ctx .lg-num {
   flex: none;
   line-height: 1.3;
   letter-spacing: 0.6px;
@@ -178,13 +177,13 @@
   white-space: nowrap;
 }
 
-abbr {
+#ctx abbr {
   text-decoration: none;
   cursor: help;
 }
 
 /* ── Compactar: dentro de la cabecera de la leyenda, a la derecha ─── */
-.compact-btn {
+#ctx .compact-btn {
   flex: none;
   background: color-mix(in srgb, var(--neon) 14%, transparent);
   border: 1px solid var(--neon-dim);
@@ -197,28 +196,16 @@ abbr {
   text-transform: uppercase;
 }
 
-.compact-btn:hover,
-.compact-btn:focus-visible {
+#ctx .compact-btn:hover,
+#ctx .compact-btn:focus-visible {
   background: color-mix(in srgb, var(--neon) 26%, transparent);
   border-color: var(--neon);
   outline: none;
 }
 
-.compact-btn:focus-visible {
-  background: color-mix(in srgb, var(--neon) 38%, transparent);
-}
-
-/* Solo en barra absurda (menos de 300 px) se apilan: así, al estrechar, la matriz
-   encoge con el panel en vez de estirarse a lo ancho y comerse la vista. */
-@media (max-width: 300px) {
-  .ctx-body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 /* ── Error ────────────────────────────────────────────── */
-.banner {
-  margin: 0 0 10px;
+#ctx .banner {
+  margin: 0 0 8px;
   padding: 8px;
   border-left: 3px solid var(--magenta);
   background: color-mix(in srgb, var(--magenta) 10%, transparent);
@@ -226,4 +213,9 @@ abbr {
   font-size: 10px;
   line-height: 1.45;
   overflow-wrap: anywhere;
+}
+
+#ctx .banner[hidden],
+#ctx [hidden] {
+  display: none;
 }

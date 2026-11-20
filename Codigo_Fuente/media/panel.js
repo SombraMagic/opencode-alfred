@@ -1,6 +1,9 @@
-/* Lógica del panel: comunica con la extensión y refleja el estado. */
+/* Lógica del panel ALFRED // PULSO: comunica con la extensión y refleja el estado. */
 (function () {
   const vscode = acquireVsCodeApi();
+  // Contexto y límites comparten esta webview: reciben el api, que solo se pide una vez.
+  window.AlfredContexto.crear(vscode);
+  window.AlfredLimites.crear(vscode);
   const $ = (id) => document.getElementById(id);
 
   const textIn = $("text");

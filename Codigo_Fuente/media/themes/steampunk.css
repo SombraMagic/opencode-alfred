@@ -28,6 +28,9 @@ body[data-theme="steampunk"] {
   --green: #5cc4a2;             /* 9,2:1, cardenillo */
   --matrix: #e8b562;
   --violet: #ab8be0;            /* 7,0:1 */
+  --azure: #6fa8dc;
+  --lime: #b5c95a;
+  --teal: #3fa7b8;
   --danger: #e26450;            /* 5,7:1 */
   --danger-dim: rgba(226, 100, 80, 0.25);
   --on-accent: #120e0a;

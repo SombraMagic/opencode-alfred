@@ -145,14 +145,22 @@
     return;
   }
 
-  const vscode = acquireVsCodeApi();
-
+  // No llama a acquireVsCodeApi(): panel.js lo hace una vez y se lo pasa a `crear`.
+  function crear(vscode) {
   const el = {
-    refresh: document.getElementById("refresh"),
-    stamp: document.getElementById("stamp"),
-    list: document.getElementById("list"),
-    hint: document.getElementById("hint"),
+    sec: document.getElementById("lim"),
+    refresh: document.getElementById("lim-refresh"),
+    stamp: document.getElementById("lim-stamp"),
+    list: document.getElementById("lim-list"),
+    hint: document.getElementById("lim-hint"),
   };
+
+  // Estado plegado de la sección: sobrevive a recargas de la webview.
+  if ((vscode.getState() || {}).limSeccion === false) el.sec.open = false;
+  el.sec.addEventListener("toggle", () => {
+    vscode.setState({ ...(vscode.getState() || {}), limSeccion: el.sec.open });
+  });
+
 
   let ultimo = 0;
   // Plegado: un id por tarjeta cerrada. Lo guarda el host entre sesiones.
@@ -310,8 +318,14 @@
     el.stamp.textContent = haceTexto(ultimo, Date.now());
   }
 
+  // El host repite el mismo mensaje en cada sondeo: sin cambios no se reconstruyen las tarjetas.
+  let firma = "";
+
   function render(lista, colapsadas) {
     sembrar(colapsadas);
+    const f = JSON.stringify(lista);
+    if (f === firma) return;
+    firma = f;
     const proveedores = Array.isArray(lista) ? lista : [];
     el.list.replaceChildren();
     ultimo = 0;
@@ -340,7 +354,7 @@
 
   window.addEventListener("message", (event) => {
     const message = event.data;
-    if (message && message.type === "data") {
+    if (message && message.type === "limits") {
       render(message.providers, message.collapsed);
     }
   });
@@ -348,5 +362,7 @@
   // «hace X min» envejece solo, sin esperar al siguiente sondeo.
   setInterval(pintaSello, 30000);
 
-  vscode.postMessage({ type: "ready" });
+  }
+
+  window.AlfredLimites = { crear };
 })();

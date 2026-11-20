@@ -116,7 +116,8 @@
       c,
       x: 4 + Math.random() * Math.max(0, W - 8),
       y: -6 - Math.random() * 40,
-      len: 20 + Math.random() * 40,
+      // Con el lienzo bajo (3:1) la estela no puede pasar de media altura.
+      len: Math.min(20 + Math.random() * 40, H * 0.5),
       vy: 0.22 + Math.random() * 0.45, // Alturas de lienzo por segundo.
       s,
       grad: null, // Se crea en el primer pintado, ya con el transform del lienzo.

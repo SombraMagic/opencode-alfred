@@ -474,6 +474,8 @@ export function sessionFiles(dir: string, limit?: number): string[] {
 /* -------------------------------- contexto -------------------------------- */
 
 let contextCache: { key: string; info: ContextWindowInfo } | undefined;
+/** Ficheros de memoria, agentes y skills de la última lectura: su firma entra en la clave de caché. */
+let sourceFiles: string[] = [];
 
 type ClaudeLine = {
   type?: string;
@@ -481,33 +483,144 @@ type ClaudeLine = {
   message?: { model?: unknown; usage?: Record<string, unknown>; content?: unknown };
 };
 
+function strLen(value: unknown): number {
+  return typeof value === "string" ? value.length : 0;
+}
+
 function num(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-/** Tokens (chars/4) del contenido de un mensaje: texto y thinking a mensajes; tool_use y tool_result a herramientas. */
-function blockChars(content: unknown): { msg: number; tool: number } {
+/** Caracteres del contenido de un mensaje, por tipo de bloque. */
+interface MsgChars {
+  user: number;
+  assistant: number;
+  toolUse: number;
+  toolResult: number;
+}
+
+function blockChars(content: unknown, role: string | undefined): MsgChars {
+  const out: MsgChars = { user: 0, assistant: 0, toolUse: 0, toolResult: 0 };
+  // El texto de un mensaje `user` es del usuario; el de un `assistant`, del asistente.
+  const own: "user" | "assistant" = role === "assistant" ? "assistant" : "user";
   if (typeof content === "string") {
-    return { msg: content.length / 4, tool: 0 };
+    out[own] += content.length;
+    return out;
   }
-  let msg = 0;
-  let tool = 0;
   if (!Array.isArray(content)) {
-    return { msg, tool };
+    return out;
   }
   for (const part of content as Array<Record<string, unknown>>) {
     if (part?.type === "text" && typeof part.text === "string") {
-      msg += part.text.length;
+      out[own] += part.text.length;
     } else if (part?.type === "thinking" && typeof part.thinking === "string") {
-      msg += part.thinking.length;
+      out.assistant += part.thinking.length;
     } else if (part?.type === "tool_use") {
-      tool += JSON.stringify(part.input ?? "").length;
+      out.toolUse += JSON.stringify(part.input ?? "").length;
     } else if (part?.type === "tool_result") {
       const c = part.content;
-      tool += typeof c === "string" ? c.length : c === undefined ? 0 : JSON.stringify(c).length;
+      out.toolResult += typeof c === "string" ? c.length : c === undefined ? 0 : JSON.stringify(c).length;
     }
   }
-  return { msg: msg / 4, tool: tool / 4 };
+  return out;
+}
+
+/** Reparte `total` (entero) en proporción a `weights` por resto mayor: la suma es exactamente `total`. */
+function apportion(weights: number[], total: number): number[] {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  if (total <= 0 || sum <= 0) {
+    return weights.map(() => 0);
+  }
+  const exact = weights.map((w) => (w * total) / sum);
+  const out = exact.map(Math.floor);
+  let left = total - out.reduce((a, b) => a + b, 0);
+  const order = exact.map((v, i) => ({ i, frac: v - Math.floor(v) })).sort((a, b) => b.frac - a.frac);
+  for (let k = 0; left > 0 && order.length > 0; k = (k + 1) % order.length, left--) {
+    out[order[k].i]++;
+  }
+  return out;
+}
+
+/* Partes fijas del prompt (estimadas): ficheros de memoria, agentes y skills. */
+
+const MEMORY_MAX_DEPTH = 3;
+const MEMORY_MAX_FILES = 20;
+
+/** Rutas `@ruta` de un Markdown (sin bloques ni código en línea); las que no existen se descartan luego. */
+function memoryImports(text: string, from: string): string[] {
+  const clean = text.replace(/```[\s\S]*?```/g, " ").replace(/`[^`\n]*`/g, " ");
+  const out: string[] = [];
+  for (const m of clean.matchAll(/(?:^|\s)@(\S+)/g)) {
+    const raw = m[1].replace(/[.,;:!?)\]]+$/, "");
+    out.push(
+      raw.startsWith("~/") ? path.join(os.homedir(), raw.slice(2)) : path.resolve(path.dirname(from), raw)
+    );
+  }
+  return out;
+}
+
+/** Ficheros de memoria que Claude carga más sus importaciones por `@` (profundidad 3, sin ciclos). */
+function memoryFiles(projectRoot: string | undefined): Array<{ file: string; chars: number }> {
+  const roots = [path.join(claudeHome(), "CLAUDE.md")];
+  if (projectRoot) {
+    roots.push(
+      path.join(projectRoot, "CLAUDE.md"),
+      path.join(projectRoot, ".claude", "CLAUDE.md"),
+      path.join(projectRoot, "CLAUDE.local.md")
+    );
+  }
+  const seen = new Set<string>();
+  const out: Array<{ file: string; chars: number }> = [];
+  const visit = (file: string, depth: number): void => {
+    const id = path.normalize(file).toLowerCase();
+    if (seen.has(id) || out.length >= MEMORY_MAX_FILES) {
+      return;
+    }
+    seen.add(id);
+    let text: string;
+    try {
+      const st = statSync(file);
+      // Tope de 1 MB: solo se cuentan caracteres y se relee en cada cambio de sesión.
+      if (!st.isFile() || st.size > 1_000_000) {
+        return;
+      }
+      text = readFileSync(file, "utf8");
+    } catch {
+      return; // Ausente o ilegible: no cuenta.
+    }
+    out.push({ file, chars: text.length });
+    if (depth < MEMORY_MAX_DEPTH) {
+      for (const target of memoryImports(text, file)) {
+        visit(target, depth + 1);
+      }
+    }
+  };
+  for (const file of roots) {
+    visit(file, 0);
+  }
+  return out;
+}
+
+/** Chars de `name` + `description` de agentes y skills (los que lista el Explorador; sin plugins). */
+function catalogChars(projectRoot: string | undefined): {
+  agents: number;
+  skills: number;
+  files: string[];
+} {
+  const agents = [
+    ...(projectRoot ? readAgents(projectAgentsDir(projectRoot), "project") : []),
+    ...readAgents(path.join(claudeHome(), "agents"), "global"),
+  ];
+  const skills = [
+    ...readSkills(path.join(claudeHome(), "skills"), "global"),
+    ...(projectRoot ? readSkills(projectSkillsDir(projectRoot), "project") : []),
+  ];
+  return {
+    // El frontmatter puede traer escalares no string (`description: 2026`): cuentan 0.
+    agents: agents.reduce((n, a) => n + strLen(a.name) + strLen(a.description), 0),
+    skills: skills.reduce((n, s) => n + strLen(s.name) + strLen(s.detail), 0),
+    files: [...agents.map((a) => a.filePath), ...skills.map((s) => s.filePath)].filter((f): f is string => !!f),
+  };
 }
 
 /** Quita las etiquetas XML con su contenido: los comandos locales no son parte del mensaje. */
@@ -568,7 +681,8 @@ function contextLimit(model: string): number {
 function readContext(
   file: string,
   sessionId: string,
-  scannedAt: number
+  scannedAt: number,
+  projectRoot: string | undefined
 ): ContextWindowInfo | undefined {
   let text: string;
   try {
@@ -581,11 +695,13 @@ function readContext(
   let used = 0;
   let model = "";
   let title: string | undefined;
-  // Sistema = total de la primera respuesta medida (system prompt, herramientas, CLAUDE.md).
-  // Mensajes y herramientas: caracteres de los bloques desde el último resumen.
+  // Todo son estimaciones chars/4 sobre el texto guardado. Sistema = total de la primera
+  // respuesta medida (system prompt, herramientas, memoria, agentes, skills): de ahí se restan
+  // las estimaciones de memoria, agentes y skills y el resto queda en «Sistema». Los esquemas
+  // de MCP/herramientas no se persisten, así que también caen en «Sistema».
+  // Mensajes: caracteres de los bloques desde el último resumen.
   let system = 0;
-  let msgChars = 0;
-  let toolChars = 0;
+  const chars: MsgChars = { user: 0, assistant: 0, toolUse: 0, toolResult: 0 };
   for (const line of text.split("\n")) {
     if (!line.includes('"type":"assistant"') && !line.includes('"type":"user"')) {
       continue;
@@ -597,12 +713,13 @@ function readContext(
       continue; // Línea a medio escribir de una sesión viva.
     }
     if (item.isCompactSummary) {
-      msgChars = 0;
-      toolChars = 0;
+      chars.user = chars.assistant = chars.toolUse = chars.toolResult = 0;
     }
-    const chars = blockChars(item.message?.content);
-    msgChars += chars.msg;
-    toolChars += chars.tool;
+    const block = blockChars(item.message?.content, item.type);
+    chars.user += block.user;
+    chars.assistant += block.assistant;
+    chars.toolUse += block.toolUse;
+    chars.toolResult += block.toolResult;
     if (item.type === "assistant") {
       const usage = item.message?.usage;
       if (usage) {
@@ -624,13 +741,31 @@ function readContext(
   }
   system = Math.min(system, used);
   const rest = used - system;
-  const tools = msgChars + toolChars > 0 ? Math.round((rest * toolChars) / (msgChars + toolChars)) : 0;
-  // ponytail: reparto por chars/4 del texto guardado; los esquemas y el thinking cifrado no cuentan.
+  const memory = memoryFiles(projectRoot).reduce((n, f) => n + f.chars, 0) / 4;
+  const catalog = catalogChars(projectRoot);
+  const agents = catalog.agents / 4;
+  const skills = catalog.skills / 4;
+  // Si las tres estimaciones no caben en el bloque fijo, `apportion` las escala juntas.
+  const [sysMemory, sysAgents, sysSkills, sysRest] = apportion(
+    [memory, agents, skills, Math.max(0, system - memory - agents - skills)],
+    system
+  );
+  // Sin ningún texto medido, los mensajes se atribuyen al asistente para que la suma cuadre.
+  const weights = [chars.user, chars.assistant, chars.toolUse, chars.toolResult];
+  const [user, assistant, toolUse, toolResult] = apportion(
+    weights.some((w) => w > 0) ? weights : [0, 1, 0, 0],
+    rest
+  );
   const slices: ContextWindowInfo["slices"] = [
-    { key: "core/system", label: "Sistema", tokens: system, estimated: true },
-    { key: "messages", label: "Mensajes", tokens: rest - tools, estimated: true },
-    { key: "tools", label: "Herramientas", tokens: tools, estimated: true },
-  ];
+    { key: "core/system", label: "Sistema", tokens: sysRest, estimated: true },
+    { key: "core/memory", label: "Archivos de memoria", tokens: sysMemory, estimated: true },
+    { key: "core/agents", label: "Agentes", tokens: sysAgents, estimated: true },
+    { key: "core/skills", label: "Skills", tokens: sysSkills, estimated: true },
+    { key: "user", label: "Usuario", tokens: user, estimated: true },
+    { key: "assistant", label: "Asistente", tokens: assistant, estimated: true },
+    { key: "tool_use", label: "Llamadas a herramientas", tokens: toolUse, estimated: true },
+    { key: "tool_result", label: "Resultados de herramientas", tokens: toolResult, estimated: true },
+  ].filter((slice) => slice.tokens > 0);
   return {
     ok: true,
     sessionId,
@@ -673,19 +808,43 @@ export function claudeContext(projectRoot: string | undefined): ContextWindowInf
   if (files.length === 0) {
     return noSession(scannedAt);
   }
-  const key = [settingsFile(), ...files].map(fileSignature).join("|");
-  if (contextCache?.key === key) {
+  // Además de settings y sesiones: lo leído la vez anterior y las carpetas de agentes y skills
+  // (altas y bajas). Solo stats de ficheros: el sondeo no relee contenido.
+  const signature = (): string =>
+    [
+      settingsFile(),
+      ...files,
+      ...new Set([
+        path.join(claudeHome(), "CLAUDE.md"),
+        path.join(claudeHome(), "agents"),
+        path.join(claudeHome(), "skills"),
+        ...(projectRoot
+          ? [
+              path.join(projectRoot, "CLAUDE.md"),
+              path.join(projectRoot, ".claude", "CLAUDE.md"),
+              path.join(projectRoot, "CLAUDE.local.md"),
+              projectAgentsDir(projectRoot),
+              projectSkillsDir(projectRoot),
+            ]
+          : []),
+        ...sourceFiles,
+      ]),
+    ]
+      .map(fileSignature)
+      .join("|");
+  if (contextCache?.key === signature()) {
     return contextCache.info;
   }
+  sourceFiles = [...memoryFiles(projectRoot).map((f) => f.file), ...catalogChars(projectRoot).files];
   let info = noSession(scannedAt);
   for (const file of files) {
-    const measured = readContext(file, path.basename(file, ".jsonl"), scannedAt);
+    const measured = readContext(file, path.basename(file, ".jsonl"), scannedAt, projectRoot);
     if (measured) {
       info = measured;
       break;
     }
   }
-  contextCache = { key, info };
+  contextCache = { key: signature(), info };
   return info;
 }
 

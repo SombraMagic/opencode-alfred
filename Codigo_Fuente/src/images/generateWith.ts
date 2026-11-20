@@ -38,6 +38,12 @@ function sanitizeSide(raw: unknown): number {
   return Math.min(2048, Math.max(64, Math.round(Math.round(value) / 8) * 8));
 }
 
+/** Pasos y guía del KSampler: número finito acotado; si no, el defecto del panel. */
+function clampNum(raw: unknown, min: number, max: number, fallback: number): number {
+  const value = typeof raw === "number" && Number.isFinite(raw) ? raw : fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
 /** Genera con los ajustes recibidos y guarda el PNG en la carpeta del historial. */
 export async function generateWithSettings(
   settings: ImageSettingsInput,
@@ -76,8 +82,8 @@ export async function generateWithSettings(
     width: sanitizeSide(prefs.width),
     height: sanitizeSide(prefs.height),
     loras: [],
-    steps: prefs.steps,
-    cfg: prefs.cfg,
+    steps: clampNum(prefs.steps, 1, 150, 20),
+    cfg: clampNum(prefs.cfg, 1, 30, 7),
     seed: prefs.seedRandom ? undefined : prefs.seed,
     onProgress,
   });
