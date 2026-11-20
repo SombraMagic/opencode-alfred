@@ -10,7 +10,12 @@ import {
   Scope,
 } from "../agents/types";
 import { serializeAgentFile } from "../agents/parser";
-import { deleteAgent, findAgent, readConfigInfo, saveAgent } from "../agents/store";
+import { deleteAgent, listAgents, readConfigInfo, saveAgent } from "../agents/store";
+import {
+  ConfigAgentEntry,
+  deleteConfigAgent,
+  saveConfigAgent,
+} from "../agents/configAgents";
 import { validateAgentName, validateFrontmatter, ValidationIssue } from "../agents/validate";
 import { projectRoot } from "../agents/paths";
 import { currentTheme, themeLinks, themeScript } from "./theme";
@@ -23,6 +28,8 @@ interface EditorInit {
   canRename: boolean;
   source: string;
   filePath?: string;
+  /** Agente declarado en `opencode.json(c)`: dónde vive la entrada y su prompt. */
+  inline?: { file: string; key: "agent" | "agents"; promptFile?: string };
   frontmatter: AgentFrontmatter;
   prompt: string;
   /** Vista previa del .md calculada con el mismo serializador que usa saveAgent. */
@@ -88,9 +95,17 @@ export class EditorPanel {
       name: agent.name,
       scope: agent.scope,
       targetScope,
-      canRename: opts.mode === "edit" && agent.source === "file",
+      canRename: opts.mode === "edit" && agent.source !== "builtin",
       source: agent.source,
       filePath: agent.filePath,
+      inline:
+        agent.source === "inline" && agent.filePath
+          ? {
+              file: agent.filePath,
+              key: agent.configKey ?? "agent",
+              ...(agent.promptFile ? { promptFile: agent.promptFile } : {}),
+            }
+          : undefined,
       frontmatter: agent.frontmatter,
       prompt: agent.prompt,
       preview: previewOf(agent.frontmatter),
@@ -193,6 +208,23 @@ export class EditorPanel {
     this.post({ type: "validation", issues, preview: previewOf(payload.frontmatter) });
   }
 
+  /** La entrada de config de este editor cuando el agente es inline. */
+  private configEntry(): ConfigAgentEntry | undefined {
+    const inline = this.init.inline;
+    if (!inline) {
+      return undefined;
+    }
+    return {
+      name: this.init.name,
+      scope: this.init.scope,
+      filePath: inline.file,
+      key: inline.key,
+      ...(inline.promptFile ? { promptFile: inline.promptFile } : {}),
+      promptText: this.init.prompt,
+      frontmatter: this.init.frontmatter,
+    };
+  }
+
   private async handleSave(payload: {
     name: string;
     targetScope: Scope;
@@ -209,10 +241,12 @@ export class EditorPanel {
       return;
     }
 
-    // Renombrar escribe un fichero nuevo: no debe machacar el de otro agente.
+    // Renombrar no debe pisar a otro agente del mismo ámbito: ni un `.md` ni otra entrada
+    // de config con ese nombre.
     if (payload.name !== this.init.name) {
-      const clash = await findAgent(payload.name, payload.targetScope);
-      if (clash && clash.filePath !== this.init.filePath) {
+      const list = await listAgents(false);
+      const scopeAgents = payload.targetScope === "project" ? list.project : list.global;
+      if (scopeAgents.some((a) => a.name === payload.name)) {
         this.post({
           type: "saved",
           ok: false,
@@ -223,6 +257,34 @@ export class EditorPanel {
     }
 
     try {
+      const entry = this.configEntry();
+      if (entry) {
+        const file = await saveConfigAgent(entry, {
+          name: payload.name,
+          frontmatter: payload.frontmatter,
+          prompt: payload.prompt,
+        });
+        this.init.filePath = file;
+        this.init.name = payload.name;
+        this.init.frontmatter = payload.frontmatter;
+        this.init.prompt = payload.prompt;
+        this.dirty = false;
+        this.post({
+          type: "saved",
+          ok: true,
+          message: entry.promptFile
+            ? `Guardado en ${file}; el prompt, en ${entry.promptFile}.`
+            : `Guardado en ${file}.`,
+          file,
+        });
+        this.onSaved?.();
+        void vscode.window.setStatusBarMessage(
+          `opencode agents: guardado ${payload.name} en ${file}. opencode v2 recarga los agentes al guardar; si no, /reload.`,
+          6000
+        );
+        return;
+      }
+
       const file = await saveAgent(
         payload.targetScope,
         payload.name,
@@ -254,7 +316,7 @@ export class EditorPanel {
     }
   }
 
-  /** Borra el .md del disco, avisa al resto de componentes y cierra el panel. */
+  /** Borra el .md del disco (o la entrada inline), avisa al resto de componentes y cierra el panel. */
   private async handleDelete(): Promise<void> {
     const file = this.init.filePath;
     const name = this.init.name;
@@ -262,6 +324,36 @@ export class EditorPanel {
       void vscode.window.showInformationMessage(
         `Nada que borrar: aún no existe el fichero del agente "${name}".`
       );
+      return;
+    }
+
+    const entry = this.configEntry();
+    if (entry) {
+      // El prompt puede vivir en su propio fichero: se queda donde está.
+      const choice = await vscode.window.showWarningMessage(
+        `¿Quitar el agente "${name}"? Se elimina la entrada de ${file}; el fichero del prompt se conserva.` +
+          (this.dirty ? " Se pierden los cambios sin guardar." : ""),
+        { modal: true },
+        "Quitar"
+      );
+      if (choice !== "Quitar") {
+        return;
+      }
+      try {
+        await deleteConfigAgent(entry);
+      } catch (err) {
+        const text = err instanceof Error ? err.message : String(err);
+        this.post({ type: "saved", ok: false, message: `Error al borrar: ${text}` });
+        void vscode.window.showErrorMessage(`No se pudo quitar ${name} de ${file}: ${text}`);
+        return;
+      }
+      this.dirty = false;
+      this.onSaved?.();
+      void vscode.window.setStatusBarMessage(
+        `opencode agents: quitada la entrada ${name} de ${file}. opencode v2 recarga los agentes al guardar; si no, /reload.`,
+        6000
+      );
+      this.panel.dispose();
       return;
     }
 
@@ -448,12 +540,12 @@ ${themeLinks(this.extensionUri, webview, ["editor.css"], ["mdEditor.css"])}
 
     <section class="card span-2">
       <h2>Prompt (system prompt)</h2>
-      <p class="hint">El cuerpo del fichero ES el prompt: no se escribe ninguna clave <code>prompt:</code>.</p>
+      <p class="hint" id="prompt-hint">El cuerpo del fichero ES el prompt: no se escribe ninguna clave <code>prompt:</code>.</p>
       <textarea id="f-prompt" class="prompt" rows="18" spellcheck="false" placeholder="Eres un..."></textarea>
       <p class="hint" id="prompt-count"></p>
     </section>
 
-    <section class="card span-2">
+    <section class="card span-2" id="card-preview">
       <h2>Vista previa</h2>
       <p class="hint">Tal cual se escribirá el frontmatter.</p>
       <pre id="preview" class="preview"></pre>

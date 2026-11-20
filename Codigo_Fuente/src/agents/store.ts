@@ -11,6 +11,7 @@ import {
   configFileCandidates,
   globalAgentDirs,
   globalAgentsMdPath,
+  globalOpencodeDir,
   opencodeAuthPath,
   opencodeDataDir,
   opencodeModelsCachePath,
@@ -20,6 +21,7 @@ import {
 } from "./paths";
 import { parseAgentFile, serializeAgentFile } from "./parser";
 import { buildConfigInfo, OpencodeConfigInfo, Registry } from "./config";
+import { loadConfigAgents } from "./configAgents";
 import { listDbFiles, openSqlite } from "../stats/opencodeStats";
 
 async function pathExists(p: string): Promise<boolean> {
@@ -101,6 +103,29 @@ export async function loadScopeAgents(scope: Scope): Promise<Agent[]> {
       });
       console.error(`[opencode-agents] no se pudo leer ${file}:`, err);
     }
+  }
+  // Los agentes declarados en `opencode.json(c)`: un `.md` con el mismo nombre manda y la
+  // entrada del config no se duplica.
+  const names = new Set(agents.map((a) => a.name));
+  for (const entry of await loadConfigAgents({
+    globalDir: globalOpencodeDir(),
+    projectRoot: projectRoot(),
+    scope,
+  })) {
+    if (names.has(entry.name)) {
+      continue;
+    }
+    agents.push({
+      name: entry.name,
+      scope,
+      source: "inline",
+      filePath: entry.filePath,
+      frontmatter: entry.frontmatter,
+      prompt: entry.promptText,
+      builtin: (BUILTIN_AGENTS as readonly string[]).includes(entry.name),
+      promptFile: entry.promptFile,
+      configKey: entry.key,
+    });
   }
   return agents.sort((a, b) => a.name.localeCompare(b.name));
 }

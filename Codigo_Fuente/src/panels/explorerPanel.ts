@@ -14,6 +14,8 @@ export interface ExplorerAgent {
   shadowed?: boolean;
   overriddenBy?: string[];
   filePath?: string;
+  /** `inline` = declarado en opencode.json(c), no en un `.md`. */
+  source?: "file" | "inline";
   working: boolean;
   streaming: boolean;
   tokens: number;

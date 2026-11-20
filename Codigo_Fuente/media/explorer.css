@@ -350,6 +350,13 @@
   flex: none;
 }
 
+/* Agentes declarados en el JSON de opencode: mismo chip, tono propio para distinguirlos
+   de los .md. Ni alto ni hueco: comparte la métrica de .chip. */
+.agent-name .chip.json {
+  color: var(--neon);
+  border-color: var(--neon-dim);
+}
+
 /* El modelo nunca por debajo de 11px: es la pista de con qué corre el agente. */
 .agent-model {
   flex: 1 1 auto;

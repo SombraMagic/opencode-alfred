@@ -103,6 +103,13 @@
     if (agent.overriddenBy && agent.overriddenBy.length > 0) {
       name.appendChild(node("span", "chip", "SOBRESCRITO"));
     }
+    // Declarado en el JSON de opencode (`agent`/`agents`), no en un .md: el prompt puede
+    // vivir en otro fichero.
+    if (agent.source === "inline") {
+      const json = node("span", "chip json", "JSON");
+      json.title = "Declarado en opencode.json; el prompt puede vivir en otro fichero";
+      name.appendChild(json);
+    }
     card.appendChild(name);
 
     const sub = [agent.mode, agent.model].filter(Boolean).join(" · ");

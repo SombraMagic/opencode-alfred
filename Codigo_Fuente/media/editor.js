@@ -120,6 +120,62 @@
     ].join("  ·  ");
   }
 
+  /** Textos de fábrica de lo que cambia con un agente inline: se guardan antes de tocar
+   * nada para poder restaurarlos si el mismo webview carga otro agente. */
+  const DEFAULT_OPEN_RAW = {
+    text: $("btn-open-raw").textContent,
+    title: $("btn-open-raw").title,
+  };
+  const DEFAULT_PROMPT_HINT = $("prompt-hint").innerHTML;
+
+  /** Origen de un agente declarado en el JSON de opencode. Es una línea fija debajo del
+   * banner, no un aviso: el banner sigue para guardar/borrar. Ajusta además las tres
+   * piezas que mienten con un inline: «Abrir .md», la vista previa del .md y el hint del
+   * prompt (en el JSON sí hay clave). */
+  function renderInlineOrigin() {
+    const banner = $("banner");
+    let line = document.getElementById("inline-origin");
+    if (!line) {
+      line = node("div", "inline-origin");
+      line.id = "inline-origin";
+      banner.insertAdjacentElement("afterend", line);
+    }
+
+    const openRaw = $("btn-open-raw");
+    const promptHint = $("prompt-hint");
+    const inline = init && init.source === "inline" ? init.inline : null;
+
+    if (!inline) {
+      line.hidden = true;
+      line.textContent = "";
+      line.removeAttribute("title");
+      openRaw.textContent = DEFAULT_OPEN_RAW.text;
+      openRaw.title = DEFAULT_OPEN_RAW.title;
+      $("card-preview").hidden = false;
+      promptHint.innerHTML = DEFAULT_PROMPT_HINT;
+      return;
+    }
+
+    const file = String(inline.file || "");
+    const name = file.split(/[\\/]/).pop() || file;
+    let text = "Definido en opencode.json";
+    if (name) text += " — " + name;
+    const promptFile = String(inline.promptFile || "");
+    if (promptFile) text += "; el prompt se guarda en " + promptFile;
+    line.textContent = text;
+    line.title = text;
+    line.hidden = false;
+
+    // El agente no vive en un .md: el botón abre el JSON que lo declara.
+    openRaw.textContent = "Abrir JSON";
+    openRaw.title = "Abrir el opencode.json que declara el agente";
+    // Nada se escribe como .md: la vista previa del frontmatter engañaría.
+    $("card-preview").hidden = true;
+    promptHint.textContent =
+      "El prompt se guarda en la clave prompt (v1) o system (v2) de la entrada del JSON; " +
+      "si la entrada usa {file:ruta}, se escribe en ese fichero.";
+  }
+
   // ---- color del frontmatter ---------------------------------------------
   // El picker SIEMPRE produce hex #rrggbb; colorValue conserva el valor original del
   // frontmatter (p. ej. "primary" o "blue") mientras el usuario no toque picker ni chip.
@@ -764,6 +820,7 @@
     source = d.source;
     filePath = d.filePath || "";
     renderHead();
+    renderInlineOrigin();
 
     input("f-name").value = d.name;
     input("f-name").disabled = d.mode === "edit" && !d.canRename;
@@ -916,10 +973,11 @@
         setBanner(message.message, !message.ok);
         if (message.ok) {
           if (message.file) {
-            // El agente ya tiene fichero: la cabecera y "Abrir .md" se ponen al día.
+            // El agente ya tiene fichero: la cabecera y «Abrir .md» se ponen al día. Un
+            // inline sigue siendo inline: su origen es el JSON, no un .md nuevo.
             mode = "edit";
             filePath = message.file;
-            source = "file";
+            if (source !== "inline") source = "file";
             agentName = input("f-name").value.trim() || agentName;
             $("btn-open-raw").hidden = false;
             $("btn-delete").hidden = false;

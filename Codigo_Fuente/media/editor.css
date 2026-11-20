@@ -139,6 +139,22 @@ button:disabled {
   background: var(--line-soft);
 }
 
+/* Origen de un agente declarado en el JSON de opencode: línea fija y discreta, no un
+   aviso. La ruta larga se recorta; el texto completo va en el `title`. */
+.inline-origin {
+  margin: 10px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inline-origin[hidden] {
+  display: none;
+}
+
 /* ── Rejilla y tarjetas ────────────────────────────────── */
 .grid {
   display: grid;
@@ -151,6 +167,10 @@ button:disabled {
   border: 1px solid var(--line-soft);
   background: var(--bg-soft);
   padding: 11px 13px;
+}
+
+.card[hidden] {
+  display: none;
 }
 
 .span-2 {

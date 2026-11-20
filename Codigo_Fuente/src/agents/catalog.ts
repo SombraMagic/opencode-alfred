@@ -519,9 +519,17 @@ function configSkillPaths(config: RawConfig): string[] {
   if (!Array.isArray(paths)) {
     return [];
   }
+  // Las rutas relativas se resuelven contra la carpeta del fichero de config, como opencode,
+  // no contra el cwd del proceso.
+  const base = path.dirname(config.path);
   return paths
     .filter((p): p is string => typeof p === "string" && p.trim() !== "")
-    .map((p) => path.normalize(expandHome(p.trim())));
+    .map((p) => {
+      const expanded = expandHome(p.trim());
+      return path.isAbsolute(expanded)
+        ? path.normalize(expanded)
+        : path.normalize(path.resolve(base, expanded));
+    });
 }
 
 /** Find directories named "skills" under opencode's plugin cache (bounded BFS). */

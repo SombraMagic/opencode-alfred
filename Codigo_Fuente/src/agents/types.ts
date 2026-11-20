@@ -62,6 +62,10 @@ export interface Agent {
   source: Source;
   /** Absolute path of the .md file (file agents only). */
   filePath?: string;
+  /** Fichero del prompt de un agente inline (`{file:ruta}` en el config). */
+  promptFile?: string;
+  /** Clave del config que declara un agente inline: `agent` (v1) o `agents` (v2). */
+  configKey?: "agent" | "agents";
   /** Directory that holds the agent file. */
   dir?: string;
   frontmatter: AgentFrontmatter;
