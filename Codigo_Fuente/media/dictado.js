@@ -613,7 +613,10 @@
 
   $("send").addEventListener("click", () => post({ type: "sendPrompt", text: promptText() }));
   $("copiar").addEventListener("click", () => post({ type: "copyPrompt", text: promptText() }));
-  $("a-todo").addEventListener("click", () => post({ type: "addTodo", text: promptText() }));
+  // `detail` 0 = el clic viene del teclado (Espacio/Enter con el botón enfocado), no del ratón.
+  $("a-todo").addEventListener("click", (e) =>
+    post({ type: "addTodo", text: promptText(), via: e.detail === 0 ? "teclado" : "ratón" }),
+  );
 
   // ── Botonera de comandos ────────────────────────────────
   const cmdsEl = $("cmds");

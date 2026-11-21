@@ -6,6 +6,15 @@ Una entrada por versión publicada. El `.vsix` de cada versión está en
 Las versiones 0.8.3 a 0.8.7 y 0.8.9 a 0.8.11 solo subieron el número para reinstalar el `.vsix`
 con VS Code abierto: no son releases y lo que trajeron está reunido en la 0.8.8 y la 0.8.12.
 
+## [0.9.13] - 2026-11-21
+
+- **TO_DO: descripción editable**: al desplegar una tarea, su descripción se edita en un campo de texto.
+  Se guarda al salir del campo si cambió y no queda vacía; `Esc` descarta lo escrito. El refresco de cada
+  2 s no repinta mientras se teclea. El nombre sigue saliendo de la primera línea.
+- **Registro temporal de `A TO_DO`**: cada pulsación del botón del dictado añade una línea a
+  `%APPDATA%\voz\todo-debug.log` (hora, si fue por teclado o ratón, y pid del host). Sirve para cazar tareas
+  duplicadas sin causa conocida; se quitará cuando se encuentre.
+
 ## [0.9.12] - 2026-11-21
 
 - **TO_DO**: pestaña central con una lista de tareas compartida entre tú y la IA, en la segunda fila de

@@ -12,11 +12,11 @@
  */
 import * as vscode from "vscode";
 import { readFileSync, unwatchFile, watchFile } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { extname, isAbsolute, join, relative, resolve } from "node:path";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { setActivity } from "./activity";
 import { projectRoot } from "../agents/paths";
-import { crearTarea } from "../todo/store";
+import { crearTarea, todoFile } from "../todo/store";
 import {
   SapiDictado,
   WHISPER_MODELS,
@@ -339,7 +339,7 @@ export class VozDictado {
         await this.sendPrompt(String(msg.text ?? ""));
         break;
       case "addTodo":
-        await this.addTodo(typeof msg.text === "string" ? msg.text : "");
+        await this.addTodo(typeof msg.text === "string" ? msg.text : "", typeof msg.via === "string" ? msg.via : "?");
         break;
       case "copyPrompt":
         await this.copyPrompt(String(msg.text ?? ""));
@@ -785,7 +785,12 @@ export class VozDictado {
    * comando encendido de la botonera: es un comando para el agente, no parte de la tarea.
    * El tope de longitud lo valida `crearTarea`.
    */
-  private async addTodo(raw: string) {
+  private async addTodo(raw: string, via: string) {
+    // Registro temporal para cazar tareas duplicadas (hora, origen del clic y pid del host).
+    void appendFile(
+      join(dirname(todoFile()), "todo-debug.log"),
+      `${new Date().toISOString()} addTodo via=${via} pid=${process.pid}\n`,
+    ).catch(() => undefined);
     // Las rutas viajan dentro del texto: espera a que los adjuntos pendientes estén escritos.
     await this.attachChain;
     const nota = raw.replace(/\r\n?/g, "\n").trim();

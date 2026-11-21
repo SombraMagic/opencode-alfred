@@ -1,11 +1,13 @@
 # Estado del proyecto
 
-Última revisión: 21 de noviembre de 2026 · versión **0.9.12**
+Última revisión: 21 de noviembre de 2026 · versión **0.9.13**
 
-La **0.9.12** (2026-11-21) es la actual. Trae el TO_DO (lista de tareas compartida con la IA, con sus
-herramientas `todo_*` en `mcp_alfred` 1.6.0) y el dictado con SAPI usando el micro y el filtro de ruido del
-panel. Publicada con tag `v0.9.12` y `Instalable/opencode-alfred-0.9.12.vsix`. Sin probar en VS Code real el
-arrastre con ratón del TO_DO, y a 360 px de ancho el pie del dictado puede pasar a tres filas. La **0.9.11** (2026-11-21, tag `v0.9.11`, `Instalable/opencode-alfred-0.9.11.vsix`)
+La **0.9.13** (2026-11-21) es la actual, pendiente de empaquetar y etiquetar. Trae la descripción de
+las tareas del TO_DO editable en el panel y un registro temporal de `A TO_DO` para cazar duplicados.
+La **0.9.12** (2026-11-21, tag `v0.9.12`, `Instalable/opencode-alfred-0.9.12.vsix`) queda como release
+publicada e histórica: trae el TO_DO (con sus herramientas `todo_*` en `mcp_alfred` 1.6.0) y el dictado con
+SAPI usando el micro y el filtro de ruido del panel. Sin probar en VS Code real el arrastre con ratón del
+TO_DO, y a 360 px de ancho el pie del dictado puede pasar a tres filas. La **0.9.11** (2026-11-21, tag `v0.9.11`, `Instalable/opencode-alfred-0.9.11.vsix`)
 queda como release publicada e histórica: trae la pestaña SESIONES, la botonera del dictado (MCP 1.5.0), los
 agentes de `opencode.json` y la barra derecha unificada. Sin probar en VS Code real el dictado a Claude por consola. La **0.9.10** (2026-11-16, tag `v0.9.10`)
 queda como release publicada e histórica: corrige el frontmatter laxo de la 0.9.9. La
@@ -154,7 +156,9 @@ soporte todavía no funciona del todo bien y puede cambiar sin aviso.
 ## Siguiente
 
 0. **TO_DO en VS Code real**: abrir la pestaña desde `Control`, crear, mover de estado, filtrar, agrupar y
-   ordenar, incluido el arrastre con ratón (sin probar todavía). Desde el dictado, `A TO_DO` y
+   ordenar, incluido el arrastre con ratón y la edición de la descripción al desplegar (sin probar todavía).
+   Con `todo-debug.log` en `%APPDATA%\voz`, reproducir el duplicado de `A TO_DO` y quitar el registro cuando
+   se encuentre la causa. Desde el dictado, `A TO_DO` y
    `ABRIR TO_DO`. Con un agente de opencode o Claude, pedirle `todo_listar`/`todo_iniciar`/`todo_terminar`
    tras relanzarlo (los agentes con el MCP ya lanzado no ven las herramientas nuevas). Y el dictado a
    360 px de ancho, donde el pie puede pasar a tres filas.

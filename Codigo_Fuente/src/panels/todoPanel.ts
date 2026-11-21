@@ -10,6 +10,7 @@
  *   {type:"action", action:{type:"mover", id, delta:-1|1, proyecto?}}
  *   {type:"action", action:{type:"moverA", id, destino}}   índice GLOBAL de destino
  *   {type:"action", action:{type:"setProyecto", id, proyecto}}
+ *   {type:"action", action:{type:"setDescripcion", id, descripcion}}  no vacía, ≤ MAX_DESCRIPCION
  *   {type:"action", action:{type:"borrar", id}}
  *   {type:"action", action:{type:"finalizar", id, hecho}}  true → finalizado; false → revisa
  *   {type:"action", action:{type:"refresh"}}
@@ -25,11 +26,13 @@ import { readFileSync, unwatchFile, watchFile, type Stats } from "node:fs";
 import { join } from "node:path";
 import {
   borrarTarea,
+  cambiarDescripcion,
   cambiarEstado,
   cambiarProyecto,
   EstadoTodo,
   ESTADOS_TODO,
   leerTodoSeguro,
+  MAX_DESCRIPCION,
   MAX_PROYECTO,
   moverRelativa,
   moverTarea,
@@ -47,6 +50,7 @@ type TodoAction =
   | { type: "setProyecto"; id: string; proyecto: string }
   | { type: "borrar"; id: string }
   | { type: "finalizar"; id: string; hecho: boolean }
+  | { type: "setDescripcion"; id: string; descripcion: string }
   | { type: "refresh" };
 
 /** El webview no es de fiar: solo pasan las acciones del panel, con su forma exacta y topes. */
@@ -88,6 +92,12 @@ export function parseAction(raw: unknown): TodoAction | undefined {
     case "setProyecto":
       return typeof a.proyecto === "string" && a.proyecto.length <= MAX_PROYECTO
         ? { type: "setProyecto", id, proyecto: a.proyecto }
+        : undefined;
+    case "setDescripcion":
+      return typeof a.descripcion === "string" &&
+        a.descripcion.trim().length > 0 &&
+        a.descripcion.length <= MAX_DESCRIPCION
+        ? { type: "setDescripcion", id, descripcion: a.descripcion }
         : undefined;
     case "borrar":
       return { type: "borrar", id };
@@ -189,6 +199,9 @@ export class TodoPanel {
           break;
         case "setProyecto":
           aviso = (await cambiarProyecto(action.id, action.proyecto)).aviso;
+          break;
+        case "setDescripcion":
+          aviso = (await cambiarDescripcion(action.id, action.descripcion)).aviso;
           break;
         case "borrar":
           aviso = (await borrarTarea(action.id)).aviso;

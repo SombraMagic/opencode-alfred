@@ -292,7 +292,7 @@ body {
   border-color: var(--danger);
 }
 
-/* Descripción completa: solo lectura. */
+/* Descripción completa: editable (textarea). */
 .detalle {
   margin-top: 6px;
   padding-top: 6px;
@@ -307,6 +307,21 @@ body {
   font-size: 10.5px;
   line-height: 1.5;
   color: var(--text);
+}
+
+.desc-edit {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  resize: vertical;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+}
+
+.desc-edit:focus {
+  outline: none;
+  border-color: var(--neon);
 }
 
 .nota {

@@ -18,6 +18,7 @@
   ];
   const LABEL = Object.fromEntries(ESTADOS);
   const TODOS = "*";
+  const MAX_DESC = 20000; // = MAX_DESCRIPCION de src/todo/store.ts
 
   const el = {
     count: document.getElementById("count"),
@@ -110,14 +111,20 @@
       S.agrupar,
       S.proyectos,
       S.tareas.length,
-      vis.map((t) => [t.id, t.estado, t.origen, t.proyecto, t.nota, t.nombre, t.fecha, t.descripcion.length]),
+      vis.map((t) => [t.id, t.estado, t.origen, t.proyecto, t.nota, t.nombre, t.fecha, t.descripcion]),
       ESTADOS.map(([e]) => porProyecto().filter((t) => t.estado === e).length),
     ]);
   }
 
+  function editando() {
+    const a = document.activeElement;
+    return !!(a && a.dataset && a.dataset.role === "desc");
+  }
+
   /* ── Pintado ─────────────────────────────────────────── */
   function render(forzar) {
-    if (S.drag) {
+    // Ni arrastrando ni con una descripción en edición: repintar destruiría lo tecleado.
+    if (S.drag || editando()) {
       S.pendiente = true;
       return;
     }
@@ -268,7 +275,14 @@
 
     const det = h("div", "detalle");
     det.hidden = !S.expandidas.has(t.id);
-    det.appendChild(h("pre", "desc", t.descripcion));
+    const ta = h("textarea", "desc desc-edit", t.descripcion);
+    ta.dataset.role = "desc";
+    ta.maxLength = MAX_DESC;
+    ta.rows = Math.min(14, Math.max(3, t.descripcion.split("\n").length));
+    ta.spellcheck = false;
+    ta.title = "Editar la descripción: se guarda al salir del campo; Esc descarta los cambios";
+    ta.setAttribute("aria-label", "Descripción de la tarea");
+    det.appendChild(ta);
     if (t.nota) {
       const n = h("p", "nota");
       n.appendChild(h("b", "", "NOTA DE LA IA "));
@@ -308,7 +322,7 @@
       pedirBorrar(id);
       return;
     }
-    if (ev.target.closest("select, input, button, .handle")) return;
+    if (ev.target.closest("select, input, button, textarea, .handle")) return;
     const det = card.querySelector(".detalle");
     if (!det) return;
     det.hidden = !det.hidden;
@@ -324,6 +338,29 @@
     if (rol === "chk") act({ type: "finalizar", id, hecho: ev.target.checked });
     else if (rol === "estado") act({ type: "setEstado", id, estado: ev.target.value });
     else if (rol === "proyecto") act({ type: "setProyecto", id, proyecto: ev.target.value });
+  });
+
+  /* Edición de la descripción: guarda al perder el foco; Esc descarta. */
+  el.list.addEventListener("keydown", (ev) => {
+    const ta = ev.target;
+    if (ev.key !== "Escape" || !ta.dataset || ta.dataset.role !== "desc") return;
+    ev.preventDefault();
+    ta.value = ta.defaultValue;
+    ta.blur();
+  });
+
+  el.list.addEventListener("focusout", (ev) => {
+    const ta = ev.target;
+    if (!ta.dataset || ta.dataset.role !== "desc") return;
+    const card = cardOf(ta);
+    const nueva = ta.value.trim();
+    if (card && nueva && nueva !== ta.defaultValue.trim()) {
+      // El host responde con `state` y repinta; no se repinta aquí para no enseñar el texto viejo.
+      act({ type: "setDescripcion", id: card.dataset.id, descripcion: ta.value });
+      return;
+    }
+    ta.value = ta.defaultValue; // vacía o sin cambios
+    if (S.pendiente) setTimeout(() => render(false), 0);
   });
 
   /* ── Arrastrar y soltar ──────────────────────────────── */

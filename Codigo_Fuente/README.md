@@ -141,7 +141,8 @@ tarjeta de cada proveedor recuerda si estaba plegada.
   se ordena con botones o arrastrando, y se guarda en `%APPDATA%\voz\todo.json`. Las seis herramientas
   `todo_*` de `mcp_alfred` (1.6.0) dejan a la IA ver solo lo Pendiente de su proyecto, pasarlo a
   Trabajando y luego a Revisa (o devolverlo), y proponer tareas que entran como NuevoIA. Un agente con
-  el MCP ya lanzado no ve estas herramientas hasta relanzarlo.
+  el MCP ya lanzado no ve estas herramientas hasta relanzarlo. La descripción de una tarea se edita en
+  el panel al desplegarla: se guarda al salir del campo y `Esc` descarta.
 
 ### Pizarra
 

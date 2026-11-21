@@ -513,6 +513,20 @@ export function cambiarProyecto(id: string, proyecto: string): Promise<Resultado
   });
 }
 
+/** Reescribe la descripción (el nombre se deriva de ella con `nombreTarea`). Solo el usuario desde el panel. */
+export function cambiarDescripcion(id: string, descripcion: string): Promise<ResultadoTarea> {
+  const limpia = (descripcion ?? "").trim();
+  if (!limpia) return Promise.reject(new Error("La descripción de la tarea está vacía."));
+  if (limpia.length > MAX_DESCRIPCION)
+    return Promise.reject(new Error(`La descripción supera los ${MAX_DESCRIPCION} caracteres.`));
+  return mutarTarea((tareas) => {
+    const t = buscar(tareas, id);
+    t.descripcion = limpia;
+    t.actualizada = Date.now();
+    return t;
+  });
+}
+
 /** Mueve la tarea a `destinoIndex` de la lista completa (se acota a los extremos). */
 export function moverTarea(id: string, destinoIndex: number): Promise<ResultadoTarea> {
   return mutarTarea((tareas) => {
