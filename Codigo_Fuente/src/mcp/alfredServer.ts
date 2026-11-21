@@ -12,13 +12,14 @@ import { createInterface } from "node:readline";
 import { callPizarraTool, PIZARRA_TOOLS } from "./alfredPizarra";
 import { callImageTool, IMAGE_TOOLS } from "./alfredImages";
 import { callDictadoTool, DICTADO_TOOLS } from "./alfredDictado";
+import { callTodoTool, TODO_TOOLS } from "./alfredTodo";
 import { callVozTool, VOZ_TOOLS } from "./alfredVoz";
 
 const PROTOCOL_VERSION = "2025-06-18";
-const SERVER_INFO = { name: "mcp_alfred", version: "1.5.0" };
+const SERVER_INFO = { name: "mcp_alfred", version: "1.6.0" };
 
-/** Todo lo que publica el servidor: voz, pizarra, imágenes y dictado. */
-const TOOLS = [...VOZ_TOOLS, ...PIZARRA_TOOLS, ...IMAGE_TOOLS, ...DICTADO_TOOLS];
+/** Todo lo que publica el servidor: voz, pizarra, imágenes, dictado y TO_DO. */
+const TOOLS = [...VOZ_TOOLS, ...PIZARRA_TOOLS, ...IMAGE_TOOLS, ...DICTADO_TOOLS, ...TODO_TOOLS];
 
 /** Escribe un mensaje JSON-RPC en stdout. */
 function send(payload: unknown): void {
@@ -55,6 +56,10 @@ async function callTool(params: unknown): Promise<unknown> {
     const dictado = typeof name === "string" ? await callDictadoTool(name, input) : undefined;
     if (dictado !== undefined) {
       return { content: [{ type: "text", text: dictado }] };
+    }
+    const todo = typeof name === "string" ? await callTodoTool(name, input) : undefined;
+    if (todo !== undefined) {
+      return { content: [{ type: "text", text: todo }] };
     }
     throw new Error(`Herramienta desconocida: ${String(name)}`);
   } catch (err) {

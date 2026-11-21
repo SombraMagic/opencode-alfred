@@ -191,15 +191,17 @@ body {
 /* Bombilla, subir y pizarra: solo icono, cuadrado y centrado como los botones del pie. */
 #idea,
 #subir-pizarra,
-#abrir-pizarra {
+#abrir-pizarra,
+#abrir-todo {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 3px;
 }
 
-/* COPIAR lleva icono y rótulo: mismo alto que el pie, con su separación. */
-#copiar {
+/* COPIAR y A TO_DO llevan icono y rótulo: mismo alto que el pie, con su separación. */
+#copiar,
+#a-todo {
   display: inline-flex;
   align-items: center;
   gap: 4px;

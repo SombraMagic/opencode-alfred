@@ -1,0 +1,367 @@
+/* ALFRED // TO_DO — fichas de tareas compartidas con la IA.
+   Solo tokens de tema: los colores los decide themes/*.css. */
+
+body {
+  padding: 0 10px 18px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.hud-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--bg);
+  margin-bottom: 8px;
+}
+
+.label {
+  color: var(--text-soft);
+}
+
+.ghost-btn {
+  color: var(--text-soft);
+  padding: 3px 8px;
+}
+
+.ghost-btn[aria-pressed="true"] {
+  color: var(--neon);
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 12%, transparent);
+}
+
+.ghost-btn.danger:hover,
+.ghost-btn.danger:focus-visible {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.banner {
+  margin: 0 0 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--magenta);
+  border-left-width: 3px;
+  background: color-mix(in srgb, var(--magenta) 10%, transparent);
+  color: var(--magenta);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* ── Barra de herramientas ────────────────────────────── */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.tb-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.td-select {
+  background: var(--bg-soft);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 10px;
+  padding: 3px 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.td-select:focus-visible {
+  outline: 1px solid var(--neon);
+  border-color: var(--neon);
+}
+
+.tb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 1 1 auto;
+}
+
+.chip-ia {
+  flex: 0 0 auto;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 1px 6px;
+  color: var(--magenta);
+  border: 1px solid var(--magenta);
+  background: color-mix(in srgb, var(--magenta) 12%, transparent);
+}
+
+.notice-x {
+  float: right;
+  margin-left: 8px;
+  padding: 0 6px;
+  font: inherit;
+  line-height: 1.2;
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+  cursor: pointer;
+}
+
+.fchip {
+  --est: var(--text-soft);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 2px 7px;
+  background: transparent;
+  color: var(--text-soft);
+  border: 1px solid var(--line-soft);
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.fchip:hover,
+.fchip:focus-visible {
+  outline: none;
+  border-color: var(--est);
+  color: var(--est);
+}
+
+.fchip[aria-pressed="true"] {
+  color: var(--est);
+  border-color: var(--est);
+  background: color-mix(in srgb, var(--est) 16%, transparent);
+}
+
+.fchip .n {
+  margin-left: 4px;
+  opacity: 0.85;
+}
+
+/* ── Colores por estado ───────────────────────────────── */
+.e-nuevoIA { --est: var(--magenta); }
+.e-nuevoUsu { --est: var(--azure); }
+.e-pendiente { --est: var(--amber); }
+.e-trabajando { --est: var(--neon); }
+.e-revisa { --est: var(--violet); }
+.e-finalizado { --est: var(--green); }
+
+/* ── Lista y fichas ───────────────────────────────────── */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.group-title {
+  margin: 10px 0 2px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 9.5px;
+  letter-spacing: 1.4px;
+  color: var(--neon);
+  overflow-wrap: anywhere;
+}
+
+.card {
+  --est: var(--text-soft);
+  position: relative;
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--est);
+  background: var(--bg-soft);
+  padding: 6px 8px;
+}
+
+.card.finalizado .nombre {
+  text-decoration: line-through;
+  color: var(--text-soft);
+}
+
+.card.dragging {
+  opacity: 0.4;
+}
+
+.card.drop-before::before,
+.card.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--neon);
+  box-shadow: 0 0 6px var(--neon);
+}
+
+.card.drop-before::before { top: -4px; }
+.card.drop-after::after { bottom: -4px; }
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.handle {
+  flex: none;
+  cursor: grab;
+  color: var(--text-soft);
+  user-select: none;
+  padding: 0 2px;
+  letter-spacing: -2px;
+}
+
+.handle:hover {
+  color: var(--neon);
+}
+
+.chk {
+  flex: none;
+  accent-color: var(--green);
+  cursor: pointer;
+  margin: 0;
+}
+
+.nombre {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.estado {
+  flex: none;
+  color: var(--est);
+  border-color: color-mix(in srgb, var(--est) 55%, transparent);
+  background: color-mix(in srgb, var(--est) 10%, var(--bg-soft));
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 9px;
+}
+
+.proyecto {
+  flex: 0 1 220px;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.fecha {
+  flex: none;
+  font-size: 9.5px;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.acciones {
+  flex: none;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.mini {
+  font-family: inherit;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  background: transparent;
+  color: var(--text-soft);
+  border: 1px solid var(--line-soft);
+  cursor: pointer;
+}
+
+.mini:hover,
+.mini:focus-visible {
+  color: var(--neon);
+  border-color: var(--neon);
+  outline: none;
+}
+
+.mini.del:hover,
+.mini.del:focus-visible {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* Descripción completa: solo lectura. */
+.detalle {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line-soft);
+}
+
+.desc {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.nota {
+  margin: 6px 0 0;
+  padding: 4px 6px;
+  border-left: 2px solid var(--violet);
+  background: color-mix(in srgb, var(--violet) 8%, transparent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+  color: var(--text-soft);
+}
+
+.nota b {
+  color: var(--violet);
+  letter-spacing: 1px;
+  font-size: 9px;
+}
+
+.empty {
+  margin: 24px auto;
+  max-width: 460px;
+  text-align: center;
+  line-height: 1.6;
+  font-size: 10.5px;
+  color: var(--text-soft);
+}
+
+/* ── Modal propio ─────────────────────────────────────── */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.modal-box {
+  width: min(380px, 90vw);
+  padding: 12px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--danger);
+}
+
+.modal-text {
+  margin: 8px 0 12px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

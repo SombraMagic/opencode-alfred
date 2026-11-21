@@ -79,6 +79,7 @@ export type ExplorerAction =
   | { type: "openProjectExplorer" }
   | { type: "openDatabases" }
   | { type: "openModelCompare" }
+  | { type: "openTodo" }
   | { type: "openRadar" };
 
 /** Acciones que el webview tiene permitido pedir. */

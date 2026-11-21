@@ -68,6 +68,7 @@ import { checkImageWork, onActivityChange, setActivity } from "./panels/activity
 import { statSync } from "node:fs";
 import { ollamaVersion } from "./ollama/client";
 import { PizarraPanel, pizarraAdjuntosDir } from "./panels/pizarraPanel";
+import { TodoPanel } from "./panels/todoPanel";
 import { BlendViewerProvider } from "./panels/blendViewerPanel";
 import {
   ConnectorAttempt,
@@ -3099,6 +3100,8 @@ export function activate(context: vscode.ExtensionContext): void {
       void PizarraPanel.open(context)
     ),
 
+    vscode.commands.registerCommand("opencodeAgents.todo", () => TodoPanel.open(context)),
+
     vscode.commands.registerCommand("opencodeAgents.menteLocal", () =>
       void openMenteLocalPanel()
     ),
@@ -3888,6 +3891,10 @@ export function activate(context: vscode.ExtensionContext): void {
       case "openRadar":
         RadarPanel.open(context, radar);
         return;
+
+      case "openTodo":
+        TodoPanel.open(context);
+        return;
     }
   }
 
@@ -3912,6 +3919,7 @@ export function activate(context: vscode.ExtensionContext): void {
       RadarPanel.current,
       SessionsPanel.current,
       StatsPanel.current,
+      TodoPanel.current,
       VoiceSettingsPanel.current,
     ]) {
       panel?.postTheme();

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %%CSP%% data:; style-src %%CSP%% 'unsafe-inline'; script-src 'nonce-%%NONCE%%'; font-src %%CSP%%;" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+%%THEME_LINKS%%
+<link href="%%STYLE%%" rel="stylesheet" />
+<title>ALFRED // TO_DO</title>
+</head>
+<body>
+<div class="td">
+  <header class="hud-header">
+    <span class="hud-dot"></span>
+    <span class="hud-title" title="Tareas compartidas entre tú y la IA">TO_DO</span>
+    <span class="hud-status" id="count" role="status" aria-live="polite">0</span>
+  </header>
+
+  <p class="banner" id="notice" role="alert" hidden></p>
+
+  <div class="toolbar">
+    <label class="tb-field">
+      <span class="label">PROYECTO</span>
+      <select id="flt-project" class="td-select" title="Filtrar por proyecto" aria-label="Filtrar por proyecto"></select>
+    </label>
+    <div class="tb-chips" id="flt-estados" role="group" aria-label="Filtrar por estado"></div>
+    <button class="ghost-btn" id="btn-group" type="button" aria-pressed="false" title="Agrupar las tareas por proyecto" aria-label="Agrupar por proyecto">AGRUPAR POR PROYECTO</button>
+  </div>
+
+  <main class="list" id="list" aria-label="Lista de tareas"></main>
+  <p class="empty" id="empty" hidden></p>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h2 class="label" id="modal-title">BORRAR TAREA</h2>
+    <p class="modal-text" id="modal-text"></p>
+    <div class="modal-actions">
+      <button class="ghost-btn" id="modal-cancel" type="button" title="Cancelar" aria-label="Cancelar">CANCELAR</button>
+      <button class="ghost-btn danger" id="modal-ok" type="button" title="Borrar la tarea" aria-label="Borrar la tarea">BORRAR</button>
+    </div>
+  </div>
+</div>
+%%THEME_SCRIPT%%
+<script nonce="%%NONCE%%" src="%%SCRIPT%%"></script>
+</body>
+</html>

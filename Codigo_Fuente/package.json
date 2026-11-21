@@ -150,6 +150,11 @@
         "category": "opencode"
       },
       {
+        "command": "opencodeAgents.todo",
+        "title": "TO_DO",
+        "category": "opencode"
+      },
+      {
         "command": "opencodeAgents.menteLocal",
         "title": "Mente local (Ollama)",
         "category": "opencode"

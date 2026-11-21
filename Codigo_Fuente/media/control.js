@@ -20,6 +20,7 @@
     project: document.getElementById("btn-project"),
     db: document.getElementById("btn-db"),
     radar: document.getElementById("btn-radar"),
+    todo: document.getElementById("btn-todo"),
     // El HTML lo añade el panel: sin botón todavía, el cableado se salta.
     compare: document.getElementById("btn-compare"),
     // Dibujo del proveedor dentro del botón de sesión (path vacío hasta el primer render).
@@ -106,6 +107,7 @@
   el.agentNext.addEventListener("click", () => act({ type: "cycleAgent", delta: 1 }));
   el.connectors.addEventListener("click", () => act({ type: "openConnectors" }));
   el.assign.addEventListener("click", () => act({ type: "openAssign" }));
+  el.todo?.addEventListener("click", () => act({ type: "openTodo" }));
   el.compare?.addEventListener("click", () => act({ type: "openModelCompare" }));
   el.mente.addEventListener("click", () => act({ type: "openMenteLocal" }));
   el.image.addEventListener("click", () => act({ type: "openImageGen" }));

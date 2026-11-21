@@ -15,6 +15,8 @@ import { readFileSync, unwatchFile, watchFile } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { setActivity } from "./activity";
+import { projectRoot } from "../agents/paths";
+import { crearTarea } from "../todo/store";
 import {
   SapiDictado,
   WHISPER_MODELS,
@@ -96,7 +98,9 @@ export class VozDictado {
     };
 
     this.disposables.push(
-      view.webview.onDidReceiveMessage((msg) => void this.onMessage(msg)),
+      view.webview.onDidReceiveMessage((msg) =>
+        this.onMessage(msg).catch((err) => this.state("error", err instanceof Error ? err.message : String(err))),
+      ),
       view.onDidChangeVisibility(() => {
         if (view.visible) void this.pushInitial();
       }),
@@ -304,6 +308,13 @@ export class VozDictado {
       case "pizarra":
         await vscode.commands.executeCommand("opencodeAgents.pizarra");
         break;
+      case "todo":
+        try {
+          await vscode.commands.executeCommand("opencodeAgents.todo");
+        } catch (err) {
+          this.state("error", `No se pudo abrir el TO_DO: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        break;
       case "subirPizarra": {
         // requestPng no lanza: null = pestaña cerrada sin copia de trabajo (pizarra vacía).
         const png = await PizarraPanel.requestPng(this.context);
@@ -326,6 +337,9 @@ export class VozDictado {
       }
       case "sendPrompt":
         await this.sendPrompt(String(msg.text ?? ""));
+        break;
+      case "addTodo":
+        await this.addTodo(typeof msg.text === "string" ? msg.text : "");
         break;
       case "copyPrompt":
         await this.copyPrompt(String(msg.text ?? ""));
@@ -763,6 +777,42 @@ export class VozDictado {
     void vscode.window.showInformationMessage(
       "VOZ: el prompt no se ha enviado a ninguna terminal ni sesión; queda copiado en el portapapeles.",
     );
+  }
+
+  /**
+   * Crea una tarea nueva en el TO_DO con el bloc y abre el TO_DO. El webview ya manda las
+   * marcas de adjuntos como `[imagen: "ruta"]` / `[fichero: "ruta"]`. NO se antepone el
+   * comando encendido de la botonera: es un comando para el agente, no parte de la tarea.
+   * El tope de longitud lo valida `crearTarea`.
+   */
+  private async addTodo(raw: string) {
+    // Las rutas viajan dentro del texto: espera a que los adjuntos pendientes estén escritos.
+    await this.attachChain;
+    const nota = raw.replace(/\r\n?/g, "\n").trim();
+    if (!nota) {
+      this.state("error", "El bloc está vacío.");
+      return;
+    }
+    const proyecto = projectRoot();
+    if (!proyecto) {
+      this.state("error", "Abre una carpeta para asociar la tarea a un proyecto.");
+      return;
+    }
+    try {
+      await crearTarea({ descripcion: nota, proyecto, estado: "nuevoUsu" });
+    } catch (err) {
+      const motivo = err instanceof Error ? err.message : String(err);
+      this.state("error", `No se pudo añadir al TO_DO: ${motivo}`);
+      return;
+    }
+    try {
+      await vscode.commands.executeCommand("opencodeAgents.todo");
+    } catch (err) {
+      const motivo = err instanceof Error ? err.message : String(err);
+      this.state("error", `Añadido al TO_DO, pero no se pudo abrir la pestaña: ${motivo}`);
+      return;
+    }
+    this.state("idle", "Añadido al TO_DO.");
   }
 
   /** Copia el bloc al portapapeles, con los adjuntos como rutas. */

@@ -601,6 +601,7 @@
   $("attach").addEventListener("click", () => post({ type: "pickFiles" }));
   $("idea").addEventListener("click", () => post({ type: "idea" }));
   $("abrir-pizarra").addEventListener("click", () => post({ type: "pizarra" }));
+  $("abrir-todo").addEventListener("click", () => post({ type: "todo" }));
   $("subir-pizarra").addEventListener("click", () => post({ type: "subirPizarra" }));
 
   /** Texto que viaja al terminal: cada token se vuelve la ruta entrecomillada. Los saltos de línea viajan reales. */
@@ -612,6 +613,7 @@
 
   $("send").addEventListener("click", () => post({ type: "sendPrompt", text: promptText() }));
   $("copiar").addEventListener("click", () => post({ type: "copyPrompt", text: promptText() }));
+  $("a-todo").addEventListener("click", () => post({ type: "addTodo", text: promptText() }));
 
   // ── Botonera de comandos ────────────────────────────────
   const cmdsEl = $("cmds");
