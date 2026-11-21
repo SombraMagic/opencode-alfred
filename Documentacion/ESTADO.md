@@ -1,8 +1,11 @@
 # Estado del proyecto
 
-Última revisión: 21 de noviembre de 2026 · versión **0.9.13**
+Última revisión: 21 de noviembre de 2026 · versión **0.9.14**
 
-La **0.9.13** (2026-11-21) es la actual, pendiente de empaquetar y etiquetar. Trae la descripción de
+La **0.9.14** (2026-11-21) es la actual, pendiente de etiquetar. Trae el servicio de traducción local con
+Ollama (encendido persistente), el desplegable de proyectos ampliado del TO_DO y la pestaña SESIONES con
+desplegable de proyectos; sin probar en VS Code real la reconexión automática.
+La **0.9.13** (2026-11-21, `Instalable/` ya solo lleva la 0.9.14) queda como histórica: trae la descripción de
 las tareas del TO_DO editable en el panel y un registro temporal de `A TO_DO` para cazar duplicados.
 La **0.9.12** (2026-11-21, tag `v0.9.12`, `Instalable/opencode-alfred-0.9.12.vsix`) queda como release
 publicada e histórica: trae el TO_DO (con sus herramientas `todo_*` en `mcp_alfred` 1.6.0) y el dictado con

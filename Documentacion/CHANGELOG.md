@@ -6,6 +6,23 @@ Una entrada por versión publicada. El `.vsix` de cada versión está en
 Las versiones 0.8.3 a 0.8.7 y 0.8.9 a 0.8.11 solo subieron el número para reinstalar el `.vsix`
 con VS Code abierto: no son releases y lo que trajeron está reunido en la 0.8.8 y la 0.8.12.
 
+## [0.9.14] - 2026-11-21
+
+- **Servicio de traducción local**: pestaña TRADUCCIÓN (botón junto al chatbot en Mente local) y bloque
+  SERVICIO DE TRADUCCIÓN con un check de encendido y puerto editable (5005 por defecto). Levanta una API
+  HTTP solo en `127.0.0.1` (`POST /traducir`, `GET /estado`) que traduce español e inglés con el modelo
+  PREFERIDO de Mente local vía Ollama, con una petición a la vez y topes de tamaño y de cola. La pestaña
+  permite probarlo por esa misma API.
+- **La traducción se recuerda**: si la dejas encendida, al abrir VS Code se reconecta sola en cuanto Ollama
+  responde (un intento por arranque del servidor, sin avisos). Apagar el check la desactiva. Si Ollama se
+  para después, el servicio sigue y contesta 503. Sin probar en VS Code real.
+- **TO_DO: desplegable de proyectos ampliado**: además de los de las tareas, ofrece los de opencode, los de
+  Claude y las carpetas de VS Code (abiertas y recientes), sin duplicados.
+- **Pestaña SESIONES**: ahora es un desplegable de proyectos con, debajo, la lista de sesiones del elegido,
+  de la más nueva a la más vieja (las activas llevan su punto pero no se adelantan), hasta 50 por proyecto.
+  Arranca en la carpeta abierta en VS Code. Vale para opencode y para Claude Code.
+- **Control**: se quita el botón del chatbot (se abre desde Mente local).
+
 ## [0.9.13] - 2026-11-21
 
 - **TO_DO: descripción editable**: al desplegar una tarea, su descripción se edita en un campo de texto.
