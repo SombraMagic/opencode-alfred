@@ -12,7 +12,7 @@ por ti.
 Antes de instalar, conviene saber dónde escribe: agentes `.md` en
 `~/.config/opencode/agent` y `<proyecto>/.opencode/agent`, `opencode.json(c)`,
 `AGENTS.md`, los agentes y ajustes de Claude Code, `config.toml` de Codex y el bloc de
-adjuntos. Las bases de opencode se abren **en solo lectura** y `~/.claude.json` no se toca
+adjuntos y la lista TO_DO. Las bases de opencode se abren **en solo lectura** y `~/.claude.json` no se toca
 nunca. El detalle está en la tabla del
 [README principal](https://github.com/SombraMagic/opencode-alfred#qu%C3%A9-toca-y-qu%C3%A9-no).
 
@@ -44,8 +44,8 @@ opencode), el cerebro de `OLLAMA` (la pestaña
 de Ollama, que brilla mientras el servidor responde), la foto del generador de imágenes (en verde
 mientras está compartido con los agentes) y el
 bocadillo del chatbot (se enciende cuando responde el servidor de Ollama). La segunda fila
-abre pizarra, dictado, voz, estadísticas de prompt, el explorador del proyecto y las bases de datos
-(MariaDB). Al estrechar la
+abre pizarra, dictado, TO_DO, voz, estadísticas de prompt, el explorador del proyecto y las bases de
+datos (MariaDB). Al estrechar la
 barra las filas saltan a más líneas y los botones se estiran.
 
 ### Explorador del proyecto
@@ -117,7 +117,7 @@ tarjeta de cada proveedor recuerda si estaba plegada.
 
 - Voz: ecualizador Matrix (lluvia verde que sigue la voz) y cuatro motores (SAPI de Windows, Edge, OpenAI, ElevenLabs).
   `Ctrl+Alt+V` lee la selección. El ecualizador también reacciona a lo que diga el MCP; el
-  servidor MCP `mcp_alfred` (voz, pizarra e imágenes) viaja dentro del paquete en
+  servidor MCP `mcp_alfred` (voz, pizarra, imágenes y TO_DO) viaja dentro del paquete en
   `dist/alfred-mcp.js` y se da de alta solo en los agentes que haya (opencode, Claude Code,
   Claude Desktop, Cursor). El botón `ALFRED MCP` del panel, con su punto verde o ámbar, lo
   enciende y lo apaga.
@@ -133,7 +133,15 @@ tarjeta de cada proveedor recuerda si estaba plegada.
   vuelve `—` con un aviso. Sin permisos, el uso de CPU, la RAM, la GPU, la VRAM y la temperatura
   de la GPU se leen igual, y no aparece ninguna ventana de PowerShell.
 - Dictado: bloc de notas con adjuntos (imágenes pegadas, ficheros arrastrados o `ADJUNTAR`),
-  configuración plegable y tres motores (SAPI, Whisper local, nube compatible con OpenAI).
+  configuración plegable y tres motores (SAPI, Whisper local, nube compatible con OpenAI). Con SAPI,
+  el reconocedor escucha por el micro, la ganancia y el filtro de ruido que eliges en el panel, con
+  vúmetro. Los botones `A TO_DO` y `ABRIR TO_DO` del bloc envían a la lista TO_DO.
+- **TO_DO** (botón de la segunda fila de `Control`): lista de tareas compartida con la IA. Los estados
+  son NuevoIA, NuevoUsu, Pendiente, Trabajando, Revisa y Finalizado; se filtra y agrupa por proyecto,
+  se ordena con botones o arrastrando, y se guarda en `%APPDATA%\voz\todo.json`. Las seis herramientas
+  `todo_*` de `mcp_alfred` (1.6.0) dejan a la IA ver solo lo Pendiente de su proyecto, pasarlo a
+  Trabajando y luego a Revisa (o devolverlo), y proponer tareas que entran como NuevoIA. Un agente con
+  el MCP ya lanzado no ve estas herramientas hasta relanzarlo.
 
 ### Pizarra
 
@@ -322,6 +330,7 @@ El selector del mando decide qué config lee y escribe la extensión:
 | Agentes de opencode | `~/.config/opencode/agent/<nombre>.md` y `<proyecto>/.opencode/agent/<nombre>.md` |
 | Subagentes de Claude | `~/.claude/agents` y `<proyecto>/.claude/agents` |
 | Adjuntos del dictado | `<proyecto>/.alfred/adjuntos` (o el almacén global si no hay carpeta) |
+| Lista TO_DO | `%APPDATA%\voz\todo.json` (global, compartida por el panel, el dictado y el MCP) |
 | Explorador del proyecto | los ficheros del proyecto abierto: papelera, copiar y mover, solo dentro de la raíz de cada árbol |
 | Bases de datos | el servidor MariaDB o MySQL elegido: DDL, filas y consultas. Las contraseñas van al almacén de VS Code. Las copias `.sql` van a la carpeta que elijas |
 

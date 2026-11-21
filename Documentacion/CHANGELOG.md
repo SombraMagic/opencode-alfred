@@ -6,6 +6,25 @@ Una entrada por versión publicada. El `.vsix` de cada versión está en
 Las versiones 0.8.3 a 0.8.7 y 0.8.9 a 0.8.11 solo subieron el número para reinstalar el `.vsix`
 con VS Code abierto: no son releases y lo que trajeron está reunido en la 0.8.8 y la 0.8.12.
 
+## [0.9.12] - 2026-11-21
+
+- **TO_DO**: pestaña central con una lista de tareas compartida entre tú y la IA, en la segunda fila de
+  `Control`. Cada tarea está en uno de estos estados: NuevoIA, NuevoUsu, Pendiente, Trabajando, Revisa y
+  Finalizado. Se filtra y se agrupa por proyecto, se ordena con botones o arrastrando, y se guarda en
+  `%APPDATA%\voz\todo.json`.
+- **TO_DO desde el dictado**: en el bloc, `A TO_DO` crea una tarea nueva con lo escrito y abre la
+  pestaña; `ABRIR TO_DO` la abre sin crear nada.
+- **Herramientas `todo_*` en `mcp_alfred` 1.6.0**: seis herramientas (`todo_listar`, `todo_leer`,
+  `todo_crear`, `todo_iniciar`, `todo_terminar`, `todo_devolver`). La IA solo ve las tareas Pendientes de
+  su proyecto, solo puede pasarlas de Pendiente a Trabajando y de Trabajando a Revisa (o devolverlas a
+  Pendiente), y puede proponer tareas nuevas, que entran como NuevoIA. Un agente con el MCP ya lanzado no
+  ve las herramientas nuevas hasta relanzarlo. Sin probar en VS Code real el arrastre con ratón.
+- **Dictado con SAPI**: el reconocedor de Windows escucha por el micro, la ganancia y el filtro de ruido
+  que eliges en el panel, con vúmetro. El grabador se reabre antes de llenar el búfer de audio. A 360 px de
+  ancho el pie del dictado puede pasar a tres filas.
+- **Nombre de la carpeta de trabajo**: `Control` y el Explorador lo muestran junto al título.
+- **Dependencias de desarrollo**: `@types/vscode` baja a `^1.90.0`, a juego con `engines.vscode`.
+
 ## [0.9.11] - 2026-11-21
 
 - **Pestaña SESIONES**: al pulsar el botón de sesión, a la derecha de la terminal se abre un árbol con

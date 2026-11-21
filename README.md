@@ -63,6 +63,10 @@ Bienvenidos a Alfred.
   si se cancela, vuelve `—` con un aviso. El uso de CPU, la RAM, la GPU, la VRAM y la
   temperatura de la GPU se leen sin permisos y sin ninguna ventana de PowerShell. Sin
   muestra, todo en guiones.
+- **TO_DO.** Lista de tareas compartida entre tú y la IA, en su pestaña desde `Control`: estados
+  NuevoIA, NuevoUsu, Pendiente, Trabajando, Revisa y Finalizado, filtro y agrupación por proyecto. La
+  IA ve sus tareas pendientes, puede tomarlas y devolverlas, y proponer tareas nuevas por el MCP;
+  el bloc del dictado envía lo escrito a la lista con `A TO_DO`.
 - **Mente local.** El cerebro Ollama, en su pestaña: instalar o desinstalar con `winget`,
   modelos con su tamaño y el espacio del disco, descargar, borrar y encender o apagar. Al
   encender, Ollama aparece en los conectores y en la asignación de modelos de opencode.
@@ -106,6 +110,7 @@ formato que el CLI espera, sin pisar comentarios ni claves que no gestiona la ex
 | `~/.claude/agents`, `.claude/agents`, `.claude/settings.local.json`, `.mcp.json` | Solo si usas Claude Code (experimental) |
 | `config.toml` de Codex | Solo si usas Codex (experimental) |
 | `%APPDATA%\voz\config.json` | Ajustes de voz para que el MCP los vea |
+| `%APPDATA%\voz\todo.json` | Lista TO_DO compartida por el panel, el dictado y el MCP `mcp_alfred` |
 | `<raíz>/.alfred/adjuntos` | Adjuntos del dictado; sin proyecto, en el almacenamiento global |
 | `<raíz>/.alfred/imagenes` | Imágenes generadas por el panel de imágenes; sin proyecto, en el almacenamiento global |
 | `<almacén global>/alfred3d/` y `<nombre>.glb` junto al `.blend` | Caché del visor 3D y sidecar que se lee cuando no hay Blender; el `.blend` nunca se guarda |
