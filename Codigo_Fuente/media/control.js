@@ -11,7 +11,6 @@
     assign: document.getElementById("btn-assign"),
     mente: document.getElementById("btn-mente"),
     image: document.getElementById("btn-image"),
-    chatbot: document.getElementById("btn-chatbot"),
     // Segunda fila: pestañas que antes vivían en el Explorador o en el bloc del dictado.
     pizarra: document.getElementById("btn-pizarra"),
     dictado: document.getElementById("btn-dictado"),
@@ -93,13 +92,6 @@
     el.image.title = imagenes
       ? "Generador de imágenes (compartido con los agentes)"
       : "Generador de imágenes";
-
-    // El chatbot necesita el servidor de Ollama vivo (no el interruptor de Mente local).
-    el.chatbot.disabled = data.chatbot !== true;
-    el.chatbot.classList.toggle("on", data.chatbot === true);
-    el.chatbot.title = data.chatbot === true
-      ? "Abrir el chatbot de Mente local"
-      : "Chatbot (Ollama no responde)";
   }
 
   el.session.addEventListener("click", () => act({ type: "openLastSession" }));
@@ -111,7 +103,6 @@
   el.compare?.addEventListener("click", () => act({ type: "openModelCompare" }));
   el.mente.addEventListener("click", () => act({ type: "openMenteLocal" }));
   el.image.addEventListener("click", () => act({ type: "openImageGen" }));
-  el.chatbot.addEventListener("click", () => act({ type: "openChatbot" }));
   el.pizarra.addEventListener("click", () => act({ type: "openPizarra" }));
   el.dictado.addEventListener("click", () => act({ type: "openDictado" }));
   el.voz.addEventListener("click", () => act({ type: "openVoice" }));

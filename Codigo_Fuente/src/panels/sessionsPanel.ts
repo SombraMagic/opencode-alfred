@@ -1,6 +1,6 @@
 /**
- * Panel SESIONES: árbol de proyectos y sesiones de opencode o Claude en una pestaña central. Al pulsar
- * una sesión, el host la retoma con `opencode -s <id>` o `claude --resume <id>` en la carpeta de su proyecto.
+ * Panel SESIONES: desplegable de proyectos de opencode o Claude y, debajo, las sesiones del elegido de
+ * la más nueva a la más vieja, en una pestaña central. Al pulsar una sesión, el host la retoma con `opencode -s <id>` o `claude --resume <id>` en la carpeta de su proyecto.
  *
  * El marcado está en `media/sessions.html` (lo escribe `interfaz`): aquí solo se rellenan los
  * huecos `%%CSP%% %%NONCE%% %%THEME_LINKS%% %%THEME_SCRIPT%% %%STYLE%% %%SCRIPT%%` (los mismos
@@ -9,18 +9,20 @@
  * PROTOCOLO
  * webview → host
  *   {type:"ready"}                                  arranque: tema y datos
- *   {type:"sessions"}                               botón de refrescar del árbol
+ *   {type:"sessions"}                               botón de refrescar
  *   {type:"loadSession", id, directory, title}      retomar una sesión
  * host → webview
  *   {type:"theme", theme}
- *   {type:"sessions", groups:[{dir,name,sessions:[{id,title,active,updated}]}], error?}
+ *   {type:"sessions", groups:[{dir,name,sessions:[{id,title,active,updated}]}], current?, error?}
+ *     `current` es la carpeta abierta en VS Code: el desplegable arranca en ese proyecto.
  */
 import * as vscode from "vscode";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { currentTheme, themeLinks, themeScript } from "./theme";
+import { projectRoot } from "../agents/paths";
 
-/** Una sesión del árbol: lo justo para rotular y marcar la que corre. */
+/** Una sesión de la lista: lo justo para rotular y marcar la que corre. */
 export interface SessionItem {
   id: string;
   title: string;
@@ -28,7 +30,7 @@ export interface SessionItem {
   updated: number;
 }
 
-/** Proyecto del árbol: su carpeta y sus sesiones raíz. */
+/** Proyecto del desplegable: su carpeta y sus sesiones raíz. */
 export interface SessionGroup {
   dir: string;
   name: string;
@@ -90,7 +92,7 @@ export class SessionsPanel {
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.onDidChangeViewState(
       () => {
-        // El árbol se pone al día cada vez que se vuelve a mirar el panel.
+        // La lista se pone al día cada vez que se vuelve a mirar el panel.
         if (this.panel.visible) {
           void this.sendSessions();
         }
@@ -146,7 +148,7 @@ export class SessionsPanel {
     } catch (err) {
       error = `No se pudieron leer las sesiones: ${err instanceof Error ? err.message : String(err)}`;
     }
-    this.post({ type: "sessions", groups, error });
+    this.post({ type: "sessions", groups, current: projectRoot(), error });
   }
 
   private post(message: unknown): void {

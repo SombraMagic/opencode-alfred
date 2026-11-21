@@ -71,7 +71,6 @@ export type ExplorerAction =
   | { type: "openConnectors" }
   | { type: "openMenteLocal" }
   | { type: "openImageGen" }
-  | { type: "openChatbot" }
   | { type: "openPizarra" }
   | { type: "openDictado" }
   | { type: "openVoice" }

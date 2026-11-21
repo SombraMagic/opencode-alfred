@@ -1,4 +1,4 @@
-/* ALFRED // SESIONES — pestaña central con los proyectos de opencode o Claude y sus sesiones.
+/* ALFRED // SESIONES — pestaña central: desplegable de proyectos de opencode o Claude y sus sesiones.
    Solo tokens de tema: los colores los decide themes/*.css. La cabecera no se mueve;
    la lista hace su propio scroll. */
 
@@ -17,7 +17,7 @@ body {
   display: none !important;
 }
 
-/* Columna a todo el alto: cabecera y ayuda con su alto, lista con el resto. */
+/* Columna a todo el alto: cabecera, desplegable y ayuda con su alto, lista con el resto. */
 .ss {
   height: 100%;
   min-height: 0;
@@ -57,11 +57,42 @@ body {
   color: var(--neon);
 }
 
+/* ── Desplegable de proyectos ─────────────────────────── */
+.ss-project {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+
+.ss-project .label {
+  flex: none;
+  font-size: 10px;
+}
+
+.ss-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  background: var(--bg-soft);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 3px 4px;
+}
+
+.ss-select:focus-visible {
+  outline: 1px solid var(--neon);
+  border-color: var(--neon);
+}
+
 /* ── Línea de ayuda ───────────────────────────────────── */
 .ss-help {
   flex: 0 0 auto;
   margin: 0 0 6px;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1.2px;
   color: var(--text-soft);
   overflow-wrap: anywhere;
@@ -76,67 +107,21 @@ body {
   padding-bottom: 12px;
 }
 
-/* Proyecto: chevrón, nombre y número de sesiones, en una fila compacta. */
-.ss-group + .ss-group {
-  margin-top: 4px;
-  border-top: 1px solid var(--line-soft);
-}
-
-.ss-group-row,
+/* Sesión guardada: título, fecha corta y, si está abierta, su punto. La abierta va en el acento. */
 .ss-item {
   width: 100%;
+  min-height: 28px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   padding: 0 6px;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 12px;
   text-align: left;
+  color: var(--text-soft);
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
-}
-
-.ss-group-row {
-  min-height: 28px;
-  color: var(--text);
-}
-
-.ss-group-row:hover,
-.ss-group-row:focus-visible {
-  background: color-mix(in srgb, var(--neon) 8%, transparent);
-  border-color: var(--line-soft);
-  outline: none;
-}
-
-.ss-arrow {
-  flex: none;
-  width: 10px;
-  font-size: 10px;
-  color: var(--text-soft);
-  text-align: center;
-}
-
-.ss-group-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ss-count {
-  flex: none;
-  font-size: 9px;
-  color: var(--text-soft);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Sesión guardada: sangrada bajo su proyecto. La abierta en la TUI va en el acento. */
-.ss-item {
-  min-height: 26px;
-  padding-left: 22px;
-  color: var(--text-soft);
 }
 
 .ss-item:hover,
@@ -161,6 +146,13 @@ body {
   white-space: nowrap;
 }
 
+.ss-date {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
 .ss-dot {
   flex: none;
   width: 6px;
@@ -174,7 +166,7 @@ body {
 .ss-note {
   margin: 0;
   padding: 6px;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--text-soft);
   overflow-wrap: anywhere;

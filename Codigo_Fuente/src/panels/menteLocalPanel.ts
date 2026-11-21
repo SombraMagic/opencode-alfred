@@ -16,6 +16,10 @@ const ACTION_TYPES = new Set<string>([
   "startServer",
   "stopServer",
   "openModelsDir",
+  "setTraduccion",
+  "setTraduccionPuerto",
+  "openChatbot",
+  "openTraduccion",
 ]);
 
 const MODEL_RE = /^[A-Za-z0-9._:/-]{1,120}$/;
@@ -38,7 +42,20 @@ function parseAction(raw: unknown): MenteLocalAction | undefined {
     case "startServer":
     case "stopServer":
     case "openModelsDir":
+    case "openChatbot":
+    case "openTraduccion":
       return { type: action.type };
+    case "setTraduccion":
+      return typeof action.on === "boolean"
+        ? { type: "setTraduccion", on: action.on }
+        : undefined;
+    case "setTraduccionPuerto":
+      return typeof action.port === "number" &&
+        Number.isInteger(action.port) &&
+        action.port >= 1024 &&
+        action.port <= 65535
+        ? { type: "setTraduccionPuerto", port: action.port }
+        : undefined;
     case "setEnabled":
       return typeof action.on === "boolean"
         ? { type: "setEnabled", on: action.on }
@@ -182,6 +199,10 @@ ${themeLinks(this.extensionUri, webview, ["menteLocal.css"])}
 </header>
 
 <p class="resumen" id="resumen">Leyendo…</p>
+<nav class="botonera" aria-label="Herramientas de Mente local">
+  <button id="abrirChatbot" class="btn" type="button" title="Abrir el chatbot de Mente local" disabled>CHATBOT</button>
+  <button id="abrirTraduccion" class="btn" type="button" title="Abrir la pestaña de prueba del servicio de traducción">TRADUCCIÓN</button>
+</nav>
 <p class="aviso" id="aviso" role="status" aria-live="polite" hidden></p>
 
 <main class="cuerpo">
@@ -258,6 +279,23 @@ ${themeLinks(this.extensionUri, webview, ["menteLocal.css"])}
       <button id="pararServidor" class="btn" type="button" title="Para el servidor de Ollama. El proveedor de opencode no se toca.">PARAR</button>
     </div>
     <p class="pista" id="servidor-pista">La dirección debe empezar por http:// o https://.</p>
+  </section>
+
+  <section class="bloque" id="bloque-traduccion" aria-labelledby="h-traduccion">
+    <div class="bloque-head">
+      <h2 class="bloque-title" id="h-traduccion">SERVICIO DE TRADUCCIÓN</h2>
+      <button id="traduccionSwitch" class="switch" type="button" role="switch" aria-checked="false" aria-labelledby="h-traduccion" disabled>
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+      </button>
+    </div>
+    <div class="fila">
+      <label class="etiqueta" for="traduccionPuerto">PUERTO</label>
+      <input id="traduccionPuerto" class="campo campo-puerto" type="number" min="1024" max="65535" step="1" inputmode="numeric" spellcheck="false" autocomplete="off">
+      <button id="guardarPuerto" class="btn" type="button" disabled>GUARDAR</button>
+    </div>
+    <p class="ruta" id="traduccion-url"></p>
+    <p class="pista" id="traduccion-estado"></p>
+    <p class="pista">API local en 127.0.0.1, sin clave: <code>POST /traducir</code> con <code>{"texto", "destino": "es"|"en"}</code> y <code>GET /estado</code>. Usa el modelo PREFERIDO. Se apaga al cerrar VS Code.</p>
   </section>
 </main>
 ${themeScript(this.extensionUri, webview, nonce)}

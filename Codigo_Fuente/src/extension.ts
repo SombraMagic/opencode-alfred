@@ -41,6 +41,7 @@ import {
 import { AssignAction, AssignAgent, AssignData, AssignPanel, AssignProfile, FavoriteGroup, ModelEntry } from "./panels/assignPanel";
 import { ConnectorsPanel, ConnectorAction } from "./panels/connectorsPanel";
 import { MenteLocalPanel } from "./panels/menteLocalPanel";
+import { TraduccionPanel } from "./panels/traduccionPanel";
 import {
   ImageGenPanel,
   isImageShareEnabled,
@@ -61,7 +62,15 @@ import {
 } from "./panels/modelComparePanel";
 import { normalizeAlias, readAliases } from "./benchlm/aliases";
 import { benchlmScores, BenchlmScores } from "./benchlm/scores";
-import { collectState, liveState, MenteLocalState, readSettings, runAction } from "./ollama/service";
+import {
+  collectState,
+  liveState,
+  MenteLocalState,
+  readSettings,
+  runAction,
+  autoEncenderTraduccion,
+  stopTranslation,
+} from "./ollama/service";
 import { startServer } from "./ollama/process";
 import { workFile } from "./images/share";
 import { checkImageWork, onActivityChange, setActivity } from "./panels/activity";
@@ -647,10 +656,26 @@ export function activate(context: vscode.ExtensionContext): void {
       menteLocalOn = on;
       updateExplorer(buildExplorerData());
       void ChatbotPanel.current?.refresh();
+      if (on) {
+        // Traducción encendida al cerrar VS Code: un intento cada vez que Ollama pasa a responder.
+        void autoEncenderTraduccion(context)
+          .then((cambio) => {
+            if (cambio) {
+              void refreshMenteLocalPanel().catch(() => undefined);
+              TraduccionPanel.current?.refresh();
+            }
+          })
+          .catch(() => undefined);
+      }
     }
   }
   const menteLocalTimer = setInterval(probeMenteLocal, 5000);
-  context.subscriptions.push({ dispose: () => clearInterval(menteLocalTimer) });
+  void probeMenteLocal().catch(() => undefined);
+  context.subscriptions.push(
+    { dispose: () => clearInterval(menteLocalTimer) },
+    // El servicio de traducción vive con la sesión: se para al desactivar la extensión.
+    { dispose: () => void stopTranslation() }
+  );
 
   // ── Radar de noticias ─────────────────────────────────────────────────────
   // Una pasada al activar si ha pasado el intervalo, y otra cada
@@ -1061,8 +1086,8 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   /**
-   * Árbol de proyectos y sesiones de opencode para la pestaña SESIONES: sesiones raíz
-   * agrupadas por su carpeta, con las pestañas de la TUI marcadas como activas.
+   * Proyectos y sesiones de opencode para la pestaña SESIONES: sesiones raíz agrupadas por
+   * su carpeta, de la más nueva a la más vieja, con las pestañas de la TUI marcadas como activas.
    */
   async function sessionGroups(): Promise<{ groups: SessionGroup[]; error?: string }> {
     const snapshot = lastRaw ?? (await statsService.collect());
@@ -1085,19 +1110,15 @@ export function activate(context: vscode.ExtensionContext): void {
     const grupos: Array<{ group: SessionGroup; latest: number }> = [];
     for (const [dir, sesiones] of porCarpeta) {
       const activas = new Set(readTuiTabs(dir).ids);
-      const ordenadas = [...sesiones].sort((a, b) => {
-        const activaA = activas.has(a.id) ? 1 : 0;
-        const activaB = activas.has(b.id) ? 1 : 0;
-        return activaA !== activaB ? activaB - activaA : b.updated - a.updated;
-      });
+      // La más nueva arriba; las activas no se adelantan, solo llevan su punto.
+      const ordenadas = [...sesiones].sort((a, b) => b.updated - a.updated);
       grupos.push({
-        // El proyecto se ordena por su sesión más reciente, no por la primera fila (las
-        // activas van delante dentro del grupo).
-        latest: sesiones.reduce((max, s) => Math.max(max, s.updated), 0),
+        // El proyecto se ordena por su sesión más reciente.
+        latest: ordenadas[0].updated,
         group: {
           dir,
           name: path.basename(dir) || dir,
-          sessions: ordenadas.slice(0, 15).map((s) => ({
+          sessions: ordenadas.slice(0, 50).map((s) => ({
             id: s.id,
             title: s.title || s.id,
             active: activas.has(s.id),
@@ -1108,6 +1129,43 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     grupos.sort((a, b) => b.latest - a.latest);
     return { groups: grupos.slice(0, 50).map((g) => g.group) };
+  }
+
+  /**
+   * Proyectos conocidos para los desplegables del TO_DO: carpetas de opencode, de Claude y de
+   * VS Code (abiertas y recientes). Cada fuente falla por su cuenta y se omite sin ruido.
+   */
+  async function todoProyectosConocidos(): Promise<string[]> {
+    const dirs: string[] = [];
+    try {
+      dirs.push(...(await sessionGroups()).groups.map((g) => g.dir));
+    } catch {
+      /* sin opencode o sin base */
+    }
+    try {
+      dirs.push(...claudeSessionGroups().groups.map((g) => g.dir));
+    } catch {
+      /* sin Claude */
+    }
+    for (const f of vscode.workspace.workspaceFolders ?? []) {
+      if (f.uri.scheme === "file") {
+        dirs.push(f.uri.fsPath);
+      }
+    }
+    try {
+      // Comando interno de VS Code: puede cambiar o no existir.
+      const rec = await vscode.commands.executeCommand<{
+        workspaces?: Array<{ folderUri?: vscode.Uri }>;
+      }>("_workbench.getRecentlyOpened");
+      for (const w of rec?.workspaces ?? []) {
+        if (w.folderUri && w.folderUri.scheme === "file") {
+          dirs.push(w.folderUri.fsPath);
+        }
+      }
+    } catch {
+      /* recientes no disponibles */
+    }
+    return dirs;
   }
 
   /**
@@ -1373,7 +1431,6 @@ export function activate(context: vscode.ExtensionContext): void {
       sessionAgents: data.sessionAgents,
       menteLocal: data.menteLocal,
       imageShare: data.imageShare,
-      chatbot: menteLocalOn,
     };
   }
 
@@ -2313,6 +2370,15 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     MenteLocalPanel.open(context, state, {
       onAction: (action) => {
+        // La botonera abre pestañas: no pasa por el servicio.
+        if (action.type === "openChatbot") {
+          openChatbot();
+          return;
+        }
+        if (action.type === "openTraduccion") {
+          TraduccionPanel.open(context);
+          return;
+        }
         // Las acciones largas se ven como una tarjeta más en el panel de voz.
         const activity =
           action.type === "pull"
@@ -2340,6 +2406,7 @@ export function activate(context: vscode.ExtensionContext): void {
             updateExplorer(buildExplorerData());
             void ChatbotPanel.current?.refresh();
           }
+          TraduccionPanel.current?.refresh();
         });
       },
       onReady: () => void refreshMenteLocalPanel(),
@@ -3100,7 +3167,7 @@ export function activate(context: vscode.ExtensionContext): void {
       void PizarraPanel.open(context)
     ),
 
-    vscode.commands.registerCommand("opencodeAgents.todo", () => TodoPanel.open(context)),
+    vscode.commands.registerCommand("opencodeAgents.todo", () => TodoPanel.open(context, todoProyectosConocidos)),
 
     vscode.commands.registerCommand("opencodeAgents.menteLocal", () =>
       void openMenteLocalPanel()
@@ -3856,10 +3923,6 @@ export function activate(context: vscode.ExtensionContext): void {
         await ImageGenPanel.open(context);
         return;
 
-      case "openChatbot":
-        openChatbot();
-        return;
-
       case "openPizarra":
         await PizarraPanel.open(context);
         return;
@@ -3893,7 +3956,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
 
       case "openTodo":
-        TodoPanel.open(context);
+        TodoPanel.open(context, todoProyectosConocidos);
         return;
     }
   }
@@ -3920,6 +3983,7 @@ export function activate(context: vscode.ExtensionContext): void {
       SessionsPanel.current,
       StatsPanel.current,
       TodoPanel.current,
+      TraduccionPanel.current,
       VoiceSettingsPanel.current,
     ]) {
       panel?.postTheme();

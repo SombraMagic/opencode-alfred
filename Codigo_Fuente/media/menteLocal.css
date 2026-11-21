@@ -545,3 +545,49 @@ body {
     transition: none;
   }
 }
+
+/* ── Botonera de herramientas y servicio de traducción ── */
+.botonera {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+#bloque-traduccion .switch {
+  margin-left: auto;
+}
+
+.switch:disabled {
+  cursor: not-allowed;
+}
+
+.switch:focus-visible {
+  outline: 1px solid var(--neon);
+  outline-offset: 2px;
+}
+
+.etiqueta {
+  align-self: center;
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  color: var(--text-soft);
+}
+
+.fila .campo.campo-puerto {
+  flex: 0 0 90px;
+}
+
+.pista.ok {
+  color: var(--green);
+}
+
+.pista.error {
+  color: var(--amber);
+}
+
+.pista code {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--text);
+}

@@ -20,9 +20,14 @@ import {
   uninstallOllama,
 } from "./process";
 import { removeOllamaProvider, writeOllamaProvider } from "./provider";
+import { PUERTO_DEFECTO, puertoValido, ServidorTraduccion } from "./translate";
 
 const MENTE_LOCAL_KEY = "opencodeAgents.menteLocal";
 const DEFAULT_BASE_URL = "http://127.0.0.1:11434";
+/** Puerto elegido para el servicio de traducción. */
+const TRADUCCION_PUERTO_KEY = "opencodeAgents.traduccion.puerto";
+/** Intención de la persona: encendido al cerrar VS Code → se reenciende solo al volver (con Ollama arriba). */
+const TRADUCCION_ACTIVO_KEY = "opencodeAgents.traduccion.activo";
 const MODEL_RE = /^[A-Za-z0-9._:/-]{1,120}$/;
 
 export interface MenteLocalSettings {
@@ -55,6 +60,15 @@ export interface MenteLocalState {
   busy: string | null;
   pull: { model: string; status: string; completed: number; total: number } | null;
   message: string | null;
+  traduccion: TraduccionState;
+}
+
+/** Servicio de traducción local: vive solo mientras el check está encendido. */
+export interface TraduccionState {
+  activo: boolean;
+  puerto: number;
+  /** Último fallo al arrancar (puerto ocupado, Ollama parado…). */
+  error: string | null;
 }
 
 export type MenteLocalAction =
@@ -69,7 +83,11 @@ export type MenteLocalAction =
   | { type: "setBaseURL"; url: string }
   | { type: "startServer" }
   | { type: "stopServer" }
-  | { type: "openModelsDir" };
+  | { type: "openModelsDir" }
+  | { type: "setTraduccion"; on: boolean }
+  | { type: "setTraduccionPuerto"; port: number }
+  | { type: "openChatbot" }
+  | { type: "openTraduccion" };
 
 // Estado vivo, en memoria: `collectState` no escribe nada y el panel se repinta con él.
 let busy: string | null = null;
@@ -77,6 +95,9 @@ let message: string | null = null;
 let pullState: MenteLocalState["pull"] = null;
 let pullController: AbortController | undefined;
 let inFlight = false;
+let traduccionError: string | null = null;
+let servidorTraduccion: ServidorTraduccion | undefined;
+let traduccionEnCurso = false;
 
 function normalizeURL(value: unknown): string {
   return typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";
@@ -157,7 +178,113 @@ export async function collectState(context: vscode.ExtensionContext): Promise<Me
     busy,
     pull: pullState,
     message,
+    traduccion: traduccionState(context),
   };
+}
+
+// ── Servicio de traducción ──────────────────────────────────────────────────
+
+export function traduccionPuerto(context: vscode.ExtensionContext): number {
+  const value = context.globalState.get<unknown>(TRADUCCION_PUERTO_KEY);
+  return puertoValido(value) ? value : PUERTO_DEFECTO;
+}
+
+export function traduccionState(context: vscode.ExtensionContext): TraduccionState {
+  const activo = !!servidorTraduccion?.activo;
+  return {
+    activo,
+    puerto: activo ? servidorTraduccion!.puerto : traduccionPuerto(context),
+    error: traduccionError,
+  };
+}
+
+/**
+ * Enciende o apaga la API de traducción. Solo arranca con el servidor de Ollama
+ * respondiendo; si Ollama se para después, el servicio sigue y contesta 503.
+ */
+async function setTraduccion(context: vscode.ExtensionContext, on: boolean): Promise<void> {
+  traduccionError = null;
+  if (!on) {
+    await context.globalState.update(TRADUCCION_ACTIVO_KEY, false);
+    await stopTranslation();
+    message = "Servicio de traducción apagado.";
+    return;
+  }
+  if (servidorTraduccion?.activo) {
+    return;
+  }
+  const { baseURL } = readSettings(context);
+  try {
+    await ollamaVersion(baseURL);
+  } catch {
+    traduccionError = "Ollama no responde: arranca el servidor antes de encender la traducción.";
+    return;
+  }
+  const servidor = new ServidorTraduccion(() => {
+    const settings = readSettings(context);
+    return { baseURL: settings.baseURL, model: settings.model };
+  });
+  const puerto = traduccionPuerto(context);
+  // Se asigna antes del `await`: un `stopTranslation()` (dispose) a medio arrancar lo para.
+  servidorTraduccion = servidor;
+  try {
+    await servidor.iniciar(puerto);
+  } catch (err) {
+    if (servidorTraduccion === servidor) {
+      servidorTraduccion = undefined;
+    }
+    traduccionError = err instanceof Error ? err.message : String(err);
+    return;
+  }
+  if (servidorTraduccion !== servidor) {
+    return; // Lo paró `stopTranslation()` mientras arrancaba.
+  }
+  await context.globalState.update(TRADUCCION_ACTIVO_KEY, true);
+  message = `Servicio de traducción escuchando en http://127.0.0.1:${puerto}.`;
+}
+
+/**
+ * Reenciende el servicio al activar la extensión si así se dejó. Lo llama el sondeo de Mente
+ * local cuando Ollama pasa a responder: un intento por transición, sin notificaciones.
+ * Devuelve true si cambió el estado del servicio (para repintar).
+ */
+export async function autoEncenderTraduccion(context: vscode.ExtensionContext): Promise<boolean> {
+  if (!context.globalState.get<boolean>(TRADUCCION_ACTIVO_KEY, false)) {
+    return false;
+  }
+  if (servidorTraduccion?.activo || traduccionEnCurso) {
+    return false;
+  }
+  traduccionEnCurso = true;
+  try {
+    await setTraduccion(context, true);
+  } catch (err) {
+    traduccionError = err instanceof Error ? err.message : String(err);
+  } finally {
+    traduccionEnCurso = false;
+  }
+  return true;
+}
+
+async function setTraduccionPuerto(context: vscode.ExtensionContext, port: number): Promise<void> {
+  if (servidorTraduccion?.activo) {
+    traduccionError = "Apaga el servicio antes de cambiar el puerto.";
+    return;
+  }
+  if (!puertoValido(port)) {
+    traduccionError = "Puerto no válido: usa un número entre 1024 y 65535.";
+    return;
+  }
+  await context.globalState.update(TRADUCCION_PUERTO_KEY, port);
+  traduccionError = null;
+  message = `Puerto del servicio de traducción: ${port}.`;
+}
+
+/** Para la API de traducción (al apagar el check y al desactivar la extensión). */
+export async function stopTranslation(): Promise<void> {
+  const servidor = servidorTraduccion;
+  servidorTraduccion = undefined;
+  await servidor?.parar();
 }
 
 async function enable(context: vscode.ExtensionContext): Promise<void> {
@@ -359,6 +486,12 @@ async function dispatch(context: vscode.ExtensionContext, action: MenteLocalActi
     case "stopServer":
       await stopServerProcess(context);
       return;
+    case "setTraduccion":
+    case "setTraduccionPuerto":
+    case "openChatbot":
+    case "openTraduccion":
+      // Fuera de la cola: los atiende `runAction` (traducción) o el host (abrir pestañas).
+      return;
     case "openModelsDir": {
       const dir = modelsDir();
       try {
@@ -389,6 +522,24 @@ export async function runAction(
     pullController = undefined;
     pullState = null;
     message = "Descarga cancelada.";
+    return;
+  }
+  // La traducción no espera a una descarga larga: va fuera del cerrojo.
+  if (action.type === "setTraduccion" || action.type === "setTraduccionPuerto") {
+    if (traduccionEnCurso) {
+      message = "Espera: hay otra operación del servicio de traducción en curso.";
+      return;
+    }
+    traduccionEnCurso = true;
+    try {
+      await (action.type === "setTraduccion"
+        ? setTraduccion(context, action.on)
+        : setTraduccionPuerto(context, action.port));
+    } catch (err) {
+      traduccionError = err instanceof Error ? err.message : String(err);
+    } finally {
+      traduccionEnCurso = false;
+    }
     return;
   }
   if (inFlight) {

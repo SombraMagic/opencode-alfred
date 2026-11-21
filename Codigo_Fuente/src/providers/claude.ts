@@ -1828,17 +1828,14 @@ export function claudeSessionGroups(): { groups: SessionGroup[]; error?: string 
       if (!validas.length) {
         continue;
       }
-      validas.sort((a, b) => {
-        const activaA = vivas.has(a.id) ? 1 : 0;
-        const activaB = vivas.has(b.id) ? 1 : 0;
-        return activaA !== activaB ? activaB - activaA : b.updated - a.updated;
-      });
+      // La más nueva arriba; las vivas no se adelantan, solo llevan su punto.
+      validas.sort((a, b) => b.updated - a.updated);
       grupos.push({
-        latest: validas.reduce((max, s) => Math.max(max, s.updated), 0),
+        latest: validas[0].updated,
         group: {
           dir,
           name: path.basename(dir) || dir,
-          sessions: validas.slice(0, 15).map((s) => ({
+          sessions: validas.slice(0, 50).map((s) => ({
             id: s.id,
             title: (s.titulo ?? s.primero ?? "").split(/\r?\n/)[0].trim().slice(0, 80) || s.id,
             active: vivas.has(s.id),

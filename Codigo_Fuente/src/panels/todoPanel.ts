@@ -34,6 +34,7 @@ import {
   leerTodoSeguro,
   MAX_DESCRIPCION,
   MAX_PROYECTO,
+  mismoProyecto,
   moverRelativa,
   moverTarea,
   nombreTarea,
@@ -42,6 +43,9 @@ import {
 import { currentTheme, themeLinks, themeScript } from "./theme";
 
 const MAX_ID = 64;
+/** Tope de proyectos del desplegable y vida de la lista de proyectos conocidos. */
+const MAX_PROYECTOS = 100;
+const TTL_CONOCIDOS_MS = 30_000;
 
 type TodoAction =
   | { type: "setEstado"; id: string; estado: EstadoTodo }
@@ -116,13 +120,17 @@ export class TodoPanel {
   private readonly file = todoFile();
   private queue: Promise<void> = Promise.resolve();
   private disposed = false;
+  /** Proyectos de opencode, Claude y VS Code: se calculan aparte (BD, history.jsonl) y se cachean. */
+  private conocidos: string[] = [];
+  private conocidosEn = 0;
+  private calculando = false;
   private readonly vigila = (cur: Stats, prev: Stats): void => {
     if (cur.mtimeMs !== prev.mtimeMs || cur.size !== prev.size) {
       this.sendState();
     }
   };
 
-  static open(context: vscode.ExtensionContext): TodoPanel {
+  static open(context: vscode.ExtensionContext, proyectos?: () => Promise<string[]>): TodoPanel {
     if (TodoPanel.current) {
       TodoPanel.current.reveal();
       return TodoPanel.current;
@@ -132,13 +140,14 @@ export class TodoPanel {
       retainContextWhenHidden: true,
       localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, "media")],
     });
-    TodoPanel.current = new TodoPanel(panel, context.extensionUri);
+    TodoPanel.current = new TodoPanel(panel, context.extensionUri, proyectos);
     return TodoPanel.current;
   }
 
   private constructor(
     panel: vscode.WebviewPanel,
-    private readonly extensionUri: vscode.Uri
+    private readonly extensionUri: vscode.Uri,
+    private readonly fuenteProyectos?: () => Promise<string[]>
   ) {
     this.panel = panel;
     this.panel.webview.html = this.getHtml(this.panel.webview);
@@ -247,7 +256,40 @@ export class TodoPanel {
         proyectos.push(t.proyecto);
       }
     }
+    for (const p of this.conocidos) {
+      if (proyectos.length >= MAX_PROYECTOS) {
+        break;
+      }
+      if (p && p.length <= MAX_PROYECTO && !proyectos.some((q) => mismoProyecto(q, p))) {
+        proyectos.push(p);
+      }
+    }
     this.post({ type: "state", tareas, proyectos, ahora: Date.now() });
+    this.refrescarConocidos();
+  }
+
+  /** Recalcula los proyectos conocidos si la caché caducó; al llegar, repinta solo si cambió la lista. */
+  private refrescarConocidos(): void {
+    if (!this.fuenteProyectos || this.calculando || Date.now() - this.conocidosEn < TTL_CONOCIDOS_MS) {
+      return;
+    }
+    this.calculando = true;
+    this.fuenteProyectos()
+      .then((lista) => {
+        const nuevos = lista.filter((p) => typeof p === "string" && p.trim() !== "");
+        const igual = nuevos.length === this.conocidos.length && nuevos.every((p, i) => p === this.conocidos[i]);
+        this.conocidos = nuevos;
+        if (!igual) {
+          this.conocidosEn = Date.now();
+          this.calculando = false;
+          this.sendState();
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        this.conocidosEn = Date.now();
+        this.calculando = false;
+      });
   }
 
   private post(message: unknown): void {

@@ -45,6 +45,14 @@
   const botonArrancar = $("arrancarServidor");
   const botonParar = $("pararServidor");
 
+  const botonChatbot = $("abrirChatbot");
+  const botonTraduccion = $("abrirTraduccion");
+  const interruptorTraduccion = $("traduccionSwitch");
+  const campoPuerto = $("traduccionPuerto");
+  const botonPuerto = $("guardarPuerto");
+  const urlTraduccion = $("traduccion-url");
+  const estadoTraduccion = $("traduccion-estado");
+
   /** Tareas del host, en el texto del interruptor mientras dura la operación. */
   const TAREAS = {
     instalando: "INSTALANDO…",
@@ -406,6 +414,65 @@
     botonParar.disabled = !s.installed || !s.running || Boolean(s.busy);
   }
 
+  function puertoValido(n) {
+    return Number.isInteger(n) && n >= 1024 && n <= 65535;
+  }
+
+  function revisarPuerto() {
+    if (!estado || !estado.traduccion) {
+      return;
+    }
+    const t = estado.traduccion;
+    const valor = Number(campoPuerto.value);
+    const valido = puertoValido(valor);
+    campoPuerto.classList.toggle("mal", campoPuerto.value !== "" && !valido);
+    botonPuerto.disabled = t.activo || !valido || valor === t.puerto;
+  }
+
+  function pintarTraduccion(s) {
+    const t = s.traduccion;
+    if (!t) {
+      return;
+    }
+    // CHATBOT necesita el servidor de Ollama vivo, como lo pedía Control.
+    botonChatbot.disabled = !s.running;
+    botonChatbot.title = s.running
+      ? "Abrir el chatbot de Mente local"
+      : "Chatbot (Ollama no responde)";
+
+    // Encender exige Ollama respondiendo; apagar se puede siempre.
+    interruptorTraduccion.classList.toggle("on", t.activo);
+    interruptorTraduccion.setAttribute("aria-checked", t.activo ? "true" : "false");
+    interruptorTraduccion.disabled = !t.activo && !s.running;
+    interruptorTraduccion.title = t.activo
+      ? "Apagar el servicio de traducción"
+      : s.running
+        ? "Encender el servicio de traducción"
+        : "Arranca el servidor de Ollama para encender la traducción";
+
+    campoPuerto.disabled = t.activo;
+    if (document.activeElement !== campoPuerto) {
+      campoPuerto.value = String(t.puerto);
+      campoPuerto.classList.remove("mal");
+    }
+    revisarPuerto();
+
+    urlTraduccion.textContent = `http://127.0.0.1:${t.puerto}/traducir`;
+    estadoTraduccion.classList.toggle("ok", t.activo && !t.error);
+    estadoTraduccion.classList.toggle("error", Boolean(t.error));
+    if (t.error) {
+      estadoTraduccion.textContent = t.error;
+    } else if (t.activo) {
+      estadoTraduccion.textContent = s.running
+        ? `Escuchando en el puerto ${t.puerto}${s.model ? ` · modelo ${s.model}` : " · sin modelo PREFERIDO (responde 503)"}.`
+        : `Escuchando en el puerto ${t.puerto}, pero Ollama no responde: las peticiones devuelven 503.`;
+    } else {
+      estadoTraduccion.textContent = s.running
+        ? "Apagado."
+        : "Apagado. Necesita el servidor de Ollama en marcha.";
+    }
+  }
+
   function pintar(s) {
     estado = s;
     const ocupado = Boolean(s.busy);
@@ -431,6 +498,7 @@
     pintarDescarga(s, ocupado);
     pintarInstalacion(s, ocupado);
     pintarServidor(s);
+    pintarTraduccion(s);
     marcarPendientes();
   }
 
@@ -529,6 +597,34 @@
     }
     accion({ type: "setBaseURL", url });
   });
+
+  botonChatbot.addEventListener("click", () => accion({ type: "openChatbot" }));
+  botonTraduccion.addEventListener("click", () => accion({ type: "openTraduccion" }));
+
+  interruptorTraduccion.addEventListener("click", () => {
+    if (!estado || !estado.traduccion) {
+      return;
+    }
+    accion({ type: "setTraduccion", on: !estado.traduccion.activo });
+  });
+
+  function guardarPuerto() {
+    const port = Number(campoPuerto.value);
+    if (!puertoValido(port)) {
+      campoPuerto.classList.add("mal");
+      campoPuerto.focus();
+      return;
+    }
+    accion({ type: "setTraduccionPuerto", port });
+  }
+
+  campoPuerto.addEventListener("input", revisarPuerto);
+  campoPuerto.addEventListener("keydown", (evento) => {
+    if (evento.key === "Enter" && !botonPuerto.disabled) {
+      guardarPuerto();
+    }
+  });
+  botonPuerto.addEventListener("click", guardarPuerto);
 
   window.addEventListener("message", (evento) => {
     const mensaje = evento.data;

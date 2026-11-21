@@ -214,3 +214,37 @@ export async function ollamaRemove(baseURL: string, model: string): Promise<void
     body: JSON.stringify({ model }),
   });
 }
+
+export interface OllamaChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/**
+ * Una respuesta de `/api/chat` sin flujo y sin herramientas. Manda el `signal` del
+ * llamador (tope y cancelación son suyos). Devuelve el texto tal cual, sin limpiar.
+ */
+export async function ollamaChat(
+  baseURL: string,
+  model: string,
+  messages: OllamaChatMessage[],
+  signal: AbortSignal,
+  options: Record<string, unknown> = {}
+): Promise<string> {
+  const data = await ollamaRequest<{ message?: { content?: unknown } }>(
+    baseURL,
+    "/api/chat",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model, messages, stream: false, options }),
+      signal,
+    },
+    0
+  );
+  const content = data?.message?.content;
+  if (typeof content !== "string") {
+    throw new Error("Ollama respondió sin texto.");
+  }
+  return content;
+}
