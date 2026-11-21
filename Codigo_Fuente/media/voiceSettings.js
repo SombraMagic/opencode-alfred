@@ -75,8 +75,7 @@
   /** Muestra el fondo que se está usando y si está fijado. */
   function syncFloor() {
     const locked = Boolean(floorDb);
-    if (sttEngine === "sapi") floorEl.textContent = "Con SAPI escucha Windows: entrada, volumen y filtro no se usan.";
-    else if (locked) floorEl.textContent = `Fondo fijo ${dbText(floorDb)} · abre ${dbText(floorDb + tolerance)}`;
+    if (locked) floorEl.textContent = `Fondo fijo ${dbText(floorDb)} · abre ${dbText(floorDb + tolerance)}`;
     else if (measured != null) floorEl.textContent = `Fondo ${dbText(measured)} · abre ${dbText(measured + tolerance)}`;
     else floorEl.textContent = "Habla algo para medir el fondo.";
 
@@ -98,20 +97,13 @@
     gainVal.textContent = `${inputGain}%`;
   }
 
-  /** Grupos de Whisper/nube y controles que no aplican con SAPI. */
+  /** Grupos de Whisper/nube. Entrada, volumen y filtro valen para los tres motores:
+      con SAPI la extensión graba el micro y le pasa el audio. */
   function syncDictado() {
-    const sapi = sttEngine === "sapi";
     whisperGroup.style.display = sttEngine === "whisper" ? "" : "none";
     cloudGroup.style.display = sttEngine === "nube" ? "" : "none";
     engineHint.textContent = sttSel.selectedOptions[0]?.dataset.hint ?? "";
-    inputSel.disabled = sapi;
-    gainIn.disabled = sapi;
-    denoiseBtn.disabled = sapi;
-    lockBtn.disabled = sapi;
-    toleranceIn.disabled = sapi;
-    denoiseBtn.title = sapi
-      ? "Con SAPI ya filtra Windows. Cambia el motor para usar este filtro."
-      : "Quita retumbe y siseo del micrófono antes de transcribir";
+    denoiseBtn.title = "Quita retumbe y siseo del micrófono antes de transcribir";
     syncNoise();
     syncFloor();
   }

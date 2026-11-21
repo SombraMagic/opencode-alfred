@@ -14,7 +14,7 @@ import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mixToMono, wavToPcm } from "./core/index.js";
+import { mixToMono, noiseFloorDb, denoiseWav, startRecording, wavOf, wavToPcm, type Recorder } from "./core/index.js";
 
 export type SttEngine = "sapi" | "whisper" | "nube";
 
@@ -44,7 +44,27 @@ export const STT_LANGUAGES = [
 export interface SapiHandlers {
   onText(text: string): void;
   onState(state: { listening?: boolean; error?: string }): void;
+  /** Nivel del micro (0..1), unas 10 veces por segundo mientras escucha. */
+  onLevel?(value: number): void;
+  /** Aviso no fatal (p. ej. se vuelve al micro por defecto). */
+  onWarn?(text: string): void;
 }
+
+/** Micro y filtro que SAPI aplica al audio que graba la extensión. */
+export interface SapiMicOptions {
+  device?: number;
+  /** Multiplicador (1 = sin cambios). */
+  gain: number;
+  denoise: boolean;
+  /** Fondo fijado en dBFS; 0/ausente = se mide sobre los últimos 2 s. */
+  floorDb?: number;
+  toleranceDb: number;
+}
+
+/** Bloque mínimo que se filtra (100 ms: la puerta necesita 5 tramos de 20 ms). */
+const DENOISE_BLOCK_BYTES = 3200;
+/** Cola de audio sobre la que se mide el fondo (2 s). */
+const FLOOR_TAIL_BYTES = 64000;
 
 let sapiCounter = 0;
 
@@ -60,29 +80,131 @@ export class SapiDictado {
   private buffer = "";
   private readonly dir = join(tmpdir(), `voz-dictado-${process.pid}-${++sapiCounter}`);
   private failed = false;
+  /** El proceso recibe el audio por stdin (la extensión graba) en vez de abrir el micro. */
+  private streamMode = false;
+  private rec?: Recorder;
+  private pump?: ReturnType<typeof setInterval>;
+  private pending: Buffer = Buffer.alloc(0);
+  private tail: Buffer = Buffer.alloc(0);
+  private opts?: SapiMicOptions;
+  private pumpTicks = 0;
 
   constructor(
     private readonly script: string,
     private readonly language: string,
     private readonly handlers: SapiHandlers,
+    private readonly micOptions?: () => SapiMicOptions,
   ) {}
 
   /** Empieza a escuchar (arranca el proceso si aún no está). */
   start(): void {
-    this.ensure();
+    // La extensión abre el micro con los ajustes del panel; si no puede, SAPI usa el suyo.
+    this.stopRecorder();
+    let rec: Recorder | undefined;
+    if (this.micOptions) {
+      try {
+        this.opts = this.micOptions();
+        rec = startRecording({ device: this.opts.device, gain: this.opts.gain });
+      } catch (err) {
+        this.handlers.onWarn?.(
+          `No se pudo abrir el micrófono elegido (${err instanceof Error ? err.message : String(err)}); se usa el micrófono por defecto de Windows.`,
+        );
+      }
+    }
+    try {
+      // Un proceso ya vivo en el otro modo no sirve: se relanza.
+      if (this.child && this.streamMode !== Boolean(rec)) {
+        const old = this.child;
+        this.child = undefined;
+        old.kill();
+      }
+      this.ensure(Boolean(rec));
+    } catch (err) {
+      rec?.stop();
+      throw err;
+    }
     mkdirSync(this.dir, { recursive: true });
     writeFileSync(join(this.dir, "active"), "");
+    if (rec) this.startPump(rec);
   }
 
   /** Deja de escuchar: la frase en curso aún puede llegar. */
   stop(): void {
+    this.stopRecorder();
+    // Un silencio al final cierra la frase que SAPI tenga abierta (el fin de locución se mide en audio).
+    if (this.streamMode) this.write(Buffer.alloc(32000));
     rmSync(join(this.dir, "active"), { force: true });
     rmSync(join(this.dir, "quit"), { force: true });
+    this.handlers.onLevel?.(0);
   }
 
-  private ensure(): void {
+  private write(data: Buffer) {
+    const stdin = this.child?.stdin;
+    if (stdin && !stdin.destroyed && stdin.writable) stdin.write(data);
+  }
+
+  private stopRecorder() {
+    if (this.pump) clearInterval(this.pump);
+    this.pump = undefined;
+    try {
+      this.rec?.stop();
+    } catch {
+      // Ya cerrado.
+    }
+    this.rec = undefined;
+    this.pending = Buffer.alloc(0);
+    this.tail = Buffer.alloc(0);
+  }
+
+  /** Cada 50 ms pasa a SAPI el audio nuevo (con filtro de ruido si está activo) y mueve el vúmetro. */
+  private startPump(rec: Recorder) {
+    this.rec = rec;
+    this.pumpTicks = 0;
+    this.pump = setInterval(() => {
+      try {
+        let cur = this.rec;
+        if (!cur) return;
+        let chunk = cur.pull();
+        // El búfer del grabador es de 60 s y no circular: se reabre antes de llenarlo.
+        if (cur.remainingMs() < 2000) {
+          chunk = Buffer.concat([chunk, cur.pull()]);
+          cur.stop();
+          cur = startRecording({ device: this.opts?.device, gain: this.opts?.gain });
+          this.rec = cur;
+        }
+        this.feed(chunk);
+        if (++this.pumpTicks % 2 === 0) this.handlers.onLevel?.(cur.level());
+      } catch (err) {
+        this.stopRecorder();
+        this.failed = true;
+        this.handlers.onState({ error: `Se perdió el micrófono: ${err instanceof Error ? err.message : String(err)}` });
+      }
+    }, 50);
+  }
+
+  private feed(chunk: Buffer) {
+    if (chunk.length === 0) return;
+    const o = this.opts;
+    if (!o?.denoise) {
+      this.write(chunk);
+      return;
+    }
+    this.pending = Buffer.concat([this.pending, chunk]);
+    if (this.pending.length < DENOISE_BLOCK_BYTES) return;
+    const block = this.pending;
+    this.pending = Buffer.alloc(0);
+    // Fondo: el fijado en el panel o, si no, el medido en los últimos 2 s (la puerta
+    // necesita una referencia que un bloque de 100 ms de voz no da).
+    this.tail = Buffer.concat([this.tail, block]).subarray(-FLOOR_TAIL_BYTES);
+    const floor = o.floorDb || noiseFloorDb(wavOf(this.tail)) || undefined;
+    const clean = denoiseWav(wavOf(block), { floorDb: floor, toleranceDb: o.toleranceDb });
+    this.write(clean.subarray(44));
+  }
+
+  private ensure(stream: boolean): void {
     if (this.failed) throw new Error("El reconocedor de Windows no arrancó.");
     if (this.child && !this.child.killed) return;
+    this.streamMode = stream;
 
     mkdirSync(this.dir, { recursive: true });
     rmSync(join(this.dir, "quit"), { force: true });
@@ -100,10 +222,13 @@ export class SapiDictado {
         this.dir,
         "-Culture",
         this.language,
+        ...(stream ? ["-Stream"] : []),
       ],
       { windowsHide: true },
     );
     this.child = child;
+    // Cerrar el proceso con el flujo a medias no debe tumbar la extensión por un EPIPE.
+    child.stdin?.on("error", () => {});
 
     child.stdout?.on("data", (chunk: Buffer) => {
       this.buffer += chunk.toString("utf8");
@@ -116,7 +241,10 @@ export class SapiDictado {
       if (text) this.handlers.onState({ error: text });
     });
     child.on("exit", () => {
+      if (this.child !== child) return; // relanzado en otro modo: este ya no cuenta
+      this.stopRecorder();
       this.child = undefined;
+      this.handlers.onLevel?.(0);
       if (!this.failed) this.handlers.onState({ listening: false });
     });
     child.on("error", (err) => {
@@ -130,8 +258,20 @@ export class SapiDictado {
     if (!text.startsWith("{")) return;
     try {
       const ev = JSON.parse(text);
-      if (ev.ev === "final" && ev.text) this.handlers.onText(String(ev.text));
-      else if (ev.ev === "state") this.handlers.onState({ listening: Boolean(ev.listening) });
+      if (ev.ev === "level") {
+        // Con flujo el vúmetro sale del grabador de la extensión.
+        if (this.streamMode && this.rec) return;
+        // Solo con el micro activo: un evento tardío tras stop() no debe reanimar el vúmetro.
+        if (existsSync(join(this.dir, "active"))) {
+          this.handlers.onLevel?.(Math.max(0, Math.min(1, Number(ev.value) / 100 || 0)));
+        }
+      } else if (ev.ev === "final" && ev.text) this.handlers.onText(String(ev.text));
+      else if (ev.ev === "warn") {
+        // El flujo falló y SAPI abrió el micro por defecto: el audio de la extensión ya no se lee.
+        this.stopRecorder();
+        this.streamMode = false;
+        this.handlers.onWarn?.(String(ev.text ?? "Se usa el micrófono por defecto de Windows."));
+      } else if (ev.ev === "state") this.handlers.onState({ listening: Boolean(ev.listening) });
       else if (ev.ev === "error") {
         this.failed = true;
         this.handlers.onState({ error: String(ev.text ?? "error del reconocedor") });
@@ -142,6 +282,8 @@ export class SapiDictado {
   }
 
   dispose() {
+    this.stopRecorder();
+    this.handlers.onLevel?.(0);
     if (!this.child) return;
     try {
       writeFileSync(join(this.dir, "quit"), "");
@@ -149,6 +291,7 @@ export class SapiDictado {
       // La carpeta pudo desaparecer: el proceso también acabará.
     }
     const child = this.child;
+    child.stdin?.end(); // fin de audio: el script sale solo
     setTimeout(() => child.kill(), 1500);
     this.child = undefined;
   }

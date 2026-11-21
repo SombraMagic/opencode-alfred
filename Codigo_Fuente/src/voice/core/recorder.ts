@@ -2,7 +2,8 @@
  * Grabación del micrófono por waveIn (winmm) para los motores que necesitan
  * audio: Whisper local y la nube.
  *
- * SAPI no pasa por aquí: su reconocedor escucha directamente.
+ * SAPI también: la extensión graba y le pasa el PCM por stdin (`pull`), con
+ * respaldo al micro por defecto de Windows si esto falla.
  *
  * Se reserva el búfer entero al empezar (60 s) y se recorta al soltar. Es más
  * simple que reciclar trozos pequeños y no pierde audio: a 16 kHz mono 16-bit
@@ -32,6 +33,10 @@ export interface Recording {
 
 export interface Recorder {
   stop(): Recording;
+  /** PCM 16-bit nuevo desde la última llamada (con la ganancia aplicada), para el dictado en directo. */
+  pull(): Buffer;
+  /** Milisegundos que le quedan al búfer antes de llenarse (el grabador no es circular). */
+  remainingMs(): number;
   /** Nivel capturado desde el último sondeo (0..1), para el vúmetro. */
   level(): number;
   /** Nivel RMS puro sin ganancia de los últimos `ms` (0..1), para el detector de silencio. */
@@ -171,8 +176,25 @@ export function startRecording(opts: RecordOptions = {}): Recorder {
   if (start !== 0) fail("arrancar", start);
 
   let stopped = false;
+  let pulled = 0;
 
   return {
+    pull(): Buffer {
+      if (stopped) return Buffer.alloc(0);
+      const bytes = readRecorded(hdrPtr);
+      const count = Math.floor((bytes - pulled) / 2);
+      if (count <= 0) return Buffer.alloc(0);
+      const arr = koffi.decode(dataPtr, pulled, "int16", count) as Int16Array;
+      const out = Buffer.alloc(count * 2);
+      for (let i = 0; i < count; i++) {
+        out.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(arr[i] * gain))), i * 2);
+      }
+      pulled += count * 2;
+      return out;
+    },
+    remainingMs(): number {
+      return Math.max(0, Math.round(((BUFFER_BYTES - readRecorded(hdrPtr)) / 2 / RECORD_RATE) * 1000));
+    },
     level(): number {
       if (stopped) return 0;
       // Sólo el último tramo (100 ms), no el búfer entero.

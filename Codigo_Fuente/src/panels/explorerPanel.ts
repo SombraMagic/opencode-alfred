@@ -123,6 +123,8 @@ export class ExplorerPanel implements vscode.WebviewViewProvider {
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
     this.ready = false;
+    // Carpeta de trabajo junto al título de la sección.
+    view.description = vscode.workspace.workspaceFolders?.[0]?.name;
     view.webview.options = {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "media")],

@@ -370,6 +370,8 @@ export class VozDictado {
     if (!this.sapi) {
       this.sapi = new SapiDictado(join(this.context.extensionUri.fsPath, "resources", "stt-sapi.ps1"), s.language, {
         onText: (text) => this.post({ type: "text", text }),
+        onLevel: (value) => this.post({ type: "level", value }),
+        onWarn: (text) => this.state("listening", text),
         onState: (st) => {
           if (st.error) {
             const old = this.sapi;
@@ -379,6 +381,16 @@ export class VozDictado {
             this.state("error", st.error);
           }
         },
+      }, () => {
+        // Se relee en cada pulsación: dispositivo, ganancia y filtro siguen al panel.
+        const c = this.settings();
+        return {
+          device: c.inputDevice,
+          gain: c.inputGain / 100,
+          denoise: c.denoise,
+          floorDb: c.noiseFloor || undefined,
+          toleranceDb: c.tolerance,
+        };
       });
     }
     this.post({ type: "engine", engine: s.engine });
@@ -402,7 +414,12 @@ export class VozDictado {
         return;
       }
 
-      // Whisper y nube: el micrófono lo abre la extensión.
+      // Whisper y nube: el micrófono lo abre la extensión. Si quedó un temporizador o una
+      // grabación de una pulsación anterior (suelta perdida), se cierran antes: un
+      // intervalo huérfano ya no se podría limpiar y el grabador viejo seguiría abierto.
+      if (this.levelTimer) clearInterval(this.levelTimer);
+      this.levelTimer = undefined;
+      this.recorder?.stop();
       this.recorder = startRecording(this.recorderOptions());
       this.post({ type: "engine", engine: s.engine });
       this.levelTimer = setInterval(() => {
@@ -480,6 +497,7 @@ export class VozDictado {
         this.pauseDetector.reset(Date.now());
         this.ticking = false;
         this.post({ type: "engine", engine: s.engine });
+        if (this.levelTimer) clearInterval(this.levelTimer);
         this.levelTimer = setInterval(() => void this.tick(), 100);
       } catch (err) {
         this.offHandsFree();
@@ -495,6 +513,7 @@ export class VozDictado {
     }
     if (this.levelTimer) clearInterval(this.levelTimer);
     this.levelTimer = undefined;
+    this.post({ type: "level", value: 0 });
     await this.cutChunk();
   }
 
@@ -504,6 +523,7 @@ export class VozDictado {
     if (this.levelTimer) clearInterval(this.levelTimer);
     this.levelTimer = undefined;
     this.ticking = false;
+    this.post({ type: "level", value: 0 });
     this.post({ type: "handsFree", on: false });
   }
 
