@@ -52,7 +52,7 @@ import { toMarkdown } from "../chatbot/export";
 import type { ChatEvent, ChatMessage, ChatMetrics, Conversation, ModelCapabilities } from "../chatbot/types";
 import { generateWithSettings } from "../images/generateWith";
 import { ollamaTags } from "../ollama/client";
-import { readSettings as readMenteSettings } from "../ollama/service";
+import { liveState as liveMenteState, readSettings as readMenteSettings, runAction as runMenteAction } from "../ollama/service";
 import { writeAtomic } from "../pizarra/files";
 import { speak } from "../voice/service.js";
 import { KEY_OPENAI, imagenesDir, readSettings as readImageSettings } from "./imageGenPanel";
@@ -352,7 +352,8 @@ export class ChatbotPanel {
     }
     this.locked = !!lockReason;
     const names = installed.map((m) => m.name);
-    const model = [prefs.model, menteLocal.model].find((n) => n && names.includes(n)) ?? names[0] ?? "";
+    // Siempre el PREFERIDO de Mente local; si no está instalado, el primero.
+    const model = names.includes(menteLocal.model) ? menteLocal.model : names[0] ?? "";
     const capabilities =
       model && !this.locked
         ? await this.capabilities(menteLocal.baseURL, model)
@@ -459,7 +460,14 @@ export class ChatbotPanel {
         return;
       }
       case "setModel":
-        await this.savePrefs({ model: action.model });
+        // El modelo del chatbot es el PREFERIDO de Mente local. `runAction` no lanza: si hay una
+        // operación larga en vuelo o falla, el motivo queda en `message` y el PREFERIDO no cambia.
+        await runMenteAction(this.context, { type: "setModel", model: action.model });
+        if (readMenteSettings(this.context).model !== action.model) {
+          void vscode.window.showWarningMessage(
+            `Chatbot: no se pudo cambiar el modelo preferido. ${liveMenteState().message ?? ""}`.trim()
+          );
+        }
         await this.sendState();
         return;
       case "setParams":
