@@ -4350,7 +4350,8 @@
       const vx = -Math.sin(o.rot);
       const vy = Math.cos(o.rot);
       const w = clamp((dx * ux + dy * uy) / drag.sx, 12, W * 2);
-      const h = w / (drag.aspect || 1);
+      // Con Mayús se suelta el ratio: el alto sigue al puntero por el eje vertical del objeto.
+      const h = event.shiftKey ? clamp((dx * vx + dy * vy) / drag.sy, 12, H * 2) : w / (drag.aspect || 1);
       o.w = w;
       o.h = h;
       // El asa de en frente no se mueve: el centro se recomputa desde ella.
