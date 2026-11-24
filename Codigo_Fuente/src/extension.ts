@@ -1879,9 +1879,8 @@ export function activate(context: vscode.ExtensionContext): void {
       });
       return;
     }
-    if (models.length === 0) {
-      await refreshModels();
-    }
+    // Siempre se relee: un conector nuevo cambia la lista viva y `models` solo se llenaba una vez.
+    await refreshModels();
     // Los modelos que ya tienen los agentes entran en el primer grupo: así el tablero dibuja su
     // línea al abrir y quitarlos es arrastrarlos, sin buscarlos antes. Solo si ese grupo está vacío.
     const first = favoriteGroups[0];
@@ -2306,6 +2305,11 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }
     connectorsData = data;
+    // Activar, conectar o borrar un conector cambia la lista viva de modelos: si el tablero de
+    // asignación está abierto con opencode, se relee y se repinta sin esperar a reiniciar.
+    if (refresh && AssignPanel.current && assignKind === "opencode") {
+      void refreshModels().then(() => AssignPanel.current?.update(assignData()));
+    }
     applyCachedLimits(data);
     // La sonda no bloquea el pintado: al terminar, repinta solo si este catálogo sigue
     // siendo el vigente (identidad). Un repintado viejo cerraría el formulario de alta
